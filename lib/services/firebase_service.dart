@@ -1,16 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import '../models/memory.dart';
 
 /// Единый сервис для работы с Firebase.
-/// Хитрости для бесплатности:
-///  • Минимум документов — 1 user + 1 inviteCode + 1 pair на пару
-///  • Кэшируем локально, читаем из Firestore только при старте
-///  • Слушаем ОДИН документ пары (1 snapshot listener = мало чтений)
-///  • Не используем Cloud Functions (они платные)
+/// Поддерживает группы от 2 до 10 участников + совместные воспоминания.
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._();
   factory FirebaseService() => _instance;
@@ -18,6 +17,7 @@ class FirebaseService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   // ══════════════════════════════════════════════
@@ -28,11 +28,10 @@ class FirebaseService {
   bool get isLoggedIn => _auth.currentUser != null;
   String? get uid => _auth.currentUser?.uid;
 
-  /// Вход через Google → Firebase Auth (бесплатно и безлимитно)
   Future<User?> signInWithGoogle() async {
     try {
       final googleAccount = await _googleSignIn.signIn();
-      if (googleAccount == null) return null; // пользователь отменил
+      if (googleAccount == null) return null;
 
       final googleAuth = await googleAccount.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -47,9 +46,7 @@ class FirebaseService {
 
       debugPrint('Firebase Auth success: ${user.uid}');
 
-      // Создаём/обновляем документ пользователя (1 запись)
       try {
-        debugPrint('Firestore: saving user profile...');
         await _db
             .collection('users')
             .doc(user.uid)
@@ -60,10 +57,8 @@ class FirebaseService {
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true))
             .timeout(const Duration(seconds: 10));
-        debugPrint('Firestore: user profile saved');
       } catch (e) {
         debugPrint('Firestore save failed: $e');
-        // Продолжаем даже если Firestore не работает
       }
 
       return user;
@@ -73,7 +68,6 @@ class FirebaseService {
     }
   }
 
-  /// Выход
   Future<void> signOut() async {
     try {
       if (await _googleSignIn.isSignedIn()) {
@@ -87,7 +81,6 @@ class FirebaseService {
   //  USER PROFILE
   // ══════════════════════════════════════════════
 
-  /// Сохраняет профиль в Firestore (1 запись)
   Future<void> saveUserProfile({
     required String displayName,
     required String email,
@@ -113,7 +106,6 @@ class FirebaseService {
     }
   }
 
-  /// Загружает профиль (1 чтение)
   Future<Map<String, dynamic>?> loadUserProfile() async {
     final u = currentUser;
     if (u == null) return null;
@@ -131,20 +123,14 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
-  //  INVITE CODES — Реальное приглашение
+  //  INVITE CODES
   // ══════════════════════════════════════════════
 
-  /// Генерация и сохранение инвайт-кода (2 записи: user + inviteCodes)
   Future<String> generateInviteCode() async {
     final u = currentUser;
-    if (u == null) {
-      debugPrint('generateInviteCode: not logged in, returning empty');
-      return ''; // Вернём пустую строку если не авторизован
-    }
+    if (u == null) return '';
 
     try {
-      // Проверяем, нет ли уже кода
-      debugPrint('Firestore: checking existing invite code...');
       final userDoc = await _db
           .collection('users')
           .doc(u.uid)
@@ -152,11 +138,9 @@ class FirebaseService {
           .timeout(const Duration(seconds: 10));
       final existingCode = userDoc.data()?['inviteCode'] as String?;
       if (existingCode != null && existingCode.isNotEmpty) {
-        debugPrint('Invite code exists: $existingCode');
         return existingCode;
       }
 
-      // Генерим уникальный код
       String code;
       bool exists;
       do {
@@ -169,8 +153,6 @@ class FirebaseService {
         exists = codeDoc.exists;
       } while (exists);
 
-      debugPrint('Firestore: saving invite code $code...');
-      // Сохраняем код → владелец
       final batch = _db.batch();
       batch.set(_db.collection('inviteCodes').doc(code), {
         'ownerUid': u.uid,
@@ -179,27 +161,22 @@ class FirebaseService {
       batch.update(_db.collection('users').doc(u.uid), {'inviteCode': code});
       await batch.commit().timeout(const Duration(seconds: 10));
 
-      debugPrint('Invite code saved: $code');
       return code;
     } catch (e) {
       debugPrint('generateInviteCode failed: $e');
-      return ''; // Возвращаем пустую строку при ошибке
+      return '';
     }
   }
 
-  /// Генерация НОВОГО уникального кода (для каждой группы свой).
-  /// Не проверяет существующий код пользователя — всегда генерирует новый.
   Future<String> generateNewInviteCode({String? oldCode}) async {
     final u = currentUser;
     if (u == null) return '';
 
     try {
-      // Удаляем старый код если передан
       if (oldCode != null && oldCode.isNotEmpty) {
         await _db.collection('inviteCodes').doc(oldCode).delete();
       }
 
-      // Генерим уникальный код
       String code;
       bool exists;
       do {
@@ -212,14 +189,12 @@ class FirebaseService {
         exists = codeDoc.exists;
       } while (exists);
 
-      debugPrint('Firestore: saving new invite code $code...');
       await _db
           .collection('inviteCodes')
           .doc(code)
           .set({'ownerUid': u.uid, 'createdAt': FieldValue.serverTimestamp()})
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('New invite code saved: $code');
       return code;
     } catch (e) {
       debugPrint('generateNewInviteCode failed: $e');
@@ -227,128 +202,343 @@ class FirebaseService {
     }
   }
 
-  /// Перегенерация кода (удаляем старый, создаём новый)
+  /// Create invite code tied to a specific group (for adding more members)
+  Future<String> generateGroupInviteCode(
+    String groupId, {
+    String? oldCode,
+  }) async {
+    final u = currentUser;
+    if (u == null) return '';
+
+    try {
+      if (oldCode != null && oldCode.isNotEmpty) {
+        await _db.collection('inviteCodes').doc(oldCode).delete();
+      }
+
+      String code;
+      bool exists;
+      do {
+        code = _generateCode();
+        final codeDoc = await _db
+            .collection('inviteCodes')
+            .doc(code)
+            .get()
+            .timeout(const Duration(seconds: 5));
+        exists = codeDoc.exists;
+      } while (exists);
+
+      await _db
+          .collection('inviteCodes')
+          .doc(code)
+          .set({
+            'ownerUid': u.uid,
+            'groupId': groupId,
+            'createdAt': FieldValue.serverTimestamp(),
+          })
+          .timeout(const Duration(seconds: 10));
+
+      return code;
+    } catch (e) {
+      debugPrint('generateGroupInviteCode failed: $e');
+      return '';
+    }
+  }
+
   Future<String> regenerateInviteCode({String? oldCode}) async {
     return generateNewInviteCode(oldCode: oldCode);
   }
 
   // ══════════════════════════════════════════════
-  //  PAIRING — Реальное подключение партнёра
+  //  GROUPS (replaces old PAIRING)
+  //
+  //  Firestore structure:
+  //    groups/{groupId}:
+  //      members: [uid1, uid2, ...]
+  //      memberNames: {uid1: "Alice", uid2: "Bob"}
+  //      memberAvatars: {uid1: "url", uid2: "url"}
+  //      maxMembers: 2 | 10
+  //      startDate: Timestamp
+  //      createdAt: Timestamp
+  //
+  //    users/{uid}:
+  //      pairId: "last groupId" (legacy compat)
+  //      pairIds: ["groupId1", "groupId2"]
   // ══════════════════════════════════════════════
 
-  /// Ввод кода партнёра → создание пары
-  /// Возвращает {success, message, partnerName}
+  /// Accept invite code → join or create a group.
   Future<Map<String, dynamic>> acceptInviteCode(String code) async {
     final u = currentUser;
     if (u == null) return {'success': false, 'message': 'Не авторизован'};
 
     code = code.toUpperCase().trim();
 
-    // 1. Находим код (1 чтение)
     final codeDoc = await _db.collection('inviteCodes').doc(code).get();
     if (!codeDoc.exists) {
       return {'success': false, 'message': 'Код не найден'};
     }
 
     final ownerUid = codeDoc.data()!['ownerUid'] as String;
-
-    // Нельзя пригласить себя
     if (ownerUid == u.uid) {
       return {'success': false, 'message': 'Это ваш собственный код!'};
     }
 
-    // 2. Проверяем что владелец не в паре (1 чтение)
+    // Check if there's a groupId tied to this code
+    final codeGroupId = codeDoc.data()!['groupId'] as String?;
+
     final ownerDoc = await _db.collection('users').doc(ownerUid).get();
     if (!ownerDoc.exists) {
       return {'success': false, 'message': 'Пользователь не найден'};
     }
-    if ((ownerDoc.data()?['pairId'] ?? '').toString().isNotEmpty) {
-      return {'success': false, 'message': 'Этот человек уже в паре'};
+    final ownerData = ownerDoc.data()!;
+
+    final myDoc = await _db.collection('users').doc(u.uid).get();
+    final myData = myDoc.data() ?? {};
+
+    // If code has a groupId → join existing group
+    if (codeGroupId != null && codeGroupId.isNotEmpty) {
+      return _joinExistingGroup(
+        groupId: codeGroupId,
+        code: code,
+        myData: myData,
+      );
     }
 
-    // 3. Загружаем свой профиль (мульти-группы: разрешаем несколько пар)
-    final myDoc = await _db.collection('users').doc(u.uid).get();
-
-    // 4. Создаём документ пары (1 запись)
-    final pairRef = _db.collection('pairs').doc();
+    // Otherwise create a new 2-person group (pair)
+    final groupRef = _db.collection('groups').doc();
     final now = FieldValue.serverTimestamp();
-    final ownerData = ownerDoc.data()!;
-    final myData = myDoc.data()!;
 
     final batch = _db.batch();
 
-    // Документ пары
-    batch.set(pairRef, {
-      'user1': ownerUid,
-      'user1Name': ownerData['displayName'] ?? 'Партнёр',
-      'user1Avatar': ownerData['avatarUrl'] ?? '',
-      'user2': u.uid,
-      'user2Name': myData['displayName'] ?? u.displayName ?? 'Партнёр',
-      'user2Avatar': myData['avatarUrl'] ?? u.photoURL ?? '',
+    batch.set(groupRef, {
+      'members': [ownerUid, u.uid],
+      'memberNames': {
+        ownerUid: ownerData['displayName'] ?? 'Partner',
+        u.uid: myData['displayName'] ?? u.displayName ?? 'Partner',
+      },
+      'memberAvatars': {
+        ownerUid: ownerData['avatarUrl'] ?? '',
+        u.uid: myData['avatarUrl'] ?? u.photoURL ?? '',
+      },
+      'maxMembers': 2,
       'startDate': now,
       'createdAt': now,
     });
 
-    // Обновляем обоих пользователей (pairId = последний, pairIds = массив всех)
     batch.update(_db.collection('users').doc(ownerUid), {
-      'pairId': pairRef.id,
-      'pairIds': FieldValue.arrayUnion([pairRef.id]),
+      'pairId': groupRef.id,
+      'pairIds': FieldValue.arrayUnion([groupRef.id]),
     });
     batch.update(_db.collection('users').doc(u.uid), {
-      'pairId': pairRef.id,
-      'pairIds': FieldValue.arrayUnion([pairRef.id]),
+      'pairId': groupRef.id,
+      'pairIds': FieldValue.arrayUnion([groupRef.id]),
     });
 
-    // Удаляем оба инвайт-кода — они больше не нужны
     batch.delete(_db.collection('inviteCodes').doc(code));
-    final myCode = myData['inviteCode'] as String?;
-    if (myCode != null && myCode.isNotEmpty) {
-      batch.delete(_db.collection('inviteCodes').doc(myCode));
-    }
 
-    await batch.commit(); // 1 батч-запись
+    await batch.commit();
 
     return {
       'success': true,
-      'message': 'Вы в паре!',
-      'partnerName': ownerData['displayName'] ?? 'Партнёр',
+      'message': 'Connected!',
+      'partnerName': ownerData['displayName'] ?? 'Partner',
       'partnerAvatar': ownerData['avatarUrl'] ?? '',
-      'pairId': pairRef.id,
-      'startDate': DateTime.now(), // server timestamp не вернётся сразу
+      'pairId': groupRef.id,
+      'startDate': DateTime.now(),
+      'members': [
+        {
+          'uid': ownerUid,
+          'name': ownerData['displayName'] ?? 'Partner',
+          'avatar': ownerData['avatarUrl'] ?? '',
+        },
+        {
+          'uid': u.uid,
+          'name': myData['displayName'] ?? u.displayName ?? 'You',
+          'avatar': myData['avatarUrl'] ?? u.photoURL ?? '',
+        },
+      ],
     };
   }
 
-  /// Загружает данные пары по pairId напрямую (1 чтение документа pairs)
-  /// Используется когда Connection уже знает свой pairId.
+  Future<Map<String, dynamic>> _joinExistingGroup({
+    required String groupId,
+    required String code,
+    required Map<String, dynamic> myData,
+  }) async {
+    final u = currentUser!;
+    final groupDoc = await _db.collection('groups').doc(groupId).get();
+    if (!groupDoc.exists) {
+      return {'success': false, 'message': 'Group not found'};
+    }
+
+    final groupData = groupDoc.data()!;
+    final members = List<String>.from(groupData['members'] ?? []);
+    final maxMembers = (groupData['maxMembers'] as int?) ?? 10;
+
+    if (members.contains(u.uid)) {
+      return {'success': false, 'message': 'Вы уже в этой группе'};
+    }
+    if (members.length >= maxMembers) {
+      return {
+        'success': false,
+        'message': 'Группа заполнена (макс $maxMembers)',
+      };
+    }
+
+    final myName = myData['displayName'] ?? u.displayName ?? 'Partner';
+    final myAvatar = myData['avatarUrl'] ?? u.photoURL ?? '';
+
+    final batch = _db.batch();
+
+    batch.update(_db.collection('groups').doc(groupId), {
+      'members': FieldValue.arrayUnion([u.uid]),
+      'memberNames.${u.uid}': myName,
+      'memberAvatars.${u.uid}': myAvatar,
+    });
+
+    batch.update(_db.collection('users').doc(u.uid), {
+      'pairId': groupId,
+      'pairIds': FieldValue.arrayUnion([groupId]),
+    });
+
+    // Keep code for groups (others may still need it) unless full
+    if (members.length + 1 >= maxMembers) {
+      batch.delete(_db.collection('inviteCodes').doc(code));
+    }
+
+    await batch.commit();
+
+    final memberNames = Map<String, dynamic>.from(
+      groupData['memberNames'] ?? {},
+    );
+    final memberAvatars = Map<String, dynamic>.from(
+      groupData['memberAvatars'] ?? {},
+    );
+    memberNames[u.uid] = myName;
+    memberAvatars[u.uid] = myAvatar;
+
+    final otherUid = members.first;
+    return {
+      'success': true,
+      'message': 'Joined the group!',
+      'partnerName': memberNames[otherUid] ?? 'Partner',
+      'partnerAvatar': memberAvatars[otherUid] ?? '',
+      'pairId': groupId,
+      'startDate':
+          (groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      'members': [...members, u.uid]
+          .map(
+            (uid) => {
+              'uid': uid,
+              'name': memberNames[uid] ?? '',
+              'avatar': memberAvatars[uid] ?? '',
+            },
+          )
+          .toList(),
+    };
+  }
+
+  /// Update group maxMembers
+  Future<void> updateGroupMaxMembers(String groupId, int maxMembers) async {
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'maxMembers': maxMembers,
+      });
+    } catch (e) {
+      debugPrint('updateGroupMaxMembers failed: $e');
+    }
+  }
+
+  /// Load group data by groupId
   Future<Map<String, dynamic>?> loadPairById(String pairId) async {
     final u = currentUser;
     if (u == null || pairId.isEmpty) return null;
 
     try {
-      final pairDoc = await _db
-          .collection('pairs')
+      final doc = await _db
+          .collection('groups')
           .doc(pairId)
           .get()
           .timeout(const Duration(seconds: 10));
-      if (!pairDoc.exists) return null;
 
-      final data = pairDoc.data()!;
-      final isUser1 = data['user1'] == u.uid;
-      return {
-        'pairId': pairId,
-        'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
-        'partnerAvatar': isUser1 ? data['user2Avatar'] : data['user1Avatar'],
-        'startDate': (data['startDate'] as Timestamp?)?.toDate(),
-        'raw': data,
-      };
+      if (!doc.exists) {
+        // Backward compat: try 'pairs' collection
+        final pairDoc = await _db
+            .collection('pairs')
+            .doc(pairId)
+            .get()
+            .timeout(const Duration(seconds: 10));
+        if (!pairDoc.exists) return null;
+        return _parseLegacyPairDoc(pairId, pairDoc.data()!);
+      }
+
+      return _parseGroupDoc(pairId, doc.data()!);
     } catch (e) {
       debugPrint('loadPairById($pairId) failed: $e');
       return null;
     }
   }
 
-  /// Загружает данные последней пары из профиля (2 чтения: user + pair).
-  /// Используется только для первичного обнаружения пары, когда pairId неизвестен.
+  Map<String, dynamic> _parseGroupDoc(
+    String groupId,
+    Map<String, dynamic> data,
+  ) {
+    final u = currentUser!;
+    final members = List<String>.from(data['members'] ?? []);
+    final memberNames = Map<String, dynamic>.from(data['memberNames'] ?? {});
+    final memberAvatars = Map<String, dynamic>.from(
+      data['memberAvatars'] ?? {},
+    );
+
+    final otherUids = members.where((m) => m != u.uid).toList();
+    final partnerUid = otherUids.isNotEmpty ? otherUids.first : '';
+
+    return {
+      'pairId': groupId,
+      'partnerName': memberNames[partnerUid] ?? '',
+      'partnerAvatar': memberAvatars[partnerUid] ?? '',
+      'startDate': (data['startDate'] as Timestamp?)?.toDate(),
+      'members': members
+          .map(
+            (uid) => {
+              'uid': uid,
+              'name': memberNames[uid] ?? '',
+              'avatar': memberAvatars[uid] ?? '',
+            },
+          )
+          .toList(),
+      'maxMembers': data['maxMembers'] ?? 2,
+      'raw': data,
+    };
+  }
+
+  Map<String, dynamic> _parseLegacyPairDoc(
+    String pairId,
+    Map<String, dynamic> data,
+  ) {
+    final u = currentUser!;
+    final isUser1 = data['user1'] == u.uid;
+    return {
+      'pairId': pairId,
+      'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
+      'partnerAvatar': isUser1 ? data['user2Avatar'] : data['user1Avatar'],
+      'startDate': (data['startDate'] as Timestamp?)?.toDate(),
+      'members': [
+        {
+          'uid': data['user1'],
+          'name': data['user1Name'] ?? '',
+          'avatar': data['user1Avatar'] ?? '',
+        },
+        {
+          'uid': data['user2'],
+          'name': data['user2Name'] ?? '',
+          'avatar': data['user2Avatar'] ?? '',
+        },
+      ],
+      'maxMembers': 2,
+      'raw': data,
+    };
+  }
+
   Future<Map<String, dynamic>?> loadPairData() async {
     final u = currentUser;
     if (u == null) return null;
@@ -369,84 +559,114 @@ class FirebaseService {
     }
   }
 
-  /// Слушаем изменения пары в реальном времени (1 snapshot listener)
-  /// Хитрость: snapshot listener считается как 1 чтение при подключении
-  /// + 1 чтение за каждое изменение. Для пары = почти ничего.
-  /// Слушаем КОНКРЕТНУЮ пару. Не отменяем предыдущие подписки —
-  /// у каждой Connection свой listener.
+  /// Listen to group changes in real-time
   StreamSubscription? listenToPair({
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
-    return _db.collection('pairs').doc(pairId).snapshots().listen((snap) {
+    return _db.collection('groups').doc(pairId).snapshots().listen((snap) {
       if (snap.exists) {
-        final data = snap.data()!;
-        final isUser1 = data['user1'] == uid;
-        onData({
-          'pairId': pairId,
-          'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
-          'partnerAvatar': isUser1 ? data['user2Avatar'] : data['user1Avatar'],
-          'startDate': (data['startDate'] as Timestamp?)?.toDate(),
-          'raw': data,
-        });
+        onData(_parseGroupDoc(pairId, snap.data()!));
       } else {
-        onData(null);
+        // Fallback: try legacy pairs collection
+        _db
+            .collection('pairs')
+            .doc(pairId)
+            .get()
+            .then((pairSnap) {
+              if (pairSnap.exists) {
+                onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
+              } else {
+                onData(null);
+              }
+            })
+            .catchError((_) {
+              onData(null);
+            });
       }
     });
   }
 
-  /// Разорвать конкретную пару (по pairId)
-  Future<void> unpairById(String pairId) async {
+  /// Remove me from a group (or delete if ≤2 members)
+  Future<void> unpairById(String groupId) async {
     final u = currentUser;
-    if (u == null || pairId.isEmpty) return;
+    if (u == null || groupId.isEmpty) return;
 
-    final pairDoc = await _db.collection('pairs').doc(pairId).get();
+    var groupDoc = await _db.collection('groups').doc(groupId).get();
+
+    if (groupDoc.exists) {
+      final data = groupDoc.data()!;
+      final members = List<String>.from(data['members'] ?? []);
+
+      if (members.length <= 2) {
+        // Delete the whole group
+        final batch = _db.batch();
+        batch.delete(_db.collection('groups').doc(groupId));
+        for (final member in members) {
+          batch.update(_db.collection('users').doc(member), {
+            'pairIds': FieldValue.arrayRemove([groupId]),
+          });
+        }
+        await batch.commit();
+
+        for (final member in members) {
+          final memberDoc = await _db.collection('users').doc(member).get();
+          final remaining =
+              (memberDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
+          await _db.collection('users').doc(member).update({
+            'pairId': remaining.isNotEmpty ? remaining.last : '',
+          });
+        }
+      } else {
+        // Just leave the group
+        final batch = _db.batch();
+        batch.update(_db.collection('groups').doc(groupId), {
+          'members': FieldValue.arrayRemove([u.uid]),
+          'memberNames.${u.uid}': FieldValue.delete(),
+          'memberAvatars.${u.uid}': FieldValue.delete(),
+        });
+        batch.update(_db.collection('users').doc(u.uid), {
+          'pairIds': FieldValue.arrayRemove([groupId]),
+        });
+        await batch.commit();
+
+        final myDoc = await _db.collection('users').doc(u.uid).get();
+        final remaining = (myDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
+        await _db.collection('users').doc(u.uid).update({
+          'pairId': remaining.isNotEmpty ? remaining.last : '',
+        });
+      }
+      return;
+    }
+
+    // Fallback: legacy pairs collection
+    final pairDoc = await _db.collection('pairs').doc(groupId).get();
     if (!pairDoc.exists) return;
 
-    final data = pairDoc.data()!;
-    final partnerId = data['user1'] == u.uid ? data['user2'] : data['user1'];
+    final pData = pairDoc.data()!;
+    final partnerId = pData['user1'] == u.uid ? pData['user2'] : pData['user1'];
 
     final batch = _db.batch();
-    batch.delete(_db.collection('pairs').doc(pairId));
-    // Удаляем из массива pairIds и очищаем pairId если это последняя пара
+    batch.delete(_db.collection('pairs').doc(groupId));
     batch.update(_db.collection('users').doc(u.uid), {
-      'pairIds': FieldValue.arrayRemove([pairId]),
+      'pairId': '',
+      'pairIds': FieldValue.arrayRemove([groupId]),
     });
     if (partnerId != null) {
       batch.update(_db.collection('users').doc(partnerId as String), {
-        'pairIds': FieldValue.arrayRemove([pairId]),
+        'pairId': '',
+        'pairIds': FieldValue.arrayRemove([groupId]),
       });
     }
     await batch.commit();
-
-    // Обновляем pairId: ставим другую пару или пустую строку
-    final myDoc = await _db.collection('users').doc(u.uid).get();
-    final remainingPairs = (myDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
-    await _db.collection('users').doc(u.uid).update({
-      'pairId': remainingPairs.isNotEmpty ? remainingPairs.last : '',
-    });
-    if (partnerId != null) {
-      final partnerDoc = await _db
-          .collection('users')
-          .doc(partnerId as String)
-          .get();
-      final partnerPairs =
-          (partnerDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
-      await _db.collection('users').doc(partnerId).update({
-        'pairId': partnerPairs.isNotEmpty ? partnerPairs.last : '',
-      });
-    }
   }
 
-  /// Разорвать пару (legacy — разрывает последнюю)
   Future<void> unpair() async {
     final u = currentUser;
     if (u == null) return;
-
     final userDoc = await _db.collection('users').doc(u.uid).get();
     final pairId = userDoc.data()?['pairId'] as String?;
     if (pairId == null || pairId.isEmpty) return;
-
     await unpairById(pairId);
   }
 
@@ -454,8 +674,6 @@ class FirebaseService {
   //  REAL-TIME LISTENERS
   // ══════════════════════════════════════════════
 
-  /// Слушаем документ текущего юзера в реальном времени.
-  /// Срабатывает при любом изменении (pairId, pairIds, profile и т.д.)
   StreamSubscription? listenToUserDoc({
     required void Function(Map<String, dynamic>? data) onData,
   }) {
@@ -469,6 +687,258 @@ class FirebaseService {
         onData(null);
       }
     });
+  }
+
+  // ══════════════════════════════════════════════
+  //  MEMORIES — shared timeline for each group
+  //  Firestore: groups/{groupId}/memories/{memoryId}
+  // ══════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // FILE UPLOAD (Storage)
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  /// Upload file to Firebase Storage and return download URL
+  /// [path] - file path on device
+  /// [destination] - storage path (e.g. 'memories/groupId/filename.jpg')
+  Future<String?> uploadFile(String path, String destination) async {
+    try {
+      final file = File(path);
+      if (!await file.exists()) {
+        debugPrint('uploadFile: File does not exist: $path');
+        return null;
+      }
+
+      final fileSize = await file.length();
+      debugPrint(
+        'uploadFile: Starting upload of $destination ($fileSize bytes)',
+      );
+      debugPrint('uploadFile: Storage bucket = ${_storage.bucket}');
+
+      final ref = _storage.ref().child(destination);
+
+      // Determine content type from extension
+      final ext = path.split('.').last.toLowerCase();
+      String? contentType;
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+        contentType = 'image/$ext';
+      } else if (['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
+        contentType = 'video/$ext';
+      } else if (['mp3', 'aac', 'wav', 'ogg', 'm4a', 'flac'].contains(ext)) {
+        contentType = 'audio/$ext';
+      }
+
+      final metadata = contentType != null
+          ? SettableMetadata(contentType: contentType)
+          : null;
+
+      final uploadTask = ref.putFile(file, metadata);
+
+      // Monitor upload progress
+      uploadTask.snapshotEvents.listen((event) {
+        final progress = event.bytesTransferred / event.totalBytes;
+        debugPrint(
+          'uploadFile: Progress ${(progress * 100).toStringAsFixed(1)}%',
+        );
+      });
+
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      debugPrint('uploadFile: Success! URL = $downloadUrl');
+      return downloadUrl;
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'uploadFile FirebaseException: code=${e.code} message=${e.message}',
+      );
+      if (e.code == 'object-not-found') {
+        debugPrint(
+          'uploadFile: Firebase Storage bucket may not be activated. '
+          'Go to Firebase Console → Storage → Get Started to enable it.',
+        );
+      }
+      return null;
+    } catch (e) {
+      debugPrint('uploadFile failed: $e');
+      return null;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // MEMORIES (CRUD)
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  Future<Memory?> addMemory({
+    required String groupId,
+    required MemoryType type,
+    String? imageUrl,
+    String? videoUrl,
+    String? caption,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    String? musicTitle,
+    String? musicArtist,
+    String? musicUrl,
+    String? musicCoverUrl,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return null;
+
+    try {
+      final userDoc = await _db.collection('users').doc(u.uid).get();
+      final name = userDoc.data()?['displayName'] ?? u.displayName ?? '';
+      final avatar = userDoc.data()?['avatarUrl'] ?? u.photoURL ?? '';
+
+      final ref = _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .doc();
+      final memory = Memory(
+        id: ref.id,
+        groupId: groupId,
+        authorUid: u.uid,
+        authorName: name,
+        authorAvatar: avatar,
+        type: type,
+        createdAt: DateTime.now(),
+        imageUrl: imageUrl,
+        videoUrl: videoUrl,
+        caption: caption,
+        locationName: locationName,
+        latitude: latitude,
+        longitude: longitude,
+        musicTitle: musicTitle,
+        musicArtist: musicArtist,
+        musicUrl: musicUrl,
+        musicCoverUrl: musicCoverUrl,
+      );
+
+      await ref.set(memory.toFirestore());
+      return memory;
+    } catch (e) {
+      debugPrint('addMemory failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> updateMemory({
+    required String groupId,
+    required String memoryId,
+    String? caption,
+    String? locationName,
+    String? musicTitle,
+    String? musicArtist,
+    String? imageUrl,
+    bool? isPinned,
+  }) async {
+    try {
+      final updates = <String, dynamic>{'editedAt': Timestamp.now()};
+      if (caption != null) updates['caption'] = caption;
+      if (locationName != null) updates['locationName'] = locationName;
+      if (musicTitle != null) updates['musicTitle'] = musicTitle;
+      if (musicArtist != null) updates['musicArtist'] = musicArtist;
+      if (imageUrl != null) updates['imageUrl'] = imageUrl;
+      if (isPinned != null) updates['isPinned'] = isPinned;
+
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .doc(memoryId)
+          .update(updates);
+    } catch (e) {
+      debugPrint('updateMemory failed: $e');
+    }
+  }
+
+  Future<void> deleteMemory({
+    required String groupId,
+    required String memoryId,
+    String? imageUrl,
+    String? videoUrl,
+    String? musicUrl,
+    String? musicCoverUrl,
+  }) async {
+    try {
+      // Delete associated files from Firebase Storage
+      final urls = [imageUrl, videoUrl, musicUrl, musicCoverUrl];
+      for (final url in urls) {
+        if (url != null && url.contains('firebasestorage')) {
+          try {
+            await _storage.refFromURL(url).delete();
+            debugPrint('Deleted storage file: $url');
+          } catch (e) {
+            debugPrint('Failed to delete storage file: $e');
+          }
+        }
+      }
+
+      // Delete Firestore document
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .doc(memoryId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteMemory failed: $e');
+    }
+  }
+
+  Future<void> togglePinMemory({
+    required String groupId,
+    required String memoryId,
+    required bool isPinned,
+  }) async {
+    await updateMemory(
+      groupId: groupId,
+      memoryId: memoryId,
+      isPinned: isPinned,
+    );
+  }
+
+  Future<List<Memory>> loadMemories({
+    required String groupId,
+    int limit = 50,
+  }) async {
+    try {
+      final snap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get()
+          .timeout(const Duration(seconds: 10));
+
+      return snap.docs
+          .map((d) => Memory.fromFirestore(d.id, d.data()))
+          .toList();
+    } catch (e) {
+      debugPrint('loadMemories failed: $e');
+      return [];
+    }
+  }
+
+  StreamSubscription? listenToMemories({
+    required String groupId,
+    required void Function(List<Memory> memories) onData,
+    int limit = 100,
+  }) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('memories')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .listen((snap) {
+          final memories = snap.docs
+              .map((d) => Memory.fromFirestore(d.id, d.data()))
+              .toList();
+          onData(memories);
+        });
   }
 
   // ══════════════════════════════════════════════

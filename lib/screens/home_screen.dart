@@ -2,10 +2,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/deep_link_service.dart';
+import '../services/firebase_service.dart';
 import 'connect_partner_screen.dart';
+import 'memory_lane_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,13 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final PairData _pairData = PairData();
   bool _pairLoading = true;
 
-  // -- Image URLs --
-  static const String _avatar2 =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBja92tC-GNSOJPqL6bNPRKeHAqLJWK4aAcquDO9CpDFs8aj0ZB3zUdqDz_E8sppd96foaSj7sTdITtT-T7NNftpKmiHCMOOK0GMVO6zrLl98R70H0jEj4Z3b_QbWsOa0SnG2MmGPUzPvkbCcpgRqUZayJ8WzM0jqgr51Qk7jojilzjvC1WC6lfLqdKnbkUZJ6QDhbIwRmAequdHpEZg2OuCvxeS6DajJJ1VslTIqIu7z3Osegz9PKlwgO2DUbK_U3CjUsa3IXgKS8';
-  static const String _memoryImg =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAGzfqi2pS4mAG0Kaau3LdjNhkBQC-DDJm-0B093UORH766JIx5e_NoYz1GKog7MrLXHW67kOjDg6NG9fZnINlYB8--Z5OUziFlrYrLdL6NgPAdk4bnZw5Np8-N1lWgyd1NEdH0SX00mq4Bd7eT93SNtY8M4gZIA3yQSV_kEyASlr5LiIRiVd6U7yJSpKykY1fBbabdSUtG10PcBqX88I7t-SK1BlQ_gDvrfAUR1VU7WEW36WItTHYIeHRABr2mN2zygEeknxRhL4M';
-  static const String _memoryImg2 =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCahdRPpqdMrToKNj6w6kpHPFIegfw1IeLMM-8Kmqt5s9S4yZNg1OBD5E-IWdNhEiKCh2rO3BVN5oNTvfe6S-tpRi61TyL5O553ut73KPy63REO_ytDy61dq-IkJTn2N84zoOwQ0hSGWz_WJvLjaJp8LlgpQfxZwuSaxBF7cPXUjLDhIWmXLF3a76fkHJexvjbp8JTW0JEySIsUsQa41RpFSKe6Kdoz7-vWV3DuRWJOd_MKK1mr_ipluRupPz7HEG27oAvxT4YPA64';
+  // -- Memory Lane real-time --
+  final FirebaseService _fb = FirebaseService();
+  List<Memory> _recentMemories = [];
+  StreamSubscription? _memorySub;
 
   @override
   void initState() {
@@ -69,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _timer?.cancel();
     _deepLinkSub?.cancel();
+    _memorySub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _pairData.dispose();
@@ -81,7 +82,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onPairChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      _startMemoryListener();
+      setState(() {});
+    }
+  }
+
+  void _startMemoryListener() {
+    _memorySub?.cancel();
+    final groupId = _pairData.pairId;
+    if (groupId.isEmpty || !_pairData.isPaired) {
+      _recentMemories = [];
+      return;
+    }
+    _memorySub = _fb.listenToMemories(
+      groupId: groupId,
+      limit: 10,
+      onData: (memories) {
+        if (mounted) setState(() => _recentMemories = memories);
+      },
+    );
   }
 
   void _onUserChanged() {
@@ -181,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return _buildMemoriesTab();
+        return _buildWidgetsTab();
       case 2:
         return ConnectPartnerScreen(pairData: _pairData);
       case 3:
@@ -232,21 +252,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =============================================
-  // MEMORIES TAB (placeholder)
+  // WIDGETS TAB (shared widgets — placeholder)
   // =============================================
-  Widget _buildMemoriesTab() {
+  Widget _buildWidgetsTab() {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.auto_awesome_motion_rounded,
-            size: 48,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.widgets_rounded, size: 48, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
-            'Memories',
+            'Shared Widgets',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -256,8 +272,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           Text(
             _pairData.isPaired
-                ? 'Your shared moments will appear here'
-                : 'Connect with a partner to start\ncreating memories together',
+                ? 'Your shared widgets will appear here'
+                : 'Connect with a partner to start\nusing widgets together',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
@@ -284,7 +300,8 @@ class _HomeScreenState extends State<HomeScreen> {
           // Avatars
           if (_pairData.isPaired) ...[
             SizedBox(
-              width: 68,
+              width:
+                  28.0 + 40.0 + (_pairData.partnerCount - 1).clamp(0, 3) * 28.0,
               height: 40,
               child: Stack(
                 children: [
@@ -295,11 +312,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       name: widget.userData.displayName,
                     ),
                   ),
-                  Positioned(
-                    left: 28,
-                    child: _avatarCircle(
-                      _pairData.partnerAvatarUrl,
-                      name: _pairData.partnerName,
+                  ...List.generate(
+                    _pairData.partners.length.clamp(0, 4),
+                    (i) => Positioned(
+                      left: 28.0 + i * 28.0,
+                      child: _avatarCircle(
+                        _pairData.partners[i].avatar,
+                        name: _pairData.partners[i].name,
+                      ),
                     ),
                   ),
                 ],
@@ -680,12 +700,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   Positioned(
                     top: -8,
                     left: -16,
-                    child: _photoFragment(_memoryImg, 80, 80, -0.2),
+                    child: _photoFragment(
+                      widget.userData.avatarUrl,
+                      80,
+                      80,
+                      -0.2,
+                    ),
                   ),
                   Positioned(
                     top: 48,
                     right: 8,
-                    child: _photoFragment(_memoryImg2, 64, 64, 0.1),
+                    child: _photoFragment(
+                      _pairData.partnerAvatarUrl,
+                      64,
+                      64,
+                      0.1,
+                    ),
                   ),
                   Positioned(
                     bottom: -24,
@@ -1104,7 +1134,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MemoryLaneScreen(pairData: _pairData),
+                    ),
+                  );
+                },
                 child: Text(
                   'View All',
                   style: TextStyle(
@@ -1118,293 +1155,439 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 200,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
+        if (_recentMemories.isEmpty)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            children: [
-              _memoryPhotoCard(),
-              const SizedBox(width: 16),
-              _memoryLocationCard(),
-              const SizedBox(width: 16),
-              _memoryConnectedCard(),
-              const SizedBox(width: 24),
-            ],
+            child: Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.photo_album_outlined,
+                      size: 32,
+                      color: Colors.grey.shade300,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No memories yet',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Add your first memory in Memory Lane',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 200,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              itemCount: _recentMemories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => _memoryPreviewCard(_recentMemories[i]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _memoryPreviewCard(Memory memory) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MemoryLaneScreen(pairData: _pairData),
+          ),
+        );
+      },
+      child: Container(
+        width: 160,
+        height: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: _previewByType(memory),
+        ),
+      ),
+    );
+  }
+
+  Widget _previewByType(Memory memory) {
+    switch (memory.type) {
+      case MemoryType.photo:
+        return _photoPreview(memory);
+      case MemoryType.video:
+        return _videoPreview(memory);
+      case MemoryType.location:
+        return _locationPreview(memory);
+      case MemoryType.music:
+        return _musicPreview(memory);
+      case MemoryType.text:
+        return _textPreview(memory);
+    }
+  }
+
+  Widget _photoPreview(Memory memory) {
+    final hasImage = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (hasImage)
+          Image.network(
+            memory.imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                Container(color: Colors.grey.shade200),
+          )
+        else
+          Container(
+            color: const Color(0xFFF3E8FF),
+            child: Icon(
+              Icons.image_rounded,
+              size: 48,
+              color: Colors.grey.shade300,
+            ),
+          ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 10,
+          left: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text('📸', style: TextStyle(fontSize: 14)),
+          ),
+        ),
+        Positioned(
+          bottom: 12,
+          left: 12,
+          right: 12,
+          child: Text(
+            memory.caption ?? 'Photo',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _memoryPhotoCard() {
+  Widget _videoPreview(Memory memory) {
+    final hasThumb = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (hasThumb)
+          Image.network(
+            memory.imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                Container(color: Colors.grey.shade900),
+          )
+        else
+          Container(color: const Color(0xFF1E1B2E)),
+        Container(color: Colors.black.withOpacity(0.45)),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.85),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.play_arrow_rounded,
+              size: 28,
+              color: Color(0xFFEC4899),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'VIDEO',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 12,
+          left: 12,
+          right: 12,
+          child: Text(
+            memory.caption ?? 'Video',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _locationPreview(Memory memory) {
     return Container(
-      width: 160,
-      height: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+      decoration: const BoxDecoration(color: Color(0xFFF0FAF4)),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F7ED),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.location_on_rounded,
+              color: Color(0xFF22C55E),
+              size: 22,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            memory.locationName ?? 'Location',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          if (memory.latitude != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${memory.latitude!.toStringAsFixed(3)}, ${memory.longitude?.toStringAsFixed(3) ?? ""}',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            ),
+          ],
+          if (memory.caption != null && memory.caption!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              memory.caption!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            memory.authorName,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              _memoryImg,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  Container(color: Colors.grey.shade300),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.15),
-                    Colors.black.withOpacity(0.7),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'MONTH ${_pairData.monthsInLove}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withOpacity(0.8),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Row(
-                    children: [
-                      Icon(Icons.location_on, color: Colors.white, size: 12),
-                      SizedBox(width: 4),
-                      Text(
-                        'Coffee Date',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _memoryLocationCard() {
+  Widget _musicPreview(Memory memory) {
     return Container(
-      width: 160,
-      height: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.6)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.75),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF).withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.near_me,
-                            color: Color(0xFF3B82F6),
-                            size: 16,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'LIVE',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF22C55E),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${_pairData.partnerName} is at',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Central Park\nCoffee',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade800,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '12 mins ago',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _memoryConnectedCard() {
-    return Container(
-      width: 160,
-      height: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.6)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.75),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4).withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
+      decoration: const BoxDecoration(color: Color(0xFFF5F0FF)),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (memory.musicCoverUrl != null &&
+                  memory.musicCoverUrl!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    memory.musicCoverUrl!,
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
-                          ),
-                        ],
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
-                        Icons.battery_charging_full,
-                        color: Color(0xFF22C55E),
-                        size: 16,
+                        Icons.music_note_rounded,
+                        color: Colors.white,
+                        size: 18,
                       ),
                     ),
-                    const Spacer(),
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            '85%',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 40,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.grey.shade800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'CONNECTED',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade500,
-                              letterSpacing: 3,
-                            ),
-                          ),
-                        ],
-                      ),
+                  ),
+                )
+              else
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
                     ),
-                    const Spacer(),
-                  ],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.music_note_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
-              ],
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF8B5CF6),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            memory.musicTitle ?? 'Audio',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
             ),
           ),
-        ),
+          if (memory.musicArtist != null)
+            Text(
+              memory.musicArtist!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          const SizedBox(height: 4),
+          // Waveform placeholder
+          Row(
+            children: List.generate(
+              12,
+              (i) => Expanded(
+                child: Container(
+                  height:
+                      4.0 +
+                      (i % 3 == 0
+                          ? 8.0
+                          : i % 2 == 0
+                          ? 4.0
+                          : 6.0),
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            memory.authorName,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _textPreview(Memory memory) {
+    return Container(
+      decoration: const BoxDecoration(color: Color(0xFFFFFBEB)),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('📝', style: TextStyle(fontSize: 22)),
+          const Spacer(),
+          Text(
+            memory.caption ?? '',
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade800,
+              height: 1.4,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            memory.authorName,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+          ),
+        ],
       ),
     );
   }
@@ -1443,7 +1626,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _navItem(Icons.home_rounded, 0),
-                  _navItem(Icons.auto_awesome_motion_rounded, 1),
+                  _navItem(Icons.widgets_rounded, 1),
                   Container(width: 1, height: 24, color: Colors.grey.shade200),
                   _navItem(
                     _pairData.isPaired

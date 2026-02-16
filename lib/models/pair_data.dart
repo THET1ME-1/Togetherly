@@ -4,7 +4,7 @@ import 'connections_manager.dart';
 import 'connection.dart';
 
 // Re-export for convenience
-export 'connection.dart' show RelationshipType;
+export 'connection.dart' show RelationshipType, GroupMember;
 
 /// Wrapper around ConnectionsManager for backward compatibility
 /// Delegates to the active connection
@@ -29,6 +29,13 @@ class PairData extends ChangeNotifier {
       _active?.relationshipType ?? RelationshipType.couple;
 
   String get inviteLink => 'https://togetherly.app/invite/$inviteCode';
+
+  // ── Multi-member getters ──
+  List<GroupMember> get members => _active?.members ?? [];
+  List<GroupMember> get partners => _active?.partners ?? [];
+  int get partnerCount => _active?.partnerCount ?? 0;
+  int get maxMembers => _active?.maxMembers ?? 2;
+  bool get canInviteMore => _active?.canInviteMore ?? false;
 
   // ── Counter values ──
   int get daysInLove => _active?.daysInLove ?? 0;
@@ -86,6 +93,12 @@ class PairData extends ChangeNotifier {
     if (_active == null) return;
     await _active!.regenerateCode();
     notifyListeners();
+  }
+
+  /// Generate group invite code (for adding more members)
+  Future<String> generateGroupInvite() async {
+    if (_active == null) return '';
+    return await _active!.generateInviteForGroup();
   }
 
   @override

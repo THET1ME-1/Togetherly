@@ -99,7 +99,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   Widget _buildGroupChip(Connection connection, int index, bool isActive) {
-    final name = connection.isPaired ? connection.partnerName : 'Waiting...';
+    final name = connection.isPaired
+        ? (connection.partnerCount > 1
+              ? '${connection.partners.first.name} +${connection.partnerCount - 1}'
+              : connection.partnerName)
+        : 'Waiting...';
     return GestureDetector(
       onTap: () async {
         await pair.manager.switchToConnection(index);
@@ -203,6 +207,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   //  CONNECTED — partner linked (no days counter)
   // ═══════════════════════════════════════════════════
   Widget _buildConnectedContent() {
+    final partners = pair.partners;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
@@ -232,7 +237,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Connected with ${pair.partnerName}',
+                  partners.length == 1
+                      ? 'Connected with ${partners.first.name}'
+                      : 'Group of ${partners.length + 1}',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -278,7 +285,38 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+                // ── Members list ──
+                _buildMembersList(partners),
+                const SizedBox(height: 20),
+                // ── Invite More button ──
+                if (pair.canInviteMore) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: _showInviteMoreSheet,
+                      icon: const Icon(Icons.person_add_rounded, size: 18),
+                      label: Text(
+                        'Invite More (${pair.members.length}/${pair.maxMembers})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 8,
+                        shadowColor: primary.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(
                   width: 180,
                   height: 42,
@@ -703,6 +741,213 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           ),
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  MEMBERS LIST
+  // ═══════════════════════════════════════════════════
+  Widget _buildMembersList(List<GroupMember> partners) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MEMBERS (${partners.length + 1})',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade400,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...partners.map(
+          (member) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                _memberAvatar(member.avatar, member.name, 36),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    member.name.isNotEmpty ? member.name : 'Member',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _memberAvatar(String url, String name, double size) {
+    final initial = (name.isNotEmpty) ? name[0].toUpperCase() : '?';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4),
+        ],
+      ),
+      child: ClipOval(
+        child: url.isNotEmpty
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: primary.withOpacity(0.15),
+                  child: Center(
+                    child: Text(
+                      initial,
+                      style: TextStyle(
+                        fontSize: size * 0.4,
+                        fontWeight: FontWeight.w700,
+                        color: primary,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : Container(
+                color: primary.withOpacity(0.15),
+                child: Center(
+                  child: Text(
+                    initial,
+                    style: TextStyle(
+                      fontSize: size * 0.4,
+                      fontWeight: FontWeight.w700,
+                      color: primary,
+                    ),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  void _showInviteMoreSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Invite More Members',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${pair.members.length}/${pair.maxMembers} members',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: pair.inviteCode.split('').map((ch) {
+                return Container(
+                  width: 42,
+                  height: 52,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: primary.withOpacity(0.15)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    ch,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: primary,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _outlineButton(
+                    icon: Icons.copy_rounded,
+                    label: 'Copy',
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: pair.inviteCode));
+                      Navigator.pop(context);
+                      _showSnack('Code copied!');
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await Share.share(
+                          'Join our group on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
+                          subject: 'Love App Group Invitation',
+                        );
+                      },
+                      icon: const Icon(Icons.share_rounded, size: 16),
+                      label: const Text(
+                        'Share',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          ],
+        ),
       ),
     );
   }

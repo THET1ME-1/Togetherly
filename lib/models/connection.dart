@@ -4,20 +4,43 @@ import 'package:flutter/foundation.dart';
 import '../services/firebase_service.dart';
 
 enum RelationshipType {
-  couple, // In Love
-  friends, // Friends
-  buddies, // Best Buddies
+  couple, // In Love — max 2
+  friends, // Friends — max 10
+  buddies, // Best Buddies — max 10
 }
 
-/// Represents a single connection/group with one partner
+/// Info about one group member
+class GroupMember {
+  final String uid;
+  final String name;
+  final String avatar;
+
+  const GroupMember({required this.uid, this.name = '', this.avatar = ''});
+
+  Map<String, dynamic> toJson() => {'uid': uid, 'name': name, 'avatar': avatar};
+
+  factory GroupMember.fromJson(Map<String, dynamic> json) => GroupMember(
+    uid: json['uid'] ?? '',
+    name: json['name'] ?? '',
+    avatar: json['avatar'] ?? '',
+  );
+}
+
+/// Represents a single connection/group with 1-9 partners
 class Connection {
   final String id;
-  bool isPaired;
+  bool isPaired; // true if at least 1 partner joined
   DateTime? startDate;
+
+  // Legacy single-partner fields (first partner for compat)
   String partnerName;
   String partnerAvatarUrl;
+
+  // Multi-member fields
+  List<GroupMember> members; // ALL members including self
+
   String inviteCode;
-  String pairId;
+  String pairId; // actually groupId
   RelationshipType relationshipType;
 
   StreamSubscription? _pairSub;
@@ -31,13 +54,42 @@ class Connection {
     this.startDate,
     this.partnerName = '',
     this.partnerAvatarUrl = '',
+    List<GroupMember>? members,
     this.inviteCode = '',
     this.pairId = '',
     this.relationshipType = RelationshipType.couple,
     this.onChanged,
-  }) : _fb = firebaseService;
+  }) : _fb = firebaseService,
+       members = members ?? [];
 
   String get inviteLink => 'https://togetherly.app/invite/$inviteCode';
+
+  /// Max members allowed for this relationship type
+  int get maxMembers {
+    switch (relationshipType) {
+      case RelationshipType.couple:
+        return 2;
+      case RelationshipType.friends:
+      case RelationshipType.buddies:
+        return 10;
+    }
+  }
+
+  /// Can invite more members?
+  bool get canInviteMore {
+    if (!isPaired) return true; // not yet connected, invite is needed
+    if (relationshipType == RelationshipType.couple) return false;
+    return members.length < maxMembers;
+  }
+
+  /// All partner members (excluding self)
+  List<GroupMember> get partners {
+    final myUid = _fb.uid ?? '';
+    return members.where((m) => m.uid != myUid).toList();
+  }
+
+  /// Number of partners (excluding self)
+  int get partnerCount => partners.length;
 
   // ── Counter values ──
   int get daysInLove {
@@ -84,6 +136,10 @@ class Connection {
 
   void setRelationshipType(RelationshipType type) {
     relationshipType = type;
+    // Update maxMembers in Firebase
+    if (pairId.isNotEmpty) {
+      _fb.updateGroupMaxMembers(pairId, maxMembers);
+    }
     onChanged?.call();
   }
 
@@ -96,14 +152,26 @@ class Connection {
     try {
       final result = await _fb.acceptInviteCode(code.toUpperCase());
       if (result['success'] == true) {
-        // Apply pair data directly from the result — don't use
-        // refreshPairStatus which would load the global pairId and
-        // could leak into other connections.
         isPaired = true;
         pairId = result['pairId'] ?? '';
         partnerName = result['partnerName'] ?? '';
         partnerAvatarUrl = result['partnerAvatar'] ?? '';
         startDate = result['startDate'] as DateTime? ?? DateTime.now();
+
+        // Parse members
+        final membersList = result['members'] as List<dynamic>?;
+        if (membersList != null) {
+          members = membersList
+              .map(
+                (m) => GroupMember(
+                  uid: m['uid'] ?? '',
+                  name: m['name'] ?? '',
+                  avatar: m['avatar'] ?? '',
+                ),
+              )
+              .toList();
+        }
+
         _listenToPair();
         onChanged?.call();
         return true;
@@ -136,8 +204,8 @@ class Connection {
     partnerName = '';
     partnerAvatarUrl = '';
     pairId = '';
+    members = [];
 
-    // Generate new code
     final oldCode = inviteCode;
     final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
     inviteCode = firestoreCode.isNotEmpty
@@ -149,38 +217,51 @@ class Connection {
 
   Future<void> regenerateCode() async {
     final oldCode = inviteCode;
-    final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
+    String firestoreCode;
+    if (isPaired && pairId.isNotEmpty && canInviteMore) {
+      // Group invite code — tied to this group
+      firestoreCode = await _fb.generateGroupInviteCode(
+        pairId,
+        oldCode: oldCode,
+      );
+    } else {
+      firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
+    }
     inviteCode = firestoreCode.isNotEmpty
         ? firestoreCode
         : Connection.generateLocalCode();
     onChanged?.call();
   }
 
-  /// Вызывается когда real-time listener обнаружил новый pairId.
-  /// Присваивает pairId и загружает данные пары.
+  /// Generate a group-specific invite code (for adding more members)
+  Future<String> generateInviteForGroup() async {
+    if (pairId.isEmpty) return inviteCode;
+    final code = await _fb.generateGroupInviteCode(pairId);
+    if (code.isNotEmpty) {
+      inviteCode = code;
+      onChanged?.call();
+    }
+    return inviteCode;
+  }
+
+  /// Called when real-time listener detects a new pairId
   Future<void> claimPair(String newPairId) async {
     if (isPaired || pairId.isNotEmpty) return;
     pairId = newPairId;
-    // refreshPairStatus handles the case: pairId set, isPaired false
     await refreshPairStatus();
   }
 
   Future<void> refreshPairStatus() async {
-    // Already paired with a known pair? Just re-subscribe.
     if (isPaired && pairId.isNotEmpty) {
       _listenToPair();
       return;
     }
 
-    // Has pairId saved locally but not yet marked paired — load directly.
     if (pairId.isNotEmpty) {
       try {
         final pairData = await _fb.loadPairById(pairId);
         if (pairData != null) {
-          isPaired = true;
-          startDate = pairData['startDate'] as DateTime?;
-          partnerName = pairData['partnerName'] ?? '';
-          partnerAvatarUrl = pairData['partnerAvatar'] ?? '';
+          _applyPairData(pairData);
           _listenToPair();
         }
       } catch (e) {
@@ -190,22 +271,38 @@ class Connection {
       return;
     }
 
-    // No pairId at all — check Firebase for first-time discovery.
-    // This is ONLY called on the first unpaired connection.
     try {
       final pairData = await _fb.loadPairData();
       if (pairData != null) {
-        isPaired = true;
         pairId = pairData['pairId'] ?? '';
-        startDate = pairData['startDate'] as DateTime?;
-        partnerName = pairData['partnerName'] ?? '';
-        partnerAvatarUrl = pairData['partnerAvatar'] ?? '';
+        _applyPairData(pairData);
         _listenToPair();
       }
     } catch (e) {
       debugPrint('Pair refresh failed: $e');
     }
     onChanged?.call();
+  }
+
+  void _applyPairData(Map<String, dynamic> data) {
+    isPaired = true;
+    startDate = data['startDate'] as DateTime?;
+    partnerName = data['partnerName'] ?? '';
+    partnerAvatarUrl = data['partnerAvatar'] ?? '';
+
+    // Parse members
+    final membersList = data['members'] as List<dynamic>?;
+    if (membersList != null) {
+      members = membersList
+          .map(
+            (m) => GroupMember(
+              uid: (m as Map)['uid'] ?? '',
+              name: m['name'] ?? '',
+              avatar: m['avatar'] ?? '',
+            ),
+          )
+          .toList();
+    }
   }
 
   void _listenToPair() {
@@ -216,12 +313,12 @@ class Connection {
       pairId: pairId,
       onData: (data) {
         if (data == null) {
-          // Pair deleted
           isPaired = false;
           pairId = '';
           partnerName = '';
           partnerAvatarUrl = '';
           startDate = null;
+          members = [];
           onChanged?.call();
           return;
         }
@@ -229,6 +326,20 @@ class Connection {
         partnerName = data['partnerName'] ?? partnerName;
         partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
         startDate = data['startDate'] as DateTime? ?? startDate;
+
+        // Update members
+        final membersList = data['members'] as List<dynamic>?;
+        if (membersList != null) {
+          members = membersList
+              .map(
+                (m) => GroupMember(
+                  uid: (m as Map)['uid'] ?? '',
+                  name: m['name'] ?? '',
+                  avatar: m['avatar'] ?? '',
+                ),
+              )
+              .toList();
+        }
         onChanged?.call();
       },
     );
@@ -241,7 +352,6 @@ class Connection {
   // ── Helpers ──
   static String generateLocalCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    // Use microsecondsSinceEpoch as seed to ensure unique codes even when generated rapidly
     final rng = Random(DateTime.now().microsecondsSinceEpoch);
     return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
   }
@@ -254,6 +364,7 @@ class Connection {
       'startDate': startDate?.toIso8601String(),
       'partnerName': partnerName,
       'partnerAvatarUrl': partnerAvatarUrl,
+      'members': members.map((m) => m.toJson()).toList(),
       'inviteCode': inviteCode,
       'pairId': pairId,
       'relationshipType': relationshipType.name,
@@ -265,6 +376,10 @@ class Connection {
     FirebaseService firebaseService,
     Function()? onChanged,
   ) {
+    final membersList = (json['members'] as List<dynamic>?)
+        ?.map((m) => GroupMember.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+
     return Connection(
       id: json['id'] ?? '',
       firebaseService: firebaseService,
@@ -274,6 +389,7 @@ class Connection {
           : null,
       partnerName: json['partnerName'] ?? '',
       partnerAvatarUrl: json['partnerAvatarUrl'] ?? '',
+      members: membersList ?? [],
       inviteCode: json['inviteCode'] ?? '',
       pairId: json['pairId'] ?? '',
       relationshipType: RelationshipType.values.firstWhere(

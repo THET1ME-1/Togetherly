@@ -45,5 +45,22 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Permissions для фото/видео -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photos to add memories to your shared gallery</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need access to save photos to your library</string>
+	
+	<!-- Permissions для геолокации -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to add location-based memories</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We need your location to add location-based memories</string>
+	
+	<!-- Permissions для камеры (если будет добавлено позже) -->
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to take photos for your memories</string>
 </dict>
+
 </plist>

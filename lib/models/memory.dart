@@ -1,13 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Types of memory content
-enum MemoryType {
-  photo,
-  video,
-  location,
-  music,
-  text,
-}
+enum MemoryType { photo, video, location, music, text }
 
 /// A single memory entry in the shared Memory Lane
 class Memory {
@@ -29,6 +23,7 @@ class Memory {
   double? longitude;
   String? musicTitle; // song name
   String? musicArtist; // artist name
+  String? musicUrl; // external link (Spotify, YouTube, etc.) or local file path
   String? musicCoverUrl; // album art
 
   bool isPinned;
@@ -50,6 +45,7 @@ class Memory {
     this.longitude,
     this.musicTitle,
     this.musicArtist,
+    this.musicUrl,
     this.musicCoverUrl,
     this.isPinned = false,
   });
@@ -103,6 +99,7 @@ class Memory {
       if (longitude != null) 'longitude': longitude,
       if (musicTitle != null) 'musicTitle': musicTitle,
       if (musicArtist != null) 'musicArtist': musicArtist,
+      if (musicUrl != null) 'musicUrl': musicUrl,
       if (musicCoverUrl != null) 'musicCoverUrl': musicCoverUrl,
       'isPinned': isPinned,
     };
@@ -130,6 +127,7 @@ class Memory {
       longitude: (data['longitude'] as num?)?.toDouble(),
       musicTitle: data['musicTitle'],
       musicArtist: data['musicArtist'],
+      musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
       isPinned: data['isPinned'] ?? false,
     );
@@ -154,6 +152,7 @@ class Memory {
       'longitude': longitude,
       'musicTitle': musicTitle,
       'musicArtist': musicArtist,
+      'musicUrl': musicUrl,
       'musicCoverUrl': musicCoverUrl,
       'isPinned': isPinned,
     };
@@ -182,6 +181,7 @@ class Memory {
       longitude: (json['longitude'] as num?)?.toDouble(),
       musicTitle: json['musicTitle'],
       musicArtist: json['musicArtist'],
+      musicUrl: json['musicUrl'],
       musicCoverUrl: json['musicCoverUrl'],
       isPinned: json['isPinned'] ?? false,
     );
