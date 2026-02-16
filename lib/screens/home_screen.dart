@@ -2,6 +2,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -302,23 +303,28 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(
               width:
                   28.0 + 40.0 + (_pairData.partnerCount - 1).clamp(0, 3) * 28.0,
-              height: 40,
+              height: 48,
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Positioned(
                     left: 0,
-                    child: _avatarCircle(
+                    top: 4,
+                    child: _avatarWithMood(
                       widget.userData.avatarUrl,
                       name: widget.userData.displayName,
+                      mood: _pairData.myMood,
                     ),
                   ),
                   ...List.generate(
                     _pairData.partners.length.clamp(0, 4),
                     (i) => Positioned(
                       left: 28.0 + i * 28.0,
-                      child: _avatarCircle(
+                      top: 4,
+                      child: _avatarWithMood(
                         _pairData.partners[i].avatar,
                         name: _pairData.partners[i].name,
+                        mood: _pairData.moodOf(_pairData.partners[i].uid),
                       ),
                     ),
                   ),
@@ -439,6 +445,38 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _avatarWithMood(String url, {String? name, required MemberMood mood}) {
+    return SizedBox(
+      width: 40,
+      height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _avatarCircle(url, name: name),
+          if (mood.isNotEmpty)
+            Positioned(
+              bottom: -2,
+              right: -6,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Text(mood.emoji, style: const TextStyle(fontSize: 12)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // =============================================
   // RELATIONSHIP TYPE DIALOG
   // =============================================
@@ -544,6 +582,343 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isSelected)
               Icon(Icons.check_circle_rounded, color: primary, size: 24),
           ],
+        ),
+      ),
+    );
+  }
+
+  // =============================================
+  // MOOD PICKER
+  // =============================================
+  static const _moodOptions = [
+    {'emoji': '😊', 'label': 'Happy'},
+    {'emoji': '🥰', 'label': 'In Love'},
+    {'emoji': '😌', 'label': 'Calm'},
+    {'emoji': '😴', 'label': 'Sleepy'},
+    {'emoji': '🤗', 'label': 'Grateful'},
+    {'emoji': '😢', 'label': 'Sad'},
+    {'emoji': '😤', 'label': 'Frustrated'},
+    {'emoji': '🤒', 'label': 'Sick'},
+    {'emoji': '😎', 'label': 'Chill'},
+    {'emoji': '🥳', 'label': 'Excited'},
+    {'emoji': '😔', 'label': 'Down'},
+    {'emoji': '💪', 'label': 'Motivated'},
+    {'emoji': '🤔', 'label': 'Thoughtful'},
+    {'emoji': '😋', 'label': 'Hungry'},
+    {'emoji': '✨', 'label': 'Inspired'},
+  ];
+
+  void _showMoodPicker() {
+    final currentEmoji = _pairData.myMood.emoji;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'How are you feeling?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your partner will see your mood',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 24),
+            // Mood grid
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: _moodOptions.length,
+              itemBuilder: (ctx, i) {
+                final mood = _moodOptions[i];
+                final isSelected = currentEmoji == mood['emoji'];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pairData.setMood(mood['emoji']!, mood['label']!);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? primary.withOpacity(0.12)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? primary : Colors.grey.shade200,
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          mood['emoji']!,
+                          style: const TextStyle(fontSize: 28),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          mood['label']!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? primary : Colors.grey.shade600,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            // Clear mood button
+            if (currentEmoji.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _pairData.clearMood();
+                },
+                child: Text(
+                  'Clear Mood',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =============================================
+  // POST PHOTO (camera → upload → Memory Lane)
+  // =============================================
+  Future<void> _postPhoto() async {
+    if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
+
+    final picker = ImagePicker();
+    final XFile? photo = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
+    if (photo == null || !mounted) return;
+
+    // Show caption dialog
+    final caption = await _showCaptionDialog();
+    if (!mounted) return;
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: primary),
+                const SizedBox(height: 16),
+                Text(
+                  'Posting...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // Upload to Firebase Storage
+      final ext = photo.path.split('.').last;
+      final destination =
+          'memories/${_pairData.pairId}/${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final downloadUrl = await _fb.uploadFile(photo.path, destination);
+
+      if (downloadUrl == null) {
+        if (mounted) Navigator.of(context).pop(); // dismiss loading
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to upload photo')),
+          );
+        }
+        return;
+      }
+
+      // Create memory
+      await _fb.addMemory(
+        groupId: _pairData.pairId,
+        type: MemoryType.photo,
+        imageUrl: downloadUrl,
+        caption: caption,
+      );
+
+      if (mounted) Navigator.of(context).pop(); // dismiss loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Posted to Memory Lane! 📸'),
+            backgroundColor: primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop(); // dismiss loading
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<String?> _showCaptionDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Add a caption',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Optional — describe this moment',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: 3,
+                maxLength: 200,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: 'Write something...',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: primary, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, null),
+                      child: Text(
+                        'Skip',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final text = controller.text.trim();
+                        Navigator.pop(ctx, text.isEmpty ? null : text);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        'Post',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -804,6 +1179,39 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                         ),
+                        // Partner mood display
+                        if (_pairData.isPaired &&
+                            _pairData.partnerMood.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _pairData.partnerMood.emoji,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${_pairData.partnerName} is ${_pairData.partnerMood.label}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 40),
                         // Toggle
                         _buildTimeToggle(),
@@ -1040,6 +1448,8 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Mood',
           iconColor: const Color(0xFFFBBF24),
           enabled: _pairData.isPaired,
+          onTap: _showMoodPicker,
+          badge: _pairData.myMood.isNotEmpty ? _pairData.myMood.emoji : null,
         ),
         _actionButton(
           icon: Icons.brush_rounded,
@@ -1052,6 +1462,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Post',
           iconColor: const Color(0xFF34D399),
           enabled: _pairData.isPaired,
+          onTap: _postPhoto,
         ),
       ],
     );
@@ -1063,6 +1474,8 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color iconColor,
     bool isPrimary = false,
     bool enabled = true,
+    VoidCallback? onTap,
+    String? badge,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
     return Opacity(
@@ -1070,33 +1483,57 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           GestureDetector(
-            onTap: enabled ? () {} : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: isPrimary ? primary : Colors.white,
-                shape: BoxShape.circle,
-                border: isPrimary
-                    ? null
-                    : Border.all(color: Colors.grey.shade100),
-                boxShadow: isPrimary
-                    ? [
-                        BoxShadow(
-                          color: primary.withOpacity(0.25),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                        ),
-                      ],
-              ),
-              child: Icon(icon, color: iconColor, size: 28),
+            onTap: enabled ? (onTap ?? () {}) : null,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: isPrimary ? primary : Colors.white,
+                    shape: BoxShape.circle,
+                    border: isPrimary
+                        ? null
+                        : Border.all(color: Colors.grey.shade100),
+                    boxShadow: isPrimary
+                        ? [
+                            BoxShadow(
+                              color: primary.withOpacity(0.25),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                            ),
+                          ],
+                  ),
+                  child: Icon(icon, color: iconColor, size: 28),
+                ),
+                if (badge != null)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Text(badge, style: const TextStyle(fontSize: 14)),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

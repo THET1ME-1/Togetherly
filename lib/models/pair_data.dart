@@ -4,7 +4,7 @@ import 'connections_manager.dart';
 import 'connection.dart';
 
 // Re-export for convenience
-export 'connection.dart' show RelationshipType, GroupMember;
+export 'connection.dart' show RelationshipType, GroupMember, MemberMood;
 
 /// Wrapper around ConnectionsManager for backward compatibility
 /// Delegates to the active connection
@@ -45,6 +45,23 @@ class PairData extends ChangeNotifier {
   // ── Relationship Type Helpers ──
   String get relationshipLabel => _active?.relationshipLabel ?? 'In Love';
   String get relationshipEmoji => _active?.relationshipEmoji ?? '❤️';
+
+  // ── Mood ──
+  MemberMood get myMood => _active?.myMood ?? const MemberMood();
+  MemberMood get partnerMood => _active?.partnerMood ?? const MemberMood();
+  MemberMood moodOf(String uid) => _active?.moodOf(uid) ?? const MemberMood();
+
+  Future<void> setMood(String emoji, String label) async {
+    if (_active == null) return;
+    await _active!.setMood(emoji, label);
+    notifyListeners();
+  }
+
+  Future<void> clearMood() async {
+    if (_active == null) return;
+    await _active!.clearMood();
+    notifyListeners();
+  }
 
   void setRelationshipType(RelationshipType type) {
     _active?.setRelationshipType(type);

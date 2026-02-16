@@ -26,6 +26,31 @@ class GroupMember {
   );
 }
 
+/// Info about a member's mood
+class MemberMood {
+  final String emoji;
+  final String label;
+  final DateTime? updatedAt;
+
+  const MemberMood({this.emoji = '', this.label = '', this.updatedAt});
+
+  bool get isEmpty => emoji.isEmpty;
+  bool get isNotEmpty => emoji.isNotEmpty;
+
+  factory MemberMood.fromJson(Map<String, dynamic> json) {
+    DateTime? updatedAt;
+    final ts = json['updatedAt'];
+    if (ts is DateTime) {
+      updatedAt = ts;
+    }
+    return MemberMood(
+      emoji: json['emoji'] ?? '',
+      label: json['label'] ?? '',
+      updatedAt: updatedAt,
+    );
+  }
+}
+
 /// Represents a single connection/group with 1-9 partners
 class Connection {
   final String id;
@@ -46,6 +71,9 @@ class Connection {
   StreamSubscription? _pairSub;
   final FirebaseService _fb;
   final Function()? onChanged;
+
+  // Mood data: uid -> MemberMood
+  Map<String, MemberMood> memberMoods = {};
 
   Connection({
     required this.id,
@@ -132,6 +160,48 @@ class Connection {
       case RelationshipType.buddies:
         return '👯';
     }
+  }
+
+  /// Get my mood
+  MemberMood get myMood {
+    final myUid = _fb.uid ?? '';
+    return memberMoods[myUid] ?? const MemberMood();
+  }
+
+  /// Get partner's mood (first partner)
+  MemberMood get partnerMood {
+    final myUid = _fb.uid ?? '';
+    for (final entry in memberMoods.entries) {
+      if (entry.key != myUid) return entry.value;
+    }
+    return const MemberMood();
+  }
+
+  /// Get mood by uid
+  MemberMood moodOf(String uid) {
+    return memberMoods[uid] ?? const MemberMood();
+  }
+
+  /// Set my mood
+  Future<void> setMood(String emoji, String label) async {
+    if (pairId.isEmpty) return;
+    final myUid = _fb.uid ?? '';
+    memberMoods[myUid] = MemberMood(
+      emoji: emoji,
+      label: label,
+      updatedAt: DateTime.now(),
+    );
+    onChanged?.call();
+    await _fb.setMood(groupId: pairId, emoji: emoji, label: label);
+  }
+
+  /// Clear my mood
+  Future<void> clearMood() async {
+    if (pairId.isEmpty) return;
+    final myUid = _fb.uid ?? '';
+    memberMoods.remove(myUid);
+    onChanged?.call();
+    await _fb.clearMood(groupId: pairId);
   }
 
   void setRelationshipType(RelationshipType type) {
@@ -303,6 +373,17 @@ class Connection {
           )
           .toList();
     }
+
+    // Parse moods
+    final moodsMap = data['memberMoods'] as Map<String, dynamic>?;
+    if (moodsMap != null) {
+      memberMoods = moodsMap.map(
+        (uid, value) => MapEntry(
+          uid,
+          MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
+        ),
+      );
+    }
   }
 
   void _listenToPair() {
@@ -340,6 +421,18 @@ class Connection {
               )
               .toList();
         }
+
+        // Update moods
+        final moodsMap = data['memberMoods'] as Map<String, dynamic>?;
+        if (moodsMap != null) {
+          memberMoods = moodsMap.map(
+            (uid, value) => MapEntry(
+              uid,
+              MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
+            ),
+          );
+        }
+
         onChanged?.call();
       },
     );

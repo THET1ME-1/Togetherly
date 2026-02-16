@@ -508,6 +508,7 @@ class FirebaseService {
           )
           .toList(),
       'maxMembers': data['maxMembers'] ?? 2,
+      'memberMoods': data['memberMoods'] as Map<String, dynamic>? ?? {},
       'raw': data,
     };
   }
@@ -1006,6 +1007,45 @@ class FirebaseService {
               )
               .toList(),
         );
+  }
+
+  // ══════════════════════════════════════════════
+  //  MOOD
+  //  Firestore: groups/{groupId} → memberMoods.{uid}: {emoji, label, updatedAt}
+  // ══════════════════════════════════════════════
+
+  /// Save the current user's mood to the group document
+  Future<void> setMood({
+    required String groupId,
+    required String emoji,
+    required String label,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberMoods.${u.uid}': {
+          'emoji': emoji,
+          'label': label,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      });
+    } catch (e) {
+      debugPrint('setMood failed: $e');
+    }
+  }
+
+  /// Clear the current user's mood
+  Future<void> clearMood({required String groupId}) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberMoods.${u.uid}': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('clearMood failed: $e');
+    }
   }
 
   // ══════════════════════════════════════════════
