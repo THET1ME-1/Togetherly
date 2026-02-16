@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/firebase_service.dart';
 
 enum Gender { male, female }
 
@@ -11,6 +12,9 @@ class UserData extends ChangeNotifier {
   Gender? _gender;
   bool _isRegistered = false;
   bool _hasSeenWelcome = false;
+  String _uid = '';
+
+  final FirebaseService _fb = FirebaseService();
 
   // ── Getters ──
   String get displayName => _displayName;
@@ -19,6 +23,7 @@ class UserData extends ChangeNotifier {
   Gender? get gender => _gender;
   bool get isRegistered => _isRegistered;
   bool get hasSeenWelcome => _hasSeenWelcome;
+  String get uid => _uid;
 
   bool get isMale => _gender == Gender.male;
   bool get isFemale => _gender == Gender.female;
@@ -26,7 +31,7 @@ class UserData extends ChangeNotifier {
   Color get themeAccent {
     if (_gender == Gender.male) return const Color(0xFF4A90D9);
     if (_gender == Gender.female) return const Color(0xFFEE2B6C);
-    return const Color(0xFFEE2B6C); // default
+    return const Color(0xFFEE2B6C);
   }
 
   Color get themeAccentLight {
@@ -44,7 +49,7 @@ class UserData extends ChangeNotifier {
     return _displayName[0].toUpperCase();
   }
 
-  // ── Persistence ──
+  // ── Persistence (локальный кэш + Firestore) ──
   Future<void> loadFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -53,18 +58,47 @@ class UserData extends ChangeNotifier {
       _displayName = prefs.getString('displayName') ?? '';
       _email = prefs.getString('email') ?? '';
       _avatarUrl = prefs.getString('avatarUrl') ?? '';
+      _uid = prefs.getString('uid') ?? '';
       final genderStr = prefs.getString('gender');
       if (genderStr == 'male') _gender = Gender.male;
       if (genderStr == 'female') _gender = Gender.female;
+
+      // Если в кэше есть регистрация, но Firebase Auth пуст — сбрасываем
+      if (_isRegistered && !_fb.isLoggedIn) {
+        debugPrint('User was registered but Firebase Auth is null — resetting');
+        _isRegistered = false;
+        await prefs.setBool('isRegistered', false);
+      }
+
+      // Если авторизован → подтягиваем из облака
+      if (_fb.isLoggedIn && _isRegistered) {
+        _uid = _fb.uid ?? _uid;
+        await _syncFromFirestore();
+      }
     } catch (e) {
-      // Platform channel may not be ready (e.g. during hot restart).
-      // Defaults are already set — just continue.
       debugPrint('SharedPreferences load failed: $e');
     }
     notifyListeners();
   }
 
-  Future<void> _save() async {
+  Future<void> _syncFromFirestore() async {
+    try {
+      final data = await _fb.loadUserProfile();
+      if (data != null) {
+        _displayName = data['displayName'] ?? _displayName;
+        _email = data['email'] ?? _email;
+        _avatarUrl = data['avatarUrl'] ?? _avatarUrl;
+        final g = data['gender'] as String?;
+        if (g == 'male') _gender = Gender.male;
+        if (g == 'female') _gender = Gender.female;
+        await _saveLocal();
+      }
+    } catch (e) {
+      debugPrint('Firestore sync failed: $e');
+    }
+  }
+
+  Future<void> _saveLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('hasSeenWelcome', _hasSeenWelcome);
@@ -72,6 +106,7 @@ class UserData extends ChangeNotifier {
       await prefs.setString('displayName', _displayName);
       await prefs.setString('email', _email);
       await prefs.setString('avatarUrl', _avatarUrl);
+      await prefs.setString('uid', _uid);
       await prefs.setString(
         'gender',
         _gender == Gender.male
@@ -88,7 +123,7 @@ class UserData extends ChangeNotifier {
   // ── Actions ──
   Future<void> markWelcomeSeen() async {
     _hasSeenWelcome = true;
-    await _save();
+    await _saveLocal();
     notifyListeners();
   }
 
@@ -103,7 +138,18 @@ class UserData extends ChangeNotifier {
     _gender = gender;
     _avatarUrl = avatarUrl;
     _isRegistered = true;
-    await _save();
+    _uid = _fb.uid ?? '';
+
+    await _saveLocal();
+
+    if (_fb.isLoggedIn) {
+      await _fb.saveUserProfile(
+        displayName: displayName,
+        email: email,
+        gender: gender == Gender.male ? 'male' : 'female',
+        avatarUrl: avatarUrl,
+      );
+    }
     notifyListeners();
   }
 
@@ -117,23 +163,34 @@ class UserData extends ChangeNotifier {
     if (email != null) _email = email;
     if (avatarUrl != null) _avatarUrl = avatarUrl;
     if (gender != null) _gender = gender;
-    await _save();
+    await _saveLocal();
+
+    if (_fb.isLoggedIn) {
+      await _fb.saveUserProfile(
+        displayName: _displayName,
+        email: _email,
+        gender: _gender == Gender.male ? 'male' : 'female',
+        avatarUrl: _avatarUrl,
+      );
+    }
     notifyListeners();
   }
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    // Keep hasSeenWelcome true
+    await _fb.signOut();
     _isRegistered = false;
     _displayName = '';
     _email = '';
     _avatarUrl = '';
     _gender = null;
+    _uid = '';
     await prefs.setBool('isRegistered', false);
     await prefs.remove('displayName');
     await prefs.remove('email');
     await prefs.remove('avatarUrl');
     await prefs.remove('gender');
+    await prefs.remove('uid');
     notifyListeners();
   }
 }

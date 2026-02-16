@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Pair data --
   final PairData _pairData = PairData();
+  bool _pairLoading = true;
 
   // -- Image URLs --
   static const String _avatar2 =
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
+    _initPairData();
     // Dynamic timer - update every second for live counter
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_pairData.isPaired && _selectedTimeUnit == 2 && mounted) {
@@ -58,6 +60,11 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.userData.removeListener(_onUserChanged);
     _pairData.dispose();
     super.dispose();
+  }
+
+  Future<void> _initPairData() async {
+    await _pairData.init(myName: widget.userData.displayName);
+    if (mounted) setState(() => _pairLoading = false);
   }
 
   void _onPairChanged() {

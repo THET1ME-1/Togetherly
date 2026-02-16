@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Пользователи: только свой документ ──
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Коды приглашений: читать все (для поиска), писать только свои ──
+    match /inviteCodes/{code} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ── Пары: читать/писать только участникам пары ──
+    match /pairs/{pairId} {
+      allow read: if request.auth != null
+                  && (resource.data.user1 == request.auth.uid
+                      || resource.data.user2 == request.auth.uid);
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+                    && (resource.data.user1 == request.auth.uid
+                        || resource.data.user2 == request.auth.uid);
+      allow delete: if request.auth != null
+                    && (resource.data.user1 == request.auth.uid
+                        || resource.data.user2 == request.auth.uid);
+    }
+
+    // Всё остальное — запрещено
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

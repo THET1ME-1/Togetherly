@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_data.dart';
+import '../services/firebase_service.dart';
 import 'home_screen.dart';
 
 class SetupScreen extends StatefulWidget {
@@ -83,12 +83,12 @@ class _SetupScreenState extends State<SetupScreen>
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-      final account = await googleSignIn.signIn();
-      if (account != null) {
-        _nameController.text = account.displayName ?? '';
-        _emailController.text = account.email;
-        _avatarUrl = account.photoUrl ?? '';
+      final fb = FirebaseService();
+      final user = await fb.signInWithGoogle();
+      if (user != null) {
+        _nameController.text = user.displayName ?? '';
+        _emailController.text = user.email ?? '';
+        _avatarUrl = user.photoURL ?? '';
         setState(() {});
       }
     } catch (e) {

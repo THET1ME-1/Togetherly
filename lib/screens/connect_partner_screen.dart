@@ -616,18 +616,20 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
   }
 
-  void _submitCode() {
+  Future<void> _submitCode() async {
     final code = _codeController.text.trim().toUpperCase();
     if (pair.isSelfCode(code)) {
       setState(() => _codeError = true);
       _showSnack('Нельзя пригласить самого себя!');
       return;
     }
-    if (pair.acceptCode(code)) {
+    final ok = await pair.acceptCode(code);
+    if (ok) {
       setState(() {});
-      _showSnack('🎉 Connected with ${pair.partnerName}!');
+      _showSnack('🎉 Вы связаны с ${pair.partnerName}!');
     } else {
       setState(() => _codeError = true);
+      _showSnack('Код не найден или уже использован');
     }
   }
 

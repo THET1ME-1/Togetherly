@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "941141989934",
+    "project_id": "togetherly-d4856",
+    "storage_bucket": "togetherly-d4856.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:941141989934:android:25418ba41e028faef71dbf",
+        "android_client_info": {
+          "package_name": "com.example.love_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "941141989934-og5gm90uqhfnlq81csv5nt01eg8cp9k5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.love_app",
+            "certificate_hash": "b6267490e8046b930a0da79d8db4bb678c6f8d88"
+          }
+        },
+        {
+          "client_id": "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZTu-T61earAaCRkMEvrn6_wCH1X0sANg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

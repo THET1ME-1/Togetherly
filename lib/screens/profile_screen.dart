@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
+import 'setup_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final UserData userData;
@@ -574,11 +575,13 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.of(ctx).pop();
               await userData.logout();
-              if (ctx.mounted) {
-                // Navigate to setup screen
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/', (_) => false);
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => SetupScreen(userData: userData),
+                  ),
+                  (_) => false,
+                );
               }
             },
             child: Text('Выйти', style: TextStyle(color: Colors.red.shade400)),
