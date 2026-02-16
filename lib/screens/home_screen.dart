@@ -115,20 +115,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String get _counterLabel {
-    if (!_pairData.isPaired) return 'WAITING FOR LOVE';
+    if (!_pairData.isPaired) return 'WAITING FOR CONNECTION';
+    final suffix = _pairData.relationshipType == RelationshipType.couple
+        ? 'IN LOVE'
+        : 'TOGETHER';
     switch (_selectedTimeUnit) {
       case 0:
-        return 'DAYS IN LOVE';
+        return 'DAYS $suffix';
       case 1:
-        return 'MONTHS IN LOVE';
+        return 'MONTHS $suffix';
       case 2:
-        return 'TIME IN LOVE';
+        return 'TIME $suffix';
       default:
-        return 'DAYS IN LOVE';
+        return 'DAYS $suffix';
     }
   }
 
-  String get _statusBadgeText => _pairData.isPaired ? 'In love' : 'Solo';
+  String get _statusBadgeText {
+    if (!_pairData.isPaired) return 'Solo';
+    return _pairData.relationshipLabel;
+  }
+
+  String get _statusBadgeEmoji {
+    if (!_pairData.isPaired) return '';
+    return _pairData.relationshipEmoji;
+  }
 
   // =============================================
   // BUILD
@@ -279,48 +290,81 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Positioned(
                     left: 0,
-                    child: _avatarCircle(widget.userData.avatarUrl),
+                    child: _avatarCircle(
+                      widget.userData.avatarUrl,
+                      name: widget.userData.displayName,
+                    ),
                   ),
-                  Positioned(left: 28, child: _avatarCircle(_avatar2)),
+                  Positioned(
+                    left: 28,
+                    child: _avatarCircle(
+                      _pairData.partnerAvatarUrl,
+                      name: _pairData.partnerName,
+                    ),
+                  ),
                 ],
               ),
             ),
           ] else ...[
-            _avatarCircle(widget.userData.avatarUrl),
+            _avatarCircle(
+              widget.userData.avatarUrl,
+              name: widget.userData.displayName,
+            ),
           ],
           const SizedBox(width: 12),
-          // Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _pairData.isPaired
-                  ? primary.withOpacity(0.1)
-                  : Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
+          // Badge — tappable to change relationship type
+          GestureDetector(
+            onTap: _pairData.isPaired ? _showRelationshipTypeDialog : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
                 color: _pairData.isPaired
                     ? primary.withOpacity(0.1)
-                    : Colors.grey.shade300,
+                    : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _pairData.isPaired
+                      ? primary.withOpacity(0.1)
+                      : Colors.grey.shade300,
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _pairData.isPaired ? Icons.favorite : Icons.favorite_border,
-                  color: _pairData.isPaired ? primary : Colors.grey.shade400,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _statusBadgeText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _pairData.isPaired ? primary : Colors.grey.shade500,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_statusBadgeEmoji.isNotEmpty) ...[
+                    Text(
+                      _statusBadgeEmoji,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(width: 5),
+                  ] else ...[
+                    Icon(
+                      Icons.favorite_border,
+                      color: Colors.grey.shade400,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    _statusBadgeText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _pairData.isPaired
+                          ? primary
+                          : Colors.grey.shade500,
+                    ),
                   ),
-                ),
-              ],
+                  if (_pairData.isPaired) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 14,
+                      color: primary.withOpacity(0.6),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           const Spacer(),
@@ -333,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _avatarCircle(String url) {
+  Widget _avatarCircle(String url, {String? name}) {
     return Container(
       width: 40,
       height: 40,
@@ -349,23 +393,138 @@ class _HomeScreenState extends State<HomeScreen> {
             ? Image.network(
                 url,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: Colors.grey.shade200,
-                  child: Icon(
-                    Icons.person,
-                    color: Colors.grey.shade400,
-                    size: 20,
-                  ),
-                ),
+                errorBuilder: (_, __, ___) => _avatarPlaceholder(name),
               )
-            : Container(
-                color: Colors.grey.shade200,
-                child: Icon(
-                  Icons.person,
-                  color: Colors.grey.shade400,
-                  size: 20,
+            : _avatarPlaceholder(name),
+      ),
+    );
+  }
+
+  Widget _avatarPlaceholder(String? name) {
+    final initial = (name != null && name.isNotEmpty)
+        ? name[0].toUpperCase()
+        : '?';
+    return Container(
+      color: primary.withOpacity(0.15),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: primary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =============================================
+  // RELATIONSHIP TYPE DIALOG
+  // =============================================
+  void _showRelationshipTypeDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Relationship Status',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
                 ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose how you want to connect',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 24),
+              _buildRelationshipOption(
+                type: RelationshipType.couple,
+                icon: '\u2764\uFE0F',
+                title: 'In Love',
+                subtitle: 'Perfect for romantic couples',
+              ),
+              const SizedBox(height: 12),
+              _buildRelationshipOption(
+                type: RelationshipType.friends,
+                icon: '\u{1F91D}',
+                title: 'Friends',
+                subtitle: 'Connect with your best friend',
+              ),
+              const SizedBox(height: 12),
+              _buildRelationshipOption(
+                type: RelationshipType.buddies,
+                icon: '\u{1F46F}',
+                title: 'Best Buddies',
+                subtitle: 'For inseparable companions',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelationshipOption({
+    required RelationshipType type,
+    required String icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final isSelected = _pairData.relationshipType == type;
+    return GestureDetector(
+      onTap: () {
+        _pairData.setRelationshipType(type);
+        Navigator.of(context).pop();
+        setState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? primary : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? primary : Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: primary, size: 24),
+          ],
+        ),
       ),
     );
   }
@@ -541,7 +700,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Positioned(
                     bottom: 16,
                     right: -8,
-                    child: _photoFragment(_avatar2, 56, 56, 0.2),
+                    child: _photoFragment(
+                      _pairData.partnerAvatarUrl,
+                      56,
+                      56,
+                      0.2,
+                    ),
                   ),
                 ],
                 // -- Gradient overlay --
