@@ -9,6 +9,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/memory.dart';
+import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
 
@@ -1249,6 +1250,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ],
                       ],
                     ),
+
+                    // ── Comments section ──
+                    const SizedBox(height: 24),
+                    _CommentsSection(
+                      groupId: _groupId,
+                      memoryId: memory.id,
+                      fb: _fb,
+                    ),
+
                     SizedBox(height: MediaQuery.of(context).padding.bottom),
                   ],
                 ),
@@ -2489,5 +2499,295 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
         size: 28,
       ),
     );
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  Comments Section Widget
+// ══════════════════════════════════════════════════════
+
+class _CommentsSection extends StatefulWidget {
+  final String groupId;
+  final String memoryId;
+  final FirebaseService fb;
+
+  const _CommentsSection({
+    required this.groupId,
+    required this.memoryId,
+    required this.fb,
+  });
+
+  @override
+  State<_CommentsSection> createState() => _CommentsSectionState();
+}
+
+class _CommentsSectionState extends State<_CommentsSection> {
+  final TextEditingController _ctrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sending = true);
+    await widget.fb.addComment(
+      groupId: widget.groupId,
+      memoryId: widget.memoryId,
+      text: text,
+    );
+    _ctrl.clear();
+    setState(() => _sending = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 18,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Comments',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Comment list (real-time)
+        StreamBuilder<List<MemoryComment>>(
+          stream: widget.fb.commentsStream(
+            groupId: widget.groupId,
+            memoryId: widget.memoryId,
+          ),
+          builder: (context, snap) {
+            final comments = snap.data ?? [];
+            if (comments.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'No comments yet — be the first!',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade400,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: comments.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => _commentBubble(comments[i]),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Input field
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                textCapitalization: TextCapitalization.sentences,
+                maxLines: null,
+                style: const TextStyle(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Write a comment…',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFEE2B6C),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _sending ? null : _send,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEE2B6C),
+                  shape: BoxShape.circle,
+                ),
+                child: _sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _commentBubble(MemoryComment comment) {
+    final isMe = comment.authorUid == widget.fb.uid;
+    return GestureDetector(
+      onLongPress: isMe ? () => _confirmDeleteComment(comment) : null,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (comment.authorAvatar.isNotEmpty)
+            CircleAvatar(
+              radius: 14,
+              backgroundImage: NetworkImage(comment.authorAvatar),
+            )
+          else
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.grey.shade200,
+              child: Text(
+                comment.authorName.isNotEmpty
+                    ? comment.authorName[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? const Color(0xFFEE2B6C).withOpacity(0.06)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isMe
+                      ? const Color(0xFFEE2B6C).withOpacity(0.15)
+                      : Colors.grey.shade200,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        comment.authorName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isMe
+                              ? const Color(0xFFEE2B6C)
+                              : Colors.grey.shade700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _timeAgo(comment.createdAt),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    comment.text,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: Colors.grey.shade800,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteComment(MemoryComment comment) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete comment?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              widget.fb.deleteComment(
+                groupId: widget.groupId,
+                memoryId: widget.memoryId,
+                commentId: comment.id,
+              );
+            },
+            child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
   }
 }

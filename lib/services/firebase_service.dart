@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import '../models/memory.dart';
+import '../models/comment.dart';
 
 /// Единый сервис для работы с Firebase.
 /// Поддерживает группы от 2 до 10 участников + совместные воспоминания.
@@ -939,6 +940,72 @@ class FirebaseService {
               .toList();
           onData(memories);
         });
+  }
+
+  // ══════════════════════════════════════════════
+  //  COMMENTS
+  // ══════════════════════════════════════════════
+
+  CollectionReference _commentsRef(String groupId, String memoryId) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('memories')
+        .doc(memoryId)
+        .collection('comments');
+  }
+
+  Future<void> addComment({
+    required String groupId,
+    required String memoryId,
+    required String text,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    final comment = MemoryComment(
+      id: '',
+      authorUid: user.uid,
+      authorName: user.displayName ?? 'User',
+      authorAvatar: user.photoURL ?? '',
+      text: text,
+      createdAt: DateTime.now(),
+    );
+    try {
+      await _commentsRef(groupId, memoryId).add(comment.toFirestore());
+    } catch (e) {
+      debugPrint('addComment failed: $e');
+    }
+  }
+
+  Future<void> deleteComment({
+    required String groupId,
+    required String memoryId,
+    required String commentId,
+  }) async {
+    try {
+      await _commentsRef(groupId, memoryId).doc(commentId).delete();
+    } catch (e) {
+      debugPrint('deleteComment failed: $e');
+    }
+  }
+
+  Stream<List<MemoryComment>> commentsStream({
+    required String groupId,
+    required String memoryId,
+  }) {
+    return _commentsRef(groupId, memoryId)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (d) => MemoryComment.fromFirestore(
+                  d.id,
+                  d.data() as Map<String, dynamic>,
+                ),
+              )
+              .toList(),
+        );
   }
 
   // ══════════════════════════════════════════════
