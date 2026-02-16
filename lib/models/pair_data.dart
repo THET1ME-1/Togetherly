@@ -27,7 +27,7 @@ class PairData extends ChangeNotifier {
   String get pairId => _pairId;
   bool get loading => _loading;
 
-  String get inviteLink => 'https://loveapp.link/invite/$_inviteCode';
+  String get inviteLink => 'https://togetherly.app/invite/$_inviteCode';
 
   // ── Counter values ──
   int get daysInLove {

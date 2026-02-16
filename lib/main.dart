@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models/user_data.dart';
+import 'services/deep_link_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/setup_screen.dart';
 import 'screens/home_screen.dart';
@@ -16,6 +17,9 @@ void main() async {
 
   // Ждём первый auth state (восстановление сессии)
   await FirebaseAuth.instance.authStateChanges().first;
+
+  // Deep links — инициализация
+  DeepLinkService().init();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

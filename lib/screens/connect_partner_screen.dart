@@ -1,7 +1,13 @@
+import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
+import '../services/deep_link_service.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -18,6 +24,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   bool _showCodeInput = false;
   bool _codeError = false;
   late AnimationController _pulseController;
+  StreamSubscription? _deepLinkSub;
 
   @override
   void initState() {
@@ -26,12 +33,23 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // Слушаем deep links
+    _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
+      if (mounted && !pair.isPaired) {
+        _codeController.text = code;
+        _showCodeInput = true;
+        setState(() {});
+        _submitCode();
+      }
+    });
   }
 
   @override
   void dispose() {
     _codeController.dispose();
     _pulseController.dispose();
+    _deepLinkSub?.cancel();
     super.dispose();
   }
 
@@ -206,9 +224,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   label: 'Share Link',
                   subtitle: pair.inviteLink,
                   color: const Color(0xFF3B82F6),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: pair.inviteLink));
-                    _showSnack('Link copied!');
+                  onTap: () async {
+                    await Share.share(
+                      'Join me on Love App! ${pair.inviteLink}',
+                      subject: 'Love App Invitation',
+                    );
                   },
                 ),
                 _divider(),
@@ -221,18 +241,23 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 _divider(),
                 _shareOption(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR Code',
+                  subtitle: 'Scan partner\'s QR to connect',
+                  color: const Color(0xFFEC4899),
+                  onTap: () => _openQRScanner(),
+                ),
+                _divider(),
+                _shareOption(
                   icon: Icons.message_rounded,
                   label: 'Send via Message',
                   subtitle: 'Share code through messenger',
                   color: const Color(0xFF22C55E),
-                  onTap: () {
-                    Clipboard.setData(
-                      ClipboardData(
-                        text:
-                            'Join me on Love App! Use code: ${pair.inviteCode}\n${pair.inviteLink}',
-                      ),
+                  onTap: () async {
+                    await Share.share(
+                      'Join me on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
+                      subject: 'Love App Invitation',
                     );
-                    _showSnack('Invite text copied!');
                   },
                 ),
               ],
@@ -648,6 +673,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   void _showQRDialog() {
+    // 🎲 10% шанс на Рикрол
+    final random = Random();
+    final isRickroll = random.nextInt(100) < 10;
+    final qrData = isRickroll
+        ? 'https://youtu.be/dQw4w9WgXcQ?si=owAivsztmdCvvm6v'
+        : pair.inviteLink;
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -667,18 +699,22 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
               ),
               const SizedBox(height: 24),
-              // Simulated QR code
+              // Реальный QR код с фиксированным размером
               Container(
-                width: 200,
-                height: 200,
+                width: 240,
+                height: 240,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.grey.shade200, width: 2),
                 ),
-                child: CustomPaint(
-                  painter: _SimpleQRPainter(pair.inviteCode),
-                  size: const Size(200, 200),
+                child: QrImageView(
+                  data: qrData,
+                  version: QrVersions.auto,
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.L,
+                  padding: EdgeInsets.zero,
                 ),
               ),
               const SizedBox(height: 20),
@@ -692,29 +728,71 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
               ),
               const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await Share.share(
+                            'Join me on Love App! ${pair.inviteLink}',
+                            subject: 'Love App Invitation',
+                          );
+                        },
+                        icon: const Icon(Icons.share_rounded),
+                        label: const Text('Share'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primary,
+                          side: const BorderSide(color: primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    'Done',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Done',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _openQRScanner() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
+    );
+
+    if (code != null && mounted) {
+      _codeController.text = code;
+      _showCodeInput = true;
+      setState(() {});
+      _submitCode();
+    }
   }
 
   void _showUnpairDialog() {
@@ -749,111 +827,64 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 }
 
 // ═══════════════════════════════════════════════════
-// Simple QR-like pattern painter (decorative)
+// QR Scanner Screen
 // ═══════════════════════════════════════════════════
-class _SimpleQRPainter extends CustomPainter {
-  final String code;
-  _SimpleQRPainter(this.code);
+class QRScannerScreen extends StatefulWidget {
+  const QRScannerScreen({super.key});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF1A1A1A);
-    final cellSize = size.width / 15;
-    final margin = cellSize * 1.5;
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
+}
 
-    // Use code chars to seed a pattern
-    int seed = 0;
-    for (var c in code.codeUnits) {
-      seed = (seed * 31 + c) & 0x7FFFFFFF;
-    }
-
-    // Draw corner markers (like a real QR code)
-    _drawFinderPattern(canvas, paint, margin, margin, cellSize);
-    _drawFinderPattern(
-      canvas,
-      paint,
-      size.width - margin - cellSize * 3,
-      margin,
-      cellSize,
-    );
-    _drawFinderPattern(
-      canvas,
-      paint,
-      margin,
-      size.height - margin - cellSize * 3,
-      cellSize,
-    );
-
-    // Draw data pattern
-    final rng = seed;
-    for (int row = 0; row < 15; row++) {
-      for (int col = 0; col < 15; col++) {
-        // Skip finder pattern areas
-        if (_inFinderArea(row, col)) continue;
-        // Pseudo-random based on seed
-        int v = ((rng * (row * 15 + col + 1)) >> 3) & 0xF;
-        if (v < 6) {
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(
-                col * cellSize + margin / 2,
-                row * cellSize + margin / 2,
-                cellSize * 0.85,
-                cellSize * 0.85,
-              ),
-              const Radius.circular(2),
-            ),
-            paint,
-          );
-        }
-      }
-    }
-  }
-
-  bool _inFinderArea(int row, int col) {
-    // Top-left 4x4
-    if (row < 4 && col < 4) return true;
-    // Top-right 4x4
-    if (row < 4 && col > 10) return true;
-    // Bottom-left 4x4
-    if (row > 10 && col < 4) return true;
-    return false;
-  }
-
-  void _drawFinderPattern(
-    Canvas canvas,
-    Paint paint,
-    double x,
-    double y,
-    double cell,
-  ) {
-    // Outer square
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, cell * 3, cell * 3),
-        const Radius.circular(4),
-      ),
-      paint,
-    );
-    // White inner
-    final whitePaint = Paint()..color = Colors.white;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x + cell * 0.5, y + cell * 0.5, cell * 2, cell * 2),
-        const Radius.circular(2),
-      ),
-      whitePaint,
-    );
-    // Black center
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x + cell, y + cell, cell, cell),
-        const Radius.circular(2),
-      ),
-      paint,
-    );
-  }
+class _QRScannerScreenState extends State<QRScannerScreen> {
+  bool _codeDetected = false;
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Scan Partner\'s QR Code',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_codeDetected) return;
+
+          final List<Barcode> barcodes = capture.barcodes;
+          for (final barcode in barcodes) {
+            final String? rawValue = barcode.rawValue;
+            if (rawValue != null) {
+              // Извлекаем код из URL или используем как есть
+              String code = rawValue;
+
+              // Если это ссылка togetherly.app/invite/CODE
+              if (rawValue.contains('togetherly.app/invite/')) {
+                code = rawValue.split('/invite/').last;
+              }
+              // Если это loveapp://invite/CODE
+              else if (rawValue.contains('loveapp://invite/')) {
+                code = rawValue.split('/invite/').last;
+              }
+
+              // Проверяем что код 6 символов
+              if (code.length == 6) {
+                _codeDetected = true;
+                Navigator.pop(context, code.toUpperCase());
+                return;
+              }
+            }
+          }
+        },
+      ),
+    );
+  }
 }

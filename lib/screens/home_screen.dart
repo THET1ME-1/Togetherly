@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../services/deep_link_service.dart';
 import 'connect_partner_screen.dart';
 import 'profile_screen.dart';
 
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedNavIndex = 0;
   bool _showReflection = true;
   Timer? _timer;
+  StreamSubscription? _deepLinkSub;
 
   // -- Pair data --
   final PairData _pairData = PairData();
@@ -45,10 +47,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
     _initPairData();
+
     // Dynamic timer - update every second for live counter
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_pairData.isPaired && _selectedTimeUnit == 2 && mounted) {
         setState(() {}); // Refresh counter when in Time mode
+      }
+    });
+
+    // Listen to deep link invites
+    _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
+      if (mounted && !_pairData.isPaired) {
+        // Switch to Connect Partner tab
+        setState(() => _selectedNavIndex = 1);
+        // The connect_partner_screen will handle the code
       }
     });
   }
@@ -56,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _deepLinkSub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _pairData.dispose();
