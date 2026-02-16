@@ -1,5 +1,4 @@
 ﻿import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,6 +25,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Color get primaryLight => widget.userData.themeAccentLight;
   static const Color bgLight = Color(0xFFF8F6F6);
 
+  // -- Cached painter --
+  static final _bgPainter = _BgPatternPainter();
+
   // -- State --
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   int _selectedNavIndex = 0;
@@ -49,12 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.userData.addListener(_onUserChanged);
     _initPairData();
 
-    // Dynamic timer - update every second for live counter
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_pairData.isPaired && _selectedTimeUnit == 2 && mounted) {
-        setState(() {}); // Refresh counter when in Time mode
-      }
-    });
+    // Dynamic timer - only start when needed (Time mode)
+    _startTimerIfNeeded();
 
     // Listen to deep link invites
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
@@ -82,9 +80,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _pairLoading = false);
   }
 
+  void _startTimerIfNeeded() {
+    _timer?.cancel();
+    _timer = null;
+    if (_pairData.isPaired && _selectedTimeUnit == 2) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
   void _onPairChanged() {
     if (mounted) {
       _startMemoryListener();
+      _startTimerIfNeeded();
       setState(() {});
     }
   }
@@ -172,11 +181,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           // -- Background --
           Positioned.fill(
-            child: Container(
-              color: bgLight,
-              child: CustomPaint(
-                painter: _BgPatternPainter(),
-                size: Size.infinite,
+            child: RepaintBoundary(
+              child: Container(
+                color: bgLight,
+                child: CustomPaint(painter: _bgPainter, size: Size.infinite),
               ),
             ),
           ),
@@ -419,6 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ? Image.network(
                 url,
                 fit: BoxFit.cover,
+                cacheWidth: 120,
+                cacheHeight: 120,
                 errorBuilder: (_, __, ___) => _avatarPlaceholder(name),
               )
             : _avatarPlaceholder(name),
@@ -1056,172 +1066,143 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 260),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.75),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.6)),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 260),
+        decoration: BoxDecoration(
+          color: const Color(0xF0FFFFFF),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x99FFFFFF)),
+        ),
+        child: Stack(
+          children: [
+            // -- Photo fragments (subtle background) --
+            if (_pairData.isPaired) ...[
+              Positioned(
+                top: -8,
+                left: -16,
+                child: _photoFragment(widget.userData.avatarUrl, 80, 80, -0.2),
+              ),
+              Positioned(
+                top: 48,
+                right: 8,
+                child: _photoFragment(_pairData.partnerAvatarUrl, 64, 64, 0.1),
+              ),
+              Positioned(
+                bottom: -24,
+                left: 60,
+                child: _photoFragment(widget.userData.avatarUrl, 96, 96, -0.05),
+              ),
+              Positioned(
+                bottom: 16,
+                right: -8,
+                child: _photoFragment(_pairData.partnerAvatarUrl, 56, 56, 0.2),
+              ),
+            ],
+            // -- Gradient overlay --
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withOpacity(0.15),
+                      Colors.white.withOpacity(0.5),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: Stack(
-              children: [
-                // -- Photo fragments (subtle background) --
-                if (_pairData.isPaired) ...[
-                  Positioned(
-                    top: -8,
-                    left: -16,
-                    child: _photoFragment(
-                      widget.userData.avatarUrl,
-                      80,
-                      80,
-                      -0.2,
-                    ),
-                  ),
-                  Positioned(
-                    top: 48,
-                    right: 8,
-                    child: _photoFragment(
-                      _pairData.partnerAvatarUrl,
-                      64,
-                      64,
-                      0.1,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -24,
-                    left: 60,
-                    child: _photoFragment(
-                      widget.userData.avatarUrl,
-                      96,
-                      96,
-                      -0.05,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 16,
-                    right: -8,
-                    child: _photoFragment(
-                      _pairData.partnerAvatarUrl,
-                      56,
-                      56,
-                      0.2,
-                    ),
-                  ),
-                ],
-                // -- Gradient overlay --
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.white.withOpacity(0.15),
-                          Colors.white.withOpacity(0.5),
-                        ],
+            // -- Content --
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Counter number
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, anim) =>
+                          FadeTransition(opacity: anim, child: child),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        key: ValueKey('$_selectedTimeUnit-$_counterValue'),
+                        child: Text(
+                          _counterValue,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: _selectedTimeUnit == 2 ? 42 : 64,
+                            fontWeight: FontWeight.w800,
+                            color: _pairData.isPaired
+                                ? const Color(0xFF1A1A1A)
+                                : Colors.grey.shade300,
+                            height: 1.1,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                // -- Content --
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 40,
-                    horizontal: 20,
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Counter number
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (child, anim) =>
-                              FadeTransition(opacity: anim, child: child),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            key: ValueKey('$_selectedTimeUnit-$_counterValue'),
-                            child: Text(
-                              _counterValue,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: _selectedTimeUnit == 2 ? 42 : 64,
-                                fontWeight: FontWeight.w800,
-                                color: _pairData.isPaired
-                                    ? const Color(0xFF1A1A1A)
-                                    : Colors.grey.shade300,
-                                height: 1.1,
+                    const SizedBox(height: 8),
+                    // Counter label
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        _counterLabel,
+                        key: ValueKey(_counterLabel),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _pairData.isPaired
+                              ? primary
+                              : Colors.grey.shade400,
+                          letterSpacing: 4,
+                        ),
+                      ),
+                    ),
+                    // Partner mood display
+                    if (_pairData.isPaired &&
+                        _pairData.partnerMood.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _pairData.partnerMood.emoji,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_pairData.partnerName} is ${_pairData.partnerMood.label}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: primary,
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        // Counter label
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: Text(
-                            _counterLabel,
-                            key: ValueKey(_counterLabel),
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: _pairData.isPaired
-                                  ? primary
-                                  : Colors.grey.shade400,
-                              letterSpacing: 4,
-                            ),
-                          ),
-                        ),
-                        // Partner mood display
-                        if (_pairData.isPaired &&
-                            _pairData.partnerMood.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primary.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _pairData.partnerMood.emoji,
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${_pairData.partnerName} is ${_pairData.partnerMood.label}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 40),
-                        // Toggle
-                        _buildTimeToggle(),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                    const SizedBox(height: 40),
+                    // Toggle
+                    _buildTimeToggle(),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -1244,6 +1225,8 @@ class _HomeScreenState extends State<HomeScreen> {
               width: w,
               height: h,
               fit: BoxFit.cover,
+              cacheWidth: (w * 2).toInt(),
+              cacheHeight: (h * 2).toInt(),
               errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
             ),
           ),
@@ -1296,7 +1279,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   final selected = _selectedTimeUnit == i;
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedTimeUnit = i),
+                      onTap: () {
+                        setState(() => _selectedTimeUnit = i);
+                        _startTimerIfNeeded();
+                      },
                       behavior: HitTestBehavior.opaque,
                       child: Center(
                         child: Text(
@@ -1641,6 +1627,7 @@ class _HomeScreenState extends State<HomeScreen> {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: _recentMemories.length,
+              addAutomaticKeepAlives: false,
               separatorBuilder: (_, __) => const SizedBox(width: 16),
               itemBuilder: (_, i) => _memoryPreviewCard(_recentMemories[i]),
             ),
@@ -1706,6 +1693,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Image.network(
             memory.imageUrl!,
             fit: BoxFit.cover,
+            cacheWidth: 480,
+            cacheHeight: 600,
             errorBuilder: (_, __, ___) =>
                 Container(color: Colors.grey.shade200),
           )
@@ -2050,31 +2039,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.78),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white.withOpacity(0.6)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _navItem(Icons.home_rounded, 0),
-                  _navItem(Icons.widgets_rounded, 1),
-                  Container(width: 1, height: 24, color: Colors.grey.shade200),
-                  _navItem(
-                    _pairData.isPaired
-                        ? Icons.chat_bubble_outline_rounded
-                        : Icons.person_add_alt_1_rounded,
-                    2,
-                    showBadge: !_pairData.isPaired,
-                  ),
-                  _navItem(Icons.person_outline_rounded, 3),
-                ],
-              ),
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xC7FFFFFF),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: const Color(0x99FFFFFF)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _navItem(Icons.home_rounded, 0),
+                _navItem(Icons.widgets_rounded, 1),
+                Container(width: 1, height: 24, color: Colors.grey.shade200),
+                _navItem(
+                  _pairData.isPaired
+                      ? Icons.chat_bubble_outline_rounded
+                      : Icons.person_add_alt_1_rounded,
+                  2,
+                  showBadge: !_pairData.isPaired,
+                ),
+                _navItem(Icons.person_outline_rounded, 3),
+              ],
             ),
           ),
         ),

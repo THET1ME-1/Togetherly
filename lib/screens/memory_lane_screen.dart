@@ -350,6 +350,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 child: Image.network(
                   memory.imageUrl!,
                   fit: BoxFit.cover,
+                  cacheWidth: 800,
+                  cacheHeight: 500,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey.shade200,
                     child: Center(
@@ -392,6 +394,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     Image.network(
                       memory.imageUrl!,
                       fit: BoxFit.cover,
+                      cacheWidth: 800,
+                      cacheHeight: 500,
                       errorBuilder: (_, __, ___) =>
                           Container(color: Colors.grey.shade300),
                     )
@@ -559,6 +563,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             child: Image.network(
                               memory.musicCoverUrl!,
                               fit: BoxFit.cover,
+                              cacheWidth: 96,
+                              cacheHeight: 96,
                               errorBuilder: (_, __, ___) => const Icon(
                                 Icons.music_note_rounded,
                                 color: Color(0xFF8B5CF6),
@@ -786,6 +792,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               child: Image.network(
                 memory.authorAvatar,
                 fit: BoxFit.cover,
+                cacheWidth: 48,
+                cacheHeight: 48,
                 errorBuilder: (_, __, ___) => const SizedBox(),
               ),
             ),

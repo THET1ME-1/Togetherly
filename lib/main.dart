@@ -42,6 +42,13 @@ class _LoveAppState extends State<LoveApp> {
   final UserData _userData = UserData();
   bool _loading = true;
 
+  // Cache theme to avoid recreating on every build
+  static final ThemeData _cachedTheme = ThemeData(
+    textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+    scaffoldBackgroundColor: const Color(0xFFF8F6F6),
+    useMaterial3: true,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -58,11 +65,7 @@ class _LoveAppState extends State<LoveApp> {
     return MaterialApp(
       title: 'Love App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-        scaffoldBackgroundColor: const Color(0xFFF8F6F6),
-        useMaterial3: true,
-      ),
+      theme: _cachedTheme,
       home: _loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : _buildInitialScreen(),

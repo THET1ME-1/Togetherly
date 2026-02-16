@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
@@ -80,6 +79,8 @@ class ProfileScreen extends StatelessWidget {
                     child: Image.network(
                       userData.avatarUrl,
                       fit: BoxFit.cover,
+                      cacheWidth: 200,
+                      cacheHeight: 200,
                       errorBuilder: (_, __, ___) => _buildAvatarFallback(),
                     ),
                   )
@@ -477,28 +478,22 @@ class ProfileScreen extends StatelessWidget {
   //  HELPERS
   // ═══════════════════════════════════════════════════
   Widget _glassCard({required Widget child}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.78),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.6)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xC7FFFFFF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x99FFFFFF)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
-          child: child,
-        ),
+        ],
       ),
+      child: child,
     );
   }
 
