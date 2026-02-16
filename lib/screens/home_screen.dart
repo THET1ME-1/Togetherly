@@ -31,8 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final PairData _pairData = PairData();
 
   // -- Image URLs --
-  static const String _avatar1 =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCXnoETm_vtC3lKFupdlHAb12mktCOPy3W4mltZ672WBgc7mvyXZw-0e8SzJCwkkh2ALZzpECL86Wf3PmizJk0iAkRRTEK_k9OaooFCpeyqNtmXpF--Hfuzj64ovK5QFjeHiJqbhvj-bkXs8MNb9sKIlcVpbM2PGDOARTWWmo_kD25ax_5HZ3tdN2ZhQ4o4JpnIIHClKQe2ktHHheFA5x5GTivaKrVmlZr-cPgCFoOvjKqONIQDAuZMi1LYHZFaLiFYvFp287oVwqA';
   static const String _avatar2 =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBja92tC-GNSOJPqL6bNPRKeHAqLJWK4aAcquDO9CpDFs8aj0ZB3zUdqDz_E8sppd96foaSj7sTdITtT-T7NNftpKmiHCMOOK0GMVO6zrLl98R70H0jEj4Z3b_QbWsOa0SnG2MmGPUzPvkbCcpgRqUZayJ8WzM0jqgr51Qk7jojilzjvC1WC6lfLqdKnbkUZJ6QDhbIwRmAequdHpEZg2OuCvxeS6DajJJ1VslTIqIu7z3Osegz9PKlwgO2DUbK_U3CjUsa3IXgKS8';
   static const String _memoryImg =
@@ -259,13 +257,16 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 40,
               child: Stack(
                 children: [
-                  Positioned(left: 0, child: _avatarCircle(_avatar1)),
+                  Positioned(
+                    left: 0,
+                    child: _avatarCircle(widget.userData.avatarUrl),
+                  ),
                   Positioned(left: 28, child: _avatarCircle(_avatar2)),
                 ],
               ),
             ),
           ] else ...[
-            _avatarCircle(_avatar1),
+            _avatarCircle(widget.userData.avatarUrl),
           ],
           const SizedBox(width: 12),
           // Badge
@@ -324,14 +325,27 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: ClipOval(
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            color: Colors.grey.shade200,
-            child: Icon(Icons.person, color: Colors.grey.shade400, size: 20),
-          ),
-        ),
+        child: url.isNotEmpty
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey.shade200,
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                ),
+              )
+            : Container(
+                color: Colors.grey.shade200,
+                child: Icon(
+                  Icons.person,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
       ),
     );
   }
@@ -497,7 +511,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Positioned(
                     bottom: -24,
                     left: 60,
-                    child: _photoFragment(_avatar1, 96, 96, -0.05),
+                    child: _photoFragment(
+                      widget.userData.avatarUrl,
+                      96,
+                      96,
+                      -0.05,
+                    ),
                   ),
                   Positioned(
                     bottom: 16,
