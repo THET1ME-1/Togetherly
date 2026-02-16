@@ -80,7 +80,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   Widget _buildGroupTabs() {
     final connections = pair.manager.connections;
     return SizedBox(
-      height: 60,
+      height: 56,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
@@ -101,8 +101,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   Widget _buildGroupChip(Connection connection, int index, bool isActive) {
     final name = connection.isPaired ? connection.partnerName : 'Waiting...';
     return GestureDetector(
-      onTap: () {
-        pair.manager.switchToConnection(index);
+      onTap: () async {
+        await pair.manager.switchToConnection(index);
         _resetCodeInput();
         setState(() {});
       },
@@ -113,7 +113,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isActive ? primary.withOpacity(0.1) : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -136,37 +136,22 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           children: [
             Text(
               connection.relationshipEmoji,
-              style: const TextStyle(fontSize: 18),
+              style: const TextStyle(fontSize: 16),
             ),
-            const SizedBox(width: 8),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isActive ? primary : Colors.grey.shade700,
-                  ),
-                ),
-                Text(
-                  connection.relationshipLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isActive
-                        ? primary.withOpacity(0.7)
-                        : Colors.grey.shade400,
-                  ),
-                ),
-              ],
+            const SizedBox(width: 6),
+            Text(
+              name,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isActive ? primary : Colors.grey.shade700,
+              ),
             ),
             if (connection.isPaired) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
-                width: 8,
-                height: 8,
+                width: 7,
+                height: 7,
                 decoration: const BoxDecoration(
                   color: Color(0xFF22C55E),
                   shape: BoxShape.circle,

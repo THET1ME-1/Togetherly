@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/firebase_service.dart';
 import 'connections_manager.dart';
 import 'connection.dart';
 
@@ -25,6 +22,7 @@ class PairData extends ChangeNotifier {
   String get partnerName => _active?.partnerName ?? '';
   String get partnerAvatarUrl => _active?.partnerAvatarUrl ?? '';
   String get inviteCode => _active?.inviteCode ?? '';
+
   String get pairId => _active?.pairId ?? '';
   bool get loading => _manager.loading;
   RelationshipType get relationshipType =>

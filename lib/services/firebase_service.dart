@@ -20,8 +20,6 @@ class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
-  StreamSubscription? _pairSub;
-
   // ══════════════════════════════════════════════
   //  AUTH
   // ══════════════════════════════════════════════
@@ -77,7 +75,6 @@ class FirebaseService {
 
   /// Выход
   Future<void> signOut() async {
-    _pairSub?.cancel();
     try {
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
@@ -190,23 +187,49 @@ class FirebaseService {
     }
   }
 
-  /// Перегенерация кода (удаляем старый, создаём новый)
-  Future<String> regenerateInviteCode() async {
+  /// Генерация НОВОГО уникального кода (для каждой группы свой).
+  /// Не проверяет существующий код пользователя — всегда генерирует новый.
+  Future<String> generateNewInviteCode({String? oldCode}) async {
     final u = currentUser;
-    if (u == null) throw Exception('Not logged in');
+    if (u == null) return '';
 
-    // Удаляем старый
-    final userDoc = await _db.collection('users').doc(u.uid).get();
-    final oldCode = userDoc.data()?['inviteCode'] as String?;
-    if (oldCode != null) {
-      await _db.collection('inviteCodes').doc(oldCode).delete();
+    try {
+      // Удаляем старый код если передан
+      if (oldCode != null && oldCode.isNotEmpty) {
+        await _db.collection('inviteCodes').doc(oldCode).delete();
+      }
+
+      // Генерим уникальный код
+      String code;
+      bool exists;
+      do {
+        code = _generateCode();
+        final codeDoc = await _db
+            .collection('inviteCodes')
+            .doc(code)
+            .get()
+            .timeout(const Duration(seconds: 5));
+        exists = codeDoc.exists;
+      } while (exists);
+
+      debugPrint('Firestore: saving new invite code $code...');
+      await _db
+          .collection('inviteCodes')
+          .doc(code)
+          .set({'ownerUid': u.uid, 'createdAt': FieldValue.serverTimestamp()})
+          .timeout(const Duration(seconds: 10));
+
+      debugPrint('New invite code saved: $code');
+      return code;
+    } catch (e) {
+      debugPrint('generateNewInviteCode failed: $e');
+      return '';
     }
+  }
 
-    // Очищаем у пользователя
-    await _db.collection('users').doc(u.uid).update({'inviteCode': ''});
-
-    // Генерим новый
-    return generateInviteCode();
+  /// Перегенерация кода (удаляем старый, создаём новый)
+  Future<String> regenerateInviteCode({String? oldCode}) async {
+    return generateNewInviteCode(oldCode: oldCode);
   }
 
   // ══════════════════════════════════════════════
@@ -243,11 +266,8 @@ class FirebaseService {
       return {'success': false, 'message': 'Этот человек уже в паре'};
     }
 
-    // 3. Проверяем что мы не в паре (1 чтение)
+    // 3. Загружаем свой профиль (мульти-группы: разрешаем несколько пар)
     final myDoc = await _db.collection('users').doc(u.uid).get();
-    if ((myDoc.data()?['pairId'] ?? '').toString().isNotEmpty) {
-      return {'success': false, 'message': 'Вы уже в паре'};
-    }
 
     // 4. Создаём документ пары (1 запись)
     final pairRef = _db.collection('pairs').doc();
@@ -269,9 +289,15 @@ class FirebaseService {
       'createdAt': now,
     });
 
-    // Обновляем обоих пользователей
-    batch.update(_db.collection('users').doc(ownerUid), {'pairId': pairRef.id});
-    batch.update(_db.collection('users').doc(u.uid), {'pairId': pairRef.id});
+    // Обновляем обоих пользователей (pairId = последний, pairIds = массив всех)
+    batch.update(_db.collection('users').doc(ownerUid), {
+      'pairId': pairRef.id,
+      'pairIds': FieldValue.arrayUnion([pairRef.id]),
+    });
+    batch.update(_db.collection('users').doc(u.uid), {
+      'pairId': pairRef.id,
+      'pairIds': FieldValue.arrayUnion([pairRef.id]),
+    });
 
     // Удаляем оба инвайт-кода — они больше не нужны
     batch.delete(_db.collection('inviteCodes').doc(code));
@@ -286,11 +312,43 @@ class FirebaseService {
       'success': true,
       'message': 'Вы в паре!',
       'partnerName': ownerData['displayName'] ?? 'Партнёр',
+      'partnerAvatar': ownerData['avatarUrl'] ?? '',
       'pairId': pairRef.id,
+      'startDate': DateTime.now(), // server timestamp не вернётся сразу
     };
   }
 
-  /// Загружает данные пары (1 чтение)
+  /// Загружает данные пары по pairId напрямую (1 чтение документа pairs)
+  /// Используется когда Connection уже знает свой pairId.
+  Future<Map<String, dynamic>?> loadPairById(String pairId) async {
+    final u = currentUser;
+    if (u == null || pairId.isEmpty) return null;
+
+    try {
+      final pairDoc = await _db
+          .collection('pairs')
+          .doc(pairId)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      if (!pairDoc.exists) return null;
+
+      final data = pairDoc.data()!;
+      final isUser1 = data['user1'] == u.uid;
+      return {
+        'pairId': pairId,
+        'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
+        'partnerAvatar': isUser1 ? data['user2Avatar'] : data['user1Avatar'],
+        'startDate': (data['startDate'] as Timestamp?)?.toDate(),
+        'raw': data,
+      };
+    } catch (e) {
+      debugPrint('loadPairById($pairId) failed: $e');
+      return null;
+    }
+  }
+
+  /// Загружает данные последней пары из профиля (2 чтения: user + pair).
+  /// Используется только для первичного обнаружения пары, когда pairId неизвестен.
   Future<Map<String, dynamic>?> loadPairData() async {
     final u = currentUser;
     if (u == null) return null;
@@ -304,23 +362,7 @@ class FirebaseService {
       final pairId = userDoc.data()?['pairId'] as String?;
       if (pairId == null || pairId.isEmpty) return null;
 
-      final pairDoc = await _db
-          .collection('pairs')
-          .doc(pairId)
-          .get()
-          .timeout(const Duration(seconds: 10));
-      if (!pairDoc.exists) return null;
-
-      final data = pairDoc.data()!;
-      // Определяем кто партнёр
-      final isUser1 = data['user1'] == u.uid;
-      return {
-        'pairId': pairId,
-        'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
-        'partnerAvatar': isUser1 ? data['user2Avatar'] : data['user1Avatar'],
-        'startDate': (data['startDate'] as Timestamp?)?.toDate(),
-        'raw': data,
-      };
+      return await loadPairById(pairId);
     } catch (e) {
       debugPrint('loadPairData failed: $e');
       return null;
@@ -330,12 +372,13 @@ class FirebaseService {
   /// Слушаем изменения пары в реальном времени (1 snapshot listener)
   /// Хитрость: snapshot listener считается как 1 чтение при подключении
   /// + 1 чтение за каждое изменение. Для пары = почти ничего.
+  /// Слушаем КОНКРЕТНУЮ пару. Не отменяем предыдущие подписки —
+  /// у каждой Connection свой listener.
   StreamSubscription? listenToPair({
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
-    _pairSub?.cancel();
-    _pairSub = _db.collection('pairs').doc(pairId).snapshots().listen((snap) {
+    return _db.collection('pairs').doc(pairId).snapshots().listen((snap) {
       if (snap.exists) {
         final data = snap.data()!;
         final isUser1 = data['user1'] == uid;
@@ -350,19 +393,12 @@ class FirebaseService {
         onData(null);
       }
     });
-    return _pairSub;
   }
 
-  /// Разорвать пару
-  Future<void> unpair() async {
+  /// Разорвать конкретную пару (по pairId)
+  Future<void> unpairById(String pairId) async {
     final u = currentUser;
-    if (u == null) return;
-
-    _pairSub?.cancel();
-
-    final userDoc = await _db.collection('users').doc(u.uid).get();
-    final pairId = userDoc.data()?['pairId'] as String?;
-    if (pairId == null || pairId.isEmpty) return;
+    if (u == null || pairId.isEmpty) return;
 
     final pairDoc = await _db.collection('pairs').doc(pairId).get();
     if (!pairDoc.exists) return;
@@ -372,13 +408,67 @@ class FirebaseService {
 
     final batch = _db.batch();
     batch.delete(_db.collection('pairs').doc(pairId));
-    batch.update(_db.collection('users').doc(u.uid), {'pairId': ''});
+    // Удаляем из массива pairIds и очищаем pairId если это последняя пара
+    batch.update(_db.collection('users').doc(u.uid), {
+      'pairIds': FieldValue.arrayRemove([pairId]),
+    });
     if (partnerId != null) {
       batch.update(_db.collection('users').doc(partnerId as String), {
-        'pairId': '',
+        'pairIds': FieldValue.arrayRemove([pairId]),
       });
     }
     await batch.commit();
+
+    // Обновляем pairId: ставим другую пару или пустую строку
+    final myDoc = await _db.collection('users').doc(u.uid).get();
+    final remainingPairs = (myDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
+    await _db.collection('users').doc(u.uid).update({
+      'pairId': remainingPairs.isNotEmpty ? remainingPairs.last : '',
+    });
+    if (partnerId != null) {
+      final partnerDoc = await _db
+          .collection('users')
+          .doc(partnerId as String)
+          .get();
+      final partnerPairs =
+          (partnerDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
+      await _db.collection('users').doc(partnerId).update({
+        'pairId': partnerPairs.isNotEmpty ? partnerPairs.last : '',
+      });
+    }
+  }
+
+  /// Разорвать пару (legacy — разрывает последнюю)
+  Future<void> unpair() async {
+    final u = currentUser;
+    if (u == null) return;
+
+    final userDoc = await _db.collection('users').doc(u.uid).get();
+    final pairId = userDoc.data()?['pairId'] as String?;
+    if (pairId == null || pairId.isEmpty) return;
+
+    await unpairById(pairId);
+  }
+
+  // ══════════════════════════════════════════════
+  //  REAL-TIME LISTENERS
+  // ══════════════════════════════════════════════
+
+  /// Слушаем документ текущего юзера в реальном времени.
+  /// Срабатывает при любом изменении (pairId, pairIds, profile и т.д.)
+  StreamSubscription? listenToUserDoc({
+    required void Function(Map<String, dynamic>? data) onData,
+  }) {
+    final u = currentUser;
+    if (u == null) return null;
+
+    return _db.collection('users').doc(u.uid).snapshots().listen((snap) {
+      if (snap.exists) {
+        onData(snap.data());
+      } else {
+        onData(null);
+      }
+    });
   }
 
   // ══════════════════════════════════════════════

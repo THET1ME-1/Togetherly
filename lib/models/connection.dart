@@ -96,7 +96,16 @@ class Connection {
     try {
       final result = await _fb.acceptInviteCode(code.toUpperCase());
       if (result['success'] == true) {
-        await refreshPairStatus();
+        // Apply pair data directly from the result — don't use
+        // refreshPairStatus which would load the global pairId and
+        // could leak into other connections.
+        isPaired = true;
+        pairId = result['pairId'] ?? '';
+        partnerName = result['partnerName'] ?? '';
+        partnerAvatarUrl = result['partnerAvatar'] ?? '';
+        startDate = result['startDate'] as DateTime? ?? DateTime.now();
+        _listenToPair();
+        onChanged?.call();
         return true;
       }
     } catch (e) {
@@ -112,7 +121,11 @@ class Connection {
 
   Future<void> unpair() async {
     try {
-      await _fb.unpair();
+      if (pairId.isNotEmpty) {
+        await _fb.unpairById(pairId);
+      } else {
+        await _fb.unpair();
+      }
     } catch (e) {
       debugPrint('Unpair failed: $e');
     }
@@ -125,7 +138,8 @@ class Connection {
     pairId = '';
 
     // Generate new code
-    final firestoreCode = await _fb.generateInviteCode();
+    final oldCode = inviteCode;
+    final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
     inviteCode = firestoreCode.isNotEmpty
         ? firestoreCode
         : Connection.generateLocalCode();
@@ -134,14 +148,50 @@ class Connection {
   }
 
   Future<void> regenerateCode() async {
-    final firestoreCode = await _fb.generateInviteCode();
+    final oldCode = inviteCode;
+    final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
     inviteCode = firestoreCode.isNotEmpty
         ? firestoreCode
         : Connection.generateLocalCode();
     onChanged?.call();
   }
 
+  /// Вызывается когда real-time listener обнаружил новый pairId.
+  /// Присваивает pairId и загружает данные пары.
+  Future<void> claimPair(String newPairId) async {
+    if (isPaired || pairId.isNotEmpty) return;
+    pairId = newPairId;
+    // refreshPairStatus handles the case: pairId set, isPaired false
+    await refreshPairStatus();
+  }
+
   Future<void> refreshPairStatus() async {
+    // Already paired with a known pair? Just re-subscribe.
+    if (isPaired && pairId.isNotEmpty) {
+      _listenToPair();
+      return;
+    }
+
+    // Has pairId saved locally but not yet marked paired — load directly.
+    if (pairId.isNotEmpty) {
+      try {
+        final pairData = await _fb.loadPairById(pairId);
+        if (pairData != null) {
+          isPaired = true;
+          startDate = pairData['startDate'] as DateTime?;
+          partnerName = pairData['partnerName'] ?? '';
+          partnerAvatarUrl = pairData['partnerAvatar'] ?? '';
+          _listenToPair();
+        }
+      } catch (e) {
+        debugPrint('Pair refresh by id failed: $e');
+      }
+      onChanged?.call();
+      return;
+    }
+
+    // No pairId at all — check Firebase for first-time discovery.
+    // This is ONLY called on the first unpaired connection.
     try {
       final pairData = await _fb.loadPairData();
       if (pairData != null) {
@@ -151,12 +201,6 @@ class Connection {
         partnerName = pairData['partnerName'] ?? '';
         partnerAvatarUrl = pairData['partnerAvatar'] ?? '';
         _listenToPair();
-      } else {
-        isPaired = false;
-        partnerName = '';
-        partnerAvatarUrl = '';
-        pairId = '';
-        startDate = null;
       }
     } catch (e) {
       debugPrint('Pair refresh failed: $e');
@@ -197,7 +241,8 @@ class Connection {
   // ── Helpers ──
   static String generateLocalCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final rng = Random();
+    // Use microsecondsSinceEpoch as seed to ensure unique codes even when generated rapidly
+    final rng = Random(DateTime.now().microsecondsSinceEpoch);
     return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ class ConnectionsManager extends ChangeNotifier {
   final List<Connection> _connections = [];
   int _activeConnectionIndex = 0;
   bool _loading = false;
+  StreamSubscription? _userDocSub;
 
   // ── Getters ──
   List<Connection> get connections => List.unmodifiable(_connections);
@@ -36,10 +38,18 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     // Initialize each connection
+    // Collect which connections already have pairId from local storage
+    final Set<String> knownPairIds = {};
+    for (var connection in _connections) {
+      if (connection.pairId.isNotEmpty) {
+        knownPairIds.add(connection.pairId);
+      }
+    }
+
     for (var connection in _connections) {
       if (connection.inviteCode.isEmpty) {
         if (_fb.isLoggedIn) {
-          final firestoreCode = await _fb.generateInviteCode();
+          final firestoreCode = await _fb.generateNewInviteCode();
           connection.inviteCode = firestoreCode.isNotEmpty
               ? firestoreCode
               : Connection.generateLocalCode();
@@ -48,14 +58,81 @@ class ConnectionsManager extends ChangeNotifier {
         }
       }
 
-      if (_fb.isLoggedIn) {
+      // Only refresh pair status for connections that already have a pairId.
+      // Don't call refreshPairStatus on unpaired connections — Firebase
+      // returns the SAME pairId for all, causing duplicates.
+      if (_fb.isLoggedIn && connection.pairId.isNotEmpty) {
         await connection.refreshPairStatus();
       }
+    }
+
+    // If no connection claimed the Firebase pair, let the FIRST unpaired
+    // connection check (only once, to pick up the initial pairing).
+    if (_fb.isLoggedIn && knownPairIds.isEmpty) {
+      final firstUnpaired = _connections.firstWhere(
+        (c) => !c.isPaired,
+        orElse: () => _connections.first,
+      );
+      await firstUnpaired.refreshPairStatus();
     }
 
     await _saveLocal();
     _loading = false;
     notifyListeners();
+
+    // Start listening for real-time pair changes
+    _startListeningForNewPairs();
+  }
+
+  /// Слушаем документ юзера в реальном времени.
+  /// Когда партнёр принимает инвайт, pairId обновляется —
+  /// мы сразу подхватываем пару без перезапуска.
+  void _startListeningForNewPairs() {
+    _userDocSub?.cancel();
+    if (!_fb.isLoggedIn) return;
+
+    _userDocSub = _fb.listenToUserDoc(
+      onData: (data) async {
+        if (data == null) return;
+
+        // Собираем все pairId из user-документа
+        final Set<String> remotePairIds = {};
+        final pairId = data['pairId'] as String?;
+        if (pairId != null && pairId.isNotEmpty) {
+          remotePairIds.add(pairId);
+        }
+        final pairIdsRaw = data['pairIds'] as List<dynamic>?;
+        if (pairIdsRaw != null) {
+          for (var id in pairIdsRaw) {
+            final s = id.toString();
+            if (s.isNotEmpty) remotePairIds.add(s);
+          }
+        }
+
+        // Ищем pairId, которые ещё не привязаны ни к одному connection
+        final claimedIds = _connections
+            .where((c) => c.pairId.isNotEmpty)
+            .map((c) => c.pairId)
+            .toSet();
+
+        for (var remotePairId in remotePairIds) {
+          if (claimedIds.contains(remotePairId)) continue;
+
+          // Нашли новую пару — назначаем первому unpaired connection
+          final unpaired = _connections.cast<Connection?>().firstWhere(
+            (c) => !c!.isPaired && c.pairId.isEmpty,
+            orElse: () => null,
+          );
+
+          if (unpaired != null) {
+            debugPrint('Real-time: detected new pair $remotePairId');
+            await unpaired.claimPair(remotePairId);
+            await _saveLocal();
+            notifyListeners();
+          }
+        }
+      },
+    );
   }
 
   // ── Connection Management ──
@@ -80,6 +157,16 @@ class ConnectionsManager extends ChangeNotifier {
   }) async {
     final connection = await _createNewConnection();
     connection.relationshipType = type;
+
+    // Always generate a fresh unique invite code for the new connection
+    if (_fb.isLoggedIn) {
+      final firestoreCode = await _fb.generateNewInviteCode();
+      connection.inviteCode = firestoreCode.isNotEmpty
+          ? firestoreCode
+          : Connection.generateLocalCode();
+    } else {
+      connection.inviteCode = Connection.generateLocalCode();
+    }
 
     // Auto-switch to the new connection
     _activeConnectionIndex = _connections.length - 1;
@@ -115,17 +202,45 @@ class ConnectionsManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void switchToConnection(int index) {
+  Future<void> switchToConnection(int index) async {
     if (index < 0 || index >= _connections.length) return;
     _activeConnectionIndex = index;
-    _saveLocal();
+
+    // Generate invite code if the connection doesn't have one
+    final connection = _connections[index];
+    if (connection.inviteCode.isEmpty) {
+      if (_fb.isLoggedIn) {
+        final firestoreCode = await _fb.generateNewInviteCode();
+        connection.inviteCode = firestoreCode.isNotEmpty
+            ? firestoreCode
+            : Connection.generateLocalCode();
+      } else {
+        connection.inviteCode = Connection.generateLocalCode();
+      }
+    }
+
+    await _saveLocal();
     notifyListeners();
   }
 
-  void switchToNextConnection() {
+  Future<void> switchToNextConnection() async {
     if (_connections.length <= 1) return;
     _activeConnectionIndex = (_activeConnectionIndex + 1) % _connections.length;
-    _saveLocal();
+
+    // Generate invite code if the connection doesn't have one
+    final connection = _connections[_activeConnectionIndex];
+    if (connection.inviteCode.isEmpty) {
+      if (_fb.isLoggedIn) {
+        final firestoreCode = await _fb.generateNewInviteCode();
+        connection.inviteCode = firestoreCode.isNotEmpty
+            ? firestoreCode
+            : Connection.generateLocalCode();
+      } else {
+        connection.inviteCode = Connection.generateLocalCode();
+      }
+    }
+
+    await _saveLocal();
     notifyListeners();
   }
 
@@ -172,6 +287,7 @@ class ConnectionsManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _userDocSub?.cancel();
     for (var connection in _connections) {
       connection.dispose();
     }
