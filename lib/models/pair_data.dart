@@ -4,6 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 
+enum RelationshipType {
+  couple, // In Love
+  friends, // Friends
+  buddies, // Best Buddies
+}
+
 class PairData extends ChangeNotifier {
   bool _isPaired = false;
   DateTime? _startDate;
@@ -13,6 +19,7 @@ class PairData extends ChangeNotifier {
   String _inviteCode = '';
   String _pairId = '';
   bool _loading = false;
+  RelationshipType _relationshipType = RelationshipType.couple;
 
   StreamSubscription? _pairSub;
   final FirebaseService _fb = FirebaseService();
@@ -26,6 +33,7 @@ class PairData extends ChangeNotifier {
   String get inviteCode => _inviteCode;
   String get pairId => _pairId;
   bool get loading => _loading;
+  RelationshipType get relationshipType => _relationshipType;
 
   String get inviteLink => 'https://togetherly.app/invite/$_inviteCode';
 
@@ -47,6 +55,35 @@ class PairData extends ChangeNotifier {
   Duration get timeInLove {
     if (!_isPaired || _startDate == null) return Duration.zero;
     return DateTime.now().difference(_startDate!);
+  }
+
+  // ── Relationship Type Helpers ──
+  String get relationshipLabel {
+    switch (_relationshipType) {
+      case RelationshipType.couple:
+        return 'In Love';
+      case RelationshipType.friends:
+        return 'Friends';
+      case RelationshipType.buddies:
+        return 'Best Buddies';
+    }
+  }
+
+  String get relationshipEmoji {
+    switch (_relationshipType) {
+      case RelationshipType.couple:
+        return '❤️';
+      case RelationshipType.friends:
+        return '🤝';
+      case RelationshipType.buddies:
+        return '👯';
+    }
+  }
+
+  void setRelationshipType(RelationshipType type) {
+    _relationshipType = type;
+    _saveLocal();
+    notifyListeners();
   }
 
   // ── Инициализация ──
@@ -221,6 +258,7 @@ class PairData extends ChangeNotifier {
       await prefs.setString('pair_partnerAvatar', _partnerAvatarUrl);
       await prefs.setString('pair_inviteCode', _inviteCode);
       await prefs.setString('pair_pairId', _pairId);
+      await prefs.setString('pair_relationshipType', _relationshipType.name);
       if (_startDate != null) {
         await prefs.setString('pair_startDate', _startDate!.toIso8601String());
       }
@@ -235,6 +273,13 @@ class PairData extends ChangeNotifier {
       _partnerAvatarUrl = prefs.getString('pair_partnerAvatar') ?? '';
       _inviteCode = prefs.getString('pair_inviteCode') ?? '';
       _pairId = prefs.getString('pair_pairId') ?? '';
+      final typeStr = prefs.getString('pair_relationshipType');
+      if (typeStr != null) {
+        _relationshipType = RelationshipType.values.firstWhere(
+          (e) => e.name == typeStr,
+          orElse: () => RelationshipType.couple,
+        );
+      }
       final sd = prefs.getString('pair_startDate');
       if (sd != null) _startDate = DateTime.tryParse(sd);
     } catch (_) {}
