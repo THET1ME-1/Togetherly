@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:uni_links/uni_links.dart';
 import 'package:app_links/app_links.dart';
 
 /// Сервис для обработки deep links
