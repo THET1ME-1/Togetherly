@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import '../models/user_data.dart';
+import 'setup_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  final UserData userData;
+  const WelcomeScreen({super.key, required this.userData});
 
   static const Color _primary = Color(0xFFEE2B6C);
 
@@ -94,10 +96,13 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 58,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      await userData.markWelcomeSeen();
+                      if (!context.mounted) return;
                       Navigator.of(context).pushReplacement(
                         PageRouteBuilder(
-                          pageBuilder: (_, __, ___) => const HomeScreen(),
+                          pageBuilder: (_, __, ___) =>
+                              SetupScreen(userData: userData),
                           transitionsBuilder: (_, animation, __, child) {
                             return FadeTransition(
                               opacity: animation,

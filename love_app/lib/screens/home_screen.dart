@@ -3,10 +3,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/pair_data.dart';
+import '../models/user_data.dart';
 import 'connect_partner_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final UserData userData;
+  const HomeScreen({super.key, required this.userData});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -14,8 +17,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // -- Colors --
-  static const Color primary = Color(0xFFEE2B6C);
-  static const Color primaryLight = Color(0xFFFEEAF1);
+  Color get primary => widget.userData.themeAccent;
+  Color get primaryLight => widget.userData.themeAccentLight;
   static const Color bgLight = Color(0xFFF8F6F6);
 
   // -- State --
@@ -41,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pairData.addListener(_onPairChanged);
+    widget.userData.addListener(_onUserChanged);
     // Dynamic timer - update every second for live counter
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_pairData.isPaired && _selectedTimeUnit == 2 && mounted) {
@@ -53,11 +57,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _timer?.cancel();
     _pairData.removeListener(_onPairChanged);
+    widget.userData.removeListener(_onUserChanged);
     _pairData.dispose();
     super.dispose();
   }
 
   void _onPairChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onUserChanged() {
     if (mounted) setState(() {});
   }
 
@@ -229,35 +238,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =============================================
-  // PROFILE TAB (placeholder)
+  // PROFILE TAB
   // =============================================
   Widget _buildProfileTab() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.person_outline_rounded,
-            size: 48,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Profile',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your profile settings',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
+    return ProfileScreen(userData: widget.userData, pairData: _pairData);
   }
 
   // =============================================
@@ -374,11 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: primary.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.person_add_rounded,
-                color: primary,
-                size: 24,
-              ),
+              child: Icon(Icons.person_add_rounded, color: primary, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(

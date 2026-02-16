@@ -57,13 +57,22 @@ class PairData extends ChangeNotifier {
 
   /// Accept a code and simulate pairing
   bool acceptCode(String code) {
+    // Can't invite yourself — check against own code
+    if (code.toUpperCase() == _inviteCode.toUpperCase()) {
+      return false;
+    }
     // In a real app, this would validate against a server.
-    // For demo: any 6-character code works.
+    // For demo: any 6-character code works (except own code).
     if (code.length == 6) {
       pairWith(partnerName: 'Alex');
       return true;
     }
     return false;
+  }
+
+  /// Check if this is the user's own code
+  bool isSelfCode(String code) {
+    return code.toUpperCase() == _inviteCode.toUpperCase();
   }
 
   void unpair() {

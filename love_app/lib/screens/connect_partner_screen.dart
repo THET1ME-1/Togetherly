@@ -618,6 +618,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 
   void _submitCode() {
     final code = _codeController.text.trim().toUpperCase();
+    if (pair.isSelfCode(code)) {
+      setState(() => _codeError = true);
+      _showSnack('Нельзя пригласить самого себя!');
+      return;
+    }
     if (pair.acceptCode(code)) {
       setState(() {});
       _showSnack('🎉 Connected with ${pair.partnerName}!');
