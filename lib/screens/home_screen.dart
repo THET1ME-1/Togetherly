@@ -10,7 +10,9 @@ import '../services/firebase_service.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
+import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
+import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -44,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- Timer service --
   final TimerService _timerService = TimerService();
   bool _timerCardExpanded = false;
+
+  // -- Mood service --
+  final MoodService _moodService = MoodService();
 
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
@@ -105,6 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_pairData.isPaired && _pairData.startDate != null) {
         // Bind timer service to group for Firestore sync
         _timerService.bindToGroup(_pairData.pairId);
+
+        // Bind mood service to group for Firestore sync
+        _moodService.bindToGroup(_pairData.pairId);
 
         // Create system timer if it doesn't exist yet
         _timerService.createSystemTimer(
@@ -932,6 +940,16 @@ class _HomeScreenState extends State<HomeScreen> {
     {'emoji': '✨', 'label': 'Inspired'},
   ];
 
+  void _openMoodCalendar() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            MoodCalendarScreen(pairData: _pairData, moodService: _moodService),
+      ),
+    );
+  }
+
   void _showMoodPicker() {
     final currentEmoji = _pairData.myMood.emoji;
     showModalBottomSheet(
@@ -1737,10 +1755,9 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _actionButton(
-          icon: Icons.favorite_rounded,
-          label: 'Nudge',
-          iconColor: Colors.white,
-          isPrimary: true,
+          icon: Icons.brush_rounded,
+          label: 'Draw',
+          iconColor: const Color(0xFFF472B6),
           enabled: _pairData.isPaired,
         ),
         _actionButton(
@@ -1752,10 +1769,11 @@ class _HomeScreenState extends State<HomeScreen> {
           badge: _pairData.myMood.isNotEmpty ? _pairData.myMood.emoji : null,
         ),
         _actionButton(
-          icon: Icons.brush_rounded,
-          label: 'Draw',
+          icon: Icons.calendar_month_rounded,
+          label: 'Calendar',
           iconColor: const Color(0xFF60A5FA),
           enabled: _pairData.isPaired,
+          onTap: _openMoodCalendar,
         ),
         _actionButton(
           icon: Icons.photo_camera_rounded,

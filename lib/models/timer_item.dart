@@ -10,6 +10,7 @@ class TimerItem {
   bool isSystem; // system timers can't be deleted or renamed
   bool
   isCountdown; // true = countdown timer (days left), false = count up (days elapsed)
+  String? backgroundImagePath; // local path to background image (not synced)
 
   TimerItem({
     required this.id,
@@ -19,6 +20,7 @@ class TimerItem {
     this.emoji = '❤️',
     this.isSystem = false,
     this.isCountdown = false,
+    this.backgroundImagePath,
   });
 
   // ── Вычисляемые значения ──
@@ -86,6 +88,7 @@ class TimerItem {
     'emoji': emoji,
     'isSystem': isSystem,
     'isCountdown': isCountdown,
+    if (backgroundImagePath != null) 'backgroundImagePath': backgroundImagePath,
   };
 
   factory TimerItem.fromJson(Map<String, dynamic> json) => TimerItem(
@@ -96,6 +99,7 @@ class TimerItem {
     emoji: json['emoji'] as String? ?? '❤️',
     isSystem: json['isSystem'] as bool? ?? false,
     isCountdown: json['isCountdown'] as bool? ?? false,
+    backgroundImagePath: json['backgroundImagePath'] as String?,
   );
 
   static String encodeList(List<TimerItem> items) =>
@@ -116,6 +120,7 @@ class TimerItem {
     String? emoji,
     bool? isSystem,
     bool? isCountdown,
+    String? backgroundImagePath,
   }) => TimerItem(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -124,5 +129,6 @@ class TimerItem {
     emoji: emoji ?? this.emoji,
     isSystem: isSystem ?? this.isSystem,
     isCountdown: isCountdown ?? this.isCountdown,
+    backgroundImagePath: backgroundImagePath ?? this.backgroundImagePath,
   );
 }

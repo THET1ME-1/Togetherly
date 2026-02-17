@@ -8,6 +8,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
@@ -1334,6 +1336,27 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                           ),
                         ),
+                        if (_canDownload(memory)) ...[
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                audioPlayer?.dispose();
+                                Navigator.pop(context);
+                                _downloadMemoryMedia(memory);
+                              },
+                              icon: Icon(Icons.download_rounded, size: 16),
+                              label: const Text('Save'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.blue.shade600,
+                                side: BorderSide(color: Colors.blue.shade200),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 10),
                         if (memory.authorUid == _fb.uid) ...[
                           Expanded(
@@ -1472,6 +1495,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 _togglePin(memory);
               },
             ),
+            if (_canDownload(memory))
+              ListTile(
+                leading: Icon(
+                  Icons.download_rounded,
+                  color: Colors.blue.shade600,
+                ),
+                title: const Text('Save to device'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadMemoryMedia(memory);
+                },
+              ),
             if (memory.authorUid == _fb.uid) ...[
               ListTile(
                 leading: Icon(Icons.edit_rounded, color: Colors.grey.shade700),
@@ -1500,6 +1535,116 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  DOWNLOAD
+  // ═══════════════════════════════════════════════════
+
+  bool _canDownload(Memory memory) {
+    return memory.type == MemoryType.photo ||
+        memory.type == MemoryType.video ||
+        memory.type == MemoryType.music;
+  }
+
+  Future<void> _downloadMemoryMedia(Memory memory) async {
+    String? url;
+    String extension;
+    String prefix;
+
+    switch (memory.type) {
+      case MemoryType.photo:
+        url = memory.imageUrl;
+        extension = 'jpg';
+        prefix = 'photo';
+        break;
+      case MemoryType.video:
+        url = memory.videoUrl;
+        extension = 'mp4';
+        prefix = 'video';
+        break;
+      case MemoryType.music:
+        url = memory.musicUrl;
+        extension = 'mp3';
+        prefix = 'music';
+        break;
+      default:
+        return;
+    }
+
+    if (url == null || url.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No media URL available'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // For external links (Spotify, YouTube etc.) just open them
+    if (!url.contains('firebasestorage') && !url.contains('firebase')) {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Downloading...'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        throw Exception('Download failed: ${response.statusCode}');
+      }
+
+      // Save to Downloads / Pictures directory
+      Directory saveDir;
+      if (Platform.isAndroid) {
+        // Use external storage Downloads
+        saveDir = Directory('/storage/emulated/0/Download');
+        if (!saveDir.existsSync()) {
+          saveDir = await getApplicationDocumentsDirectory();
+        }
+      } else {
+        saveDir = await getApplicationDocumentsDirectory();
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '${prefix}_$timestamp.$extension';
+      final file = File('${saveDir.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to ${file.path}'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Download error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════

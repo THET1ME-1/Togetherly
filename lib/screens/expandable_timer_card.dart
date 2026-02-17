@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 
@@ -208,8 +211,27 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
-                // -- Background subtle photos --
-                if (widget.isPaired) ...[
+                // -- Custom background image --
+                if (_displayTimer?.backgroundImagePath != null)
+                  Positioned.fill(
+                    child: Image.file(
+                      File(_displayTimer!.backgroundImagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                // -- Dark overlay for readability when bg image is set --
+                if (_displayTimer?.backgroundImagePath != null)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                      ),
+                    ),
+                  ),
+                // -- Background subtle photos (only when no custom bg) --
+                if (widget.isPaired &&
+                    _displayTimer?.backgroundImagePath == null) ...[
                   Positioned(
                     top: -8,
                     left: -16,
@@ -281,6 +303,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   // ── Compact content (shown always) ──
   Widget _buildCompactContent() {
     final timer = _displayTimer;
+    final hasBg = timer?.backgroundImagePath != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 36, 20, 12),
       child: SizedBox(
@@ -303,9 +326,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: _selectedTimeUnit == 2 ? 42 : 64,
                     fontWeight: FontWeight.w800,
-                    color: timer != null
-                        ? const Color(0xFF1A1A1A)
-                        : Colors.grey.shade300,
+                    color: hasBg
+                        ? Colors.white
+                        : (timer != null
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.grey.shade300),
                     height: 1.1,
                   ),
                 ),
@@ -325,7 +350,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: timer != null ? widget.primary : Colors.grey.shade400,
+                  color: hasBg
+                      ? Colors.white.withOpacity(0.9)
+                      : (timer != null ? widget.primary : Colors.grey.shade400),
                   letterSpacing: 2,
                 ),
                 maxLines: 1,
@@ -601,6 +628,21 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                         ),
                       ),
                     const PopupMenuItem(
+                      value: 'background',
+                      child: _PopupRow(
+                        icon: Icons.image_rounded,
+                        label: 'Set background',
+                      ),
+                    ),
+                    if (timer.backgroundImagePath != null)
+                      const PopupMenuItem(
+                        value: 'remove_bg',
+                        child: _PopupRow(
+                          icon: Icons.hide_image_outlined,
+                          label: 'Remove background',
+                        ),
+                      ),
+                    const PopupMenuItem(
                       value: 'edit',
                       child: _PopupRow(icon: Icons.edit_rounded, label: 'Edit'),
                     ),
@@ -634,7 +676,37 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       case 'delete':
         _showDeleteConfirm(timer);
         break;
+      case 'background':
+        _pickBackgroundImage(timer);
+        break;
+      case 'remove_bg':
+        widget.timerService.updateTimer(
+          timer.copyWith()..backgroundImagePath = null,
+        );
+        break;
     }
+  }
+
+  Future<void> _pickBackgroundImage(TimerItem timer) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 85,
+    );
+    if (image == null) return;
+
+    // Copy to app documents for persistence
+    final dir = await getApplicationDocumentsDirectory();
+    final bgDir = Directory('${dir.path}/timer_backgrounds');
+    if (!bgDir.existsSync()) bgDir.createSync(recursive: true);
+
+    final ext = image.path.split('.').last;
+    final dest = '${bgDir.path}/${timer.id}.$ext';
+    await File(image.path).copy(dest);
+
+    widget.timerService.updateTimer(timer.copyWith(backgroundImagePath: dest));
   }
 
   // ── Arrow button ──

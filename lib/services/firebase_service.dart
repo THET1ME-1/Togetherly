@@ -1300,6 +1300,73 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  MOOD CALENDAR
+  //  Firestore: groups/{groupId}/moodCalendar/{uid}/entries/{entryId}
+  // ══════════════════════════════════════════════
+
+  /// Add a mood entry for the current user
+  Future<void> addMoodEntry({
+    required String groupId,
+    required Map<String, dynamic> entry,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('moodCalendar')
+          .doc(u.uid)
+          .collection('entries')
+          .doc(entry['id'] as String)
+          .set(entry);
+    } catch (e) {
+      debugPrint('addMoodEntry failed: $e');
+    }
+  }
+
+  /// Delete a mood entry
+  Future<void> deleteMoodEntry({
+    required String groupId,
+    required String entryId,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('moodCalendar')
+          .doc(u.uid)
+          .collection('entries')
+          .doc(entryId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteMoodEntry failed: $e');
+    }
+  }
+
+  /// Listen to mood entries for a specific user in real-time
+  StreamSubscription? listenToMoodEntries({
+    required String groupId,
+    required String uid,
+    required void Function(List<Map<String, dynamic>> entries) onData,
+  }) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('moodCalendar')
+        .doc(uid)
+        .collection('entries')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen((snap) {
+          final entries = snap.docs.map((d) => d.data()).toList();
+          onData(entries);
+        });
+  }
+
+  // ══════════════════════════════════════════════
   //  HELPERS
   // ══════════════════════════════════════════════
 
