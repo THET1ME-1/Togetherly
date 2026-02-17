@@ -366,7 +366,49 @@ class FirebaseService {
       );
     }
 
-    // Otherwise create a new 2-person group (pair)
+    // Code has no groupId — check if the owner already has a group
+    // (the code was created before pairing, but now the owner is in a group)
+    final ownerPairId = ownerData['pairId'] as String?;
+    if (ownerPairId != null && ownerPairId.isNotEmpty) {
+      // Owner already has a group — try to join it
+      final groupDoc = await _db.collection('groups').doc(ownerPairId).get();
+      if (groupDoc.exists) {
+        final groupData = groupDoc.data()!;
+        final groupMembers = List<String>.from(groupData['members'] ?? []);
+        // Make sure the owner is actually in that group
+        if (groupMembers.contains(ownerUid)) {
+          return _joinExistingGroup(
+            groupId: ownerPairId,
+            code: code,
+            myData: myData,
+          );
+        }
+      }
+    }
+
+    // Also check owner's pairIds list for any existing group
+    final ownerPairIds = ownerData['pairIds'] as List<dynamic>?;
+    if (ownerPairIds != null && ownerPairIds.isNotEmpty) {
+      for (var pid in ownerPairIds) {
+        final pidStr = pid.toString();
+        if (pidStr.isEmpty) continue;
+        final groupDoc = await _db.collection('groups').doc(pidStr).get();
+        if (groupDoc.exists) {
+          final groupData = groupDoc.data()!;
+          final groupMembers = List<String>.from(groupData['members'] ?? []);
+          if (groupMembers.contains(ownerUid) &&
+              !groupMembers.contains(u.uid)) {
+            return _joinExistingGroup(
+              groupId: pidStr,
+              code: code,
+              myData: myData,
+            );
+          }
+        }
+      }
+    }
+
+    // Owner has no group yet — create a new 2-person group (pair)
     final groupRef = _db.collection('groups').doc();
     final now = FieldValue.serverTimestamp();
 

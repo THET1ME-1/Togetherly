@@ -469,7 +469,7 @@ class Connection {
   Future<void> regenerateCode() async {
     final oldCode = inviteCode;
     String firestoreCode;
-    if (isPaired && pairId.isNotEmpty && canInviteMore) {
+    if (isPaired && pairId.isNotEmpty) {
       // Group invite code — tied to this group
       firestoreCode = await _fb.generateGroupInviteCode(
         pairId,
@@ -500,6 +500,19 @@ class Connection {
     if (isPaired || pairId.isNotEmpty) return;
     pairId = newPairId;
     await refreshPairStatus();
+
+    // Regenerate invite code as a group invite code (linked to the group)
+    if (_fb.isLoggedIn && pairId.isNotEmpty) {
+      final oldCode = inviteCode;
+      final groupCode = await _fb.generateGroupInviteCode(
+        pairId,
+        oldCode: oldCode.isNotEmpty ? oldCode : null,
+      );
+      if (groupCode.isNotEmpty) {
+        inviteCode = groupCode;
+        onChanged?.call();
+      }
+    }
   }
 
   Future<void> refreshPairStatus() async {

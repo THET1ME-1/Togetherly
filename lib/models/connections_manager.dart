@@ -49,10 +49,20 @@ class ConnectionsManager extends ChangeNotifier {
     for (var connection in _connections) {
       if (connection.inviteCode.isEmpty) {
         if (_fb.isLoggedIn) {
-          final firestoreCode = await _fb.generateNewInviteCode();
-          connection.inviteCode = firestoreCode.isNotEmpty
-              ? firestoreCode
-              : Connection.generateLocalCode();
+          // If connection already has a group, generate a group invite code
+          if (connection.pairId.isNotEmpty) {
+            final firestoreCode = await _fb.generateGroupInviteCode(
+              connection.pairId,
+            );
+            connection.inviteCode = firestoreCode.isNotEmpty
+                ? firestoreCode
+                : Connection.generateLocalCode();
+          } else {
+            final firestoreCode = await _fb.generateNewInviteCode();
+            connection.inviteCode = firestoreCode.isNotEmpty
+                ? firestoreCode
+                : Connection.generateLocalCode();
+          }
         } else {
           connection.inviteCode = Connection.generateLocalCode();
         }
@@ -148,8 +158,12 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     // Generate a fresh invite code for the new connection
+    // Use group invite code so it's linked to this group
     if (_fb.isLoggedIn) {
-      final newInviteCode = await _fb.generateNewInviteCode();
+      final newInviteCode = await _fb.generateGroupInviteCode(
+        pairId,
+        oldCode: target.inviteCode.isNotEmpty ? target.inviteCode : null,
+      );
       target.inviteCode = newInviteCode.isNotEmpty
           ? newInviteCode
           : Connection.generateLocalCode();
@@ -319,7 +333,9 @@ class ConnectionsManager extends ChangeNotifier {
     final connection = _connections[index];
     if (connection.inviteCode.isEmpty) {
       if (_fb.isLoggedIn) {
-        final firestoreCode = await _fb.generateNewInviteCode();
+        final firestoreCode = connection.pairId.isNotEmpty
+            ? await _fb.generateGroupInviteCode(connection.pairId)
+            : await _fb.generateNewInviteCode();
         connection.inviteCode = firestoreCode.isNotEmpty
             ? firestoreCode
             : Connection.generateLocalCode();
@@ -340,7 +356,9 @@ class ConnectionsManager extends ChangeNotifier {
     final connection = _connections[_activeConnectionIndex];
     if (connection.inviteCode.isEmpty) {
       if (_fb.isLoggedIn) {
-        final firestoreCode = await _fb.generateNewInviteCode();
+        final firestoreCode = connection.pairId.isNotEmpty
+            ? await _fb.generateGroupInviteCode(connection.pairId)
+            : await _fb.generateNewInviteCode();
         connection.inviteCode = firestoreCode.isNotEmpty
             ? firestoreCode
             : Connection.generateLocalCode();
