@@ -70,6 +70,67 @@ class FirebaseService {
     }
   }
 
+  /// Создание аккаунта через email/пароль
+  Future<User?> signUpWithEmailPassword({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    try {
+      debugPrint('Firebase Auth: creating account with email...');
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final user = userCredential.user;
+      if (user == null) return null;
+
+      // Обновляем displayName
+      await user.updateDisplayName(displayName);
+      await user.reload();
+
+      debugPrint('Firebase Auth success: ${user.uid}');
+
+      try {
+        await _db
+            .collection('users')
+            .doc(user.uid)
+            .set({
+              'displayName': displayName,
+              'email': email,
+              'avatarUrl': '',
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('Firestore save failed: $e');
+      }
+
+      return _auth.currentUser;
+    } catch (e) {
+      debugPrint('signUpWithEmailPassword failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Вход через email/пароль
+  Future<User?> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      debugPrint('Firebase Auth: signing in with email...');
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return userCredential.user;
+    } catch (e) {
+      debugPrint('signInWithEmailPassword failed: $e');
+      rethrow;
+    }
+  }
+
   Future<void> signOut() async {
     try {
       if (await _googleSignIn.isSignedIn()) {
@@ -1273,9 +1334,25 @@ class FirebaseService {
     required List<Map<String, dynamic>> timers,
   }) async {
     try {
+      debugPrint(
+        'FirebaseService: сохраняю ${timers.length} таймеров в группу $groupId',
+      );
       await _db.collection('groups').doc(groupId).update({'timers': timers});
+      debugPrint('FirebaseService: таймеры успешно сохранены');
     } catch (e) {
-      debugPrint('saveTimers failed: $e');
+      debugPrint('FirebaseService: ошибка сохранения таймеров - $e');
+      // Если документ группы не существует или нет поля timers - пробуем set
+      try {
+        debugPrint('FirebaseService: пробую создать поле timers через set...');
+        await _db.collection('groups').doc(groupId).set({
+          'timers': timers,
+        }, SetOptions(merge: true));
+        debugPrint('FirebaseService: таймеры сохранены через set');
+      } catch (e2) {
+        debugPrint(
+          'FirebaseService: критическая ошибка сохранения таймеров - $e2',
+        );
+      }
     }
   }
 

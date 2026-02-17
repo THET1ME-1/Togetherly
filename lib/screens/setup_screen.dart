@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
@@ -125,22 +126,59 @@ class _SetupScreenState extends State<SetupScreen>
     }
 
     setState(() => _isLoading = true);
-    await widget.userData.register(
-      displayName: name,
-      email: email,
-      gender: _selectedGender!,
-      avatarUrl: _avatarUrl,
-    );
 
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => HomeScreen(userData: widget.userData),
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
-    );
+    try {
+      final fb = FirebaseService();
+
+      // Если пользователь не залогинен (ввёл данные вручную), создаём аккаунт
+      if (!fb.isLoggedIn) {
+        // Генерируем случайный пароль для email/password аутентификации
+        final password = _generateRandomPassword();
+        await fb.signUpWithEmailPassword(
+          email: email,
+          password: password,
+          displayName: name,
+        );
+      }
+
+      // Регистрируем пользователя в приложении
+      await widget.userData.register(
+        displayName: name,
+        email: email,
+        gender: _selectedGender!,
+        avatarUrl: _avatarUrl,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => HomeScreen(userData: widget.userData),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Проверяем, не существует ли уже аккаунт с таким email
+        if (e.toString().contains('email-already-in-use')) {
+          _showError(
+            'Этот email уже используется. Попробуйте войти через Google.',
+          );
+        } else {
+          _showError('Ошибка регистрации: ${e.toString()}');
+        }
+      }
+    }
+  }
+
+  /// Генерирует случайный пароль для автоматической регистрации
+  String _generateRandomPassword() {
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#\$%^&*()';
+    final random = Random();
+    return List.generate(20, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
   void _showError(String msg) {

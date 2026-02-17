@@ -102,11 +102,18 @@ class TimerService extends ChangeNotifier {
   }
 
   Future<void> _saveToFirestore() async {
-    if (_groupId.isEmpty) return;
+    if (_groupId.isEmpty) {
+      debugPrint('TimerService: не могу сохранить в Firestore - groupId пуст');
+      return;
+    }
+    debugPrint(
+      'TimerService: сохраняю ${_timers.length} таймеров в Firestore для группы $_groupId',
+    );
     await _fb.saveTimers(
       groupId: _groupId,
       timers: _timers.map((t) => t.toJson()).toList(),
     );
+    debugPrint('TimerService: таймеры успешно сохранены');
   }
 
   // ── CRUD ──
