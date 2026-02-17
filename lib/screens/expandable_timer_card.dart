@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 
@@ -83,6 +84,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     widget.timerService.addListener(_onTimerChanged);
+    _loadSelectedTimeUnit();
     _startTickerIfNeeded();
   }
 
@@ -96,6 +98,30 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   void _onTimerChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// Загрузить сохраненное значение выбранного режима отображения
+  Future<void> _loadSelectedTimeUnit() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getInt('timer_selected_time_unit');
+      if (saved != null && saved >= 0 && saved <= 2) {
+        setState(() => _selectedTimeUnit = saved);
+        _startTickerIfNeeded();
+      }
+    } catch (e) {
+      // Игнорируем ошибки загрузки
+    }
+  }
+
+  /// Сохранить выбранный режим отображения
+  Future<void> _saveSelectedTimeUnit(int value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('timer_selected_time_unit', value);
+    } catch (e) {
+      // Игнорируем ошибки сохранения
+    }
   }
 
   void _startTickerIfNeeded() {
@@ -776,6 +802,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                     child: GestureDetector(
                       onTap: () {
                         setState(() => _selectedTimeUnit = i);
+                        _saveSelectedTimeUnit(i);
                         _startTickerIfNeeded();
                       },
                       behavior: HitTestBehavior.opaque,
