@@ -257,9 +257,15 @@ class ConnectionsManager extends ChangeNotifier {
 
   Future<Connection> addNewConnection({
     RelationshipType type = RelationshipType.friends,
+    String customLabel = '',
+    String customEmoji = '',
   }) async {
     final connection = await _createNewConnection();
     connection.relationshipType = type;
+    if (type == RelationshipType.custom) {
+      connection.customRelationshipLabel = customLabel;
+      connection.customRelationshipEmoji = customEmoji;
+    }
 
     // Always generate a fresh unique invite code for the new connection
     if (_fb.isLoggedIn) {

@@ -1706,6 +1706,17 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   void _showAddGroupDialog() {
+    // Collect unique custom relationship types from all connections
+    final allCustomTypes = <String, Map<String, String>>{};
+    for (final conn in pair.manager.connections) {
+      for (final ct in conn.customRelationshipTypes) {
+        final id = ct['id'] ?? '';
+        if (id.isNotEmpty && !allCustomTypes.containsKey(id)) {
+          allCustomTypes[id] = ct;
+        }
+      }
+    }
+
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -1713,44 +1724,69 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Add New Connection',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Add New Connection',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose the type for your new connection',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 24),
-              _addGroupOption(
-                type: RelationshipType.couple,
-                icon: '\u2764\uFE0F',
-                title: 'In Love',
-                subtitle: 'Perfect for romantic couples',
-              ),
-              const SizedBox(height: 12),
-              _addGroupOption(
-                type: RelationshipType.friends,
-                icon: '\u{1F91D}',
-                title: 'Friends',
-                subtitle: 'Connect with your best friend',
-              ),
-              const SizedBox(height: 12),
-              _addGroupOption(
-                type: RelationshipType.buddies,
-                icon: '\u{1F46F}',
-                title: 'Best Buddies',
-                subtitle: 'For inseparable companions',
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  'Choose the type for your new connection',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 24),
+                _addGroupOption(
+                  type: RelationshipType.couple,
+                  icon: '\u2764\uFE0F',
+                  title: 'In Love',
+                  subtitle: 'Perfect for romantic couples',
+                ),
+                const SizedBox(height: 12),
+                _addGroupOption(
+                  type: RelationshipType.married,
+                  icon: '\u{1F48D}',
+                  title: 'Married',
+                  subtitle: 'For married partners',
+                ),
+                const SizedBox(height: 12),
+                _addGroupOption(
+                  type: RelationshipType.friends,
+                  icon: '\u{1F91D}',
+                  title: 'Friends',
+                  subtitle: 'Connect with your best friend',
+                ),
+                const SizedBox(height: 12),
+                _addGroupOption(
+                  type: RelationshipType.buddies,
+                  icon: '\u{1F46F}',
+                  title: 'Best Buddies',
+                  subtitle: 'For inseparable companions',
+                ),
+                // Show user-created custom relationship types
+                ...allCustomTypes.values.map((ct) {
+                  final label = ct['label'] ?? 'Custom';
+                  final emoji = ct['emoji'] ?? '✨';
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _addGroupOption(
+                      type: RelationshipType.custom,
+                      icon: emoji,
+                      title: label,
+                      subtitle: 'Your custom type',
+                      customLabel: label,
+                      customEmoji: emoji,
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         ),
       ),
@@ -1762,10 +1798,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     required String icon,
     required String title,
     required String subtitle,
+    String customLabel = '',
+    String customEmoji = '',
   }) {
     return GestureDetector(
       onTap: () async {
-        await pair.manager.addNewConnection(type: type);
+        await pair.manager.addNewConnection(
+          type: type,
+          customLabel: customLabel,
+          customEmoji: customEmoji,
+        );
         Navigator.of(context).pop();
         _resetCodeInput();
         setState(() {});

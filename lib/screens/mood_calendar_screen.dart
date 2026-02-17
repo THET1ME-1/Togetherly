@@ -26,8 +26,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   int _selectedPeriod = 1; // 0=Week, 1=Month, 2=Year
   late DateTime _currentMonth;
-  double _calendarScale = 1.0; // Масштаб календаря (0.7 – 1.5)
+  double _calendarScale = 1.0;
   double _baseScale = 1.0;
+  bool _legendExpanded = false;
 
   MoodService get _mood => widget.moodService;
   PairData get _pair => widget.pairData;
@@ -338,42 +339,82 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
 
   Widget _buildLegend() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 6,
-      children: MoodOption.all.map((m) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: m.color,
-                borderRadius: BorderRadius.circular(3),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _legendExpanded = !_legendExpanded),
+          child: Row(
+            children: [
+              Text(
+                'Moods',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade700,
+                ),
               ),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: _legendExpanded ? 0.5 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: MoodOption.all.map((m) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: m.color,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    if (m.imagePath.isNotEmpty)
+                      Image.asset(
+                        m.imagePath,
+                        width: 22,
+                        height: 22,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox(width: 22, height: 22),
+                      ),
+                    const SizedBox(width: 4),
+                    Text(
+                      m.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
-            const SizedBox(width: 4),
-            if (m.imagePath.isNotEmpty)
-              Image.asset(
-                m.imagePath,
-                width: 22,
-                height: 22,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox(width: 22, height: 22),
-              ),
-            const SizedBox(width: 4),
-            Text(
-              m.label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        );
-      }).toList(),
+          ),
+          crossFadeState: _legendExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
+        ),
+      ],
     );
   }
 
