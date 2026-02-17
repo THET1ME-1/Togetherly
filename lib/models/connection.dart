@@ -386,6 +386,9 @@ class Connection {
     }
   }
 
+  /// Public wrapper to start real-time listening on this connection's pair
+  void startListening() => _listenToPair();
+
   void _listenToPair() {
     _pairSub?.cancel();
     if (pairId.isEmpty) return;

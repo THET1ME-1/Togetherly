@@ -84,6 +84,98 @@ class ConnectionsManager extends ChangeNotifier {
     _startListeningForNewPairs();
   }
 
+  // ══════════════════════════════════════════════
+  //  ACCEPT CODE — universal entry point
+  // ══════════════════════════════════════════════
+
+  /// Accept an invite code and create / join a group.
+  /// Works regardless of whether the active connection is already paired.
+  /// Returns true on success.
+  Future<bool> acceptCodeAndCreateGroup(String code) async {
+    code = code.toUpperCase().trim();
+
+    // Check self-codes across ALL connections
+    for (var c in _connections) {
+      if (c.isSelfCode(code)) return false;
+    }
+
+    // Call Firebase
+    final result = await _fb.acceptInviteCode(code);
+    if (result['success'] != true) return false;
+
+    final pairId = result['pairId'] as String? ?? '';
+    if (pairId.isEmpty) return false;
+
+    // Already have this group?
+    if (_connections.any((c) => c.pairId == pairId)) return false;
+
+    // Find first unpaired connection to reuse, or create new one
+    Connection? target = _connections.cast<Connection?>().firstWhere(
+      (c) => !c!.isPaired && c.pairId.isEmpty,
+      orElse: () => null,
+    );
+
+    if (target == null) {
+      target = Connection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        firebaseService: _fb,
+        onChanged: () {
+          _saveLocal();
+          notifyListeners();
+        },
+      );
+      _connections.add(target);
+    }
+
+    // Apply data from result
+    target.isPaired = true;
+    target.pairId = pairId;
+    target.partnerName = result['partnerName'] ?? '';
+    target.partnerAvatarUrl = result['partnerAvatar'] ?? '';
+    target.startDate = result['startDate'] as DateTime? ?? DateTime.now();
+
+    final membersList = result['members'] as List<dynamic>?;
+    if (membersList != null) {
+      target.members = membersList
+          .map(
+            (m) => GroupMember(
+              uid: (m as Map)['uid']?.toString() ?? '',
+              name: m['name']?.toString() ?? '',
+              avatar: m['avatar']?.toString() ?? '',
+            ),
+          )
+          .toList();
+    }
+
+    // Generate a fresh invite code for the new connection
+    if (_fb.isLoggedIn) {
+      final newInviteCode = await _fb.generateNewInviteCode();
+      target.inviteCode = newInviteCode.isNotEmpty
+          ? newInviteCode
+          : Connection.generateLocalCode();
+    } else {
+      target.inviteCode = Connection.generateLocalCode();
+    }
+
+    // Switch to the new connection
+    _activeConnectionIndex = _connections.indexOf(target);
+
+    // Start real-time listening
+    target.startListening();
+
+    await _saveLocal();
+    notifyListeners();
+    return true;
+  }
+
+  /// Check if code is self-code for any connection
+  bool isSelfCodeAny(String code) {
+    for (var c in _connections) {
+      if (c.isSelfCode(code)) return true;
+    }
+    return false;
+  }
+
   /// Слушаем документ юзера в реальном времени.
   /// Когда партнёр принимает инвайт, pairId обновляется —
   /// мы сразу подхватываем пару без перезапуска.
@@ -119,17 +211,28 @@ class ConnectionsManager extends ChangeNotifier {
           if (claimedIds.contains(remotePairId)) continue;
 
           // Нашли новую пару — назначаем первому unpaired connection
-          final unpaired = _connections.cast<Connection?>().firstWhere(
+          // Если unpaired нет — создаём новый connection
+          Connection? unpaired = _connections.cast<Connection?>().firstWhere(
             (c) => !c!.isPaired && c.pairId.isEmpty,
             orElse: () => null,
           );
 
-          if (unpaired != null) {
-            debugPrint('Real-time: detected new pair $remotePairId');
-            await unpaired.claimPair(remotePairId);
-            await _saveLocal();
-            notifyListeners();
+          if (unpaired == null) {
+            unpaired = Connection(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              firebaseService: _fb,
+              onChanged: () {
+                _saveLocal();
+                notifyListeners();
+              },
+            );
+            _connections.add(unpaired);
           }
+
+          debugPrint('Real-time: detected new pair $remotePairId');
+          await unpaired.claimPair(remotePairId);
+          await _saveLocal();
+          notifyListeners();
         }
       },
     );

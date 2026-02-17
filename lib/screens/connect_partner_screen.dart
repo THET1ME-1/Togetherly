@@ -36,10 +36,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
       if (mounted) {
-        // If active connection is already paired, create a new one
-        if (pair.isPaired) {
-          pair.manager.addNewConnection();
-        }
+        // acceptCode handles creating/joining group automatically
         _codeController.text = code;
         _showCodeInput = true;
         setState(() {});
@@ -337,6 +334,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          // ── Join another group via code ──
+          _buildJoinAnotherGroupCard(),
           const SizedBox(height: 40),
         ],
       ),
@@ -964,6 +964,163 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       case RelationshipType.buddies:
         return "You're now buddies with ${pair.partnerName}!";
     }
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  JOIN ANOTHER GROUP (in connected view)
+  // ═══════════════════════════════════════════════════
+  Widget _buildJoinAnotherGroupCard() {
+    return _glassCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.group_add_rounded,
+                  color: Color(0xFF3B82F6),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Join Another Group',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Enter an invite code to join a new group',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!_showCodeInput)
+                GestureDetector(
+                  onTap: () => setState(() => _showCodeInput = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Enter',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_showCodeInput) ...[
+            const SizedBox(height: 20),
+            TextField(
+              controller: _codeController,
+              textCapitalization: TextCapitalization.characters,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 8,
+                color: primary,
+              ),
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '------',
+                hintStyle: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 8,
+                  color: Colors.grey.shade300,
+                ),
+                filled: true,
+                fillColor: primary.withOpacity(0.04),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: _codeError
+                        ? Colors.red.shade300
+                        : primary.withOpacity(0.15),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: _codeError
+                        ? Colors.red.shade300
+                        : primary.withOpacity(0.15),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: primary, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 20,
+                ),
+              ),
+              onChanged: (_) {
+                if (_codeError) setState(() => _codeError = false);
+              },
+            ),
+            if (_codeError)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Invalid code. Please check and try again.',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade400),
+                ),
+              ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _submitCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 8,
+                  shadowColor: primary.withOpacity(0.3),
+                ),
+                child: const Text(
+                  'Join Group',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _glassCard({required Widget child}) {

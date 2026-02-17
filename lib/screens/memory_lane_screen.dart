@@ -148,25 +148,25 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 if (_pinnedMemories.isNotEmpty) ...[
                   _sectionHeader('📌  Pinned'),
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.only(left: 12, right: 20),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (_, i) => _memoryTile(_pinnedMemories[i]),
+                        (_, i) => _timelineMemoryRow(_pinnedMemories[i]),
                         childCount: _pinnedMemories.length,
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  _timelineSpacer(8),
                 ],
                 // Date-grouped sections (Schedule view)
                 ..._groupedByDate.entries.expand((entry) {
                   return [
                     _sectionHeader(entry.key),
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.only(left: 12, right: 20),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (_, i) => _memoryTile(entry.value[i]),
+                          (_, i) => _timelineMemoryRow(entry.value[i]),
                           childCount: entry.value.length,
                         ),
                       ),
@@ -283,32 +283,153 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ═══════════════════════════════════════════════════
+  //  TIMELINE COMPONENTS
+  // ═══════════════════════════════════════════════════
+  static const double _timelineColumnWidth = 32.0;
+  static const double _timelineLineWidth = 2.0;
+  static const double _timelineMarkerSize = 12.0;
+
+  /// Wraps a memory tile with a timeline marker + vertical line on the left
+  Widget _timelineMemoryRow(Memory memory) {
+    final typeColor = _memoryTypeColor(memory.type);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: _timelineColumnWidth,
+            child: Stack(
+              children: [
+                // Continuous vertical line
+                Positioned(
+                  left: (_timelineColumnWidth - _timelineLineWidth) / 2,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: _timelineLineWidth,
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.13),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ),
+                // Circle marker with fade + scale animation
+                Positioned(
+                  top: 18,
+                  left: (_timelineColumnWidth - _timelineMarkerSize) / 2,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.elasticOut,
+                    builder: (context, value, child) {
+                      return Transform.scale(
+                        scale: value,
+                        child: Opacity(
+                          opacity: value.clamp(0.0, 1.0),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: _timelineMarkerSize,
+                      height: _timelineMarkerSize,
+                      decoration: BoxDecoration(
+                        color: typeColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: typeColor.withOpacity(0.35),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: _memoryTile(memory)),
+        ],
+      ),
+    );
+  }
+
+  /// Spacer that keeps the timeline line continuous between sections
+  SliverToBoxAdapter _timelineSpacer(double height) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            children: [
+              Positioned(
+                left: (_timelineColumnWidth - _timelineLineWidth) / 2,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: _timelineLineWidth,
+                  color: primary.withOpacity(0.13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
   //  SECTION HEADER (date label like Google Calendar)
   // ═══════════════════════════════════════════════════
   SliverToBoxAdapter _sectionHeader(String title) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-        child: Row(
-          children: [
-            Container(
-              width: 4,
-              height: 20,
-              decoration: BoxDecoration(
-                color: primary,
-                borderRadius: BorderRadius.circular(2),
+        padding: const EdgeInsets.only(left: 12, right: 20, top: 16, bottom: 6),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Timeline line through header
+              SizedBox(
+                width: _timelineColumnWidth,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: (_timelineColumnWidth - _timelineLineWidth) / 2,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: _timelineLineWidth,
+                        color: primary.withOpacity(0.13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
+              const SizedBox(width: 6),
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

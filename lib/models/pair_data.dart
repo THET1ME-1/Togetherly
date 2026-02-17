@@ -85,17 +85,17 @@ class PairData extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Принять код партнёра — реальная связка через Firestore
+  /// Принять код партнёра — создаёт/вступает в группу через Firestore.
+  /// Работает независимо от того, есть ли уже активная группа.
   Future<bool> acceptCode(String code) async {
-    if (_active == null) return false;
-    final result = await _active!.acceptCode(code);
+    final result = await _manager.acceptCodeAndCreateGroup(code);
     if (result) notifyListeners();
     return result;
   }
 
-  /// Свой ли код?
+  /// Свой ли код? Проверяет по ВСЕМ connections.
   bool isSelfCode(String code) {
-    return _active?.isSelfCode(code) ?? false;
+    return _manager.isSelfCodeAny(code);
   }
 
   /// Разорвать пару
