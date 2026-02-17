@@ -959,10 +959,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     switch (pair.relationshipType) {
       case RelationshipType.couple:
         return "You're connected with ${pair.partnerName}!";
+      case RelationshipType.married:
+        return "You're married to ${pair.partnerName}! 💍";
       case RelationshipType.friends:
         return "You're now friends with ${pair.partnerName}!";
       case RelationshipType.buddies:
         return "You're now buddies with ${pair.partnerName}!";
+      case RelationshipType.custom:
+        return "You're now ${pair.relationshipLabel} with ${pair.partnerName}!";
     }
   }
 
@@ -1415,51 +1419,174 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   void _showRelationshipTypeDialog() {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Relationship Status',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final customTypes = pair.customRelationshipTypes;
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Relationship Status',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Choose how you want to connect',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _relationshipOption(
+                        type: RelationshipType.couple,
+                        icon: '❤️',
+                        title: 'In Love',
+                        subtitle: 'Perfect for romantic couples',
+                      ),
+                      const SizedBox(height: 12),
+                      _relationshipOption(
+                        type: RelationshipType.married,
+                        icon: '💍',
+                        title: 'Married',
+                        subtitle: 'For married partners',
+                      ),
+                      const SizedBox(height: 12),
+                      _relationshipOption(
+                        type: RelationshipType.friends,
+                        icon: '🤝',
+                        title: 'Friends',
+                        subtitle: 'Connect with your best friend',
+                      ),
+                      const SizedBox(height: 12),
+                      _relationshipOption(
+                        type: RelationshipType.buddies,
+                        icon: '👯',
+                        title: 'Best Buddies',
+                        subtitle: 'For inseparable companions',
+                      ),
+                      // Custom relationship types
+                      ...customTypes.map((entry) {
+                        final isSelected =
+                            pair.relationshipType == RelationshipType.custom &&
+                            pair.relationshipLabel == entry['label'];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: GestureDetector(
+                            onTap: () {
+                              pair.setRelationshipType(
+                                RelationshipType.custom,
+                                label: entry['label'] ?? '',
+                                emoji: entry['emoji'] ?? '✨',
+                              );
+                              Navigator.of(ctx).pop();
+                              setState(() {});
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primary.withOpacity(0.08)
+                                    : Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? primary
+                                      : Colors.grey.shade200,
+                                  width: isSelected ? 2 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    entry['emoji'] ?? '✨',
+                                    style: const TextStyle(fontSize: 28),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      entry['label'] ?? 'Custom',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected
+                                            ? primary
+                                            : Colors.grey.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: primary,
+                                      size: 24,
+                                    ),
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      await pair.deleteCustomRelationshipType(
+                                        entry['id'] ?? '',
+                                      );
+                                      setDialogState(() {});
+                                      setState(() {});
+                                    },
+                                    child: Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                      color: Colors.red.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _showAddCustomRelTypeDialog();
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Custom Status'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 20,
+                          ),
+                          side: BorderSide(
+                            color: Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose how you want to connect',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 24),
-              _relationshipOption(
-                type: RelationshipType.couple,
-                icon: '\u2764\uFE0F',
-                title: 'In Love',
-                subtitle: 'Perfect for romantic couples',
-              ),
-              const SizedBox(height: 12),
-              _relationshipOption(
-                type: RelationshipType.friends,
-                icon: '\u{1F91D}',
-                title: 'Friends',
-                subtitle: 'Connect with your best friend',
-              ),
-              const SizedBox(height: 12),
-              _relationshipOption(
-                type: RelationshipType.buddies,
-                icon: '\u{1F46F}',
-                title: 'Best Buddies',
-                subtitle: 'For inseparable companions',
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1515,6 +1642,65 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               const Icon(Icons.check_circle_rounded, color: primary, size: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showAddCustomRelTypeDialog() {
+    final labelCtrl = TextEditingController();
+    final emojiCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Add Custom Status'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: emojiCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Emoji',
+                hintText: '💕',
+              ),
+              maxLength: 2,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: labelCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Label',
+                hintText: 'e.g., Soulmates',
+              ),
+              maxLength: 30,
+              textCapitalization: TextCapitalization.words,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final label = labelCtrl.text.trim();
+              final emoji = emojiCtrl.text.trim();
+              if (label.isNotEmpty) {
+                await pair.addCustomRelationshipType(
+                  label,
+                  emoji.isNotEmpty ? emoji : '✨',
+                );
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {});
+                  _showRelationshipTypeDialog();
+                }
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
       ),
     );
   }

@@ -1,12 +1,18 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
+import 'firebase_service.dart';
 
 /// Сервис для управления пользовательскими таймерами.
-/// Хранит данные в SharedPreferences.
+/// Хранит данные локально (SharedPreferences) и синхронизирует с Firestore
+/// когда пользователь состоит в группе.
 class TimerService extends ChangeNotifier {
   static const _storageKey = 'user_timers';
+  final FirebaseService _fb = FirebaseService();
   List<TimerItem> _timers = [];
+  String _groupId = '';
+  StreamSubscription? _firestoreSub;
 
   List<TimerItem> get timers => List.unmodifiable(_timers);
   int get count => _timers.length;
@@ -17,6 +23,15 @@ class TimerService extends ChangeNotifier {
       return _timers.firstWhere((t) => t.isDefault);
     } catch (_) {
       return _timers.isNotEmpty ? _timers.first : null;
+    }
+  }
+
+  /// Системный таймер (неудаляемый, создаётся при создании группы)
+  TimerItem? get systemTimer {
+    try {
+      return _timers.firstWhere((t) => t.isSystem);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -35,9 +50,63 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _save() async {
+  /// Привязать к группе — начинает синхронизацию с Firestore.
+  /// Вызывается когда пользователь входит в группу.
+  void bindToGroup(String groupId) {
+    if (_groupId == groupId && groupId.isNotEmpty) return;
+    _firestoreSub?.cancel();
+    _groupId = groupId;
+    if (groupId.isEmpty) return;
+
+    // Слушаем изменения таймеров в Firestore
+    _firestoreSub = _fb.listenToTimers(
+      groupId: groupId,
+      onData: (remoteTimers) {
+        _mergeRemoteTimers(remoteTimers);
+      },
+    );
+  }
+
+  /// Отвязать от группы (при unpair)
+  void unbindFromGroup() {
+    _firestoreSub?.cancel();
+    _firestoreSub = null;
+    _groupId = '';
+  }
+
+  /// Слияние remote таймеров с локальными.
+  /// Remote таймеры имеют приоритет.
+  void _mergeRemoteTimers(List<TimerItem> remote) {
+    // Заменяем полностью на remote, но сохраняем локальные таймеры
+    // которых нет в remote (только если нет groupId — значит локальные)
+    _timers = remote;
+
+    // Гарантируем что хотя бы один default
+    if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
+      // Системный таймер будет default
+      final sys = systemTimer;
+      if (sys != null) {
+        sys.isDefault = true;
+      } else {
+        _timers.first.isDefault = true;
+      }
+    }
+
+    _saveLocal();
+    notifyListeners();
+  }
+
+  Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, TimerItem.encodeList(_timers));
+  }
+
+  Future<void> _saveToFirestore() async {
+    if (_groupId.isEmpty) return;
+    await _fb.saveTimers(
+      groupId: _groupId,
+      timers: _timers.map((t) => t.toJson()).toList(),
+    );
   }
 
   // ── CRUD ──
@@ -48,6 +117,7 @@ class TimerService extends ChangeNotifier {
     required DateTime startDate,
     String emoji = '❤️',
     bool isDefault = false,
+    bool isSystem = false,
   }) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (isDefault) {
@@ -62,9 +132,11 @@ class TimerService extends ChangeNotifier {
         startDate: startDate,
         isDefault: isDefault || _timers.isEmpty,
         emoji: emoji,
+        isSystem: isSystem,
       ),
     );
-    await _save();
+    await _saveLocal();
+    await _saveToFirestore();
     notifyListeners();
   }
 
@@ -78,18 +150,26 @@ class TimerService extends ChangeNotifier {
       }
     }
     _timers[idx] = updated;
-    await _save();
+    await _saveLocal();
+    await _saveToFirestore();
     notifyListeners();
   }
 
-  /// Удалить таймер по id.
+  /// Удалить таймер по id. Системные таймеры удалить нельзя.
   Future<void> deleteTimer(String id) async {
+    final timer = _timers.firstWhere(
+      (t) => t.id == id,
+      orElse: () => TimerItem(id: '', title: '', startDate: DateTime.now()),
+    );
+    if (timer.isSystem) return; // нельзя удалить системный таймер
+
     _timers.removeWhere((t) => t.id == id);
     // Если удалили дефолтный — ставим первый
     if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
       _timers.first.isDefault = true;
     }
-    await _save();
+    await _saveLocal();
+    await _saveToFirestore();
     notifyListeners();
   }
 
@@ -98,7 +178,48 @@ class TimerService extends ChangeNotifier {
     for (final t in _timers) {
       t.isDefault = t.id == id;
     }
-    await _save();
+    await _saveLocal();
+    await _saveToFirestore();
+    notifyListeners();
+  }
+
+  /// Создать системный таймер при создании группы.
+  /// Если системный уже есть — не создаёт повторно.
+  Future<void> createSystemTimer({
+    required DateTime startDate,
+    required String relationshipLabel,
+    required String relationshipEmoji,
+    required String partnerName,
+  }) async {
+    // Не создаём дубликат
+    if (systemTimer != null) return;
+
+    final title = '$relationshipLabel with $partnerName';
+    await addTimer(
+      title: title,
+      startDate: startDate,
+      emoji: relationshipEmoji,
+      isDefault: true,
+      isSystem: true,
+    );
+  }
+
+  /// Обновить название системного таймера при смене статуса/типа отношений.
+  Future<void> updateSystemTimerTitle({
+    required String relationshipLabel,
+    required String relationshipEmoji,
+    required String partnerName,
+  }) async {
+    final sys = systemTimer;
+    if (sys == null) return;
+
+    final newTitle = '$relationshipLabel with $partnerName';
+    if (sys.title == newTitle && sys.emoji == relationshipEmoji) return;
+
+    sys.title = newTitle;
+    sys.emoji = relationshipEmoji;
+    await _saveLocal();
+    await _saveToFirestore();
     notifyListeners();
   }
 
@@ -115,5 +236,11 @@ class TimerService extends ChangeNotifier {
       emoji: '❤️',
       isDefault: true,
     );
+  }
+
+  @override
+  void dispose() {
+    _firestoreSub?.cancel();
+    super.dispose();
   }
 }

@@ -539,6 +539,27 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                               ),
                             ),
                           ],
+                          if (timer.isSystem) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'SYSTEM',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -576,14 +597,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                       value: 'edit',
                       child: _PopupRow(icon: Icons.edit_rounded, label: 'Edit'),
                     ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: _PopupRow(
-                        icon: Icons.delete_outline_rounded,
-                        label: 'Delete',
-                        danger: true,
+                    if (!timer.isSystem)
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: _PopupRow(
+                          icon: Icons.delete_outline_rounded,
+                          label: 'Delete',
+                          danger: true,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -762,13 +784,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       initialDate: timer.startDate,
       initialEmoji: timer.emoji,
       initialIsDefault: timer.isDefault,
+      isSystemTimer: timer.isSystem,
       onSave: (title, date, emoji, isDefault) {
         widget.timerService.updateTimer(
           timer.copyWith(
-            title: title,
+            title: timer.isSystem ? timer.title : title,
             startDate: date,
-            emoji: emoji,
+            emoji: timer.isSystem ? timer.emoji : emoji,
             isDefault: isDefault,
+            isSystem: timer.isSystem,
           ),
         );
       },
@@ -782,6 +806,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     required DateTime initialDate,
     required String initialEmoji,
     required bool initialIsDefault,
+    bool isSystemTimer = false,
     required void Function(
       String title,
       DateTime date,
@@ -850,35 +875,68 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                     ),
                   ),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: titleCtrl,
-                    style: const TextStyle(fontSize: 15),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Together with Alex',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(
-                          color: widget.primary,
-                          width: 1.5,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
+                  if (isSystemTimer)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
                       ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.lock_outline,
+                            size: 16,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              titleCtrl.text,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    TextField(
+                      controller: titleCtrl,
+                      style: const TextStyle(fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Together with Alex',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: Colors.grey.shade200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: widget.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 20),
 
                   // ── Date ──
@@ -980,45 +1038,47 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   const SizedBox(height: 20),
 
                   // ── Emoji ──
-                  Text(
-                    'Icon',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade600,
+                  if (!isSystemTimer) ...[
+                    Text(
+                      'Icon',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _emojis.map((e) {
-                      final sel = selectedEmoji == e;
-                      return GestureDetector(
-                        onTap: () => setSheetState(() => selectedEmoji = e),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? widget.primary.withOpacity(0.12)
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: sel
-                                ? Border.all(color: widget.primary, width: 2)
-                                : null,
-                          ),
-                          child: Center(
-                            child: Text(
-                              e,
-                              style: const TextStyle(fontSize: 20),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _emojis.map((e) {
+                        final sel = selectedEmoji == e;
+                        return GestureDetector(
+                          onTap: () => setSheetState(() => selectedEmoji = e),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? widget.primary.withOpacity(0.12)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: sel
+                                  ? Border.all(color: widget.primary, width: 2)
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                e,
+                                style: const TextStyle(fontSize: 20),
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // ── Default toggle ──
                   GestureDetector(

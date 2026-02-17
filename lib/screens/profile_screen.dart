@@ -404,6 +404,7 @@ class ProfileScreen extends StatelessWidget {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -424,11 +425,12 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.grey.shade400,
-              size: 20,
-            ),
+            trailing ??
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
           ],
         ),
       ),

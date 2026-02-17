@@ -63,8 +63,38 @@ class PairData extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setRelationshipType(RelationshipType type) {
-    _active?.setRelationshipType(type);
+  void setRelationshipType(
+    RelationshipType type, {
+    String label = '',
+    String emoji = '',
+  }) {
+    _active?.setRelationshipType(type, label: label, emoji: emoji);
+    notifyListeners();
+  }
+
+  // ── Custom Relationship Types ──
+  List<Map<String, String>> get customRelationshipTypes =>
+      _active?.customRelationshipTypes ?? [];
+
+  Future<void> addCustomRelationshipType(String label, String emoji) async {
+    if (_active == null) return;
+    await _active!.addCustomRelationshipType(label, emoji);
+    notifyListeners();
+  }
+
+  Future<void> updateCustomRelationshipType(
+    String id,
+    String label,
+    String emoji,
+  ) async {
+    if (_active == null) return;
+    await _active!.updateCustomRelationshipType(id, label, emoji);
+    notifyListeners();
+  }
+
+  Future<void> deleteCustomRelationshipType(String id) async {
+    if (_active == null) return;
+    await _active!.deleteCustomRelationshipType(id);
     notifyListeners();
   }
 

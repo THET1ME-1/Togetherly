@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../services/firebase_service.dart';
+import 'relationship_status.dart';
 
 enum RelationshipType {
   couple, // In Love — max 2
+  married, // Married — max 2
   friends, // Friends — max 10
   buddies, // Best Buddies — max 10
+  custom, // Custom user-defined type
 }
 
 /// Info about one group member
@@ -68,12 +71,23 @@ class Connection {
   String pairId; // actually groupId
   RelationshipType relationshipType;
 
+  // Custom relationship type fields
+  String customRelationshipLabel;
+  String customRelationshipEmoji;
+
+  // Custom relationship types list (shared with partner)
+  List<Map<String, String>> customRelationshipTypes = [];
+
   StreamSubscription? _pairSub;
   final FirebaseService _fb;
   final Function()? onChanged;
 
   // Mood data: uid -> MemberMood
   Map<String, MemberMood> memberMoods = {};
+
+  // Relationship status
+  RelationshipStatus? currentStatus;
+  List<RelationshipStatus> customStatuses = [];
 
   Connection({
     required this.id,
@@ -86,6 +100,8 @@ class Connection {
     this.inviteCode = '',
     this.pairId = '',
     this.relationshipType = RelationshipType.couple,
+    this.customRelationshipLabel = '',
+    this.customRelationshipEmoji = '',
     this.onChanged,
   }) : _fb = firebaseService,
        members = members ?? [];
@@ -96,9 +112,11 @@ class Connection {
   int get maxMembers {
     switch (relationshipType) {
       case RelationshipType.couple:
+      case RelationshipType.married:
         return 2;
       case RelationshipType.friends:
       case RelationshipType.buddies:
+      case RelationshipType.custom:
         return 10;
     }
   }
@@ -106,7 +124,9 @@ class Connection {
   /// Can invite more members?
   bool get canInviteMore {
     if (!isPaired) return true; // not yet connected, invite is needed
-    if (relationshipType == RelationshipType.couple) return false;
+    if (relationshipType == RelationshipType.couple ||
+        relationshipType == RelationshipType.married)
+      return false;
     return members.length < maxMembers;
   }
 
@@ -144,10 +164,16 @@ class Connection {
     switch (relationshipType) {
       case RelationshipType.couple:
         return 'In Love';
+      case RelationshipType.married:
+        return 'Married';
       case RelationshipType.friends:
         return 'Friends';
       case RelationshipType.buddies:
         return 'Best Buddies';
+      case RelationshipType.custom:
+        return customRelationshipLabel.isNotEmpty
+            ? customRelationshipLabel
+            : 'Custom';
     }
   }
 
@@ -155,10 +181,16 @@ class Connection {
     switch (relationshipType) {
       case RelationshipType.couple:
         return '❤️';
+      case RelationshipType.married:
+        return '💍';
       case RelationshipType.friends:
         return '🤝';
       case RelationshipType.buddies:
         return '👯';
+      case RelationshipType.custom:
+        return customRelationshipEmoji.isNotEmpty
+            ? customRelationshipEmoji
+            : '✨';
     }
   }
 
@@ -204,13 +236,162 @@ class Connection {
     await _fb.clearMood(groupId: pairId);
   }
 
-  void setRelationshipType(RelationshipType type) {
+  void setRelationshipType(
+    RelationshipType type, {
+    String label = '',
+    String emoji = '',
+  }) {
     relationshipType = type;
-    // Update maxMembers in Firebase
+    if (type == RelationshipType.custom) {
+      customRelationshipLabel = label;
+      customRelationshipEmoji = emoji;
+    } else {
+      customRelationshipLabel = '';
+      customRelationshipEmoji = '';
+    }
+    // Update in Firebase
     if (pairId.isNotEmpty) {
-      _fb.updateGroupMaxMembers(pairId, maxMembers);
+      _fb.updateGroupRelationshipType(
+        pairId,
+        type: type.name,
+        maxMembers: maxMembers,
+        customLabel: customRelationshipLabel,
+        customEmoji: customRelationshipEmoji,
+      );
     }
     onChanged?.call();
+  }
+
+  /// Add a custom relationship type to the shared list
+  Future<void> addCustomRelationshipType(String label, String emoji) async {
+    if (pairId.isEmpty) return;
+    final entry = {
+      'id': 'crt_${DateTime.now().millisecondsSinceEpoch}',
+      'label': label,
+      'emoji': emoji,
+    };
+    customRelationshipTypes.add(entry);
+    onChanged?.call();
+    await _fb.addCustomRelationshipType(pairId, entry);
+  }
+
+  /// Update a custom relationship type
+  Future<void> updateCustomRelationshipType(
+    String id,
+    String label,
+    String emoji,
+  ) async {
+    if (pairId.isEmpty) return;
+    final idx = customRelationshipTypes.indexWhere((e) => e['id'] == id);
+    if (idx == -1) return;
+    customRelationshipTypes[idx] = {'id': id, 'label': label, 'emoji': emoji};
+    // If currently using this custom type, update label/emoji
+    if (relationshipType == RelationshipType.custom &&
+        customRelationshipLabel == label) {
+      customRelationshipLabel = label;
+      customRelationshipEmoji = emoji;
+    }
+    onChanged?.call();
+    await _fb.updateCustomRelationshipType(pairId, {
+      'id': id,
+      'label': label,
+      'emoji': emoji,
+    });
+  }
+
+  /// Delete a custom relationship type
+  Future<void> deleteCustomRelationshipType(String id) async {
+    if (pairId.isEmpty) return;
+    final entry = customRelationshipTypes.firstWhere(
+      (e) => e['id'] == id,
+      orElse: () => {},
+    );
+    customRelationshipTypes.removeWhere((e) => e['id'] == id);
+    // If currently using this type, revert to couple
+    if (relationshipType == RelationshipType.custom &&
+        customRelationshipLabel == (entry['label'] ?? '')) {
+      setRelationshipType(RelationshipType.couple);
+    }
+    onChanged?.call();
+    await _fb.deleteCustomRelationshipType(pairId, id);
+  }
+
+  // ── Relationship Status Management ──
+
+  /// Get all available statuses (predefined + custom)
+  List<RelationshipStatus> get allStatuses {
+    return [...RelationshipStatus.predefinedStatuses, ...customStatuses];
+  }
+
+  /// Set the current relationship status
+  Future<void> setStatus(RelationshipStatus status) async {
+    if (pairId.isEmpty) return;
+    currentStatus = status;
+    onChanged?.call();
+    await _fb.setGroupStatus(pairId, status);
+  }
+
+  /// Clear the current relationship status
+  Future<void> clearStatus() async {
+    if (pairId.isEmpty) return;
+    currentStatus = null;
+    onChanged?.call();
+    await _fb.clearGroupStatus(pairId);
+  }
+
+  /// Add a new custom status
+  Future<void> addCustomStatus(String label, String emoji) async {
+    if (pairId.isEmpty) return;
+    final newStatus = RelationshipStatus(
+      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      label: label,
+      emoji: emoji,
+      isPredefined: false,
+    );
+    customStatuses.add(newStatus);
+    onChanged?.call();
+    await _fb.addCustomStatus(pairId, newStatus);
+  }
+
+  /// Update an existing custom status
+  Future<void> updateCustomStatus(
+    String statusId,
+    String label,
+    String emoji,
+  ) async {
+    if (pairId.isEmpty) return;
+    final index = customStatuses.indexWhere((s) => s.id == statusId);
+    if (index == -1) return;
+
+    final updatedStatus = RelationshipStatus(
+      id: statusId,
+      label: label,
+      emoji: emoji,
+      isPredefined: false,
+    );
+    customStatuses[index] = updatedStatus;
+
+    // Update current status if it's the one being edited
+    if (currentStatus?.id == statusId) {
+      currentStatus = updatedStatus;
+    }
+
+    onChanged?.call();
+    await _fb.updateCustomStatus(pairId, updatedStatus);
+  }
+
+  /// Delete a custom status
+  Future<void> deleteCustomStatus(String statusId) async {
+    if (pairId.isEmpty) return;
+    customStatuses.removeWhere((s) => s.id == statusId);
+
+    // Clear current status if it's the one being deleted
+    if (currentStatus?.id == statusId) {
+      currentStatus = null;
+    }
+
+    onChanged?.call();
+    await _fb.deleteCustomStatus(pairId, statusId);
   }
 
   // ── Actions ──
@@ -360,6 +541,29 @@ class Connection {
     partnerName = data['partnerName'] ?? '';
     partnerAvatarUrl = data['partnerAvatar'] ?? '';
 
+    // Parse relationship type
+    final rtStr = data['relationshipType'] as String?;
+    if (rtStr != null) {
+      relationshipType = RelationshipType.values.firstWhere(
+        (e) => e.name == rtStr,
+        orElse: () => RelationshipType.couple,
+      );
+    }
+    customRelationshipLabel = data['customRelationshipLabel'] as String? ?? '';
+    customRelationshipEmoji = data['customRelationshipEmoji'] as String? ?? '';
+
+    // Parse custom relationship types list
+    final crtList = data['customRelationshipTypes'] as List<dynamic>?;
+    if (crtList != null) {
+      customRelationshipTypes = crtList
+          .map(
+            (e) => Map<String, String>.from(
+              (e as Map).map((k, v) => MapEntry(k.toString(), v.toString())),
+            ),
+          )
+          .toList();
+    }
+
     // Parse members
     final membersList = data['members'] as List<dynamic>?;
     if (membersList != null) {
@@ -383,6 +587,24 @@ class Connection {
           MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
         ),
       );
+    }
+
+    // Parse current status
+    final statusData = data['currentStatus'] as Map<String, dynamic>?;
+    if (statusData != null) {
+      currentStatus = RelationshipStatus.fromJson(statusData);
+    }
+
+    // Parse custom statuses
+    final customStatusesList = data['customStatuses'] as List<dynamic>?;
+    if (customStatusesList != null) {
+      customStatuses = customStatusesList
+          .map(
+            (s) => RelationshipStatus.fromJson(
+              Map<String, dynamic>.from(s as Map),
+            ),
+          )
+          .toList();
     }
   }
 
@@ -411,6 +633,35 @@ class Connection {
         partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
         startDate = data['startDate'] as DateTime? ?? startDate;
 
+        // Update relationship type
+        final rtStr = data['relationshipType'] as String?;
+        if (rtStr != null) {
+          relationshipType = RelationshipType.values.firstWhere(
+            (e) => e.name == rtStr,
+            orElse: () => RelationshipType.couple,
+          );
+        }
+        customRelationshipLabel =
+            data['customRelationshipLabel'] as String? ??
+            customRelationshipLabel;
+        customRelationshipEmoji =
+            data['customRelationshipEmoji'] as String? ??
+            customRelationshipEmoji;
+
+        // Update custom relationship types list
+        final crtList = data['customRelationshipTypes'] as List<dynamic>?;
+        if (crtList != null) {
+          customRelationshipTypes = crtList
+              .map(
+                (e) => Map<String, String>.from(
+                  (e as Map).map(
+                    (k, v) => MapEntry(k.toString(), v.toString()),
+                  ),
+                ),
+              )
+              .toList();
+        }
+
         // Update members
         final membersList = data['members'] as List<dynamic>?;
         if (membersList != null) {
@@ -434,6 +685,28 @@ class Connection {
               MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
             ),
           );
+        }
+
+        // Update status
+        final statusData = data['currentStatus'] as Map<String, dynamic>?;
+        if (statusData != null) {
+          currentStatus = RelationshipStatus.fromJson(statusData);
+        } else {
+          currentStatus = null;
+        }
+
+        // Update custom statuses
+        final customStatusesList = data['customStatuses'] as List<dynamic>?;
+        if (customStatusesList != null) {
+          customStatuses = customStatusesList
+              .map(
+                (s) => RelationshipStatus.fromJson(
+                  Map<String, dynamic>.from(s as Map),
+                ),
+              )
+              .toList();
+        } else {
+          customStatuses = [];
         }
 
         onChanged?.call();
@@ -464,6 +737,8 @@ class Connection {
       'inviteCode': inviteCode,
       'pairId': pairId,
       'relationshipType': relationshipType.name,
+      'customRelationshipLabel': customRelationshipLabel,
+      'customRelationshipEmoji': customRelationshipEmoji,
     };
   }
 

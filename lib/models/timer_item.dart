@@ -7,6 +7,7 @@ class TimerItem {
   DateTime startDate;
   bool isDefault;
   String emoji;
+  bool isSystem; // system timers can't be deleted or renamed
 
   TimerItem({
     required this.id,
@@ -14,6 +15,7 @@ class TimerItem {
     required this.startDate,
     this.isDefault = false,
     this.emoji = '❤️',
+    this.isSystem = false,
   });
 
   // ── Вычисляемые значения ──
@@ -55,6 +57,7 @@ class TimerItem {
     'startDate': startDate.toIso8601String(),
     'isDefault': isDefault,
     'emoji': emoji,
+    'isSystem': isSystem,
   };
 
   factory TimerItem.fromJson(Map<String, dynamic> json) => TimerItem(
@@ -63,6 +66,7 @@ class TimerItem {
     startDate: DateTime.parse(json['startDate'] as String),
     isDefault: json['isDefault'] as bool? ?? false,
     emoji: json['emoji'] as String? ?? '❤️',
+    isSystem: json['isSystem'] as bool? ?? false,
   );
 
   static String encodeList(List<TimerItem> items) =>
@@ -81,11 +85,13 @@ class TimerItem {
     DateTime? startDate,
     bool? isDefault,
     String? emoji,
+    bool? isSystem,
   }) => TimerItem(
     id: id ?? this.id,
     title: title ?? this.title,
     startDate: startDate ?? this.startDate,
     isDefault: isDefault ?? this.isDefault,
     emoji: emoji ?? this.emoji,
+    isSystem: isSystem ?? this.isSystem,
   );
 }
