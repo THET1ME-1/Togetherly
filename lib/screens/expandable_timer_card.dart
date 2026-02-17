@@ -239,19 +239,35 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               children: [
                 // -- Custom background image --
                 if (_displayTimer?.backgroundImagePath != null)
-                  Positioned.fill(
-                    child: Image.file(
-                      File(_displayTimer!.backgroundImagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height:
+                        280, // Фиксированная высота - не растягивается при раскрытии
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.file(
+                        File(_displayTimer!.backgroundImagePath!),
+                        fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                 // -- Dark overlay for readability when bg image is set --
                 if (_displayTimer?.backgroundImagePath != null)
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 280, // Тот же размер что и изображение
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.35),
+                        ),
                       ),
                     ),
                   ),
