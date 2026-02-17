@@ -51,9 +51,9 @@ class PairData extends ChangeNotifier {
   MemberMood get partnerMood => _active?.partnerMood ?? const MemberMood();
   MemberMood moodOf(String uid) => _active?.moodOf(uid) ?? const MemberMood();
 
-  Future<void> setMood(String emoji, String label) async {
+  Future<void> setMood(String imagePath, String label) async {
     if (_active == null) return;
-    await _active!.setMood(emoji, label);
+    await _active!.setMood(imagePath, label);
     notifyListeners();
   }
 

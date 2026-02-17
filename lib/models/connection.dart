@@ -31,14 +31,14 @@ class GroupMember {
 
 /// Info about a member's mood
 class MemberMood {
-  final String emoji;
+  final String imagePath;
   final String label;
   final DateTime? updatedAt;
 
-  const MemberMood({this.emoji = '', this.label = '', this.updatedAt});
+  const MemberMood({this.imagePath = '', this.label = '', this.updatedAt});
 
-  bool get isEmpty => emoji.isEmpty;
-  bool get isNotEmpty => emoji.isNotEmpty;
+  bool get isEmpty => imagePath.isEmpty;
+  bool get isNotEmpty => imagePath.isNotEmpty;
 
   factory MemberMood.fromJson(Map<String, dynamic> json) {
     DateTime? updatedAt;
@@ -47,7 +47,7 @@ class MemberMood {
       updatedAt = ts;
     }
     return MemberMood(
-      emoji: json['emoji'] ?? '',
+      imagePath: json['imagePath'] ?? json['emoji'] ?? '',
       label: json['label'] ?? '',
       updatedAt: updatedAt,
     );
@@ -215,16 +215,16 @@ class Connection {
   }
 
   /// Set my mood
-  Future<void> setMood(String emoji, String label) async {
+  Future<void> setMood(String imagePath, String label) async {
     if (pairId.isEmpty) return;
     final myUid = _fb.uid ?? '';
     memberMoods[myUid] = MemberMood(
-      emoji: emoji,
+      imagePath: imagePath,
       label: label,
       updatedAt: DateTime.now(),
     );
     onChanged?.call();
-    await _fb.setMood(groupId: pairId, emoji: emoji, label: label);
+    await _fb.setMood(groupId: pairId, imagePath: imagePath, label: label);
   }
 
   /// Clear my mood

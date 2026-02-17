@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import 'connect_partner_screen.dart';
@@ -389,6 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       widget.userData.avatarUrl,
                       name: widget.userData.displayName,
                       mood: _pairData.myMood,
+                      moodPosition: _MoodBadgePosition.topLeft,
                     ),
                   ),
                   ...List.generate(
@@ -400,6 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _pairData.partners[i].avatar,
                         name: _pairData.partners[i].name,
                         mood: _pairData.moodOf(_pairData.partners[i].uid),
+                        moodPosition: _MoodBadgePosition.bottomRight,
                       ),
                     ),
                   ),
@@ -522,18 +525,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _avatarWithMood(String url, {String? name, required MemberMood mood}) {
+  Widget _avatarWithMood(
+    String url, {
+    String? name,
+    required MemberMood mood,
+    _MoodBadgePosition moodPosition = _MoodBadgePosition.bottomRight,
+  }) {
     return SizedBox(
-      width: 40,
-      height: 44,
+      width: 48,
+      height: 48,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          _avatarCircle(url, name: name),
+          Positioned(left: 4, top: 4, child: _avatarCircle(url, name: name)),
           if (mood.isNotEmpty)
             Positioned(
-              bottom: -2,
-              right: -6,
+              top: moodPosition == _MoodBadgePosition.topLeft ? -4 : null,
+              bottom: moodPosition == _MoodBadgePosition.bottomRight
+                  ? -4
+                  : null,
+              left: moodPosition == _MoodBadgePosition.topLeft ? -4 : null,
+              right: moodPosition == _MoodBadgePosition.bottomRight ? -4 : null,
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
@@ -546,7 +558,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Text(mood.emoji, style: const TextStyle(fontSize: 12)),
+                child: mood.imagePath.isNotEmpty
+                    ? ClipOval(
+                        child: Image.asset(
+                          mood.imagePath,
+                          width: 22,
+                          height: 22,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox(width: 22, height: 22),
+                        ),
+                      )
+                    : const SizedBox(width: 22, height: 22),
               ),
             ),
         ],
@@ -922,23 +945,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   // MOOD PICKER
   // =============================================
-  static const _moodOptions = [
-    {'emoji': '😊', 'label': 'Happy'},
-    {'emoji': '🥰', 'label': 'In Love'},
-    {'emoji': '😌', 'label': 'Calm'},
-    {'emoji': '😴', 'label': 'Sleepy'},
-    {'emoji': '🤗', 'label': 'Grateful'},
-    {'emoji': '😢', 'label': 'Sad'},
-    {'emoji': '😤', 'label': 'Frustrated'},
-    {'emoji': '🤒', 'label': 'Sick'},
-    {'emoji': '😎', 'label': 'Chill'},
-    {'emoji': '🥳', 'label': 'Excited'},
-    {'emoji': '😔', 'label': 'Down'},
-    {'emoji': '💪', 'label': 'Motivated'},
-    {'emoji': '🤔', 'label': 'Thoughtful'},
-    {'emoji': '😋', 'label': 'Hungry'},
-    {'emoji': '✨', 'label': 'Inspired'},
-  ];
 
   void _openMoodCalendar() {
     Navigator.push(
@@ -951,125 +957,136 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMoodPicker() {
-    final currentEmoji = _pairData.myMood.emoji;
+    final currentEmoji = _pairData.myMood.imagePath;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'How are you feeling?',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Your partner will see your mood',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-            ),
-            const SizedBox(height: 24),
-            // Mood grid
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: _moodOptions.length,
-              itemBuilder: (ctx, i) {
-                final mood = _moodOptions[i];
-                final isSelected = currentEmoji == mood['emoji'];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pairData.setMood(mood['emoji']!, mood['label']!);
-                    // Также записываем в mood calendar
-                    _moodService.addMood(
-                      moodId: mood['label']!.toLowerCase().replaceAll(' ', '_'),
-                      emoji: mood['emoji']!,
-                      label: mood['label']!,
-                    );
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? primary.withOpacity(0.12)
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? primary : Colors.grey.shade200,
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          mood['emoji']!,
-                          style: const TextStyle(fontSize: 28),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          mood['label']!,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? primary : Colors.grey.shade600,
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-            // Clear mood button
-            if (currentEmoji.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _pairData.clearMood();
-                },
-                child: Text(
-                  'Clear Mood',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
-                  ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              const SizedBox(height: 20),
+              Text(
+                'How are you feeling?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your partner will see your mood',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 24),
+              // Mood grid — scrollable
+              Expanded(
+                child: GridView.builder(
+                  controller: scrollController,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: MoodOption.all.length,
+                  itemBuilder: (ctx2, i) {
+                    final mood = MoodOption.all[i];
+                    final isSelected = currentEmoji == mood.imagePath;
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx2);
+                        _pairData.setMood(mood.imagePath, mood.label);
+                        _moodService.addMood(
+                          moodId: mood.id,
+                          imagePath: mood.imagePath,
+                          label: mood.label,
+                        );
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? primary.withOpacity(0.12)
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? primary : Colors.grey.shade200,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (mood.imagePath.isNotEmpty)
+                              Image.asset(
+                                mood.imagePath,
+                                width: 44,
+                                height: 44,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox(width: 44, height: 44),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              mood.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? primary
+                                    : Colors.grey.shade600,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // Clear mood button
+              if (currentEmoji.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _pairData.clearMood();
+                  },
+                  child: Text(
+                    'Clear Mood',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1516,10 +1533,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              _pairData.partnerMood.emoji,
-                              style: const TextStyle(fontSize: 18),
-                            ),
+                            if (_pairData.partnerMood.imagePath.isNotEmpty)
+                              Image.asset(
+                                _pairData.partnerMood.imagePath,
+                                width: 28,
+                                height: 28,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox(width: 28, height: 28),
+                              ),
                             const SizedBox(width: 8),
                             Text(
                               '${_pairData.partnerName} is ${_pairData.partnerMood.label}',
@@ -1772,7 +1793,7 @@ class _HomeScreenState extends State<HomeScreen> {
           iconColor: const Color(0xFFFBBF24),
           enabled: _pairData.isPaired,
           onTap: _showMoodPicker,
-          badge: _pairData.myMood.isNotEmpty ? _pairData.myMood.emoji : null,
+          moodImagePath: _pairData.myMood.imagePath,
         ),
         _actionButton(
           icon: Icons.calendar_month_rounded,
@@ -1800,8 +1821,10 @@ class _HomeScreenState extends State<HomeScreen> {
     bool enabled = true,
     VoidCallback? onTap,
     String? badge,
+    String? moodImagePath,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
+    final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
     return Opacity(
       opacity: opacity,
       child: Column(
@@ -1836,7 +1859,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                   ),
-                  child: Icon(icon, color: iconColor, size: 28),
+                  child: hasMoodImage
+                      ? Center(
+                          child: Image.asset(
+                            moodImagePath,
+                            width: 38,
+                            height: 38,
+                            errorBuilder: (_, __, ___) =>
+                                Icon(icon, color: iconColor, size: 28),
+                          ),
+                        )
+                      : Icon(icon, color: iconColor, size: 28),
                 ),
                 if (badge != null)
                   Positioned(
@@ -2482,3 +2515,5 @@ class _BgPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+enum _MoodBadgePosition { topLeft, bottomRight }

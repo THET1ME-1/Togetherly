@@ -26,6 +26,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   int _selectedPeriod = 1; // 0=Week, 1=Month, 2=Year
   late DateTime _currentMonth;
+  double _calendarScale = 1.0; // Масштаб календаря (0.7 – 1.5)
+  double _baseScale = 1.0;
 
   MoodService get _mood => widget.moodService;
   PairData get _pair => widget.pairData;
@@ -109,6 +111,32 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               ),
             ),
             centerTitle: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.zoom_out_rounded, size: 22),
+                onPressed: _calendarScale > 0.7
+                    ? () => setState(
+                        () => _calendarScale = (_calendarScale - 0.15).clamp(
+                          0.7,
+                          1.5,
+                        ),
+                      )
+                    : null,
+                tooltip: 'Уменьшить',
+              ),
+              IconButton(
+                icon: const Icon(Icons.zoom_in_rounded, size: 22),
+                onPressed: _calendarScale < 1.5
+                    ? () => setState(
+                        () => _calendarScale = (_calendarScale + 0.15).clamp(
+                          0.7,
+                          1.5,
+                        ),
+                      )
+                    : null,
+                tooltip: 'Увеличить',
+              ),
+            ],
           ),
 
           // ── Period toggle ──
@@ -138,12 +166,26 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
           // ── My calendar ──
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: _buildCalendarSection(
-                label: 'My Mood',
-                entries: _mood.myEntries,
-                stats: _mood.myStats(from: _periodStart, to: _periodEnd),
+            child: GestureDetector(
+              onScaleStart: (_) {
+                _baseScale = _calendarScale;
+              },
+              onScaleUpdate: (details) {
+                setState(() {
+                  _calendarScale = (_baseScale * details.scale).clamp(0.7, 1.5);
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                child: Transform.scale(
+                  scale: _calendarScale,
+                  alignment: Alignment.topCenter,
+                  child: _buildCalendarSection(
+                    label: 'My Mood',
+                    entries: _mood.myEntries,
+                    stats: _mood.myStats(from: _periodStart, to: _periodEnd),
+                  ),
+                ),
               ),
             ),
           ),
@@ -153,15 +195,19 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             (p) => SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: _buildCalendarSection(
-                  label: '${p.name}\'s Mood',
-                  entries: _mood.partnerEntries(p.uid),
-                  stats: _mood.partnerStats(
-                    p.uid,
-                    from: _periodStart,
-                    to: _periodEnd,
+                child: Transform.scale(
+                  scale: _calendarScale,
+                  alignment: Alignment.topCenter,
+                  child: _buildCalendarSection(
+                    label: '${p.name}\'s Mood',
+                    entries: _mood.partnerEntries(p.uid),
+                    stats: _mood.partnerStats(
+                      p.uid,
+                      from: _periodStart,
+                      to: _periodEnd,
+                    ),
+                    isPartner: true,
                   ),
-                  isPartner: true,
                 ),
               ),
             ),
@@ -308,12 +354,19 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            Text(m.emoji, style: const TextStyle(fontSize: 12)),
-            const SizedBox(width: 2),
+            if (m.imagePath.isNotEmpty)
+              Image.asset(
+                m.imagePath,
+                width: 22,
+                height: 22,
+                errorBuilder: (context, error, stackTrace) =>
+                    const SizedBox(width: 22, height: 22),
+              ),
+            const SizedBox(width: 4),
             Text(
               m.label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 color: Colors.grey.shade600,
                 fontWeight: FontWeight.w500,
               ),
@@ -592,11 +645,15 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
           border: isToday ? Border.all(color: primary, width: 2) : null,
         ),
-        child: size > 30
+        child: size > 20 && moods.first.imagePath.isNotEmpty
             ? Center(
-                child: Text(
-                  moods.first.emoji,
-                  style: TextStyle(fontSize: size * 0.4),
+                child: Image.asset(
+                  moods.first.imagePath,
+                  width: size * 0.7,
+                  height: size * 0.7,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox(),
                 ),
               )
             : null,
@@ -673,8 +730,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   ),
                 ),
                 const SizedBox(width: 4),
+                if (mood != null)
+                  if (mood.imagePath.isNotEmpty)
+                    Image.asset(
+                      mood.imagePath,
+                      width: 20,
+                      height: 20,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox(width: 20, height: 20),
+                    ),
+                const SizedBox(width: 4),
                 Text(
-                  '${mood?.emoji ?? '?'} $pct%',
+                  '$pct%',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -700,103 +767,120 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              dayStr,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500,
+              const SizedBox(height: 20),
+              Text(
+                dayStr,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'How are you feeling?',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+              const SizedBox(height: 4),
+              Text(
+                'How are you feeling?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 5,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.75,
-              children: MoodOption.all.map((m) {
-                return GestureDetector(
-                  onTap: () {
-                    _mood.addMood(
-                      moodId: m.id,
-                      emoji: m.emoji,
-                      label: m.label,
-                      date: day,
-                    );
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${m.emoji} ${m.label} recorded!'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: m.color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: m.color.withOpacity(0.3)),
-                        ),
-                        child: Center(
-                          child: Text(
-                            m.emoji,
-                            style: const TextStyle(fontSize: 24),
+              const SizedBox(height: 20),
+              Expanded(
+                child: GridView.count(
+                  controller: scrollController,
+                  crossAxisCount: 5,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 0.75,
+                  children: MoodOption.all.map((m) {
+                    return GestureDetector(
+                      onTap: () {
+                        _mood.addMood(
+                          moodId: m.id,
+                          imagePath: m.imagePath,
+                          label: m.label,
+                          date: day,
+                        );
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${m.label} записано!'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
                           ),
-                        ),
+                        );
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: m.color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: m.color.withOpacity(0.3),
+                              ),
+                            ),
+                            child: m.imagePath.isNotEmpty
+                                ? Center(
+                                    child: Image.asset(
+                                      m.imagePath,
+                                      width: 42,
+                                      height: 42,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const SizedBox(
+                                                width: 42,
+                                                height: 42,
+                                              ),
+                                    ),
+                                  )
+                                : const SizedBox(width: 42, height: 42),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            m.label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        m.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -855,18 +939,23 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   child: Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           color: m.color.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Center(
-                          child: Text(
-                            m.emoji,
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                        ),
+                        child: m.imagePath.isNotEmpty
+                            ? Center(
+                                child: Image.asset(
+                                  m.imagePath,
+                                  width: 34,
+                                  height: 34,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const SizedBox(width: 34, height: 34),
+                                ),
+                              )
+                            : const SizedBox(width: 34, height: 34),
                       ),
                       const SizedBox(width: 12),
                       Expanded(

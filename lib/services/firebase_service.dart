@@ -1164,13 +1164,13 @@ class FirebaseService {
 
   // ══════════════════════════════════════════════
   //  MOOD
-  //  Firestore: groups/{groupId} → memberMoods.{uid}: {emoji, label, updatedAt}
+  //  Firestore: groups/{groupId} → memberMoods.{uid}: {imagePath, label, updatedAt}
   // ══════════════════════════════════════════════
 
   /// Save the current user's mood to the group document
   Future<void> setMood({
     required String groupId,
-    required String emoji,
+    required String imagePath,
     required String label,
   }) async {
     final u = currentUser;
@@ -1178,7 +1178,7 @@ class FirebaseService {
     try {
       await _db.collection('groups').doc(groupId).update({
         'memberMoods.${u.uid}': {
-          'emoji': emoji,
+          'imagePath': imagePath,
           'label': label,
           'updatedAt': FieldValue.serverTimestamp(),
         },

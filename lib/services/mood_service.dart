@@ -71,7 +71,7 @@ class MoodService extends ChangeNotifier {
   /// иначе — на текущий момент.
   Future<void> addMood({
     required String moodId,
-    required String emoji,
+    required String imagePath,
     required String label,
     DateTime? date,
   }) async {
@@ -91,7 +91,7 @@ class MoodService extends ChangeNotifier {
     final entry = MoodEntry(
       id: id,
       moodId: moodId,
-      emoji: emoji,
+      imagePath: imagePath,
       label: label,
       timestamp: ts,
     );
