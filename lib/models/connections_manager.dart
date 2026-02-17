@@ -103,21 +103,41 @@ class ConnectionsManager extends ChangeNotifier {
   /// Returns true on success.
   Future<bool> acceptCodeAndCreateGroup(String code) async {
     code = code.toUpperCase().trim();
+    debugPrint('acceptCodeAndCreateGroup: code=$code');
 
     // Check self-codes across ALL connections
     for (var c in _connections) {
-      if (c.isSelfCode(code)) return false;
+      if (c.isSelfCode(code)) {
+        debugPrint('acceptCodeAndCreateGroup: self code, ignoring');
+        return false;
+      }
     }
 
     // Call Firebase
     final result = await _fb.acceptInviteCode(code);
+    debugPrint(
+      'acceptCodeAndCreateGroup: result=${result['success']}, msg=${result['message']}',
+    );
     if (result['success'] != true) return false;
 
     final pairId = result['pairId'] as String? ?? '';
     if (pairId.isEmpty) return false;
 
-    // Already have this group?
-    if (_connections.any((c) => c.pairId == pairId)) return false;
+    // Already have this group? (real-time listener might have picked it up)
+    final existingConn = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    if (existingConn != null) {
+      // Already claimed — just switch to it and consider it a success
+      debugPrint(
+        'acceptCodeAndCreateGroup: already have group $pairId, switching to it',
+      );
+      _activeConnectionIndex = _connections.indexOf(existingConn);
+      await _saveLocal();
+      notifyListeners();
+      return true;
+    }
 
     // Find first unpaired connection to reuse, or create new one
     Connection? target = _connections.cast<Connection?>().firstWhere(
@@ -136,6 +156,9 @@ class ConnectionsManager extends ChangeNotifier {
       );
       _connections.add(target);
     }
+
+    // Delete old invite code for the connection we're reusing
+    final oldInviteCode = target.inviteCode;
 
     // Apply data from result
     target.isPaired = true;
@@ -157,12 +180,11 @@ class ConnectionsManager extends ChangeNotifier {
           .toList();
     }
 
-    // Generate a fresh invite code for the new connection
-    // Use group invite code so it's linked to this group
+    // Generate a fresh invite code linked to the group
     if (_fb.isLoggedIn) {
       final newInviteCode = await _fb.generateGroupInviteCode(
         pairId,
-        oldCode: target.inviteCode.isNotEmpty ? target.inviteCode : null,
+        oldCode: oldInviteCode.isNotEmpty ? oldInviteCode : null,
       );
       target.inviteCode = newInviteCode.isNotEmpty
           ? newInviteCode
@@ -179,6 +201,7 @@ class ConnectionsManager extends ChangeNotifier {
 
     await _saveLocal();
     notifyListeners();
+    debugPrint('acceptCodeAndCreateGroup: SUCCESS, paired=$pairId');
     return true;
   }
 

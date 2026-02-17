@@ -335,7 +335,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ),
           const SizedBox(height: 20),
-          // ── Join another group via code ──
+          // ── Join another group via code / QR / link ──
           _buildJoinAnotherGroupCard(),
           const SizedBox(height: 40),
         ],
@@ -976,6 +976,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   Widget _buildJoinAnotherGroupCard() {
     return _glassCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -1006,7 +1007,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Enter an invite code to join a new group',
+                      'Enter code, scan QR, or use a link',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -1015,32 +1016,62 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   ],
                 ),
               ),
-              if (!_showCodeInput)
-                GestureDetector(
-                  onTap: () => setState(() => _showCodeInput = true),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── Quick actions: Scan QR and Enter Code ──
+          Row(
+            children: [
+              Expanded(
+                child: _outlineButton(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR',
+                  onTap: _openQRScanner,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _showCodeInput = !_showCodeInput),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Enter',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _showCodeInput ? primary : Colors.grey.shade200,
                       ),
+                      color: _showCodeInput ? primary.withOpacity(0.05) : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.keyboard_rounded,
+                          size: 16,
+                          color: _showCodeInput
+                              ? primary
+                              : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Enter Code',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _showCodeInput
+                                ? primary
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
             ],
           ),
           if (_showCodeInput) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             TextField(
               controller: _codeController,
               textCapitalization: TextCapitalization.characters,
@@ -1100,7 +1131,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(fontSize: 12, color: Colors.red.shade400),
                 ),
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 50,

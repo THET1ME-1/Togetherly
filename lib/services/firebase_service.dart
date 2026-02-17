@@ -334,87 +334,136 @@ class FirebaseService {
     if (u == null) return {'success': false, 'message': 'Не авторизован'};
 
     code = code.toUpperCase().trim();
+    debugPrint('acceptInviteCode: looking up code $code');
 
-    final codeDoc = await _db.collection('inviteCodes').doc(code).get();
-    if (!codeDoc.exists) {
-      return {'success': false, 'message': 'Код не найден'};
-    }
+    try {
+      final codeDoc = await _db.collection('inviteCodes').doc(code).get();
+      if (!codeDoc.exists) {
+        debugPrint('acceptInviteCode: code not found');
+        return {'success': false, 'message': 'Код не найден'};
+      }
 
-    final ownerUid = codeDoc.data()!['ownerUid'] as String;
-    if (ownerUid == u.uid) {
-      return {'success': false, 'message': 'Это ваш собственный код!'};
-    }
+      final ownerUid = codeDoc.data()!['ownerUid'] as String;
+      if (ownerUid == u.uid) {
+        return {'success': false, 'message': 'Это ваш собственный код!'};
+      }
 
-    // Check if there's a groupId tied to this code
-    final codeGroupId = codeDoc.data()!['groupId'] as String?;
+      // Check if there's a groupId tied to this code
+      final codeGroupId = codeDoc.data()!['groupId'] as String?;
+      debugPrint('acceptInviteCode: owner=$ownerUid, groupId=$codeGroupId');
 
-    final ownerDoc = await _db.collection('users').doc(ownerUid).get();
-    if (!ownerDoc.exists) {
-      return {'success': false, 'message': 'Пользователь не найден'};
-    }
-    final ownerData = ownerDoc.data()!;
+      final ownerDoc = await _db.collection('users').doc(ownerUid).get();
+      if (!ownerDoc.exists) {
+        return {'success': false, 'message': 'Пользователь не найден'};
+      }
+      final ownerData = ownerDoc.data()!;
 
-    final myDoc = await _db.collection('users').doc(u.uid).get();
-    final myData = myDoc.data() ?? {};
+      final myDoc = await _db.collection('users').doc(u.uid).get();
+      final myData = myDoc.data() ?? {};
 
-    // If code has a groupId → join existing group
-    if (codeGroupId != null && codeGroupId.isNotEmpty) {
-      return _joinExistingGroup(
-        groupId: codeGroupId,
-        code: code,
-        myData: myData,
-      );
-    }
+      // If code has a groupId → join existing group
+      if (codeGroupId != null && codeGroupId.isNotEmpty) {
+        debugPrint('acceptInviteCode: code has groupId, joining $codeGroupId');
+        return _joinExistingGroup(
+          groupId: codeGroupId,
+          code: code,
+          myData: myData,
+          ownerUid: ownerUid,
+          ownerData: ownerData,
+        );
+      }
 
-    // Code has no groupId — check if the owner already has a group
-    // (the code was created before pairing, but now the owner is in a group)
-    final ownerPairId = ownerData['pairId'] as String?;
-    if (ownerPairId != null && ownerPairId.isNotEmpty) {
-      // Owner already has a group — try to join it
-      final groupDoc = await _db.collection('groups').doc(ownerPairId).get();
-      if (groupDoc.exists) {
-        final groupData = groupDoc.data()!;
-        final groupMembers = List<String>.from(groupData['members'] ?? []);
-        // Make sure the owner is actually in that group
-        if (groupMembers.contains(ownerUid)) {
-          return _joinExistingGroup(
-            groupId: ownerPairId,
-            code: code,
-            myData: myData,
-          );
+      // Code has no groupId — check if the owner already has a group
+      final ownerPairId = ownerData['pairId'] as String?;
+      if (ownerPairId != null && ownerPairId.isNotEmpty) {
+        debugPrint(
+          'acceptInviteCode: owner has pairId=$ownerPairId, trying to join',
+        );
+        try {
+          final groupDoc = await _db
+              .collection('groups')
+              .doc(ownerPairId)
+              .get();
+          if (groupDoc.exists) {
+            final groupData = groupDoc.data()!;
+            final groupMembers = List<String>.from(groupData['members'] ?? []);
+            if (groupMembers.contains(ownerUid) &&
+                !groupMembers.contains(u.uid)) {
+              return _joinExistingGroup(
+                groupId: ownerPairId,
+                code: code,
+                myData: myData,
+                ownerUid: ownerUid,
+                ownerData: ownerData,
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('acceptInviteCode: reading owner group failed: $e');
+          // Can't read group (not a member) — just create a new one
         }
       }
-    }
 
-    // Also check owner's pairIds list for any existing group
-    final ownerPairIds = ownerData['pairIds'] as List<dynamic>?;
-    if (ownerPairIds != null && ownerPairIds.isNotEmpty) {
-      for (var pid in ownerPairIds) {
-        final pidStr = pid.toString();
-        if (pidStr.isEmpty) continue;
-        final groupDoc = await _db.collection('groups').doc(pidStr).get();
-        if (groupDoc.exists) {
-          final groupData = groupDoc.data()!;
-          final groupMembers = List<String>.from(groupData['members'] ?? []);
-          if (groupMembers.contains(ownerUid) &&
-              !groupMembers.contains(u.uid)) {
-            return _joinExistingGroup(
-              groupId: pidStr,
-              code: code,
-              myData: myData,
-            );
+      // Also check owner's pairIds list for any group we can join
+      final ownerPairIds = ownerData['pairIds'] as List<dynamic>?;
+      if (ownerPairIds != null && ownerPairIds.isNotEmpty) {
+        for (var pid in ownerPairIds) {
+          final pidStr = pid.toString();
+          if (pidStr.isEmpty) continue;
+          try {
+            final groupDoc = await _db.collection('groups').doc(pidStr).get();
+            if (groupDoc.exists) {
+              final groupData = groupDoc.data()!;
+              final groupMembers = List<String>.from(
+                groupData['members'] ?? [],
+              );
+              if (groupMembers.contains(ownerUid) &&
+                  !groupMembers.contains(u.uid)) {
+                return _joinExistingGroup(
+                  groupId: pidStr,
+                  code: code,
+                  myData: myData,
+                  ownerUid: ownerUid,
+                  ownerData: ownerData,
+                );
+              }
+            }
+          } catch (e) {
+            debugPrint('acceptInviteCode: reading group $pidStr failed: $e');
+            // Can't read group — skip
           }
         }
       }
-    }
 
-    // Owner has no group yet — create a new 2-person group (pair)
+      // Owner has no group yet — create a new 2-person group (pair)
+      debugPrint(
+        'acceptInviteCode: creating new group for $ownerUid + ${u.uid}',
+      );
+      return _createNewGroup(
+        code: code,
+        ownerUid: ownerUid,
+        ownerData: ownerData,
+        myData: myData,
+      );
+    } catch (e) {
+      debugPrint('acceptInviteCode FAILED: $e');
+      return {'success': false, 'message': 'Ошибка: $e'};
+    }
+  }
+
+  /// Create a brand new group between owner and current user.
+  Future<Map<String, dynamic>> _createNewGroup({
+    required String code,
+    required String ownerUid,
+    required Map<String, dynamic> ownerData,
+    required Map<String, dynamic> myData,
+  }) async {
+    final u = currentUser!;
     final groupRef = _db.collection('groups').doc();
     final now = FieldValue.serverTimestamp();
 
-    final batch = _db.batch();
-
-    batch.set(groupRef, {
+    // Step 1: Create the group document (allowed by create rule)
+    await groupRef.set({
       'members': [ownerUid, u.uid],
       'memberNames': {
         ownerUid: ownerData['displayName'] ?? 'Partner',
@@ -428,19 +477,36 @@ class FirebaseService {
       'startDate': now,
       'createdAt': now,
     });
+    debugPrint('_createNewGroup: group ${groupRef.id} created');
 
-    batch.update(_db.collection('users').doc(ownerUid), {
+    // Step 2: Update MY user document (allowed — own doc)
+    await _db.collection('users').doc(u.uid).update({
       'pairId': groupRef.id,
       'pairIds': FieldValue.arrayUnion([groupRef.id]),
     });
-    batch.update(_db.collection('users').doc(u.uid), {
-      'pairId': groupRef.id,
-      'pairIds': FieldValue.arrayUnion([groupRef.id]),
-    });
+    debugPrint('_createNewGroup: my user doc updated');
 
-    batch.delete(_db.collection('inviteCodes').doc(code));
+    // Step 3: Update OWNER's user document (allowed by new rules — only pairId/pairIds)
+    try {
+      await _db.collection('users').doc(ownerUid).update({
+        'pairId': groupRef.id,
+        'pairIds': FieldValue.arrayUnion([groupRef.id]),
+      });
+      debugPrint('_createNewGroup: owner user doc updated');
+    } catch (e) {
+      debugPrint(
+        '_createNewGroup: owner doc update failed (owner will pick it up via listener): $e',
+      );
+      // Not critical — owner's real-time listener will detect the group
+    }
 
-    await batch.commit();
+    // Step 4: Delete invite code (allowed by new rules)
+    try {
+      await _db.collection('inviteCodes').doc(code).delete();
+      debugPrint('_createNewGroup: invite code $code deleted');
+    } catch (e) {
+      debugPrint('_createNewGroup: could not delete invite code: $e');
+    }
 
     return {
       'success': true,
@@ -464,20 +530,41 @@ class FirebaseService {
     };
   }
 
+  /// Join an existing group by groupId.
   Future<Map<String, dynamic>> _joinExistingGroup({
     required String groupId,
     required String code,
     required Map<String, dynamic> myData,
+    required String ownerUid,
+    required Map<String, dynamic> ownerData,
   }) async {
     final u = currentUser!;
-    final groupDoc = await _db.collection('groups').doc(groupId).get();
-    if (!groupDoc.exists) {
-      return {'success': false, 'message': 'Group not found'};
-    }
+    debugPrint('_joinExistingGroup: trying to join group $groupId');
 
-    final groupData = groupDoc.data()!;
-    final members = List<String>.from(groupData['members'] ?? []);
-    final maxMembers = (groupData['maxMembers'] as int?) ?? 10;
+    // Try to read the group doc directly
+    Map<String, dynamic>? groupData;
+    List<String> members;
+    int maxMembers;
+
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (!groupDoc.exists) {
+        debugPrint('_joinExistingGroup: group $groupId not found');
+        return {'success': false, 'message': 'Group not found'};
+      }
+      groupData = groupDoc.data()!;
+      members = List<String>.from(groupData['members'] ?? []);
+      maxMembers = (groupData['maxMembers'] as int?) ?? 10;
+    } catch (e) {
+      // Can't read group (not a member yet) — that's expected
+      // We know the group exists because the owner has it, so just proceed
+      debugPrint(
+        '_joinExistingGroup: cant read group (expected), will add self directly',
+      );
+      members = [ownerUid]; // We know owner is there
+      maxMembers = 10;
+      groupData = null;
+    }
 
     if (members.contains(u.uid)) {
       return {'success': false, 'message': 'Вы уже в этой группе'};
@@ -492,44 +579,62 @@ class FirebaseService {
     final myName = myData['displayName'] ?? u.displayName ?? 'Partner';
     final myAvatar = myData['avatarUrl'] ?? u.photoURL ?? '';
 
-    final batch = _db.batch();
-
-    batch.update(_db.collection('groups').doc(groupId), {
-      'members': FieldValue.arrayUnion([u.uid]),
-      'memberNames.${u.uid}': myName,
-      'memberAvatars.${u.uid}': myAvatar,
-    });
-
-    batch.update(_db.collection('users').doc(u.uid), {
-      'pairId': groupId,
-      'pairIds': FieldValue.arrayUnion([groupId]),
-    });
-
-    // Keep code for groups (others may still need it) unless full
-    if (members.length + 1 >= maxMembers) {
-      batch.delete(_db.collection('inviteCodes').doc(code));
+    // Step 1: Add self to group (allowed by new rules — uid will be in new members)
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'members': FieldValue.arrayUnion([u.uid]),
+        'memberNames.${u.uid}': myName,
+        'memberAvatars.${u.uid}': myAvatar,
+      });
+      debugPrint('_joinExistingGroup: added self to group');
+    } catch (e) {
+      debugPrint('_joinExistingGroup: failed to update group: $e');
+      return {
+        'success': false,
+        'message': 'Не удалось присоединиться к группе',
+      };
     }
 
-    await batch.commit();
+    // Step 2: Update MY user document
+    try {
+      await _db.collection('users').doc(u.uid).update({
+        'pairId': groupId,
+        'pairIds': FieldValue.arrayUnion([groupId]),
+      });
+      debugPrint('_joinExistingGroup: my user doc updated');
+    } catch (e) {
+      debugPrint('_joinExistingGroup: user doc update failed: $e');
+    }
 
-    final memberNames = Map<String, dynamic>.from(
-      groupData['memberNames'] ?? {},
-    );
-    final memberAvatars = Map<String, dynamic>.from(
-      groupData['memberAvatars'] ?? {},
-    );
+    // Step 3: Delete code if group is now full
+    if (members.length + 1 >= maxMembers) {
+      try {
+        await _db.collection('inviteCodes').doc(code).delete();
+      } catch (e) {
+        debugPrint('_joinExistingGroup: code delete failed: $e');
+      }
+    }
+
+    // Build response from groupData if available, otherwise from owner data
+    final memberNames = groupData != null
+        ? Map<String, dynamic>.from(groupData['memberNames'] ?? {})
+        : <String, dynamic>{ownerUid: ownerData['displayName'] ?? 'Partner'};
+    final memberAvatars = groupData != null
+        ? Map<String, dynamic>.from(groupData['memberAvatars'] ?? {})
+        : <String, dynamic>{ownerUid: ownerData['avatarUrl'] ?? ''};
     memberNames[u.uid] = myName;
     memberAvatars[u.uid] = myAvatar;
 
-    final otherUid = members.first;
+    final otherUid = members.isNotEmpty ? members.first : ownerUid;
     return {
       'success': true,
       'message': 'Joined the group!',
       'partnerName': memberNames[otherUid] ?? 'Partner',
       'partnerAvatar': memberAvatars[otherUid] ?? '',
       'pairId': groupId,
-      'startDate':
-          (groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      'startDate': groupData != null
+          ? ((groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now())
+          : DateTime.now(),
       'members': [...members, u.uid]
           .map(
             (uid) => {
