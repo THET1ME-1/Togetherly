@@ -161,6 +161,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                     from: _periodStart,
                     to: _periodEnd,
                   ),
+                  isPartner: true,
                 ),
               ),
             ),
@@ -331,6 +332,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     required String label,
     required List<MoodEntry> entries,
     required Map<String, int> stats,
+    bool isPartner = false,
   }) {
     // Group entries by day
     final byDay = <String, List<MoodEntry>>{};
@@ -352,7 +354,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         const SizedBox(height: 12),
 
         // Calendar grid
-        _buildGrid(byDay),
+        _buildGrid(byDay, isPartner: isPartner),
 
         const SizedBox(height: 16),
 
@@ -366,20 +368,26 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   //  GRID
   // ═══════════════════════════════════════════
 
-  Widget _buildGrid(Map<String, List<MoodEntry>> byDay) {
+  Widget _buildGrid(
+    Map<String, List<MoodEntry>> byDay, {
+    bool isPartner = false,
+  }) {
     switch (_selectedPeriod) {
       case 0:
-        return _buildWeekGrid(byDay);
+        return _buildWeekGrid(byDay, isPartner: isPartner);
       case 1:
-        return _buildMonthGrid(byDay);
+        return _buildMonthGrid(byDay, isPartner: isPartner);
       case 2:
         return _buildYearGrid(byDay);
       default:
-        return _buildMonthGrid(byDay);
+        return _buildMonthGrid(byDay, isPartner: isPartner);
     }
   }
 
-  Widget _buildWeekGrid(Map<String, List<MoodEntry>> byDay) {
+  Widget _buildWeekGrid(
+    Map<String, List<MoodEntry>> byDay, {
+    bool isPartner = false,
+  }) {
     final now = DateTime.now();
     final weekStart = DateTime(now.year, now.month, now.day - now.weekday + 1);
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -413,9 +421,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             ),
             const SizedBox(height: 4),
             GestureDetector(
-              onTap: () => _showMoodPickerForDay(day),
+              onTap: isPartner ? null : () => _showMoodPickerForDay(day),
               onLongPress: moods.isNotEmpty
-                  ? () => _showDayDetail(day, moods)
+                  ? () => _showDayDetail(day, moods, isPartner: isPartner)
                   : null,
               child: _moodSquare(moods, size: 40, isToday: isToday),
             ),
@@ -425,7 +433,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     );
   }
 
-  Widget _buildMonthGrid(Map<String, List<MoodEntry>> byDay) {
+  Widget _buildMonthGrid(
+    Map<String, List<MoodEntry>> byDay, {
+    bool isPartner = false,
+  }) {
     final first = DateTime(_currentMonth.year, _currentMonth.month, 1);
     final daysInMonth = DateTime(
       _currentMonth.year,
@@ -482,9 +493,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 final isToday = _dayKey(now) == key;
 
                 return GestureDetector(
-                  onTap: () => _showMoodPickerForDay(day),
+                  onTap: isPartner ? null : () => _showMoodPickerForDay(day),
                   onLongPress: moods.isNotEmpty
-                      ? () => _showDayDetail(day, moods)
+                      ? () => _showDayDetail(day, moods, isPartner: isPartner)
                       : null,
                   child: _moodSquare(moods, size: 36, isToday: isToday),
                 );
@@ -795,7 +806,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   //  DAY DETAIL
   // ═══════════════════════════════════════════
 
-  void _showDayDetail(DateTime day, List<MoodEntry> moods) {
+  void _showDayDetail(
+    DateTime day,
+    List<MoodEntry> moods, {
+    bool isPartner = false,
+  }) {
     final dayStr =
         '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}.${day.year}';
     showModalBottomSheet(
@@ -871,18 +886,20 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           color: Colors.grey.shade500,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          _mood.deleteMoodEntry(m.id);
-                          Navigator.pop(context);
-                        },
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          size: 18,
-                          color: Colors.grey.shade400,
+                      if (!isPartner) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            _mood.deleteMoodEntry(m.id);
+                            Navigator.pop(context);
+                          },
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

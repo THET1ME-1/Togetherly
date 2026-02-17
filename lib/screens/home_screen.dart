@@ -1007,6 +1007,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () {
                     Navigator.pop(ctx);
                     _pairData.setMood(mood['emoji']!, mood['label']!);
+                    // Также записываем в mood calendar
+                    _moodService.addMood(
+                      moodId: mood['label']!.toLowerCase().replaceAll(' ', '_'),
+                      emoji: mood['emoji']!,
+                      label: mood['label']!,
+                    );
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),

@@ -50,6 +50,29 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   Timer? _ticker;
 
+  // Кешированные цвета — чтобы не создавать объекты на каждый кадр
+  late Color _shadowColorBase;
+  late Color _shadowColorExpanded;
+
+  // Кеш для gradient overlay
+  static const _gradientOverlay = BoxDecoration(
+    borderRadius: BorderRadius.all(Radius.circular(24)),
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Colors.transparent, Color(0x26FFFFFF), Color(0x80FFFFFF)],
+    ),
+  );
+
+  static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
+
+  static const _cardBorderRadius = BorderRadius.all(Radius.circular(24));
+  static const _cardDecoration = BoxDecoration(
+    color: Color(0xF0FFFFFF),
+    borderRadius: _cardBorderRadius,
+    border: Border.fromBorderSide(BorderSide(color: Color(0x99FFFFFF))),
+  );
+
   // Emoji palette для выбора
   static const _emojis = [
     '❤️',
@@ -82,6 +105,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       begin: 0,
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    _shadowColorBase = widget.primary.withOpacity(0.12);
+    _shadowColorExpanded = widget.primary.withOpacity(0.20);
 
     widget.timerService.addListener(_onTimerChanged);
     _loadSelectedTimeUnit();
@@ -182,19 +208,17 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   // =============================================
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final topPadding = MediaQuery.of(context).padding.top;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final mq = MediaQuery.of(context);
+    final screenHeight = mq.size.height;
+    final topPadding = mq.padding.top;
+    final bottomPadding = mq.padding.bottom;
     // Высота карточки в свёрнутом виде
     const collapsedHeight = 280.0;
-    // Раскрытая карточка заканчивается на уровне верхнего края bottom nav:
-    // bottom nav расположен: bottom = bottomPadding + 12, высота = 64
-    // → от низа экрана до верха навбара = bottomPadding + 12 + 64 + 12 (зазор)
     const headerHeight = 64.0;
     const cardTopOffset = 16.0;
     const bottomNavHeight = 64.0;
-    const bottomNavMargin = 12.0; // отступ навбара от низа
-    const gap = 12.0; // зазор между карточкой и навбаром
+    const bottomNavMargin = 12.0;
+    const gap = 12.0;
     final expandedHeight =
         screenHeight -
         topPadding -
@@ -205,141 +229,127 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
         bottomNavHeight -
         gap;
 
+    // Кешируем child-виджеты, которые НЕ зависят от анимации
+    final compactContent = _buildCompactContent();
+    final bgImage = _buildBackgroundImage();
+    final bgPhotos = _buildBackgroundPhotos();
+
     return AnimatedBuilder(
       animation: _expandAnim,
-      builder: (context, child) {
-        final height =
-            collapsedHeight +
-            (expandedHeight - collapsedHeight) * _expandAnim.value;
+      builder: (context, _) {
+        final t = _expandAnim.value;
+        final height = collapsedHeight + (expandedHeight - collapsedHeight) * t;
 
-        return Container(
+        return SizedBox(
           height: height,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: widget.primary.withOpacity(
-                  0.12 + 0.08 * _expandAnim.value,
-                ),
-                blurRadius: 40 + 20 * _expandAnim.value,
-                spreadRadius: -8,
-                offset: const Offset(0, 20),
-              ),
-            ],
-          ),
-          child: Container(
-            width: double.infinity,
+          child: DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xF0FFFFFF),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0x99FFFFFF)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                // -- Custom background image --
-                if (_displayTimer?.backgroundImagePath != null)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height:
-                        280, // Фиксированная высота - не растягивается при раскрытии
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.file(
-                        File(_displayTimer!.backgroundImagePath!),
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
-                  ),
-                // -- Dark overlay for readability when bg image is set --
-                if (_displayTimer?.backgroundImagePath != null)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 280, // Тот же размер что и изображение
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.35),
-                        ),
-                      ),
-                    ),
-                  ),
-                // -- Background subtle photos (only when no custom bg) --
-                if (widget.isPaired &&
-                    _displayTimer?.backgroundImagePath == null) ...[
-                  Positioned(
-                    top: -8,
-                    left: -16,
-                    child: _photoFragment(widget.myAvatarUrl, 80, 80, -0.2),
-                  ),
-                  Positioned(
-                    top: 48,
-                    right: 8,
-                    child: _photoFragment(widget.partnerAvatarUrl, 64, 64, 0.1),
-                  ),
-                  Positioned(
-                    bottom: -24,
-                    left: 60,
-                    child: _photoFragment(widget.myAvatarUrl, 96, 96, -0.05),
-                  ),
-                  Positioned(
-                    bottom: 16,
-                    right: -8,
-                    child: _photoFragment(widget.partnerAvatarUrl, 56, 56, 0.2),
-                  ),
-                ],
-                // -- Gradient overlay --
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.white.withOpacity(0.15),
-                          Colors.white.withOpacity(0.5),
-                        ],
-                      ),
-                    ),
-                  ),
+              borderRadius: _cardBorderRadius,
+              boxShadow: [
+                BoxShadow(
+                  color: Color.lerp(_shadowColorBase, _shadowColorExpanded, t)!,
+                  blurRadius: 40 + 20 * t,
+                  spreadRadius: -8,
+                  offset: const Offset(0, 20),
                 ),
-                // -- Content --
-                Column(
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: _cardBorderRadius,
+              child: DecoratedBox(
+                decoration: _cardDecoration,
+                child: Stack(
                   children: [
-                    // Compact (always visible) area
-                    _buildCompactContent(),
-                    // Expanded area
-                    Expanded(
-                      child: ClipRect(
-                        child: Opacity(
-                          opacity: _expandAnim.value.clamp(0.0, 1.0),
-                          child: _buildExpandedContent(),
-                        ),
-                      ),
+                    // -- Custom background image (не перестраивается при анимации) --
+                    if (bgImage != null) bgImage,
+                    // -- Background subtle photos (не перестраиваются) --
+                    if (bgPhotos != null) ...bgPhotos,
+                    // -- Gradient overlay (const) --
+                    const Positioned.fill(
+                      child: DecoratedBox(decoration: _gradientOverlay),
+                    ),
+                    // -- Content --
+                    Column(
+                      children: [
+                        compactContent,
+                        // Expanded area — рисуем только когда реально видно
+                        if (t > 0.01)
+                          Expanded(
+                            child: FadeTransition(
+                              opacity: _expandAnim,
+                              child: _buildExpandedContent(),
+                            ),
+                          )
+                        else
+                          const Spacer(),
+                      ],
+                    ),
+                    // -- Arrow button --
+                    Positioned(
+                      right: 16,
+                      bottom: 12 + bottomPadding * t,
+                      child: _buildArrowButton(),
                     ),
                   ],
                 ),
-                // -- Arrow button (bottom right, always visible) --
-                Positioned(
-                  right: 16,
-                  bottom: 12 + bottomPadding * _expandAnim.value,
-                  child: _buildArrowButton(),
-                ),
-              ],
+              ),
             ),
           ),
         );
       },
     );
+  }
+
+  /// Фоновое изображение — кешированный виджет, не зависит от анимации
+  Widget? _buildBackgroundImage() {
+    if (_displayTimer?.backgroundImagePath == null) return null;
+    return SizedBox(
+      height: 280,
+      width: double.infinity,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.file(
+              File(_displayTimer!.backgroundImagePath!),
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              cacheWidth: 720,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+          const Positioned.fill(child: DecoratedBox(decoration: _darkOverlay)),
+        ],
+      ),
+    );
+  }
+
+  /// Фоновые фото — кешированный список, не зависит от анимации
+  List<Widget>? _buildBackgroundPhotos() {
+    if (!widget.isPaired || _displayTimer?.backgroundImagePath != null) {
+      return null;
+    }
+    return [
+      Positioned(
+        top: -8,
+        left: -16,
+        child: _photoFragment(widget.myAvatarUrl, 80, 80, -0.2),
+      ),
+      Positioned(
+        top: 48,
+        right: 8,
+        child: _photoFragment(widget.partnerAvatarUrl, 64, 64, 0.1),
+      ),
+      Positioned(
+        bottom: -24,
+        left: 60,
+        child: _photoFragment(widget.myAvatarUrl, 96, 96, -0.05),
+      ),
+      Positioned(
+        bottom: 16,
+        right: -8,
+        child: _photoFragment(widget.partnerAvatarUrl, 56, 56, 0.2),
+      ),
+    ];
   }
 
   // ── Compact content (shown always) ──
@@ -849,25 +859,27 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   // ── Photo fragment (background decoration) ──
   Widget _photoFragment(String url, double w, double h, double angle) {
-    return Transform.rotate(
-      angle: angle,
-      child: Opacity(
-        opacity: 0.12,
-        child: ColorFiltered(
-          colorFilter: const ColorFilter.mode(
-            Colors.grey,
-            BlendMode.saturation,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              url,
-              width: w,
-              height: h,
-              fit: BoxFit.cover,
-              cacheWidth: (w * 2).toInt(),
-              cacheHeight: (h * 2).toInt(),
-              errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
+    return RepaintBoundary(
+      child: Transform.rotate(
+        angle: angle,
+        child: Opacity(
+          opacity: 0.12,
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              Colors.grey,
+              BlendMode.saturation,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                url,
+                width: w,
+                height: h,
+                fit: BoxFit.cover,
+                cacheWidth: (w * 2).toInt(),
+                cacheHeight: (h * 2).toInt(),
+                errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
+              ),
             ),
           ),
         ),
