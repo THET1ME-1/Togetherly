@@ -8,6 +8,8 @@ class TimerItem {
   bool isDefault;
   String emoji;
   bool isSystem; // system timers can't be deleted or renamed
+  bool
+  isCountdown; // true = countdown timer (days left), false = count up (days elapsed)
 
   TimerItem({
     required this.id,
@@ -16,27 +18,52 @@ class TimerItem {
     this.isDefault = false,
     this.emoji = '❤️',
     this.isSystem = false,
+    this.isCountdown = false,
   });
 
   // ── Вычисляемые значения ──
 
-  int get daysElapsed => DateTime.now().difference(startDate).inDays;
+  int get daysElapsed {
+    if (isCountdown) {
+      // Countdown: days until target date
+      return startDate.difference(DateTime.now()).inDays;
+    } else {
+      // Count up: days since start date
+      return DateTime.now().difference(startDate).inDays;
+    }
+  }
 
   int get monthsElapsed {
     final now = DateTime.now();
-    int months = (now.year - startDate.year) * 12 + now.month - startDate.month;
-    if (now.day < startDate.day) months--;
-    return months;
+    if (isCountdown) {
+      // Countdown: months until target date
+      int months =
+          (startDate.year - now.year) * 12 + startDate.month - now.month;
+      if (startDate.day < now.day) months--;
+      return months;
+    } else {
+      // Count up: months since start date
+      int months =
+          (now.year - startDate.year) * 12 + now.month - startDate.month;
+      if (now.day < startDate.day) months--;
+      return months;
+    }
   }
 
-  Duration get timeElapsed => DateTime.now().difference(startDate);
+  Duration get timeElapsed {
+    if (isCountdown) {
+      return startDate.difference(DateTime.now());
+    } else {
+      return DateTime.now().difference(startDate);
+    }
+  }
 
   String get formattedTime {
     final diff = timeElapsed;
-    final d = diff.inDays;
-    final h = diff.inHours % 24;
-    final m = diff.inMinutes % 60;
-    final s = diff.inSeconds % 60;
+    final d = diff.inDays.abs();
+    final h = diff.inHours.abs() % 24;
+    final m = diff.inMinutes.abs() % 60;
+    final s = diff.inSeconds.abs() % 60;
     if (d > 0) return '${d}d ${h}h ${m}m';
     if (h > 0) return '${h}h ${m}m ${s}s';
     return '${m}m ${s}s';
@@ -58,6 +85,7 @@ class TimerItem {
     'isDefault': isDefault,
     'emoji': emoji,
     'isSystem': isSystem,
+    'isCountdown': isCountdown,
   };
 
   factory TimerItem.fromJson(Map<String, dynamic> json) => TimerItem(
@@ -67,6 +95,7 @@ class TimerItem {
     isDefault: json['isDefault'] as bool? ?? false,
     emoji: json['emoji'] as String? ?? '❤️',
     isSystem: json['isSystem'] as bool? ?? false,
+    isCountdown: json['isCountdown'] as bool? ?? false,
   );
 
   static String encodeList(List<TimerItem> items) =>
@@ -86,6 +115,7 @@ class TimerItem {
     bool? isDefault,
     String? emoji,
     bool? isSystem,
+    bool? isCountdown,
   }) => TimerItem(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -93,5 +123,6 @@ class TimerItem {
     isDefault: isDefault ?? this.isDefault,
     emoji: emoji ?? this.emoji,
     isSystem: isSystem ?? this.isSystem,
+    isCountdown: isCountdown ?? this.isCountdown,
   );
 }

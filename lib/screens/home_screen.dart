@@ -113,13 +113,6 @@ class _HomeScreenState extends State<HomeScreen> {
           relationshipEmoji: _pairData.relationshipEmoji,
           partnerName: _pairData.partnerName,
         );
-
-        // Update system timer title when relationship type changes
-        _timerService.updateSystemTimerTitle(
-          relationshipLabel: _pairData.relationshipLabel,
-          relationshipEmoji: _pairData.relationshipEmoji,
-          partnerName: _pairData.partnerName,
-        );
       } else {
         _timerService.unbindFromGroup();
       }

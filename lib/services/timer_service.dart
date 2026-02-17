@@ -118,6 +118,7 @@ class TimerService extends ChangeNotifier {
     String emoji = '❤️',
     bool isDefault = false,
     bool isSystem = false,
+    bool isCountdown = false,
   }) async {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (isDefault) {
@@ -133,6 +134,7 @@ class TimerService extends ChangeNotifier {
         isDefault: isDefault || _timers.isEmpty,
         emoji: emoji,
         isSystem: isSystem,
+        isCountdown: isCountdown,
       ),
     );
     await _saveLocal();

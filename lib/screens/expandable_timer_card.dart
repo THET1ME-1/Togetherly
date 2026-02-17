@@ -122,9 +122,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   String _counterValue(TimerItem timer) {
     switch (_selectedTimeUnit) {
       case 0:
-        return timer.daysElapsed.toString();
+        final days = timer.daysElapsed;
+        return days.abs().toString();
       case 1:
-        return timer.monthsElapsed.toString();
+        final months = timer.monthsElapsed;
+        return months.abs().toString();
       case 2:
         return timer.formattedTime;
       default:
@@ -132,16 +134,17 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     }
   }
 
-  String get _counterLabel {
+  String _counterLabel(TimerItem timer) {
+    final suffix = timer.isCountdown ? ' LEFT' : '';
     switch (_selectedTimeUnit) {
       case 0:
-        return 'DAYS';
+        return 'DAYS$suffix';
       case 1:
-        return 'MONTHS';
+        return 'MONTHS$suffix';
       case 2:
-        return 'TIME';
+        return timer.isCountdown ? 'TIME LEFT' : 'TIME';
       default:
-        return 'DAYS';
+        return 'DAYS$suffix';
     }
   }
 
@@ -314,9 +317,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               duration: const Duration(milliseconds: 300),
               child: Text(
                 timer != null
-                    ? '${_counterLabel} • ${timer.title}'
+                    ? '${_counterLabel(timer)} • ${timer.title}'
                     : 'NO TIMERS YET',
-                key: ValueKey('$_counterLabel-${timer?.title}'),
+                key: ValueKey(
+                  '${timer != null ? _counterLabel(timer) : 'none'}-${timer?.title}',
+                ),
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -564,7 +569,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${timer.daysElapsed} days • since ${timer.formattedStartDate}',
+                        timer.isCountdown
+                            ? '${timer.daysElapsed.abs()} days left • until ${timer.formattedStartDate}'
+                            : '${timer.daysElapsed} days • since ${timer.formattedStartDate}',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -765,12 +772,14 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       initialDate: DateTime.now(),
       initialEmoji: '❤️',
       initialIsDefault: widget.timerService.timers.isEmpty,
-      onSave: (title, date, emoji, isDefault) {
+      initialIsCountdown: false,
+      onSave: (title, date, emoji, isDefault, isCountdown) {
         widget.timerService.addTimer(
           title: title,
           startDate: date,
           emoji: emoji,
           isDefault: isDefault,
+          isCountdown: isCountdown,
         );
       },
     );
@@ -784,15 +793,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       initialDate: timer.startDate,
       initialEmoji: timer.emoji,
       initialIsDefault: timer.isDefault,
-      isSystemTimer: timer.isSystem,
-      onSave: (title, date, emoji, isDefault) {
+      initialIsCountdown: timer.isCountdown,
+      onSave: (title, date, emoji, isDefault, isCountdown) {
         widget.timerService.updateTimer(
           timer.copyWith(
-            title: timer.isSystem ? timer.title : title,
+            title: title,
             startDate: date,
-            emoji: timer.isSystem ? timer.emoji : emoji,
+            emoji: emoji,
             isDefault: isDefault,
-            isSystem: timer.isSystem,
+            isCountdown: isCountdown,
           ),
         );
       },
@@ -806,12 +815,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     required DateTime initialDate,
     required String initialEmoji,
     required bool initialIsDefault,
-    bool isSystemTimer = false,
+    required bool initialIsCountdown,
     required void Function(
       String title,
       DateTime date,
       String emoji,
       bool isDefault,
+      bool isCountdown,
     )
     onSave,
   }) {
@@ -820,6 +830,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     var pickedDate = initialDate;
     var selectedEmoji = initialEmoji;
     var isDefault = initialIsDefault;
+    var isCountdown = initialIsCountdown;
 
     showModalBottomSheet(
       context: context,
@@ -875,73 +886,40 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                     ),
                   ),
                   const SizedBox(height: 6),
-                  if (isSystemTimer)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
+                  TextField(
+                    controller: titleCtrl,
+                    style: const TextStyle(fontSize: 15),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Together with Alex',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: widget.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.lock_outline,
-                            size: 16,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              titleCtrl.text,
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    TextField(
-                      controller: titleCtrl,
-                      style: const TextStyle(fontSize: 15),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Together with Alex',
-                        hintStyle: TextStyle(color: Colors.grey.shade400),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: Colors.grey.shade200),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: Colors.grey.shade200),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                            color: widget.primary,
-                            width: 1.5,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
                     ),
+                  ),
                   const SizedBox(height: 20),
 
                   // ── Date ──
                   Text(
-                    'Start Date',
+                    isCountdown ? 'Target Date' : 'Start Date',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -1002,7 +980,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                             context: ctx,
                             initialDate: pickedDate,
                             firstDate: DateTime(2000),
-                            lastDate: DateTime.now(),
+                            lastDate: DateTime(2100),
                             builder: (c, child) => Theme(
                               data: Theme.of(c).copyWith(
                                 colorScheme: ColorScheme.light(
@@ -1038,47 +1016,88 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   const SizedBox(height: 20),
 
                   // ── Emoji ──
-                  if (!isSystemTimer) ...[
-                    Text(
-                      'Icon',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
-                      ),
+                  Text(
+                    'Icon',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
                     ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _emojis.map((e) {
-                        final sel = selectedEmoji == e;
-                        return GestureDetector(
-                          onTap: () => setSheetState(() => selectedEmoji = e),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? widget.primary.withOpacity(0.12)
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                              border: sel
-                                  ? Border.all(color: widget.primary, width: 2)
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                e,
-                                style: const TextStyle(fontSize: 20),
-                              ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _emojis.map((e) {
+                      final sel = selectedEmoji == e;
+                      return GestureDetector(
+                        onTap: () => setSheetState(() => selectedEmoji = e),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? widget.primary.withOpacity(0.12)
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: sel
+                                ? Border.all(color: widget.primary, width: 2)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 20),
                             ),
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Countdown toggle ──
+                  GestureDetector(
+                    onTap: () =>
+                        setSheetState(() => isCountdown = !isCountdown),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isCountdown
+                                ? widget.primary
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isCountdown
+                                  ? widget.primary
+                                  : Colors.grey.shade400,
+                              width: 2,
+                            ),
+                          ),
+                          child: isCountdown
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Countdown mode (days left until date)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                  ],
+                  ),
+                  const SizedBox(height: 16),
 
                   // ── Default toggle ──
                   GestureDetector(
@@ -1133,7 +1152,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                         // Парсим дату из поля, если пользователь ввёл вручную
                         final manualDate = _parseDate(dateCtrl.text);
                         final finalDate = manualDate ?? pickedDate;
-                        onSave(t, finalDate, selectedEmoji, isDefault);
+                        onSave(
+                          t,
+                          finalDate,
+                          selectedEmoji,
+                          isDefault,
+                          isCountdown,
+                        );
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(
