@@ -8,8 +8,10 @@ import '../models/user_data.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import 'connect_partner_screen.dart';
+import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
 import 'profile_screen.dart';
+import '../services/timer_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -39,6 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final PairData _pairData = PairData();
   bool _pairLoading = true;
 
+  // -- Timer service --
+  final TimerService _timerService = TimerService();
+  bool _timerCardExpanded = false;
+
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
   List<Memory> _recentMemories = [];
@@ -49,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
+    _timerService.init();
     _initPairData();
 
     // Dynamic timer - only start when needed (Time mode)
@@ -94,6 +101,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       _startMemoryListener();
       _startTimerIfNeeded();
+      // Ensure default timer from pair data
+      if (_pairData.isPaired && _pairData.startDate != null) {
+        _timerService.ensureDefaultFromPair(
+          startDate: _pairData.startDate!,
+          partnerName: _pairData.partnerName,
+          relationshipLabel: _pairData.relationshipLabel,
+        );
+      }
       setState(() {});
     }
   }
@@ -198,8 +213,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          // -- Bottom Nav --
-          _buildBottomNav(),
+          // -- Bottom Nav (hidden when timer card is expanded) --
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 12,
+            left: 24,
+            right: 24,
+            child: AnimatedOpacity(
+              opacity: _timerCardExpanded ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: IgnorePointer(
+                ignoring: _timerCardExpanded,
+                child: _buildBottomNavContent(),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -224,39 +251,63 @@ class _HomeScreenState extends State<HomeScreen> {
   // HOME TAB
   // =============================================
   Widget _buildHomeTab() {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 100,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                _buildCounterCard(),
-                if (_pairData.isPaired && _showReflection) ...[
-                  const SizedBox(height: 32),
-                  _buildDailyReflection(),
-                ],
-                if (!_pairData.isPaired) ...[
-                  const SizedBox(height: 32),
-                  _buildConnectPrompt(),
-                ],
-                const SizedBox(height: 32),
-                _buildActionButtons(),
-                const SizedBox(height: 40),
-              ],
-            ),
+    return Stack(
+      children: [
+        // Scrollable content behind the card
+        SingleChildScrollView(
+          physics: _timerCardExpanded
+              ? const NeverScrollableScrollPhysics()
+              : const BouncingScrollPhysics(),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom + 100,
           ),
-          if (_pairData.isPaired) _buildMemoryLaneSection(),
-          if (!_pairData.isPaired) _buildEmptyMemoryLane(),
-          const SizedBox(height: 40),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    // Placeholder space for the timer card (16 top + 280 card)
+                    const SizedBox(height: 296),
+                    if (_pairData.isPaired && _showReflection) ...[
+                      const SizedBox(height: 32),
+                      _buildDailyReflection(),
+                    ],
+                    if (!_pairData.isPaired) ...[
+                      const SizedBox(height: 32),
+                      _buildConnectPrompt(),
+                    ],
+                    const SizedBox(height: 32),
+                    _buildActionButtons(),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+              if (_pairData.isPaired) _buildMemoryLaneSection(),
+              if (!_pairData.isPaired) _buildEmptyMemoryLane(),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+        // Expandable Timer Card overlay
+        Positioned(
+          top: 16,
+          left: 24,
+          right: 24,
+          child: ExpandableTimerCard(
+            primary: primary,
+            primaryLight: primaryLight,
+            timerService: _timerService,
+            myAvatarUrl: widget.userData.avatarUrl,
+            partnerAvatarUrl: _pairData.partnerAvatarUrl,
+            isPaired: _pairData.isPaired,
+            onExpandChanged: (expanded) {
+              setState(() => _timerCardExpanded = expanded);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -2026,42 +2077,46 @@ class _HomeScreenState extends State<HomeScreen> {
       bottom: MediaQuery.of(context).padding.bottom + 12,
       left: 24,
       right: 24,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 32,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: Container(
-            height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xC7FFFFFF),
-              borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: const Color(0x99FFFFFF)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _navItem(Icons.home_rounded, 0),
-                _navItem(Icons.widgets_rounded, 1),
-                Container(width: 1, height: 24, color: Colors.grey.shade200),
-                _navItem(
-                  _pairData.isPaired
-                      ? Icons.chat_bubble_outline_rounded
-                      : Icons.person_add_alt_1_rounded,
-                  2,
-                  showBadge: !_pairData.isPaired,
-                ),
-                _navItem(Icons.person_outline_rounded, 3),
-              ],
-            ),
+      child: _buildBottomNavContent(),
+    );
+  }
+
+  Widget _buildBottomNavContent() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 32,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xC7FFFFFF),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: const Color(0x99FFFFFF)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _navItem(Icons.home_rounded, 0),
+              _navItem(Icons.widgets_rounded, 1),
+              Container(width: 1, height: 24, color: Colors.grey.shade200),
+              _navItem(
+                _pairData.isPaired
+                    ? Icons.chat_bubble_outline_rounded
+                    : Icons.person_add_alt_1_rounded,
+                2,
+                showBadge: !_pairData.isPaired,
+              ),
+              _navItem(Icons.person_outline_rounded, 3),
+            ],
           ),
         ),
       ),

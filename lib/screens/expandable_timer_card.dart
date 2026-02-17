@@ -1,0 +1,1255 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../models/timer_item.dart';
+import '../services/timer_service.dart';
+
+/// Расширяемая карточка таймера.
+///
+/// В свёрнутом виде показывает дефолтный таймер (или первый).
+/// При раскрытии — вытягивается на весь экран вниз с ease-in-out анимацией,
+/// показывая список всех таймеров с возможностью CRUD.
+class ExpandableTimerCard extends StatefulWidget {
+  final Color primary;
+  final Color primaryLight;
+  final TimerService timerService;
+  final String partnerAvatarUrl;
+  final String myAvatarUrl;
+  final bool isPaired;
+
+  /// Callback, уведомляющий родителя о состоянии раскрытия
+  /// (чтобы скрывать bottom nav).
+  final ValueChanged<bool>? onExpandChanged;
+
+  const ExpandableTimerCard({
+    super.key,
+    required this.primary,
+    required this.primaryLight,
+    required this.timerService,
+    required this.partnerAvatarUrl,
+    required this.myAvatarUrl,
+    required this.isPaired,
+    this.onExpandChanged,
+  });
+
+  @override
+  State<ExpandableTimerCard> createState() => _ExpandableTimerCardState();
+}
+
+class _ExpandableTimerCardState extends State<ExpandableTimerCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _expandAnim;
+  late Animation<double> _arrowRotation;
+
+  bool _expanded = false;
+  int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
+  Timer? _ticker;
+
+  // Emoji palette для выбора
+  static const _emojis = [
+    '❤️',
+    '💕',
+    '💖',
+    '🔥',
+    '⭐',
+    '🌙',
+    '🎂',
+    '🏠',
+    '🎓',
+    '💼',
+    '✈️',
+    '🐾',
+    '🌸',
+    '💍',
+    '👶',
+    '🎯',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
+    _expandAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _arrowRotation = Tween<double>(
+      begin: 0,
+      end: 0.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    widget.timerService.addListener(_onTimerChanged);
+    _startTickerIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _ticker?.cancel();
+    widget.timerService.removeListener(_onTimerChanged);
+    super.dispose();
+  }
+
+  void _onTimerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _startTickerIfNeeded() {
+    _ticker?.cancel();
+    _ticker = null;
+    if (_selectedTimeUnit == 2) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+    widget.onExpandChanged?.call(_expanded);
+  }
+
+  // ── Helpers ──
+
+  TimerItem? get _displayTimer => widget.timerService.defaultTimer;
+
+  String _counterValue(TimerItem timer) {
+    switch (_selectedTimeUnit) {
+      case 0:
+        return timer.daysElapsed.toString();
+      case 1:
+        return timer.monthsElapsed.toString();
+      case 2:
+        return timer.formattedTime;
+      default:
+        return '0';
+    }
+  }
+
+  String get _counterLabel {
+    switch (_selectedTimeUnit) {
+      case 0:
+        return 'DAYS';
+      case 1:
+        return 'MONTHS';
+      case 2:
+        return 'TIME';
+      default:
+        return 'DAYS';
+    }
+  }
+
+  // =============================================
+  // BUILD
+  // =============================================
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    // Высота карточки в свёрнутом виде
+    const collapsedHeight = 280.0;
+    // Раскрытая карточка заканчивается на уровне верхнего края bottom nav:
+    // bottom nav расположен: bottom = bottomPadding + 12, высота = 64
+    // → от низа экрана до верха навбара = bottomPadding + 12 + 64 + 12 (зазор)
+    const headerHeight = 64.0;
+    const cardTopOffset = 16.0;
+    const bottomNavHeight = 64.0;
+    const bottomNavMargin = 12.0; // отступ навбара от низа
+    const gap = 12.0; // зазор между карточкой и навбаром
+    final expandedHeight =
+        screenHeight -
+        topPadding -
+        headerHeight -
+        cardTopOffset -
+        bottomPadding -
+        bottomNavMargin -
+        bottomNavHeight -
+        gap;
+
+    return AnimatedBuilder(
+      animation: _expandAnim,
+      builder: (context, child) {
+        final height =
+            collapsedHeight +
+            (expandedHeight - collapsedHeight) * _expandAnim.value;
+
+        return Container(
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primary.withOpacity(
+                  0.12 + 0.08 * _expandAnim.value,
+                ),
+                blurRadius: 40 + 20 * _expandAnim.value,
+                spreadRadius: -8,
+                offset: const Offset(0, 20),
+              ),
+            ],
+          ),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xF0FFFFFF),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0x99FFFFFF)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                // -- Background subtle photos --
+                if (widget.isPaired) ...[
+                  Positioned(
+                    top: -8,
+                    left: -16,
+                    child: _photoFragment(widget.myAvatarUrl, 80, 80, -0.2),
+                  ),
+                  Positioned(
+                    top: 48,
+                    right: 8,
+                    child: _photoFragment(widget.partnerAvatarUrl, 64, 64, 0.1),
+                  ),
+                  Positioned(
+                    bottom: -24,
+                    left: 60,
+                    child: _photoFragment(widget.myAvatarUrl, 96, 96, -0.05),
+                  ),
+                  Positioned(
+                    bottom: 16,
+                    right: -8,
+                    child: _photoFragment(widget.partnerAvatarUrl, 56, 56, 0.2),
+                  ),
+                ],
+                // -- Gradient overlay --
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.white.withOpacity(0.15),
+                          Colors.white.withOpacity(0.5),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // -- Content --
+                Column(
+                  children: [
+                    // Compact (always visible) area
+                    _buildCompactContent(),
+                    // Expanded area
+                    Expanded(
+                      child: ClipRect(
+                        child: Opacity(
+                          opacity: _expandAnim.value.clamp(0.0, 1.0),
+                          child: _buildExpandedContent(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // -- Arrow button (bottom right, always visible) --
+                Positioned(
+                  right: 16,
+                  bottom: 12 + bottomPadding * _expandAnim.value,
+                  child: _buildArrowButton(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Compact content (shown always) ──
+  Widget _buildCompactContent() {
+    final timer = _displayTimer;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 36, 20, 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Counter number
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                key: ValueKey(
+                  '$_selectedTimeUnit-${timer != null ? _counterValue(timer) : "0"}',
+                ),
+                child: Text(
+                  timer != null ? _counterValue(timer) : '0',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: _selectedTimeUnit == 2 ? 42 : 64,
+                    fontWeight: FontWeight.w800,
+                    color: timer != null
+                        ? const Color(0xFF1A1A1A)
+                        : Colors.grey.shade300,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Label
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                timer != null
+                    ? '${_counterLabel} • ${timer.title}'
+                    : 'NO TIMERS YET',
+                key: ValueKey('$_counterLabel-${timer?.title}'),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: timer != null ? widget.primary : Colors.grey.shade400,
+                  letterSpacing: 2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Emoji
+            if (timer != null)
+              Text(timer.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 24),
+            // Toggle
+            _buildTimeToggle(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Expanded content ──
+  Widget _buildExpandedContent() {
+    final timers = widget.timerService.timers;
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Divider(color: Colors.grey.shade200, height: 1),
+        // Header row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
+          child: Row(
+            children: [
+              Text(
+                'All Timers',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: widget.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${timers.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: widget.primary,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Add button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showCreateDialog(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: widget.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          size: 18,
+                          color: widget.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'New',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: widget.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // List
+        Expanded(
+          child: timers.isEmpty
+              ? _buildEmptyState()
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 60),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: timers.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _buildTimerMiniCard(timers[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text(
+            'No timers yet',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tap "New" to create your first timer',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Mini card for each timer ──
+  Widget _buildTimerMiniCard(TimerItem timer) {
+    final isDefault = timer.isDefault;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDefault
+              ? widget.primary.withOpacity(0.06)
+              : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDefault
+                ? widget.primary.withOpacity(0.18)
+                : Colors.grey.shade200,
+            width: isDefault ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _showEditDialog(timer),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                // Emoji
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: widget.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      timer.emoji,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              timer.title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isDefault) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.primary.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'DEFAULT',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: widget.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${timer.daysElapsed} days • since ${timer.formattedStartDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Actions
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: Colors.grey.shade400,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  onSelected: (v) => _onMenuAction(v, timer),
+                  itemBuilder: (_) => [
+                    if (!isDefault)
+                      const PopupMenuItem(
+                        value: 'default',
+                        child: _PopupRow(
+                          icon: Icons.star_rounded,
+                          label: 'Set as default',
+                        ),
+                      ),
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: _PopupRow(icon: Icons.edit_rounded, label: 'Edit'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: _PopupRow(
+                        icon: Icons.delete_outline_rounded,
+                        label: 'Delete',
+                        danger: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onMenuAction(String action, TimerItem timer) {
+    switch (action) {
+      case 'default':
+        widget.timerService.setDefault(timer.id);
+        break;
+      case 'edit':
+        _showEditDialog(timer);
+        break;
+      case 'delete':
+        _showDeleteConfirm(timer);
+        break;
+    }
+  }
+
+  // ── Arrow button ──
+  Widget _buildArrowButton() {
+    return GestureDetector(
+      onTap: _toggle,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: widget.primary.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: RotationTransition(
+          turns: _arrowRotation,
+          child: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: widget.primary,
+            size: 26,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Time toggle ──
+  Widget _buildTimeToggle() {
+    const labels = ['Days', 'Months', 'Time'];
+    return Container(
+      height: 40,
+      constraints: const BoxConstraints(maxWidth: 240),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / 3;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                left: _selectedTimeUnit * itemWidth,
+                top: 0,
+                bottom: 0,
+                width: itemWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Row(
+                children: List.generate(3, (i) {
+                  final selected = _selectedTimeUnit == i;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedTimeUnit = i);
+                        _startTickerIfNeeded();
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Center(
+                        child: Text(
+                          labels[i],
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: selected
+                                ? Colors.grey.shade900
+                                : Colors.grey.shade400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Photo fragment (background decoration) ──
+  Widget _photoFragment(String url, double w, double h, double angle) {
+    return Transform.rotate(
+      angle: angle,
+      child: Opacity(
+        opacity: 0.12,
+        child: ColorFiltered(
+          colorFilter: const ColorFilter.mode(
+            Colors.grey,
+            BlendMode.saturation,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              url,
+              width: w,
+              height: h,
+              fit: BoxFit.cover,
+              cacheWidth: (w * 2).toInt(),
+              cacheHeight: (h * 2).toInt(),
+              errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =============================================
+  // DIALOGS
+  // =============================================
+
+  /// Показать диалог создания нового таймера.
+  void _showCreateDialog() {
+    _showTimerFormDialog(
+      title: 'New Timer',
+      initialTitle: '',
+      initialDate: DateTime.now(),
+      initialEmoji: '❤️',
+      initialIsDefault: widget.timerService.timers.isEmpty,
+      onSave: (title, date, emoji, isDefault) {
+        widget.timerService.addTimer(
+          title: title,
+          startDate: date,
+          emoji: emoji,
+          isDefault: isDefault,
+        );
+      },
+    );
+  }
+
+  /// Показать диалог редактирования таймера.
+  void _showEditDialog(TimerItem timer) {
+    _showTimerFormDialog(
+      title: 'Edit Timer',
+      initialTitle: timer.title,
+      initialDate: timer.startDate,
+      initialEmoji: timer.emoji,
+      initialIsDefault: timer.isDefault,
+      onSave: (title, date, emoji, isDefault) {
+        widget.timerService.updateTimer(
+          timer.copyWith(
+            title: title,
+            startDate: date,
+            emoji: emoji,
+            isDefault: isDefault,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Общий форм-диалог для создания/редактирования.
+  void _showTimerFormDialog({
+    required String title,
+    required String initialTitle,
+    required DateTime initialDate,
+    required String initialEmoji,
+    required bool initialIsDefault,
+    required void Function(
+      String title,
+      DateTime date,
+      String emoji,
+      bool isDefault,
+    )
+    onSave,
+  }) {
+    final titleCtrl = TextEditingController(text: initialTitle);
+    final dateCtrl = TextEditingController(text: _formatDate(initialDate));
+    var pickedDate = initialDate;
+    var selectedEmoji = initialEmoji;
+    var isDefault = initialIsDefault;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              12,
+              24,
+              MediaQuery.of(ctx).viewInsets.bottom + 28,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Title ──
+                  Text(
+                    'Name',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: titleCtrl,
+                    style: const TextStyle(fontSize: 15),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Together with Alex',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: widget.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Date ──
+                  Text(
+                    'Start Date',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      // Manual input
+                      Expanded(
+                        child: TextField(
+                          controller: dateCtrl,
+                          style: const TextStyle(fontSize: 15),
+                          keyboardType: TextInputType.datetime,
+                          decoration: InputDecoration(
+                            hintText: 'dd.mm.yyyy',
+                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: widget.primary,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                          onChanged: (v) {
+                            final parsed = _parseDate(v);
+                            if (parsed != null) {
+                              setSheetState(() => pickedDate = parsed);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Calendar picker
+                      GestureDetector(
+                        onTap: () async {
+                          final d = await showDatePicker(
+                            context: ctx,
+                            initialDate: pickedDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime.now(),
+                            builder: (c, child) => Theme(
+                              data: Theme.of(c).copyWith(
+                                colorScheme: ColorScheme.light(
+                                  primary: widget.primary,
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (d != null) {
+                            setSheetState(() {
+                              pickedDate = d;
+                              dateCtrl.text = _formatDate(d);
+                            });
+                          }
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: widget.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.calendar_today_rounded,
+                            color: widget.primary,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Emoji ──
+                  Text(
+                    'Icon',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _emojis.map((e) {
+                      final sel = selectedEmoji == e;
+                      return GestureDetector(
+                        onTap: () => setSheetState(() => selectedEmoji = e),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? widget.primary.withOpacity(0.12)
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: sel
+                                ? Border.all(color: widget.primary, width: 2)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Default toggle ──
+                  GestureDetector(
+                    onTap: () => setSheetState(() => isDefault = !isDefault),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDefault
+                                ? widget.primary
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isDefault
+                                  ? widget.primary
+                                  : Colors.grey.shade400,
+                              width: 2,
+                            ),
+                          ),
+                          child: isDefault
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Show by default when collapsed',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Save button ──
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final t = titleCtrl.text.trim();
+                        if (t.isEmpty) return;
+                        // Парсим дату из поля, если пользователь ввёл вручную
+                        final manualDate = _parseDate(dateCtrl.text);
+                        final finalDate = manualDate ?? pickedDate;
+                        onSave(t, finalDate, selectedEmoji, isDefault);
+                        Navigator.pop(ctx);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Диалог подтверждения удаления.
+  void _showDeleteConfirm(TimerItem timer) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red.shade400,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Delete Timer?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '"${timer.title}" will be removed permanently.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          widget.timerService.deleteTimer(timer.id);
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade400,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Helpers ──
+  String _formatDate(DateTime d) {
+    return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  }
+
+  DateTime? _parseDate(String s) {
+    // Формат dd.mm.yyyy
+    final parts = s.split('.');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    if (year < 1900 || year > 2100) return null;
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    try {
+      return DateTime(year, month, day);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+// ── Popup menu row helper ──
+class _PopupRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool danger;
+  const _PopupRow({
+    required this.icon,
+    required this.label,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? Colors.red.shade400 : Colors.grey.shade700;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
