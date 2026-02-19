@@ -28,10 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- Colors --
   Color get primary => widget.userData.themeAccent;
   Color get primaryLight => widget.userData.themeAccentLight;
-  static const Color bgLight = Color(0xFFF8F6F6);
-
-  // -- Cached painter --
-  static final _bgPainter = _BgPatternPainter();
+  bool get _isPurple => widget.userData.isPurpleTheme;
+  int get _themeId => widget.userData.themeId;
 
   // -- State --
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
@@ -214,9 +212,16 @@ class _HomeScreenState extends State<HomeScreen> {
           // -- Background --
           Positioned.fill(
             child: RepaintBoundary(
-              child: Container(
-                color: bgLight,
-                child: CustomPaint(painter: _bgPainter, size: Size.infinite),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _isPurple
+                        ? [const Color(0xFFE8EAF6), const Color(0xFFE0F2F1)]
+                        : [const Color(0xFFF7F3F0), const Color(0xFFFFFFFF)],
+                  ),
+                ),
               ),
             ),
           ),
@@ -315,6 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ExpandableTimerCard(
             primary: primary,
             primaryLight: primaryLight,
+            themeId: _themeId,
             timerService: _timerService,
             myAvatarUrl: widget.userData.avatarUrl,
             partnerAvatarUrl: _pairData.partnerAvatarUrl,
@@ -1294,9 +1300,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: primaryLight.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: primary.withOpacity(0.08)),
+          color: _isPurple ? const Color(0xFFFDFDFF) : Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: _isPurple ? Colors.grey.shade200 : const Color(0xFFE5E5E5),
+            width: 0.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -1364,12 +1380,9 @@ class _HomeScreenState extends State<HomeScreen> {
             width: double.infinity,
             height: 160,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.grey.shade200,
-                style: BorderStyle.solid,
-              ),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1407,13 +1420,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCounterCard() {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.12),
-            blurRadius: 40,
-            spreadRadius: -8,
-            offset: const Offset(0, 20),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 32,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -1421,40 +1434,17 @@ class _HomeScreenState extends State<HomeScreen> {
         width: double.infinity,
         constraints: const BoxConstraints(minHeight: 260),
         decoration: BoxDecoration(
-          color: const Color(0xF0FFFFFF),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0x99FFFFFF)),
+          color: const Color(0x99FFFFFF),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: const Color(0x4DFFFFFF)),
         ),
         child: Stack(
           children: [
-            // -- Photo fragments (subtle background) --
-            if (_pairData.isPaired) ...[
-              Positioned(
-                top: -8,
-                left: -16,
-                child: _photoFragment(widget.userData.avatarUrl, 80, 80, -0.2),
-              ),
-              Positioned(
-                top: 48,
-                right: 8,
-                child: _photoFragment(_pairData.partnerAvatarUrl, 64, 64, 0.1),
-              ),
-              Positioned(
-                bottom: -24,
-                left: 60,
-                child: _photoFragment(widget.userData.avatarUrl, 96, 96, -0.05),
-              ),
-              Positioned(
-                bottom: 16,
-                right: -8,
-                child: _photoFragment(_pairData.partnerAvatarUrl, 56, 56, 0.2),
-              ),
-            ],
             // -- Gradient overlay --
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(32),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -1671,9 +1661,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: primaryLight.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: primary.withOpacity(0.08)),
+        color: _isPurple ? const Color(0xFFFDFDFF) : Colors.white,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(
+          color: _isPurple ? Colors.grey.shade200 : const Color(0xFFE5E5E5),
+          width: 0.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1774,19 +1774,20 @@ class _HomeScreenState extends State<HomeScreen> {
   // ACTION BUTTONS
   // =============================================
   Widget _buildActionButtons() {
+    final purpleIcon = const Color(0xFF5E548E);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _actionButton(
           icon: Icons.brush_rounded,
           label: 'Draw',
-          iconColor: const Color(0xFFF472B6),
+          iconColor: _isPurple ? purpleIcon : const Color(0xFFFFB7B7),
           enabled: _pairData.isPaired,
         ),
         _actionButton(
           icon: Icons.sentiment_satisfied_alt_rounded,
           label: 'Mood',
-          iconColor: const Color(0xFFFBBF24),
+          iconColor: _isPurple ? purpleIcon : const Color(0xFFFBBF24),
           enabled: _pairData.isPaired,
           onTap: _showMoodPicker,
           moodImagePath: _pairData.myMood.imagePath,
@@ -1794,14 +1795,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _actionButton(
           icon: Icons.calendar_month_rounded,
           label: 'Calendar',
-          iconColor: const Color(0xFF60A5FA),
+          iconColor: _isPurple ? purpleIcon : const Color(0xFF60A5FA),
           enabled: _pairData.isPaired,
           onTap: _openMoodCalendar,
         ),
         _actionButton(
           icon: Icons.photo_camera_rounded,
           label: 'Post',
-          iconColor: const Color(0xFF34D399),
+          iconColor: _isPurple ? purpleIcon : const Color(0xFF34D399),
           enabled: _pairData.isPaired,
           onTap: _postPhoto,
         ),
@@ -1951,9 +1952,9 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               height: 140,
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
               ),
               child: Center(
                 child: Column(
@@ -2017,19 +2018,19 @@ class _HomeScreenState extends State<HomeScreen> {
         width: 160,
         height: 200,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           color: Colors.white,
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           child: _previewByType(memory),
         ),
       ),
@@ -2450,7 +2451,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isActive ? primary.withOpacity(0.1) : Colors.transparent,
+              color: isActive
+                  ? (_isPurple
+                        ? const Color(0xFFF0E6EF)
+                        : primary.withOpacity(0.1))
+                  : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -2477,39 +2482,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-// =============================================
-// BACKGROUND PATTERN PAINTER
-// =============================================
-class _BgPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final paint1 = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.8, -0.6),
-        radius: 0.8,
-        colors: [
-          const Color(0xFFEE2B6C).withOpacity(0.08),
-          const Color(0xFFEE2B6C).withOpacity(0.0),
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, paint1);
-    final paint2 = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0.8, 0.2),
-        radius: 0.8,
-        colors: [
-          const Color(0xFFEE2B6C).withOpacity(0.05),
-          const Color(0xFFEE2B6C).withOpacity(0.0),
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, paint2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 enum _MoodBadgePosition { topLeft, bottomRight }

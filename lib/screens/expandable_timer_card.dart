@@ -14,6 +14,7 @@ import '../services/timer_service.dart';
 class ExpandableTimerCard extends StatefulWidget {
   final Color primary;
   final Color primaryLight;
+  final int themeId;
   final TimerService timerService;
   final String partnerAvatarUrl;
   final String myAvatarUrl;
@@ -27,6 +28,7 @@ class ExpandableTimerCard extends StatefulWidget {
     super.key,
     required this.primary,
     required this.primaryLight,
+    required this.themeId,
     required this.timerService,
     required this.partnerAvatarUrl,
     required this.myAvatarUrl,
@@ -53,24 +55,30 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   late Color _shadowColorBase;
   late Color _shadowColorExpanded;
 
-  // Кеш для gradient overlay
-  static const _gradientOverlay = BoxDecoration(
-    borderRadius: BorderRadius.all(Radius.circular(24)),
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Colors.transparent, Color(0x26FFFFFF), Color(0x80FFFFFF)],
-    ),
-  );
-
   static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
 
-  static const _cardBorderRadius = BorderRadius.all(Radius.circular(24));
-  static const _cardDecoration = BoxDecoration(
-    color: Color(0xF0FFFFFF),
-    borderRadius: _cardBorderRadius,
-    border: Border.fromBorderSide(BorderSide(color: Color(0x99FFFFFF))),
-  );
+  bool get _isPurple => widget.themeId == 1;
+
+  BorderRadius get _cardBorderRadius =>
+      BorderRadius.all(Radius.circular(_isPurple ? 48 : 32));
+
+  BoxDecoration get _cardDecoration => _isPurple
+      ? BoxDecoration(
+          borderRadius: _cardBorderRadius,
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF5E548E), Color(0xFF231942)],
+          ),
+        )
+      : BoxDecoration(
+          borderRadius: _cardBorderRadius,
+          gradient: const LinearGradient(
+            begin: Alignment(-1, -1),
+            end: Alignment(1, 1),
+            colors: [Color(0xFFFFB4B0), Color(0xFFFF8E9E)],
+          ),
+        );
 
   // Emoji palette для выбора
   static const _emojis = [
@@ -105,8 +113,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _shadowColorBase = widget.primary.withOpacity(0.12);
-    _shadowColorExpanded = widget.primary.withOpacity(0.20);
+    _shadowColorBase = _isPurple
+        ? Colors.black.withOpacity(0.05)
+        : const Color(0x26FF7E8B); // rgba(255,126,139,0.15)
+    _shadowColorExpanded = _isPurple
+        ? Colors.black.withOpacity(0.10)
+        : const Color(0x40FF7E8B);
 
     widget.timerService.addListener(_onTimerChanged);
     _loadSelectedTimeUnit();
@@ -231,7 +243,6 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     // Кешируем child-виджеты, которые НЕ зависят от анимации
     final compactContent = _buildCompactContent();
     final bgImage = _buildBackgroundImage();
-    final bgPhotos = _buildBackgroundPhotos();
 
     return AnimatedBuilder(
       animation: _expandAnim,
@@ -247,9 +258,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               boxShadow: [
                 BoxShadow(
                   color: Color.lerp(_shadowColorBase, _shadowColorExpanded, t)!,
-                  blurRadius: 40 + 20 * t,
-                  spreadRadius: -8,
-                  offset: const Offset(0, 20),
+                  blurRadius: 32,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -257,45 +268,53 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               borderRadius: _cardBorderRadius,
               child: DecoratedBox(
                 decoration: _cardDecoration,
-                child: Stack(
-                  children: [
-                    // -- Custom background image (не перестраивается при анимации) --
-                    if (bgImage != null) bgImage,
-                    // -- Background subtle photos (не перестраиваются) --
-                    if (bgPhotos != null) ...bgPhotos,
-                    // -- Gradient overlay (const) --
-                    const Positioned.fill(
-                      child: DecoratedBox(decoration: _gradientOverlay),
-                    ),
-                    // -- Content --
-                    Column(
-                      children: [
-                        compactContent,
-                        // Expanded area — рисуем только когда реально видно
-                        if (t > 0.01)
-                          Expanded(
-                            child: FadeTransition(
-                              opacity: _expandAnim,
-                              child: _buildExpandedContent(),
-                            ),
-                          )
-                        else
-                          const Spacer(),
-                      ],
-                    ),
-                    // -- Arrow button --
-                    Positioned(
-                      right: 16,
-                      bottom: 12 + bottomPadding * t,
-                      child: _buildArrowButton(),
-                    ),
-                  ],
+                child: _buildCardStack(
+                  bgImage,
+                  compactContent,
+                  t,
+                  bottomPadding,
                 ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCardStack(
+    Widget? bgImage,
+    Widget compactContent,
+    double t,
+    double bottomPadding,
+  ) {
+    return Stack(
+      children: [
+        // -- Custom background image --
+        if (bgImage != null) bgImage,
+        // -- Gradient overlay (decorative circles) --
+        // -- Content --
+        Column(
+          children: [
+            compactContent,
+            if (t > 0.01)
+              Expanded(
+                child: FadeTransition(
+                  opacity: _expandAnim,
+                  child: _buildExpandedContent(),
+                ),
+              )
+            else
+              const Spacer(),
+          ],
+        ),
+        // -- Arrow button --
+        Positioned(
+          right: 16,
+          bottom: 12 + bottomPadding * t,
+          child: _buildArrowButton(),
+        ),
+      ],
     );
   }
 
@@ -387,7 +406,6 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   // ── Compact content (shown always) ──
   Widget _buildCompactContent() {
     final timer = _displayTimer;
-    final hasBg = timer?.backgroundImagePath != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 36, 20, 12),
       child: SizedBox(
@@ -410,11 +428,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: _selectedTimeUnit == 2 ? 42 : 64,
                     fontWeight: FontWeight.w800,
-                    color: hasBg
+                    color: timer != null
                         ? Colors.white
-                        : (timer != null
-                              ? const Color(0xFF1A1A1A)
-                              : Colors.grey.shade300),
+                        : Colors.white.withOpacity(0.5),
                     height: 1.1,
                   ),
                 ),
@@ -434,9 +450,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: hasBg
+                  color: timer != null
                       ? Colors.white.withOpacity(0.9)
-                      : (timer != null ? widget.primary : Colors.grey.shade400),
+                      : Colors.white.withOpacity(0.4),
                   letterSpacing: 2,
                 ),
                 maxLines: 1,
@@ -806,14 +822,14 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: widget.primary.withOpacity(0.1),
+          color: Colors.white.withOpacity(_isPurple ? 0.15 : 0.20),
           shape: BoxShape.circle,
         ),
         child: RotationTransition(
           turns: _arrowRotation,
           child: Icon(
             Icons.keyboard_arrow_down_rounded,
-            color: widget.primary,
+            color: Colors.white,
             size: 26,
           ),
         ),
@@ -828,8 +844,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       height: 40,
       constraints: const BoxConstraints(maxWidth: 240),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Colors.white.withOpacity(_isPurple ? 0.12 : 0.20),
         borderRadius: BorderRadius.circular(24),
+        border: _isPurple
+            ? null
+            : Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       padding: const EdgeInsets.all(4),
       child: LayoutBuilder(
@@ -878,8 +897,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                             color: selected
-                                ? Colors.grey.shade900
-                                : Colors.grey.shade400,
+                                ? (_isPurple
+                                      ? const Color(0xFF231942)
+                                      : widget.primary)
+                                : Colors.white.withOpacity(
+                                    _isPurple ? 0.5 : 0.8,
+                                  ),
                           ),
                         ),
                       ),

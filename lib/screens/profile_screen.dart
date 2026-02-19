@@ -495,19 +495,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             value: widget.userData.isMale ? 'Мужской' : 'Женский',
           ),
           _divider(),
-          _infoRow(
-            icon: Icons.palette_outlined,
-            label: 'Тема',
-            value: widget.userData.isMale ? 'Синяя' : 'Розовая',
-            trailing: Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: _accent,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(color: _accent.withOpacity(0.3), blurRadius: 6),
+          GestureDetector(
+            onTap: () => _showThemePicker(context),
+            behavior: HitTestBehavior.opaque,
+            child: _infoRow(
+              icon: Icons.palette_outlined,
+              label: 'Тема',
+              value: widget.userData.themeName,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: _accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent.withOpacity(0.3),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: Colors.grey.shade400,
+                  ),
                 ],
               ),
             ),
@@ -689,6 +707,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           _divider(),
           _settingsTile(
+            icon: Icons.palette_outlined,
+            label: 'Тема',
+            onTap: () => _showThemePicker(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+          _divider(),
+          _settingsTile(
             icon: Icons.notifications_outlined,
             label: 'Уведомления',
             onTap: () {},
@@ -811,6 +854,134 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _divider() {
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
+  }
+
+  void _showThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Выбери цветовую тему',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Изменения применяются сразу',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 28),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 1.2,
+                  children: List.generate(UserData.themeAccents.length, (i) {
+                    final accent = UserData.themeAccents[i];
+                    final accentLight = UserData.themeAccentLights[i];
+                    final name = UserData.themeNames[i];
+                    final isSelected = widget.userData.themeId == i;
+                    return GestureDetector(
+                      onTap: () async {
+                        await widget.userData.setThemeId(i);
+                        setSheet(() {});
+                        setState(() {});
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: accentLight,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? accent : Colors.transparent,
+                            width: 2.5,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: accent.withOpacity(0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: accent.withOpacity(0.35),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: isSelected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? accent
+                                    : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showEditProfileDialog(BuildContext context) {

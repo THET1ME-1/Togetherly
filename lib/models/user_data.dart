@@ -28,17 +28,29 @@ class UserData extends ChangeNotifier {
   bool get isMale => _gender == Gender.male;
   bool get isFemale => _gender == Gender.female;
 
-  Color get themeAccent {
-    if (_gender == Gender.male) return const Color(0xFF4A90D9);
-    if (_gender == Gender.female) return const Color(0xFFEE2B6C);
-    return const Color(0xFFEE2B6C);
+  // ── Theme palette ──
+  static const List<Color> themeAccents = [
+    Color(0xFFEE2B6C), // 0: Розовая
+    Color(0xFF5E548E), // 1: Фиолетовая
+  ];
+  static const List<Color> themeAccentLights = [
+    Color(0xFFFEEAF1), // 0: Розовая
+    Color(0xFFF0E6EF), // 1: Фиолетовая
+  ];
+  static const List<String> themeNames = ['Розовая', 'Фиолетовая'];
+
+  int _themeId = -1; // -1 = использовать пол для определения темы
+
+  int get themeId {
+    if (_themeId >= 0 && _themeId < themeAccents.length) return _themeId;
+    return 0; // default = pink
   }
 
-  Color get themeAccentLight {
-    if (_gender == Gender.male) return const Color(0xFFE3F0FF);
-    if (_gender == Gender.female) return const Color(0xFFFEEAF1);
-    return const Color(0xFFFEEAF1);
-  }
+  bool get isPurpleTheme => themeId == 1;
+
+  Color get themeAccent => themeAccents[themeId];
+  Color get themeAccentLight => themeAccentLights[themeId];
+  String get themeName => themeNames[themeId];
 
   String get initials {
     if (_displayName.isEmpty) return '?';
@@ -62,6 +74,7 @@ class UserData extends ChangeNotifier {
       final genderStr = prefs.getString('gender');
       if (genderStr == 'male') _gender = Gender.male;
       if (genderStr == 'female') _gender = Gender.female;
+      _themeId = prefs.getInt('themeId') ?? -1;
 
       // Если в кэше есть регистрация, но Firebase Auth пуст — сбрасываем
       if (_isRegistered && !_fb.isLoggedIn) {
@@ -115,6 +128,7 @@ class UserData extends ChangeNotifier {
             ? 'female'
             : '',
       );
+      await prefs.setInt('themeId', _themeId);
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
     }
@@ -195,6 +209,13 @@ class UserData extends ChangeNotifier {
         avatarUrl: _avatarUrl,
       );
     }
+    notifyListeners();
+  }
+
+  Future<void> setThemeId(int id) async {
+    if (id < 0 || id >= themeAccents.length) return;
+    _themeId = id;
+    await _saveLocal();
     notifyListeners();
   }
 

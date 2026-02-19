@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
 import 'screens/welcome_screen.dart';
-import 'screens/setup_screen.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
@@ -45,7 +44,7 @@ class _LoveAppState extends State<LoveApp> {
   // Cache theme to avoid recreating on every build
   static final ThemeData _cachedTheme = ThemeData(
     textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-    scaffoldBackgroundColor: const Color(0xFFF8F6F6),
+    scaffoldBackgroundColor: const Color(0xFFF7F3F0),
     useMaterial3: true,
   );
 
