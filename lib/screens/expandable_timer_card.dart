@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
@@ -49,6 +47,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   bool _expanded = false;
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   Timer? _ticker;
+  String? _uploadingBackgroundId; // id таймера во время загрузки фона
 
   // Кешированные цвета — чтобы не создавать объекты на каждый кадр
   late Color _shadowColorBase;
@@ -302,19 +301,52 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   /// Фоновое изображение — кешированный виджет, не зависит от анимации
   Widget? _buildBackgroundImage() {
-    if (_displayTimer?.backgroundImagePath == null) return null;
+    final path = _displayTimer?.backgroundImagePath;
+    if (path == null) return null;
+
+    // Если идёт загрузка — показываем индикатор
+    if (_uploadingBackgroundId == _displayTimer!.id) {
+      return const SizedBox(
+        height: 280,
+        width: double.infinity,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Локальный путь (не URL) — не показываем партнёру
+    if (!path.startsWith('http')) {
+      debugPrint(
+        'ExpandableTimerCard: backgroundImagePath не является URL ($path), пропускаем',
+      );
+      return null;
+    }
+
+    debugPrint('ExpandableTimerCard: загружаю фон из сети: $path');
+
     return SizedBox(
       height: 280,
       width: double.infinity,
       child: Stack(
         children: [
           Positioned.fill(
-            child: Image.file(
-              File(_displayTimer!.backgroundImagePath!),
+            child: Image.network(
+              path,
               fit: BoxFit.cover,
               alignment: Alignment.center,
               cacheWidth: 720,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return Container(
+                  color: Colors.black26,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white70),
+                  ),
+                );
+              },
+              errorBuilder: (_, error, __) {
+                debugPrint('ExpandableTimerCard: ошибка загрузки фона: $error');
+                return const SizedBox.shrink();
+              },
             ),
           ),
           const Positioned.fill(child: DecoratedBox(decoration: _darkOverlay)),
@@ -732,9 +764,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
         _pickBackgroundImage(timer);
         break;
       case 'remove_bg':
-        widget.timerService.updateTimer(
-          timer.copyWith()..backgroundImagePath = null,
-        );
+        widget.timerService.removeTimerBackground(timer);
         break;
     }
   }
@@ -749,16 +779,23 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     );
     if (image == null) return;
 
-    // Copy to app documents for persistence
-    final dir = await getApplicationDocumentsDirectory();
-    final bgDir = Directory('${dir.path}/timer_backgrounds');
-    if (!bgDir.existsSync()) bgDir.createSync(recursive: true);
-
-    final ext = image.path.split('.').last;
-    final dest = '${bgDir.path}/${timer.id}.$ext';
-    await File(image.path).copy(dest);
-
-    widget.timerService.updateTimer(timer.copyWith(backgroundImagePath: dest));
+    // Показываем индикатор загрузки
+    if (mounted) setState(() => _uploadingBackgroundId = timer.id);
+    try {
+      final ok = await widget.timerService.uploadTimerBackground(
+        timer,
+        image.path,
+      );
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось загрузить фон. Проверьте подключение.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingBackgroundId = null);
+    }
   }
 
   // ── Arrow button ──

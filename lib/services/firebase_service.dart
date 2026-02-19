@@ -1179,6 +1179,17 @@ class FirebaseService {
     }
   }
 
+  /// Удалить файл из Firebase Storage по его download URL.
+  Future<void> deleteFileByUrl(String url) async {
+    try {
+      final ref = _storage.refFromURL(url);
+      await ref.delete();
+      debugPrint('deleteFileByUrl: deleted $url');
+    } catch (e) {
+      debugPrint('deleteFileByUrl failed: $e');
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════════
   // MEMORIES (CRUD)
   // ══════════════════════════════════════════════════════════════════════════════

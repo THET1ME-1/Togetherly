@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
@@ -13,6 +14,10 @@ class TimerService extends ChangeNotifier {
   List<TimerItem> _timers = [];
   String _groupId = '';
   StreamSubscription? _firestoreSub;
+  bool _hasReceivedRemoteSync = false; // флаг первой синхронизации с Firestore
+
+  // Параметры ожидающего создания системного таймера
+  Map<String, dynamic>? _pendingSystemTimer;
 
   List<TimerItem> get timers => List.unmodifiable(_timers);
   int get count => _timers.length;
@@ -72,14 +77,32 @@ class TimerService extends ChangeNotifier {
     _firestoreSub?.cancel();
     _firestoreSub = null;
     _groupId = '';
+    _hasReceivedRemoteSync = false;
+    _pendingSystemTimer = null;
   }
 
   /// Слияние remote таймеров с локальными.
   /// Remote таймеры имеют приоритет.
   void _mergeRemoteTimers(List<TimerItem> remote) {
-    // Заменяем полностью на remote, но сохраняем локальные таймеры
-    // которых нет в remote (только если нет groupId — значит локальные)
-    _timers = remote;
+    // Очищаем устаревшие локальные пути (не URL) — они не синхронизируются
+    bool hadStalePaths = false;
+    _timers = remote.map((t) {
+      final path = t.backgroundImagePath;
+      if (path != null && !path.startsWith('http')) {
+        // Локальный путь от другого устройства — удаляем
+        debugPrint(
+          'TimerService: очищаю устаревший локальный путь у таймера ${t.id}',
+        );
+        hadStalePaths = true;
+        return t.copyWith()..backgroundImagePath = null;
+      }
+      return t;
+    }).toList();
+
+    debugPrint(
+      'TimerService: _mergeRemoteTimers: получено ${_timers.length} таймеров, '
+      'backgroundImagePaths: ${_timers.map((t) => t.backgroundImagePath ?? "null").join(", ")}',
+    );
 
     // Гарантируем что хотя бы один default
     if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
@@ -90,6 +113,28 @@ class TimerService extends ChangeNotifier {
       } else {
         _timers.first.isDefault = true;
       }
+    }
+
+    _hasReceivedRemoteSync = true;
+
+    // Если был устаревший путь — сохраняем чистые данные обратно в Firestore
+    if (hadStalePaths) {
+      _saveToFirestore();
+    }
+
+    // Если был ожидающий системный таймер — создаём его сейчас (если ещё нет)
+    if (_pendingSystemTimer != null && systemTimer == null) {
+      final p = _pendingSystemTimer!;
+      _pendingSystemTimer = null;
+      debugPrint('TimerService: создаю отложенный системный таймер');
+      addTimer(
+        title: p['title'] as String,
+        startDate: p['startDate'] as DateTime,
+        emoji: p['emoji'] as String,
+        isDefault: true,
+        isSystem: true,
+      );
+      return; // addTimer вызовет notifyListeners сам
     }
 
     _saveLocal();
@@ -194,6 +239,7 @@ class TimerService extends ChangeNotifier {
 
   /// Создать системный таймер при создании группы.
   /// Если системный уже есть — не создаёт повторно.
+  /// Если Firestore ещё не синхронизировался — откладывает создание.
   Future<void> createSystemTimer({
     required DateTime startDate,
     required String relationshipLabel,
@@ -204,6 +250,21 @@ class TimerService extends ChangeNotifier {
     if (systemTimer != null) return;
 
     final title = '$relationshipLabel with $partnerName';
+
+    // Если группа привязана, но Firestore ещё не ответил — откладываем.
+    // _mergeRemoteTimers создаст таймер как только получит первый снимок.
+    if (_groupId.isNotEmpty && !_hasReceivedRemoteSync) {
+      debugPrint(
+        'TimerService: createSystemTimer — ждём первую синхронизацию с Firestore',
+      );
+      _pendingSystemTimer = {
+        'title': title,
+        'startDate': startDate,
+        'emoji': relationshipEmoji,
+      };
+      return;
+    }
+
     await addTimer(
       title: title,
       startDate: startDate,
@@ -247,12 +308,71 @@ class TimerService extends ChangeNotifier {
     );
   }
 
+  /// Загружает изображение в Firebase Storage и устанавливает его фоном таймера.
+  /// Возвращает true при успехе. Старый фон (если был URL) удаляется из Storage.
+  Future<bool> uploadTimerBackground(
+    TimerItem timer,
+    String localFilePath,
+  ) async {
+    if (_groupId.isEmpty) {
+      debugPrint('TimerService: uploadTimerBackground — groupId пуст');
+      return false;
+    }
+    try {
+      // Удаляем старый фон из Storage, если это был URL
+      final old = timer.backgroundImagePath;
+      if (old != null && old.startsWith('http')) {
+        try {
+          await _fb.deleteFileByUrl(old);
+        } catch (_) {}
+      }
+
+      final ext = localFilePath.split('.').last.toLowerCase();
+      final storagePath = 'timer_backgrounds/$_groupId/${timer.id}.$ext';
+      final url = await _fb.uploadFile(localFilePath, storagePath);
+      if (url == null) return false;
+
+      // Удаляем локальную копию — больше не нужна
+      try {
+        final f = File(localFilePath);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+
+      await updateTimer(timer.copyWith(backgroundImagePath: url));
+      return true;
+    } catch (e) {
+      debugPrint('TimerService: uploadTimerBackground error: $e');
+      return false;
+    }
+  }
+
+  /// Удаляет фоновое изображение таймера (из Storage и локально).
+  Future<void> removeTimerBackground(TimerItem timer) async {
+    final path = timer.backgroundImagePath;
+    if (path == null) return;
+    // Удаляем из Firebase Storage, если это URL
+    if (path.startsWith('http')) {
+      try {
+        await _fb.deleteFileByUrl(path);
+      } catch (_) {}
+    } else {
+      // Локальный файл (legacy)
+      try {
+        final f = File(path);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
+    await updateTimer(timer.copyWith()..backgroundImagePath = null);
+  }
+
   /// Полная очистка всех таймеров — при выходе или новой регистрации.
   Future<void> clearAll() async {
     _timers.clear();
     _firestoreSub?.cancel();
     _firestoreSub = null;
     _groupId = '';
+    _hasReceivedRemoteSync = false;
+    _pendingSystemTimer = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_storageKey);
     notifyListeners();
