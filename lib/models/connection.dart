@@ -632,6 +632,8 @@ class Connection {
       pairId: pairId,
       onData: (data) {
         if (data == null) {
+          // Group was deleted
+          debugPrint('_listenToPair: group deleted');
           isPaired = false;
           pairId = '';
           partnerName = '';
@@ -645,6 +647,49 @@ class Connection {
         partnerName = data['partnerName'] ?? partnerName;
         partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
         startDate = data['startDate'] as DateTime? ?? startDate;
+
+        // Update members
+        final membersList = data['members'] as List<dynamic>?;
+        if (membersList != null) {
+          final newMembers = membersList
+              .map(
+                (m) => GroupMember(
+                  uid: (m as Map)['uid'] ?? '',
+                  name: m['name'] ?? '',
+                  avatar: m['avatar'] ?? '',
+                ),
+              )
+              .toList();
+
+          // Check if we're still in the group
+          final myUid = _fb.uid ?? '';
+          final imInGroup = newMembers.any((m) => m.uid == myUid);
+
+          if (!imInGroup) {
+            // I've been removed from the group (shouldn't happen, but handle it)
+            debugPrint('_listenToPair: removed from group');
+            isPaired = false;
+            pairId = '';
+            partnerName = '';
+            partnerAvatarUrl = '';
+            startDate = null;
+            members = [];
+            onChanged?.call();
+            return;
+          }
+
+          members = newMembers;
+
+          // If all partners left (only me remaining), mark as unpaired
+          final partnersCount = members.where((m) => m.uid != myUid).length;
+          if (partnersCount == 0 && isPaired) {
+            debugPrint('_listenToPair: all partners left, marking as unpaired');
+            isPaired = false;
+            partnerName = '';
+            partnerAvatarUrl = '';
+            // Keep members list to show ourselves
+          }
+        }
 
         // Update relationship type
         final rtStr = data['relationshipType'] as String?;
@@ -670,20 +715,6 @@ class Connection {
                   (e as Map).map(
                     (k, v) => MapEntry(k.toString(), v.toString()),
                   ),
-                ),
-              )
-              .toList();
-        }
-
-        // Update members
-        final membersList = data['members'] as List<dynamic>?;
-        if (membersList != null) {
-          members = membersList
-              .map(
-                (m) => GroupMember(
-                  uid: (m as Map)['uid'] ?? '',
-                  name: m['name'] ?? '',
-                  avatar: m['avatar'] ?? '',
                 ),
               )
               .toList();

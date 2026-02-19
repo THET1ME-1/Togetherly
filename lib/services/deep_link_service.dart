@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:app_links/app_links.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Сервис для обработки deep links
 class DeepLinkService {
@@ -13,6 +14,11 @@ class DeepLinkService {
 
   final _inviteCodeController = StreamController<String>.broadcast();
   Stream<String> get inviteCodeStream => _inviteCodeController.stream;
+
+  final _emailLinkController =
+      StreamController<Map<String, String>>.broadcast();
+  Stream<Map<String, String>> get emailLinkStream =>
+      _emailLinkController.stream;
 
   /// Инициализация — проверяем начальную ссылку и слушаем новые
   Future<void> init() async {
@@ -41,7 +47,16 @@ class DeepLinkService {
     // Поддерживаемые форматы:
     // loveapp://invite/ABC123
     // https://togetherly.app/invite/ABC123
+    // https://togetherly-d4856.firebaseapp.com/?... (email link)
 
+    // Email Link Authentication - любая ссылка с Firebase Hosting домена
+    if (uri.scheme == 'https' && uri.host == 'togetherly-d4856.web.app') {
+      debugPrint('Potential email link detected from Firebase domain');
+      _handleEmailLink(uri.toString());
+      return;
+    }
+
+    // Invite links
     if (uri.scheme == 'loveapp' && uri.host == 'invite') {
       // loveapp://invite/ABC123
       final code = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
@@ -60,8 +75,27 @@ class DeepLinkService {
     }
   }
 
+  Future<void> _handleEmailLink(String emailLink) async {
+    try {
+      // Получаем сохраненный email из SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('emailForSignIn');
+
+      if (email != null && email.isNotEmpty) {
+        debugPrint('Found saved email for sign-in: $email');
+        _emailLinkController.add({'email': email, 'link': emailLink});
+      } else {
+        debugPrint('No saved email found, will need to prompt user');
+        _emailLinkController.add({'email': '', 'link': emailLink});
+      }
+    } catch (e) {
+      debugPrint('Error handling email link: $e');
+    }
+  }
+
   void dispose() {
     _sub?.cancel();
     _inviteCodeController.close();
+    _emailLinkController.close();
   }
 }

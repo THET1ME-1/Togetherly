@@ -141,6 +141,83 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  EMAIL LINK AUTHENTICATION (Passwordless)
+  // ══════════════════════════════════════════════
+
+  /// Отправить ссылку для входа на электронную почту
+  Future<bool> sendSignInLinkToEmail(String email) async {
+    try {
+      debugPrint('Firebase Auth: sending sign-in link to $email');
+
+      final actionCodeSettings = ActionCodeSettings(
+        // URL для перенаправления - используем web.app домен
+        url: 'https://togetherly-d4856.web.app/',
+        handleCodeInApp: true,
+        androidPackageName: 'com.example.love_app',
+        androidInstallApp: true,
+        androidMinimumVersion: '21',
+      );
+
+      await _auth.sendSignInLinkToEmail(
+        email: email,
+        actionCodeSettings: actionCodeSettings,
+      );
+
+      debugPrint('Sign-in link sent successfully');
+      return true;
+    } catch (e) {
+      debugPrint('sendSignInLinkToEmail failed: $e');
+      return false;
+    }
+  }
+
+  /// Проверить, является ли ссылка ссылкой для входа
+  bool isSignInWithEmailLink(String emailLink) {
+    return _auth.isSignInWithEmailLink(emailLink);
+  }
+
+  /// Войти используя ссылку из email
+  Future<User?> signInWithEmailLink({
+    required String email,
+    required String emailLink,
+  }) async {
+    try {
+      debugPrint('Firebase Auth: signing in with email link...');
+
+      final userCredential = await _auth.signInWithEmailLink(
+        email: email,
+        emailLink: emailLink,
+      );
+
+      final user = userCredential.user;
+      if (user == null) return null;
+
+      debugPrint('Firebase Auth success: ${user.uid}');
+
+      // Сохранить профиль в Firestore
+      try {
+        await _db
+            .collection('users')
+            .doc(user.uid)
+            .set({
+              'displayName': user.displayName ?? '',
+              'email': user.email ?? '',
+              'avatarUrl': user.photoURL ?? '',
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('Firestore save failed: $e');
+      }
+
+      return user;
+    } catch (e) {
+      debugPrint('signInWithEmailLink failed: $e');
+      rethrow;
+    }
+  }
+
+  // ══════════════════════════════════════════════
   //  USER PROFILE
   // ══════════════════════════════════════════════
 
@@ -866,27 +943,42 @@ class FirebaseService {
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
-    return _db.collection('groups').doc(pairId).snapshots().listen((snap) {
-      if (snap.exists) {
-        onData(_parseGroupDoc(pairId, snap.data()!));
-      } else {
-        // Fallback: try legacy pairs collection
-        _db
-            .collection('pairs')
-            .doc(pairId)
-            .get()
-            .then((pairSnap) {
-              if (pairSnap.exists) {
-                onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
-              } else {
-                onData(null);
-              }
-            })
-            .catchError((_) {
-              onData(null);
-            });
-      }
-    });
+    return _db
+        .collection('groups')
+        .doc(pairId)
+        .snapshots(includeMetadataChanges: true)
+        .listen((snap) {
+          // Skip if data is only from cache and not yet confirmed by server
+          if (snap.metadata.hasPendingWrites) {
+            debugPrint('listenToPair: skipping snapshot with pending writes');
+            return;
+          }
+
+          if (snap.exists) {
+            final parsedData = _parseGroupDoc(pairId, snap.data()!);
+            debugPrint(
+              'listenToPair: updated group data, members=${parsedData['members']?.length}',
+            );
+            onData(parsedData);
+          } else {
+            debugPrint('listenToPair: group document deleted or not found');
+            // Fallback: try legacy pairs collection
+            _db
+                .collection('pairs')
+                .doc(pairId)
+                .get(const GetOptions(source: Source.server))
+                .then((pairSnap) {
+                  if (pairSnap.exists) {
+                    onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
+                  } else {
+                    onData(null);
+                  }
+                })
+                .catchError((_) {
+                  onData(null);
+                });
+          }
+        });
   }
 
   /// Remove me from a group (or delete if ≤2 members)
@@ -921,22 +1013,33 @@ class FirebaseService {
         }
       } else {
         // Just leave the group
-        final batch = _db.batch();
-        batch.update(_db.collection('groups').doc(groupId), {
+        debugPrint(
+          'unpairById: leaving group $groupId (${members.length} members)',
+        );
+
+        // Update group document first to remove this member
+        await _db.collection('groups').doc(groupId).update({
           'members': FieldValue.arrayRemove([u.uid]),
           'memberNames.${u.uid}': FieldValue.delete(),
           'memberAvatars.${u.uid}': FieldValue.delete(),
+          'memberMoods.${u.uid}': FieldValue.delete(),
         });
-        batch.update(_db.collection('users').doc(u.uid), {
+
+        debugPrint('unpairById: removed from group, updating user doc');
+
+        // Then update user's pairIds
+        await _db.collection('users').doc(u.uid).update({
           'pairIds': FieldValue.arrayRemove([groupId]),
         });
-        await batch.commit();
 
+        // Update user's active pairId
         final myDoc = await _db.collection('users').doc(u.uid).get();
         final remaining = (myDoc.data()?['pairIds'] as List<dynamic>?) ?? [];
         await _db.collection('users').doc(u.uid).update({
           'pairId': remaining.isNotEmpty ? remaining.last : '',
         });
+
+        debugPrint('unpairById: successfully left group');
       }
       return;
     }

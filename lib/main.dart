@@ -55,6 +55,11 @@ class _LoveAppState extends State<LoveApp> {
     _init();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   Future<void> _init() async {
     await _userData.loadFromPrefs();
     if (mounted) setState(() => _loading = false);
