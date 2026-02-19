@@ -82,9 +82,9 @@ class _LoveAppState extends State<LoveApp> {
     if (!_userData.hasSeenWelcome) {
       return WelcomeScreen(userData: _userData);
     }
-    // 2. Seen welcome but not registered — show setup
+    // 2. Seen welcome but not registered — show welcome (Login/Register choice)
     if (!_userData.isRegistered) {
-      return SetupScreen(userData: _userData);
+      return WelcomeScreen(userData: _userData);
     }
     // 3. Fully registered — go home
     return HomeScreen(userData: _userData);

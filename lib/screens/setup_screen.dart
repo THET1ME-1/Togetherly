@@ -1,8 +1,11 @@
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 
 class SetupScreen extends StatefulWidget {
   final UserData userData;
@@ -21,7 +24,10 @@ class _SetupScreenState extends State<SetupScreen>
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   String _avatarUrl = '';
+  XFile? _selectedAvatarFile; // Локальный файл для загрузки после регистрации
+  bool _obscurePassword = true;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -69,6 +75,7 @@ class _SetupScreenState extends State<SetupScreen>
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -118,34 +125,58 @@ class _SetupScreenState extends State<SetupScreen>
             ),
           );
         } else {
-          // New user - fill in the form fields
-          _nameController.text = user.displayName ?? '';
-          _emailController.text = user.email ?? '';
-          _avatarUrl = user.photoURL ?? '';
-          setState(() {});
+          // New user via Google — register immediately and go to home
+          final displayName = user.displayName ?? '';
+          final email = user.email ?? '';
+          final avatarUrl = user.photoURL ?? '';
+          final gender = _selectedGender ?? Gender.female;
+
+          // Save profile to Firestore
+          await fb.saveUserProfile(
+            displayName: displayName,
+            email: email,
+            avatarUrl: avatarUrl,
+            gender: gender == Gender.male ? 'male' : 'female',
+          );
+
+          await widget.userData.register(
+            displayName: displayName,
+            email: email,
+            gender: gender,
+            avatarUrl: avatarUrl,
+          );
+
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) =>
+                  HomeScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, __, child) =>
+                  FadeTransition(opacity: animation, child: child),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
         }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка входа через Google: $e'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
         setState(() => _isLoading = false);
+        final errorMsg = e.toString();
+        if (errorMsg.contains('TimeoutException')) {
+          _showError('Google не отвечает. Проверьте интернет.');
+        } else {
+          _showError('Ошибка входа через Google: $errorMsg');
+        }
       }
-    } finally {
-      if (mounted && !_isLoading) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _completeSetup() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
     if (name.isEmpty) {
       _showError('Введите ваше имя');
@@ -167,8 +198,12 @@ class _SetupScreenState extends State<SetupScreen>
 
       // Если пользователь не залогинен (ввёл данные вручную), создаём аккаунт
       if (!fb.isLoggedIn) {
-        // Генерируем случайный пароль для email/password аутентификации
-        final password = _generateRandomPassword();
+        // Проверяем пароль только для ручной регистрации
+        if (password.length < 6) {
+          _showError('Пароль должен быть минимум 6 символов');
+          if (mounted) setState(() => _isLoading = false);
+          return;
+        }
         await fb.signUpWithEmailPassword(
           email: email,
           password: password,
@@ -176,12 +211,29 @@ class _SetupScreenState extends State<SetupScreen>
         );
       }
 
+      // Загружаем аватарку, если выбрана
+      String finalAvatarUrl = _avatarUrl;
+      if (_selectedAvatarFile != null) {
+        final userId = fb.currentUser?.uid ?? '';
+        if (userId.isNotEmpty) {
+          final ext = _selectedAvatarFile!.path.split('.').last;
+          final destination = 'avatars/$userId/profile.$ext';
+          final uploadedUrl = await fb.uploadFile(
+            _selectedAvatarFile!.path,
+            destination,
+          );
+          if (uploadedUrl != null) {
+            finalAvatarUrl = uploadedUrl;
+          }
+        }
+      }
+
       // Регистрируем пользователя в приложении
       await widget.userData.register(
         displayName: name,
         email: email,
         gender: _selectedGender!,
-        avatarUrl: _avatarUrl,
+        avatarUrl: finalAvatarUrl,
       );
 
       if (!mounted) return;
@@ -196,13 +248,14 @@ class _SetupScreenState extends State<SetupScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+        final errorMsg = e.toString();
         // Проверяем, не существует ли уже аккаунт с таким email
-        if (e.toString().contains('email-already-in-use')) {
-          _showError(
-            'Этот email уже используется. Попробуйте войти через Google.',
-          );
+        if (errorMsg.contains('email-already-in-use')) {
+          _showEmailExistsDialog();
+        } else if (errorMsg.contains('TimeoutException')) {
+          _showError('Сервер не отвечает. Проверьте интернет.');
         } else {
-          _showError('Ошибка регистрации: ${e.toString()}');
+          _showError('Ошибка регистрации: $errorMsg');
         }
       }
     }
@@ -216,6 +269,53 @@ class _SetupScreenState extends State<SetupScreen>
     return List.generate(20, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
+  void _showEmailExistsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Аккаунт существует',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Этот email уже зарегистрирован. Хотите войти в существующий аккаунт?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Отмена',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) =>
+                      LoginScreen(userData: widget.userData),
+                  transitionsBuilder: (_, animation, __, child) =>
+                      FadeTransition(opacity: animation, child: child),
+                  transitionDuration: const Duration(milliseconds: 300),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Войти'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -226,6 +326,24 @@ class _SetupScreenState extends State<SetupScreen>
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       ),
     );
+  }
+
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
+
+    if (image == null || !mounted) return;
+
+    // Сохраняем локально для превью и последующей загрузки после регистрации
+    setState(() {
+      _selectedAvatarFile = image;
+      _avatarUrl = ''; // Очищаем URL, так как показываем локальный файл
+    });
   }
 
   @override
@@ -449,7 +567,7 @@ class _SetupScreenState extends State<SetupScreen>
           const SizedBox(height: 24),
           // Avatar
           GestureDetector(
-            onTap: () {}, // Could add image picker later
+            onTap: _pickAvatar,
             child: Stack(
               children: [
                 Container(
@@ -470,7 +588,14 @@ class _SetupScreenState extends State<SetupScreen>
                       ),
                     ],
                   ),
-                  child: _avatarUrl.isNotEmpty
+                  child: _selectedAvatarFile != null
+                      ? ClipOval(
+                          child: Image.file(
+                            File(_selectedAvatarFile!.path),
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : _avatarUrl.isNotEmpty
                       ? ClipOval(
                           child: Image.network(
                             _avatarUrl,
@@ -622,6 +747,9 @@ class _SetupScreenState extends State<SetupScreen>
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
           ),
+          const SizedBox(height: 16),
+          // Password field
+          _buildPasswordField(),
           const SizedBox(height: 36),
           // Complete button
           SizedBox(
@@ -656,6 +784,38 @@ class _SetupScreenState extends State<SetupScreen>
                       ),
                     ),
             ),
+          ),
+          const SizedBox(height: 20),
+          // Login link
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Уже есть аккаунт? ',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) =>
+                          LoginScreen(userData: widget.userData),
+                      transitionsBuilder: (_, animation, __, child) =>
+                          FadeTransition(opacity: animation, child: child),
+                      transitionDuration: const Duration(milliseconds: 300),
+                    ),
+                  );
+                },
+                child: Text(
+                  'Войти',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _accent,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Text(
@@ -711,6 +871,78 @@ class _SetupScreenState extends State<SetupScreen>
                 fontWeight: FontWeight.w400,
               ),
               prefixIcon: Icon(icon, color: _accent, size: 20),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.75),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: _accent, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 16,
+                horizontal: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Пароль',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: TextField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade900,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Минимум 6 символов',
+              hintStyle: TextStyle(
+                color: Colors.grey.shade400,
+                fontWeight: FontWeight.w400,
+              ),
+              prefixIcon: Icon(
+                Icons.lock_outline_rounded,
+                color: _accent,
+                size: 20,
+              ),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: Colors.grey.shade500,
+                  size: 20,
+                ),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+              ),
               filled: true,
               fillColor: Colors.white.withOpacity(0.75),
               border: OutlineInputBorder(

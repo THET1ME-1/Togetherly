@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
-import 'setup_screen.dart';
+import '../services/firebase_service.dart';
+import 'welcome_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final UserData userData;
   final PairData pairData;
   const ProfileScreen({
@@ -12,8 +15,13 @@ class ProfileScreen extends StatelessWidget {
     required this.pairData,
   });
 
-  Color get _accent => userData.themeAccent;
-  Color get _accentLight => userData.themeAccentLight;
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Color get _accent => widget.userData.themeAccent;
+  Color get _accentLight => widget.userData.themeAccentLight;
 
   @override
   Widget build(BuildContext context) {
@@ -55,43 +63,72 @@ class ProfileScreen extends StatelessWidget {
     return Column(
       children: [
         // Avatar with glow
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withOpacity(0.2),
-                blurRadius: 32,
-                spreadRadius: 4,
+        GestureDetector(
+          onTap: () => _editProfile(context),
+          child: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _accent.withOpacity(0.2),
+                      blurRadius: 32,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _accentLight,
+                    border: Border.all(
+                      color: _accent.withOpacity(0.25),
+                      width: 3,
+                    ),
+                  ),
+                  child: widget.userData.avatarUrl.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            widget.userData.avatarUrl,
+                            fit: BoxFit.cover,
+                            cacheWidth: 200,
+                            cacheHeight: 200,
+                            errorBuilder: (_, __, ___) =>
+                                _buildAvatarFallback(),
+                          ),
+                        )
+                      : _buildAvatarFallback(),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                  ),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
               ),
             ],
-          ),
-          child: Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _accentLight,
-              border: Border.all(color: _accent.withOpacity(0.25), width: 3),
-            ),
-            child: userData.avatarUrl.isNotEmpty
-                ? ClipOval(
-                    child: Image.network(
-                      userData.avatarUrl,
-                      fit: BoxFit.cover,
-                      cacheWidth: 200,
-                      cacheHeight: 200,
-                      errorBuilder: (_, __, ___) => _buildAvatarFallback(),
-                    ),
-                  )
-                : _buildAvatarFallback(),
           ),
         ),
         const SizedBox(height: 16),
         // Name
         Text(
-          userData.displayName.isNotEmpty
-              ? userData.displayName
+          widget.userData.displayName.isNotEmpty
+              ? widget.userData.displayName
               : 'Пользователь',
           style: TextStyle(
             fontSize: 24,
@@ -102,7 +139,9 @@ class ProfileScreen extends StatelessWidget {
         const SizedBox(height: 4),
         // Email
         Text(
-          userData.email.isNotEmpty ? userData.email : 'Нет email',
+          widget.userData.email.isNotEmpty
+              ? widget.userData.email
+              : 'Нет email',
           style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
         ),
         const SizedBox(height: 12),
@@ -118,13 +157,15 @@ class ProfileScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                userData.isMale ? Icons.male_rounded : Icons.female_rounded,
+                widget.userData.isMale
+                    ? Icons.male_rounded
+                    : Icons.female_rounded,
                 color: _accent,
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
-                userData.isMale ? 'Парень' : 'Девушка',
+                widget.userData.isMale ? 'Парень' : 'Девушка',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -141,12 +182,273 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildAvatarFallback() {
     return Center(
       child: Text(
-        userData.initials,
+        widget.userData.initials,
         style: TextStyle(
           fontSize: 36,
           fontWeight: FontWeight.w800,
           color: _accent.withOpacity(0.6),
         ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  EDIT PROFILE
+  // ═══════════════════════════════════════════════════
+  Future<void> _editProfile(BuildContext context) async {
+    final nameController = TextEditingController(
+      text: widget.userData.displayName,
+    );
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Редактировать профиль',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // Avatar edit
+              Center(
+                child: GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _changeAvatar();
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _accentLight,
+                          border: Border.all(
+                            color: _accent.withOpacity(0.2),
+                            width: 3,
+                          ),
+                        ),
+                        child: widget.userData.avatarUrl.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  widget.userData.avatarUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildAvatarFallback(),
+                                ),
+                              )
+                            : _buildAvatarFallback(),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: _accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Name field
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Имя',
+                  prefixIcon: const Icon(Icons.person_outline_rounded),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final newName = nameController.text.trim();
+                    if (newName.isNotEmpty &&
+                        newName != widget.userData.displayName) {
+                      await _changeName(newName);
+                    }
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Сохранить',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeAvatar() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
+
+    if (image == null || !mounted) return;
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: _accent),
+                const SizedBox(height: 16),
+                Text(
+                  'Загрузка...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final fb = FirebaseService();
+      final userId = fb.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        if (mounted) Navigator.of(context).pop();
+        if (mounted) _showError('Ошибка: пользователь не авторизован');
+        return;
+      }
+
+      final ext = image.path.split('.').last;
+      final destination = 'avatars/$userId/profile.$ext';
+      final downloadUrl = await fb.uploadFile(image.path, destination);
+
+      if (mounted) Navigator.of(context).pop();
+
+      if (downloadUrl == null) {
+        if (mounted) _showError('Не удалось загрузить изображение');
+        return;
+      }
+
+      // Update profile
+      await widget.userData.updateProfile(avatarUrl: downloadUrl);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Аватарка обновлена'),
+            backgroundColor: _accent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      if (mounted) _showError('Ошибка загрузки: ${e.toString()}');
+    }
+  }
+
+  Future<void> _changeName(String newName) async {
+    try {
+      await widget.userData.updateProfile(displayName: newName);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Имя обновлено'),
+            backgroundColor: _accent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) _showError('Ошибка: ${e.toString()}');
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -172,25 +474,31 @@ class ProfileScreen extends StatelessWidget {
           _infoRow(
             icon: Icons.person_outline_rounded,
             label: 'Имя',
-            value: userData.displayName.isNotEmpty ? userData.displayName : '—',
+            value: widget.userData.displayName.isNotEmpty
+                ? widget.userData.displayName
+                : '—',
           ),
           _divider(),
           _infoRow(
             icon: Icons.email_outlined,
             label: 'Email',
-            value: userData.email.isNotEmpty ? userData.email : '—',
+            value: widget.userData.email.isNotEmpty
+                ? widget.userData.email
+                : '—',
           ),
           _divider(),
           _infoRow(
-            icon: userData.isMale ? Icons.male_rounded : Icons.female_rounded,
+            icon: widget.userData.isMale
+                ? Icons.male_rounded
+                : Icons.female_rounded,
             label: 'Пол',
-            value: userData.isMale ? 'Мужской' : 'Женский',
+            value: widget.userData.isMale ? 'Мужской' : 'Женский',
           ),
           _divider(),
           _infoRow(
             icon: Icons.palette_outlined,
             label: 'Тема',
-            value: userData.isMale ? 'Синяя' : 'Розовая',
+            value: widget.userData.isMale ? 'Синяя' : 'Розовая',
             trailing: Container(
               width: 20,
               height: 20,
@@ -282,14 +590,16 @@ class ProfileScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: pairData.isPaired
+                  color: widget.pairData.isPaired
                       ? const Color(0xFF22C55E).withOpacity(0.1)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  pairData.isPaired ? Icons.favorite : Icons.favorite_border,
-                  color: pairData.isPaired
+                  widget.pairData.isPaired
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  color: widget.pairData.isPaired
                       ? const Color(0xFF22C55E)
                       : Colors.grey.shade400,
                   size: 18,
@@ -310,11 +620,11 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      pairData.isPaired ? 'В паре' : 'Без пары',
+                      widget.pairData.isPaired ? 'В паре' : 'Без пары',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: pairData.isPaired
+                        color: widget.pairData.isPaired
                             ? const Color(0xFF22C55E)
                             : Colors.grey.shade600,
                       ),
@@ -324,21 +634,21 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-          if (pairData.isPaired) ...[
+          if (widget.pairData.isPaired) ...[
             _divider(),
             _infoRow(
               icon: Icons.person_rounded,
               label: 'Партнёр',
-              value: pairData.partnerName,
+              value: widget.pairData.partnerName,
             ),
             _divider(),
             _infoRow(
               icon: Icons.calendar_today_rounded,
               label: 'Вместе',
-              value: '${pairData.daysInLove} дней',
+              value: '${widget.pairData.daysInLove} дней',
             ),
           ],
-          if (!pairData.isPaired) ...[
+          if (!widget.pairData.isPaired) ...[
             const SizedBox(height: 12),
             Text(
               'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️',
@@ -504,8 +814,8 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showEditProfileDialog(BuildContext context) {
-    final nameCtrl = TextEditingController(text: userData.displayName);
-    final emailCtrl = TextEditingController(text: userData.email);
+    final nameCtrl = TextEditingController(text: widget.userData.displayName);
+    final emailCtrl = TextEditingController(text: widget.userData.email);
 
     showDialog(
       context: context,
@@ -543,7 +853,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              userData.updateProfile(
+              widget.userData.updateProfile(
                 displayName: nameCtrl.text.trim(),
                 email: emailCtrl.text.trim(),
               );
@@ -571,11 +881,11 @@ class ProfileScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await userData.logout();
+              await widget.userData.logout();
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (_) => SetupScreen(userData: userData),
+                    builder: (_) => WelcomeScreen(userData: widget.userData),
                   ),
                   (_) => false,
                 );

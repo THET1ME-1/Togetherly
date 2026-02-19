@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import 'setup_screen.dart';
+import 'login_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final UserData userData;
@@ -91,7 +92,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const Spacer(flex: 2),
-                // Continue button
+                // Create Account button
                 SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -122,19 +123,51 @@ class WelcomeScreen extends StatelessWidget {
                       elevation: 12,
                       shadowColor: _primary.withOpacity(0.4),
                     ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Continue',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
+                    child: const Text(
+                      'Создать аккаунт',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Login button
+                SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await userData.markWelcomeSeen();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pushReplacement(
+                        PageRouteBuilder(
+                          pageBuilder: (_, __, ___) =>
+                              LoginScreen(userData: userData),
+                          transitionsBuilder: (_, animation, __, child) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                          transitionDuration: const Duration(milliseconds: 400),
                         ),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded, size: 20),
-                      ],
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _primary,
+                      side: BorderSide(color: _primary, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                    ),
+                    child: const Text(
+                      'Уже есть аккаунт',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

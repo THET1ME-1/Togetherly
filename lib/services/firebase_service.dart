@@ -32,10 +32,14 @@ class FirebaseService {
 
   Future<User?> signInWithGoogle() async {
     try {
-      final googleAccount = await _googleSignIn.signIn();
+      final googleAccount = await _googleSignIn.signIn().timeout(
+        const Duration(seconds: 30),
+      );
       if (googleAccount == null) return null;
 
-      final googleAuth = await googleAccount.authentication;
+      final googleAuth = await googleAccount.authentication.timeout(
+        const Duration(seconds: 15),
+      );
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -78,10 +82,9 @@ class FirebaseService {
   }) async {
     try {
       debugPrint('Firebase Auth: creating account with email...');
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 15));
       final user = userCredential.user;
       if (user == null) return null;
 
@@ -120,10 +123,9 @@ class FirebaseService {
   }) async {
     try {
       debugPrint('Firebase Auth: signing in with email...');
-      final userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await _auth
+          .signInWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 15));
       return userCredential.user;
     } catch (e) {
       debugPrint('signInWithEmailPassword failed: $e');
@@ -226,20 +228,29 @@ class FirebaseService {
     required String email,
     required String gender,
     String avatarUrl = '',
+    bool clearPairData = false,
   }) async {
     final u = currentUser;
     if (u == null) return;
     try {
+      final data = {
+        'displayName': displayName,
+        'email': email,
+        'gender': gender,
+        'avatarUrl': avatarUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Clear pair data if this is a new registration
+      if (clearPairData) {
+        data['pairId'] = '';
+        data['pairIds'] = [];
+      }
+
       await _db
           .collection('users')
           .doc(u.uid)
-          .set({
-            'displayName': displayName,
-            'email': email,
-            'gender': gender,
-            'avatarUrl': avatarUrl,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true))
+          .set(data, SetOptions(merge: true))
           .timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('saveUserProfile failed: $e');

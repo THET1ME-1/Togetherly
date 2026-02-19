@@ -132,7 +132,28 @@ class UserData extends ChangeNotifier {
     required String email,
     required Gender gender,
     String avatarUrl = '',
+    bool isReturningUser = false, // For login - don't clear data
   }) async {
+    // Clear old connection data when registering new user
+    final prefs = await SharedPreferences.getInstance();
+    final storedUid = prefs.getString('uid') ?? '';
+    final currentUid = _fb.uid ?? '';
+
+    // isNewUser = UID changed AND this is NOT a returning user (login)
+    final isNewUser =
+        storedUid != currentUid && currentUid.isNotEmpty && !isReturningUser;
+
+    // If UID changed and this is fresh registration, clear ALL old data
+    if (isNewUser) {
+      await prefs.remove('connections');
+      await prefs.remove('activeConnectionIndex');
+      await prefs.remove('user_timers');
+      await prefs.remove('timer_selected_time_unit');
+      debugPrint(
+        'Cleared old connections & timers for new user: $storedUid -> $currentUid',
+      );
+    }
+
     _displayName = displayName;
     _email = email;
     _gender = gender;
@@ -148,6 +169,7 @@ class UserData extends ChangeNotifier {
         email: email,
         gender: gender == Gender.male ? 'male' : 'female',
         avatarUrl: avatarUrl,
+        clearPairData: isNewUser, // Clear Firestore pair data for new users
       );
     }
     notifyListeners();
@@ -194,6 +216,9 @@ class UserData extends ChangeNotifier {
     // Clear connection data as well
     await prefs.remove('connections');
     await prefs.remove('activeConnectionIndex');
+    // Clear timer data so new user doesn't see old timers
+    await prefs.remove('user_timers');
+    await prefs.remove('timer_selected_time_unit');
     notifyListeners();
   }
 }

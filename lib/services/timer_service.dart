@@ -247,6 +247,17 @@ class TimerService extends ChangeNotifier {
     );
   }
 
+  /// Полная очистка всех таймеров — при выходе или новой регистрации.
+  Future<void> clearAll() async {
+    _timers.clear();
+    _firestoreSub?.cancel();
+    _firestoreSub = null;
+    _groupId = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey);
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _firestoreSub?.cancel();
