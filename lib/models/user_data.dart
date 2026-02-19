@@ -191,6 +191,9 @@ class UserData extends ChangeNotifier {
     await prefs.remove('avatarUrl');
     await prefs.remove('gender');
     await prefs.remove('uid');
+    // Clear connection data as well
+    await prefs.remove('connections');
+    await prefs.remove('activeConnectionIndex');
     notifyListeners();
   }
 }

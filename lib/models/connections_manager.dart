@@ -411,6 +411,21 @@ class ConnectionsManager extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
+      // Check if stored uid matches current Firebase Auth uid
+      final storedUid = prefs.getString('uid') ?? '';
+      final currentUid = _fb.uid ?? '';
+
+      // If uids don't match, clear all connection data
+      if (storedUid.isNotEmpty &&
+          currentUid.isNotEmpty &&
+          storedUid != currentUid) {
+        debugPrint(
+          'UID mismatch: stored=$storedUid, current=$currentUid. Clearing connections.',
+        );
+        await clearAllData();
+        return;
+      }
+
       final connectionsStr = prefs.getString('connections');
       if (connectionsStr != null) {
         final List<dynamic> connectionsJson = jsonDecode(connectionsStr);
@@ -432,6 +447,21 @@ class ConnectionsManager extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Failed to load connections: $e');
+    }
+  }
+
+  /// Clear all connection data from SharedPreferences
+  Future<void> clearAllData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('connections');
+      await prefs.remove('activeConnectionIndex');
+      _connections.clear();
+      _activeConnectionIndex = 0;
+      notifyListeners();
+      debugPrint('Cleared all connection data');
+    } catch (e) {
+      debugPrint('Failed to clear connection data: $e');
     }
   }
 

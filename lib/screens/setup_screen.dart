@@ -86,10 +86,44 @@ class _SetupScreenState extends State<SetupScreen>
       final fb = FirebaseService();
       final user = await fb.signInWithGoogle();
       if (user != null) {
-        _nameController.text = user.displayName ?? '';
-        _emailController.text = user.email ?? '';
-        _avatarUrl = user.photoURL ?? '';
-        setState(() {});
+        // Try to load existing user profile from Firestore
+        final profile = await fb.loadUserProfile();
+
+        if (profile != null &&
+            profile['displayName'] != null &&
+            profile['gender'] != null) {
+          // User already has a profile in Firestore - auto-register and go to home
+          final displayName = profile['displayName'] as String;
+          final email = profile['email'] as String? ?? user.email ?? '';
+          final avatarUrl =
+              profile['avatarUrl'] as String? ?? user.photoURL ?? '';
+          final genderStr = profile['gender'] as String;
+          final gender = genderStr == 'male' ? Gender.male : Gender.female;
+
+          await widget.userData.register(
+            displayName: displayName,
+            email: email,
+            gender: gender,
+            avatarUrl: avatarUrl,
+          );
+
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) =>
+                  HomeScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, __, child) =>
+                  FadeTransition(opacity: animation, child: child),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+        } else {
+          // New user - fill in the form fields
+          _nameController.text = user.displayName ?? '';
+          _emailController.text = user.email ?? '';
+          _avatarUrl = user.photoURL ?? '';
+          setState(() {});
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -102,9 +136,10 @@ class _SetupScreenState extends State<SetupScreen>
             ),
           ),
         );
+        setState(() => _isLoading = false);
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !_isLoading) setState(() => _isLoading = false);
     }
   }
 
