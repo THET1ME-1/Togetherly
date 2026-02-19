@@ -478,7 +478,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     return Column(
       children: [
         const SizedBox(height: 8),
-        Divider(color: Colors.grey.shade200, height: 1),
+        Divider(color: Colors.white.withOpacity(0.2), height: 1),
         // Header row
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
@@ -489,22 +489,22 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade800,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: widget.primary.withOpacity(0.1),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${timers.length}',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: widget.primary,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -521,24 +521,24 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: widget.primary.withOpacity(0.1),
+                      color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.add_rounded,
                           size: 18,
-                          color: widget.primary,
+                          color: Colors.white,
                         ),
                         const SizedBox(width: 4),
-                        Text(
+                        const Text(
                           'New',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: widget.primary,
+                            color: Colors.white,
                           ),
                         ),
                       ],
@@ -570,20 +570,27 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timer_outlined, size: 48, color: Colors.grey.shade300),
+          Icon(
+            Icons.timer_outlined,
+            size: 48,
+            color: Colors.white.withOpacity(0.35),
+          ),
           const SizedBox(height: 12),
           Text(
             'No timers yet',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade400,
+              color: Colors.white.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'Tap "New" to create your first timer',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.45),
+            ),
           ),
         ],
       ),
@@ -598,13 +605,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       child: Container(
         decoration: BoxDecoration(
           color: isDefault
-              ? widget.primary.withOpacity(0.06)
-              : Colors.grey.shade50,
+              ? Colors.white.withOpacity(0.18)
+              : Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDefault
-                ? widget.primary.withOpacity(0.18)
-                : Colors.grey.shade200,
+                ? Colors.white.withOpacity(0.45)
+                : Colors.white.withOpacity(0.20),
             width: isDefault ? 1.5 : 1,
           ),
         ),
@@ -620,7 +627,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: widget.primary.withOpacity(0.08),
+                    color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -641,10 +648,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                           Flexible(
                             child: Text(
                               timer.title,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade800,
+                                color: Colors.white,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -658,15 +665,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: widget.primary.withOpacity(0.12),
+                                color: Colors.white.withOpacity(0.20),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'DEFAULT',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: widget.primary,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -701,7 +708,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                             : '${timer.daysElapsed} days • since ${timer.formattedStartDate}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: Colors.white.withOpacity(0.65),
                         ),
                       ),
                     ],
@@ -712,7 +719,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   icon: Icon(
                     Icons.more_vert_rounded,
                     size: 20,
-                    color: Colors.grey.shade400,
+                    color: Colors.white.withOpacity(0.70),
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
