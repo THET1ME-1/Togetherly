@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -34,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   int _selectedNavIndex = 0;
-  bool _showReflection = true;
+  bool _showReflection = false;
   Timer? _timer;
   StreamSubscription? _deepLinkSub;
 
@@ -96,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.userData.addListener(_onUserChanged);
     _timerService.init();
     _initPairData();
+    _loadReflectionState();
 
     // Dynamic timer - only start when needed (Time mode)
     _startTimerIfNeeded();
@@ -196,9 +198,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final alreadyAnswered =
             (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
             false;
+        if (alreadyAnswered) {
+          // Сохраняем в prefs, чтобы после перезапуска не показывать
+          _markReflectionAnsweredToday();
+        }
         setState(() {
           _todayReflection = data;
-          // Если уже ответил — скрываем карточку (и после перезапуска тоже)
           if (alreadyAnswered) _showReflection = false;
         });
       },
@@ -207,6 +212,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onUserChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// Ключ для SharedPreferences: уникален для каждого пользователя + дня
+  String get _reflectionPrefKey {
+    final today = DateTime.now();
+    final dateStr =
+        '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
+    return 'reflection_answered_${widget.userData.uid}_$dateStr';
+  }
+
+  /// Загружает из SharedPreferences — отвечал ли пользователь сегодня
+  Future<void> _loadReflectionState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final answeredToday = prefs.getBool(_reflectionPrefKey) ?? false;
+    if (mounted) setState(() => _showReflection = !answeredToday);
+  }
+
+  /// Сохраняет в SharedPreferences, что пользователь ответил сегодня
+  Future<void> _markReflectionAnsweredToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_reflectionPrefKey, true);
   }
 
   // -- Computed Values --
@@ -2053,6 +2079,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       answer: text,
                       authorName: widget.userData.displayName,
                     );
+                    // Сохраняем факт ответа локально — чтобы не показывать завтра
+                    await _markReflectionAnsweredToday();
                     if (mounted) {
                       setState(() => _reflectionJustSaved = true);
                       await Future.delayed(const Duration(seconds: 1));

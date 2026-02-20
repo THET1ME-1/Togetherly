@@ -258,6 +258,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   compactContent,
                   t,
                   bottomPadding,
+                  collapsedHeight,
                 ),
               ),
             ),
@@ -272,43 +273,52 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     Widget compactContent,
     double t,
     double bottomPadding,
+    double collapsedHeight,
   ) {
-    return Stack(
+    // ConstrainedBox задаёт минимальную высоту компактной секции:
+    // - t=0 (закрыта): minHeight = collapsedHeight (280px) → картинка заполняет
+    //   всю карточку, включая скругления внизу.
+    // - t=1 (открыта): minHeight = 0 → Stack = высота контента → картинка
+    //   точно до белой разделительной линии.
+    final compactSection = bgImage != null
+        ? ConstrainedBox(
+            constraints: BoxConstraints(minHeight: collapsedHeight * (1.0 - t)),
+            child: Stack(
+              children: [
+                Positioned.fill(child: bgImage),
+                compactContent,
+              ],
+            ),
+          )
+        : compactContent;
+
+    return Column(
       children: [
-        // -- Custom background image --
-        if (bgImage != null) bgImage,
-        // -- Gradient overlay (decorative circles) --
-        // -- Content --
-        Column(
-          children: [
-            compactContent,
-            if (t > 0.01)
-              Expanded(
-                child: FadeTransition(
-                  opacity: _expandAnim,
-                  child: _buildExpandedContent(),
-                ),
-              )
-            else
-              const Spacer(),
-          ],
-        ),
-        // -- Arrow button встроен в _buildTimeToggle --
+        compactSection,
+        if (t > 0.01)
+          Expanded(
+            child: FadeTransition(
+              opacity: _expandAnim,
+              child: _buildExpandedContent(),
+            ),
+          )
+        else
+          const Spacer(),
       ],
     );
   }
 
-  /// Фоновое изображение — кешированный виджет, не зависит от анимации
+  /// Фоновое изображение — обычный виджет (без Positioned).
+  /// Оборачивается в Positioned.fill в _buildCardStack.
   Widget? _buildBackgroundImage() {
     final path = _displayTimer?.backgroundImagePath;
     if (path == null) return null;
 
     // Если идёт загрузка — показываем индикатор
     if (_uploadingBackgroundId == _displayTimer!.id) {
-      return const SizedBox(
-        height: 280,
-        width: double.infinity,
-        child: Center(child: CircularProgressIndicator()),
+      return const DecoratedBox(
+        decoration: BoxDecoration(color: Color(0x33000000)),
+        child: Center(child: CircularProgressIndicator(color: Colors.white70)),
       );
     }
 
@@ -322,35 +332,32 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
     debugPrint('ExpandableTimerCard: загружаю фон из сети: $path');
 
-    return SizedBox(
-      height: 280,
-      width: double.infinity,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.network(
-              path,
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              cacheWidth: 720,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  color: Colors.black26,
-                  child: const Center(
-                    child: CircularProgressIndicator(color: Colors.white70),
-                  ),
-                );
-              },
-              errorBuilder: (_, error, __) {
-                debugPrint('ExpandableTimerCard: ошибка загрузки фона: $error');
-                return const SizedBox.shrink();
-              },
-            ),
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Positioned.fill(
+          child: Image.network(
+            path,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            cacheWidth: 720,
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return Container(
+                color: Colors.black26,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white70),
+                ),
+              );
+            },
+            errorBuilder: (_, error, __) {
+              debugPrint('ExpandableTimerCard: ошибка загрузки фона: $error');
+              return const SizedBox.shrink();
+            },
           ),
-          const Positioned.fill(child: DecoratedBox(decoration: _darkOverlay)),
-        ],
-      ),
+        ),
+        const Positioned.fill(child: DecoratedBox(decoration: _darkOverlay)),
+      ],
     );
   }
 
