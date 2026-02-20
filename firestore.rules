@@ -62,6 +62,11 @@ service cloud.firestore {
         allow write: if request.auth != null && request.auth.uid == userId;
       }
 
+      match /widgetData/{userId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+
       match /reflections/{date} {
         allow read: if request.auth != null
                     && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;

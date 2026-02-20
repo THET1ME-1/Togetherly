@@ -57,17 +57,18 @@ class _LoveAppState extends State<LoveApp> {
   }
 
   Future<void> _init() async {
-    // Ждём, пока Firebase Auth восстановит сессию.
-    // authStateChanges() первым эмитом может дать null ещё до того,
-    // как токен будет проверен — это вызывало редирект на WelcomeScreen.
-    await FirebaseAuth.instance.authStateChanges().first.timeout(
-      const Duration(seconds: 5),
-      onTimeout: () => null,
-    );
-    // Теперь _fb.isLoggedIn корректен — loadFromPrefs сможет подтянуть
-    // данные из Firestore, если пользователь авторизован.
-    await _userData.loadFromPrefs();
-    if (mounted) setState(() => _loading = false);
+    try {
+      // Ждём, пока Firebase Auth восстановит сессию.
+      await FirebaseAuth.instance.authStateChanges().first.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => null,
+      );
+      await _userData.loadFromPrefs();
+    } catch (_) {
+      // Даже при ошибке убираем спиннер
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -79,14 +80,11 @@ class _LoveAppState extends State<LoveApp> {
       home: _loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : StreamBuilder<User?>(
+              // initialData позволяет сразу использовать текущего пользователя
+              // без ожидания первого эмита стрима — критично при запуске через виджет
+              initialData: FirebaseAuth.instance.currentUser,
               stream: FirebaseAuth.instance.authStateChanges(),
               builder: (context, snapshot) {
-                // Firebase ещё восстанавливает сессию — показываем сплэш
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
                 return _buildInitialScreen(firebaseUser: snapshot.data);
               },
             ),

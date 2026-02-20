@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
@@ -17,6 +18,8 @@ import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
+import '../services/widget_service.dart';
+import 'widget_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -49,6 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Mood service --
   final MoodService _moodService = MoodService();
+
+  // -- Widget service --
+  final WidgetService _widgetService = WidgetService();
 
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
@@ -102,6 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Dynamic timer - only start when needed (Time mode)
     _startTimerIfNeeded();
 
+    // Check if launched from homescreen widget → open Widgets tab
+    _checkWidgetLaunch();
+    HomeWidget.widgetClicked.listen(_onWidgetClicked);
+
     // Listen to deep link invites
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
       if (mounted && !_pairData.isPaired) {
@@ -120,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _reflectionSub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
+    _widgetService.dispose();
     _pairData.dispose();
     super.dispose();
   }
@@ -127,6 +138,34 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _initPairData() async {
     await _pairData.init(myName: widget.userData.displayName);
     if (mounted) setState(() => _pairLoading = false);
+  }
+
+  /// Проверяем, открыто ли приложение по клику на виджет
+  Future<void> _checkWidgetLaunch() async {
+    try {
+      final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      if (uri != null) {
+        _handleWidgetUri(uri);
+      }
+    } catch (e) {
+      debugPrint('HomeWidget initial launch check failed: $e');
+    }
+  }
+
+  /// Обработка клика по виджету пока приложение работает
+  void _onWidgetClicked(Uri? uri) {
+    if (uri != null) {
+      _handleWidgetUri(uri);
+    }
+  }
+
+  void _handleWidgetUri(Uri uri) {
+    // loveapp://widgets → переключаемся на вкладку виджетов (index 1)
+    if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
+      if (mounted) {
+        setState(() => _selectedNavIndex = 1);
+      }
+    }
   }
 
   void _startTimerIfNeeded() {
@@ -151,6 +190,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Bind mood service to group for Firestore sync
         _moodService.bindToGroup(_pairData.pairId);
+
+        // Bind widget service to group for Firestore sync
+        _widgetService.bindToGroup(_pairData.pairId);
+        for (final p in _pairData.partners) {
+          _widgetService.listenToPartner(p.uid);
+        }
 
         // Create system timer if it doesn't exist yet
         _timerService.createSystemTimer(
@@ -418,33 +463,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =============================================
-  // WIDGETS TAB (shared widgets — placeholder)
+  // WIDGETS TAB
   // =============================================
   Widget _buildWidgetsTab() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.widgets_rounded, size: 48, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Shared Widgets',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _pairData.isPaired
-                ? 'Your shared widgets will appear here'
-                : 'Connect with a partner to start\nusing widgets together',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
+    return WidgetScreen(
+      pairData: _pairData,
+      widgetService: _widgetService,
+      theme: _t,
     );
   }
 
