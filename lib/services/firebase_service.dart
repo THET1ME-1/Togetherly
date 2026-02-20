@@ -1716,6 +1716,59 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  DAILY REFLECTION
+  // ══════════════════════════════════════════════
+
+  /// Сохранить / обновить ответ пользователя на вопрос дня.
+  /// Путь: groups/{groupId}/reflections/{YYYY-MM-DD}
+  Future<void> saveReflectionAnswer({
+    required String groupId,
+    required String question,
+    required String answer,
+    required String authorName,
+  }) async {
+    final uid = this.uid;
+    if (uid == null) return;
+    final dayKey = _reflectionDayKey(DateTime.now());
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('reflections')
+          .doc(dayKey)
+          .set({
+            'question': question,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'answers.$uid': {
+              'text': answer,
+              'authorName': authorName,
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('saveReflectionAnswer failed: $e');
+    }
+  }
+
+  /// Слушать рефлексию текущего дня в реальном времени.
+  StreamSubscription listenToTodayReflection({
+    required String groupId,
+    required void Function(Map<String, dynamic>? data) onData,
+  }) {
+    final dayKey = _reflectionDayKey(DateTime.now());
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('reflections')
+        .doc(dayKey)
+        .snapshots()
+        .listen((snap) => onData(snap.exists ? snap.data() : null));
+  }
+
+  static String _reflectionDayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // ══════════════════════════════════════════════
   //  HELPERS
   // ══════════════════════════════════════════════
 

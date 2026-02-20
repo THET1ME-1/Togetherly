@@ -53,11 +53,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   late Color _shadowColorExpanded;
 
   static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
+  static const _cardRadius = 32.0;
 
   AppTheme get _t => widget.theme;
 
   BorderRadius get _cardBorderRadius =>
-      BorderRadius.all(Radius.circular(_t.heroRadius));
+      const BorderRadius.all(Radius.circular(_cardRadius));
 
   BoxDecoration get _cardDecoration => BoxDecoration(
     borderRadius: _cardBorderRadius,
@@ -397,25 +398,28 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Counter number
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, anim) =>
-                  FadeTransition(opacity: anim, child: child),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                key: ValueKey(
-                  '$_selectedTimeUnit-${timer != null ? _counterValue(timer) : "0"}',
-                ),
-                child: Text(
-                  timer != null ? _counterValue(timer) : '0',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: _selectedTimeUnit == 2 ? 42 : 64,
-                    fontWeight: FontWeight.w800,
-                    color: timer != null
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.5),
-                    height: 1.1,
+            // Counter number — фиксированная высота чтобы не прыгало при смене режима
+            SizedBox(
+              height: 76,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (child, anim) =>
+                    FadeTransition(opacity: anim, child: child),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  key: ValueKey(
+                    '$_selectedTimeUnit-${timer != null ? _counterValue(timer) : "0"}',
+                  ),
+                  child: Text(
+                    timer != null ? _counterValue(timer) : '0',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 64,
+                      fontWeight: FontWeight.w800,
+                      color: timer != null
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.5),
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ),

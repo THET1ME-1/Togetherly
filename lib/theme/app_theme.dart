@@ -29,9 +29,6 @@ class AppTheme {
   /// Цвета градиента карточки [начало, конец]
   final List<Color> heroGradient;
 
-  /// Радиус скругления карточки
-  final double heroRadius;
-
   /// Цвет тени в свёрнутом состоянии
   final Color heroShadowBase;
 
@@ -62,6 +59,17 @@ class AppTheme {
   final Color iconCalendar;
   final Color iconPost;
 
+  // ── Нижняя навигация ───────────────────────────────────────────────────
+
+  /// Фон активной кнопки навигации
+  final Color navActiveBg;
+
+  /// Цвет иконки активного пункта навигации
+  final Color navActiveIcon;
+
+  /// Цвет кнопки "Ответить на вопрос" в Daily Reflection
+  final Color promptButtonColor;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -69,7 +77,6 @@ class AppTheme {
     required this.primaryLight,
     required this.bgGradient,
     required this.heroGradient,
-    required this.heroRadius,
     required this.heroShadowBase,
     required this.heroShadowExpanded,
     required this.heroGlassOpacity,
@@ -81,6 +88,9 @@ class AppTheme {
     required this.iconMood,
     required this.iconCalendar,
     required this.iconPost,
+    required this.navActiveBg,
+    required this.navActiveIcon,
+    required this.promptButtonColor,
   });
 }
 
@@ -97,7 +107,6 @@ abstract final class AppThemes {
     primaryLight: Color(0xFFFEEAF1),
     bgGradient: [Color(0xFFF7F3F0), Color(0xFFFFFFFF)],
     heroGradient: [Color(0xFFFFB4B0), Color(0xFFFF8E9E)],
-    heroRadius: 32,
     heroShadowBase: Color(0x26FF7E8B), // rgba(255,126,139, 0.15)
     heroShadowExpanded: Color(0x40FF7E8B), // rgba(255,126,139, 0.25)
     heroGlassOpacity: 0.20,
@@ -105,10 +114,13 @@ abstract final class AppThemes {
     heroToggleSelectedColor: Color(0xFFEE2B6C), // == primary
     cardSurface: Color(0xFFFFFFFF),
     cardBorder: Color(0xFFE5E5E5),
-    iconDraw: Color(0xFFFFB7B7),
-    iconMood: Color(0xFFFBBF24),
-    iconCalendar: Color(0xFF60A5FA),
-    iconPost: Color(0xFF34D399),
+    iconDraw: Color(0xFFFF7E8B),
+    iconMood: Color(0xFFFF7E8B),
+    iconCalendar: Color(0xFFFF7E8B),
+    iconPost: Color(0xFFFF7E8B),
+    navActiveBg: Color(0xFFF9E4E2),
+    navActiveIcon: Color(0xFFFF7E8B),
+    promptButtonColor: Color(0xFFFF7E8B),
   );
 
   // ── 1: Фиолетовая (Lavender) ──────────────────────────────────────────────
@@ -119,7 +131,6 @@ abstract final class AppThemes {
     primaryLight: Color(0xFFE6E6FA), // Soft Lavender
     bgGradient: [Color(0xFFE6E6FA), Color(0xFFF0FFF0)], // lavender → mint
     heroGradient: [Color(0xFF6C5B7B), Color(0xFF352F44)], // deep purple
-    heroRadius: 48,
     heroShadowBase: Color(0x0D000000), // black 5%
     heroShadowExpanded: Color(0x1A9B86BD), // lavender 10%
     heroGlassOpacity: 0.15,
@@ -131,6 +142,9 @@ abstract final class AppThemes {
     iconMood: Color(0xFF9B86BD),
     iconCalendar: Color(0xFF9B86BD),
     iconPost: Color(0xFF9B86BD),
+    navActiveBg: Color(0xFFEDE7F6),
+    navActiveIcon: Color(0xFF9B86BD),
+    promptButtonColor: Color(0xFF9B86BD),
   );
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────

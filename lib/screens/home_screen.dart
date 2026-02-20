@@ -54,6 +54,41 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Memory> _recentMemories = [];
   StreamSubscription? _memorySub;
 
+  // -- Daily Reflection --
+  Map<String, dynamic>? _todayReflection;
+  StreamSubscription? _reflectionSub;
+  bool _reflectionJustSaved = false;
+
+  static const _reflectionQuestions = [
+    'What is one small thing your partner did today that made you feel appreciated?',
+    'What moment with your partner made you smile today?',
+    'What is something you admire about your partner right now?',
+    'What is one thing you are grateful for in your relationship today?',
+    'What is a memory with your partner you keep coming back to?',
+    'What is one way your partner surprised you recently?',
+    'What makes your partner unique to you?',
+    'How did your partner support you today?',
+    'What is one thing you want your partner to know today?',
+    'What adventure would you love to go on with your partner?',
+    'What song reminds you of your partner and why?',
+    'What is the best thing about being with your partner?',
+    'What small act of kindness from your partner meant the most lately?',
+    'What is something new you have learned about your partner?',
+    'What is a goal you both share?',
+    'What is one thing you love doing together?',
+    'When did you last feel truly connected to your partner?',
+    'What would make tomorrow special for both of you?',
+    'What compliment do you want to give your partner today?',
+    'What is one habit of your partner you secretly adore?',
+  ];
+
+  String get _todayQuestion {
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year))
+        .inDays;
+    return _reflectionQuestions[dayOfYear % _reflectionQuestions.length];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
+    _reflectionSub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _pairData.dispose();
@@ -104,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onPairChanged() {
     if (mounted) {
       _startMemoryListener();
+      _startReflectionListener();
       _startTimerIfNeeded();
 
       if (_pairData.isPaired && _pairData.startDate != null) {
@@ -140,6 +177,30 @@ class _HomeScreenState extends State<HomeScreen> {
       limit: 10,
       onData: (memories) {
         if (mounted) setState(() => _recentMemories = memories);
+      },
+    );
+  }
+
+  void _startReflectionListener() {
+    _reflectionSub?.cancel();
+    final groupId = _pairData.pairId;
+    if (groupId.isEmpty || !_pairData.isPaired) {
+      _todayReflection = null;
+      return;
+    }
+    _reflectionSub = _fb.listenToTodayReflection(
+      groupId: groupId,
+      onData: (data) {
+        if (!mounted) return;
+        final myUid = widget.userData.uid;
+        final alreadyAnswered =
+            (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
+            false;
+        setState(() {
+          _todayReflection = data;
+          // Если уже ответил — скрываем карточку (и после перезапуска тоже)
+          if (alreadyAnswered) _showReflection = false;
+        });
       },
     );
   }
@@ -1651,6 +1712,55 @@ class _HomeScreenState extends State<HomeScreen> {
   // DAILY REFLECTION
   // =============================================
   Widget _buildDailyReflection() {
+    final myUid = widget.userData.uid;
+    final myName = widget.userData.displayName;
+    final question =
+        (_todayReflection?['question'] as String?) ?? _todayQuestion;
+    final answers =
+        (_todayReflection?['answers'] as Map<String, dynamic>?) ?? {};
+    final myAnswer =
+        (answers[myUid] as Map<String, dynamic>?)?['text'] as String?;
+    final btnColor = _t.promptButtonColor;
+
+    // ── Success state ──
+    if (_reflectionJustSaved) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: _t.cardBorder, width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_rounded, color: btnColor, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'Ответ отправлен!',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: btnColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Собираем чужие ответы (партнёры)
+    final partnerAnswers = answers.entries
+        .where((e) => e.key != myUid)
+        .toList();
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -1668,9 +1778,10 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
-              Icon(Icons.auto_awesome, color: primary, size: 20),
+              Icon(Icons.auto_awesome, color: btnColor, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Daily Reflection',
@@ -1684,7 +1795,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: primary.withOpacity(0.1),
+                  color: btnColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -1692,15 +1803,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: primary,
+                    color: btnColor,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          // Question
           Text(
-            '"What is one small thing ${_pairData.partnerName} did today that made you feel appreciated?"',
+            '"$question"',
             style: TextStyle(
               fontSize: 14,
               fontStyle: FontStyle.italic,
@@ -1708,26 +1820,69 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 1.6,
             ),
           ),
+          // My answer (if answered)
+          if (myAnswer != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: btnColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: btnColor.withOpacity(0.2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.check_circle_rounded, color: btnColor, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      myAnswer,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _showReflectionInput(question, myAnswer),
+                    child: Icon(
+                      Icons.edit_rounded,
+                      size: 16,
+                      color: btnColor.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          // Partner answers
+          for (final e in partnerAnswers) ...[
+            const SizedBox(height: 10),
+            _buildPartnerAnswer(e.value as Map<String, dynamic>, btnColor),
+          ],
           const SizedBox(height: 20),
+          // Buttons row
           Row(
             children: [
               Expanded(
                 child: SizedBox(
                   height: 44,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => _showReflectionInput(question, myAnswer),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primary,
+                      backgroundColor: btnColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      elevation: 8,
-                      shadowColor: primary.withOpacity(0.25),
+                      elevation: 0,
+                      shadowColor: btnColor.withOpacity(0.25),
                     ),
-                    child: const Text(
-                      'Answer Prompt',
-                      style: TextStyle(
+                    child: Text(
+                      myAnswer == null ? 'Answer Prompt' : 'Edit Answer',
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1756,6 +1911,175 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPartnerAnswer(Map<String, dynamic> data, Color color) {
+    final text = data['text'] as String? ?? '';
+    final name = data['authorName'] as String? ?? 'Partner';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: color.withOpacity(0.15),
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReflectionInput(String question, String? existing) {
+    final controller = TextEditingController(text: existing ?? '');
+    final btnColor = _t.promptButtonColor;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: btnColor, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Daily Reflection',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '"$question"',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey.shade500,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: 4,
+                style: const TextStyle(fontSize: 14, height: 1.6),
+                decoration: InputDecoration(
+                  hintText: 'Share your thoughts...',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: btnColor, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final text = controller.text.trim();
+                    if (text.isEmpty) return;
+                    Navigator.pop(context);
+                    await _fb.saveReflectionAnswer(
+                      groupId: _pairData.pairId,
+                      question: question,
+                      answer: text,
+                      authorName: widget.userData.displayName,
+                    );
+                    if (mounted) {
+                      setState(() => _reflectionJustSaved = true);
+                      await Future.delayed(const Duration(seconds: 1));
+                      if (mounted)
+                        setState(() {
+                          _reflectionJustSaved = false;
+                          _showReflection = false;
+                        });
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: btnColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2440,12 +2764,12 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isActive ? primary.withOpacity(0.12) : Colors.transparent,
+              color: isActive ? _t.navActiveBg : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: isActive ? primary : Colors.grey.shade400,
+              color: isActive ? _t.navActiveIcon : Colors.grey.shade400,
               size: 26,
             ),
           ),
