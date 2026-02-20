@@ -276,6 +276,10 @@ class WidgetService extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
         ...fields,
       }, SetOptions(merge: true));
+
+      // Синхронизируем нативный виджет сразу после записи,
+      // не дожидаясь Firestore-листенера (Xiaomi убивает процесс слишком быстро)
+      await _syncToNativeWidget();
     } catch (e) {
       debugPrint('WidgetService._updateField failed: $e');
     }
@@ -358,11 +362,13 @@ class WidgetService extends ChangeNotifier {
     try {
       // ── Мои данные ──
       final my = _myData;
+      // moodEmoji хранит путь к asset-файлу — для нативного виджета
+      // используем moodLabel (текстовая метка: «Счастлив», «Грустный» и т.д.)
       await HomeWidget.saveWidgetData<String>(
         'my_name',
-        my?.displayName ?? 'Я',
+        my?.displayName.isNotEmpty == true ? my!.displayName : 'Я',
       );
-      await HomeWidget.saveWidgetData<String>('my_mood', my?.moodEmoji ?? '');
+      await HomeWidget.saveWidgetData<String>('my_mood', my?.moodLabel ?? '');
       await HomeWidget.saveWidgetData<String>('my_status', my?.status ?? '');
       await HomeWidget.saveWidgetData<String>('my_message', my?.message ?? '');
       await HomeWidget.saveWidgetData<String>(
@@ -378,11 +384,13 @@ class WidgetService extends ChangeNotifier {
       final partner = firstPartnerData;
       await HomeWidget.saveWidgetData<String>(
         'partner_name',
-        partner?.displayName ?? 'Партнёр',
+        partner?.displayName.isNotEmpty == true
+            ? partner!.displayName
+            : 'Партнёр',
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_mood',
-        partner?.moodEmoji ?? '',
+        partner?.moodLabel ?? '',
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_status',
@@ -405,6 +413,9 @@ class WidgetService extends ChangeNotifier {
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+      );
+      debugPrint(
+        'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');

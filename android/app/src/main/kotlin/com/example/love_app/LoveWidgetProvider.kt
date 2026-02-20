@@ -28,15 +28,21 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
                 // ═══════════ Моя сторона ═══════════
-                val myName = widgetData.getString("my_name", null) ?: "Я"
-                val myMood = widgetData.getString("my_mood", null) ?: ""
-                val myStatus = widgetData.getString("my_status", null) ?: ""
-                val myMessage = widgetData.getString("my_message", null) ?: ""
-                val myMusicTitle = widgetData.getString("my_music_title", null) ?: ""
-                val myMusicArtist = widgetData.getString("my_music_artist", null) ?: ""
+                val myName = widgetData.getString("my_name", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "Я"
+                val myMood = widgetData.getString("my_mood", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val myStatus = widgetData.getString("my_status", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val myMessage = widgetData.getString("my_message", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val myMusicTitle = widgetData.getString("my_music_title", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val myMusicArtist = widgetData.getString("my_music_artist", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
 
                 setTextViewText(R.id.my_name, myName)
-                setTextViewText(R.id.my_mood, if (myMood.isNotEmpty()) myMood else "💭")
+                setTextViewText(R.id.my_mood, if (myMood.isNotEmpty()) myMood else "·····")
                 setTextViewText(R.id.my_status, myStatus)
                 setTextViewText(R.id.my_message, myMessage)
 
@@ -49,15 +55,21 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setTextViewText(R.id.my_music, myMusicText)
 
                 // ═══════════ Сторона партнёра ═══════════
-                val partnerName = widgetData.getString("partner_name", null) ?: "Партнёр"
-                val partnerMood = widgetData.getString("partner_mood", null) ?: ""
-                val partnerStatus = widgetData.getString("partner_status", null) ?: ""
-                val partnerMessage = widgetData.getString("partner_message", null) ?: ""
-                val partnerMusicTitle = widgetData.getString("partner_music_title", null) ?: ""
-                val partnerMusicArtist = widgetData.getString("partner_music_artist", null) ?: ""
+                val partnerName = widgetData.getString("partner_name", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "Партнёр"
+                val partnerMood = widgetData.getString("partner_mood", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val partnerStatus = widgetData.getString("partner_status", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val partnerMessage = widgetData.getString("partner_message", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val partnerMusicTitle = widgetData.getString("partner_music_title", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val partnerMusicArtist = widgetData.getString("partner_music_artist", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: ""
 
                 setTextViewText(R.id.partner_name, partnerName)
-                setTextViewText(R.id.partner_mood, if (partnerMood.isNotEmpty()) partnerMood else "💭")
+                setTextViewText(R.id.partner_mood, if (partnerMood.isNotEmpty()) partnerMood else "·····")
                 setTextViewText(R.id.partner_status, partnerStatus)
                 setTextViewText(R.id.partner_message, partnerMessage)
 
