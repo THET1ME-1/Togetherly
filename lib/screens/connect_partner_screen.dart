@@ -207,59 +207,139 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   // ═══════════════════════════════════════════════════
-  //  CONNECTED — partner linked (no days counter)
+  //  CONNECTED — partner linked
   // ═══════════════════════════════════════════════════
   Widget _buildConnectedContent() {
     final partners = pair.partners;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
-        24,
-        16,
-        24,
+        20,
+        8,
+        20,
         MediaQuery.of(context).padding.bottom + 100,
       ),
       child: Column(
         children: [
-          const SizedBox(height: 24),
-          _glassCard(
+          // ── Hero Connected Card ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.theme.heroGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.25),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             child: Column(
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E).withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF22C55E),
-                    size: 40,
+                // Avatars stack
+                SizedBox(
+                  height: 56,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Partner avatars spread out
+                      for (int i = 0; i < partners.length && i < 3; i++)
+                        Positioned(
+                          left: (partners.length == 1)
+                              ? null
+                              : (i * 32.0) +
+                                    (90 - partners.length * 16).toDouble(),
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: partners[i].avatar.isNotEmpty
+                                  ? Image.network(
+                                      partners[i].avatar,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _avatarFallback(partners[i].name, 48),
+                                    )
+                                  : _avatarFallback(partners[i].name, 48),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  partners.length == 1
-                      ? 'Connected with ${partners.first.name}'
-                      : 'Group of ${partners.length + 1}',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade900,
+                const SizedBox(height: 14),
+                // Status
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4ADE80),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Connected',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.9),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 10),
-                // Relationship type badge — tappable
+                Text(
+                  partners.length == 1
+                      ? partners.first.name
+                      : 'Group of ${partners.length + 1}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Relationship type chip
                 GestureDetector(
                   onTap: _showRelationshipTypeDialog,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
-                      vertical: 7,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: primary.withOpacity(0.08),
+                      color: Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -272,69 +352,19 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         const SizedBox(width: 6),
                         Text(
                           pair.relationshipLabel,
-                          style: TextStyle(
-                            fontSize: 13,
+                          style: const TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: primary,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           Icons.edit_rounded,
-                          size: 12,
-                          color: primary.withOpacity(0.6),
+                          size: 10,
+                          color: Colors.white.withOpacity(0.6),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // ── Members list ──
-                _buildMembersList(partners),
-                const SizedBox(height: 20),
-                // ── Invite More button ──
-                if (pair.canInviteMore) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      onPressed: _showInviteMoreSheet,
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: Text(
-                        'Invite More (${pair.members.length}/${pair.maxMembers})',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 8,
-                        shadowColor: primary.withOpacity(0.3),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                SizedBox(
-                  width: 180,
-                  height: 42,
-                  child: OutlinedButton(
-                    onPressed: _showUnpairDialog,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade400,
-                      side: BorderSide(color: Colors.red.shade200),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Disconnect',
-                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -342,8 +372,116 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ),
           const SizedBox(height: 20),
-          // ── Join another group via code / QR / link ──
+
+          // ── Members Card ──
+          _themedCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MEMBERS · ${partners.length + 1}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade400,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...partners.map(
+                  (m) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        _memberAvatar(m.avatar, m.name, 38),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            m.name.isNotEmpty ? m.name : 'Member',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4ADE80).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Online',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Action Row ──
+          Row(
+            children: [
+              if (pair.canInviteMore)
+                Expanded(
+                  child: _actionTile(
+                    icon: Icons.person_add_rounded,
+                    label: 'Invite More',
+                    onTap: _showInviteMoreSheet,
+                  ),
+                ),
+              if (pair.canInviteMore) const SizedBox(width: 12),
+              Expanded(
+                child: _actionTile(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR',
+                  onTap: _openQRScanner,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Join another group ──
           _buildJoinAnotherGroupCard(),
+          const SizedBox(height: 16),
+
+          // ── Disconnect ──
+          GestureDetector(
+            onTap: _showUnpairDialog,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.red.shade100),
+              ),
+              child: Center(
+                child: Text(
+                  'Disconnect',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red.shade400,
+                  ),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -357,137 +495,151 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
-        24,
-        16,
-        24,
+        20,
+        8,
+        20,
         MediaQuery.of(context).padding.bottom + 100,
       ),
       child: Column(
         children: [
-          // ── Hero pulse ──
-          AnimatedBuilder(
-            animation: _pulseController,
-            builder: (_, __) {
-              final scale = 1.0 + _pulseController.value * 0.05;
-              return Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: primary.withOpacity(0.08),
-                    shape: BoxShape.circle,
+          // ── Hero Card with gradient ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.theme.heroGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withOpacity(0.25),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Pulse icon
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (_, __) {
+                    final scale = 1.0 + _pulseController.value * 0.08;
+                    return Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Connect Your Partner',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
                   ),
-                  child: Center(
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.14),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.favorite_rounded,
-                        color: primary,
-                        size: 28,
-                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Share your invite code so your\npartner can join this space',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.8),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Relationship type chip
+                GestureDetector(
+                  onTap: _showRelationshipTypeDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          pair.relationshipEmoji,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          pair.relationshipLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.expand_more_rounded,
+                          size: 16,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-
-          // ── Relationship type badge — tappable ──
-          GestureDetector(
-            onTap: _showRelationshipTypeDialog,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    pair.relationshipEmoji,
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    pair.relationshipLabel,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: primary,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.expand_more_rounded,
-                    size: 18,
-                    color: primary.withOpacity(0.7),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-
-          Text(
-            'Connect Your Partner',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Share your invite code so your\npartner can join this space',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Colors.grey.shade500,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
 
           // ── Invite Code Card ──
-          _glassCard(
+          _themedCard(
             child: Column(
               children: [
                 Text(
                   'YOUR INVITE CODE',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: Colors.grey.shade400,
                     letterSpacing: 3,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: pair.inviteCode.split('').map((ch) {
                     return Container(
-                      width: 42,
-                      height: 52,
+                      width: 40,
+                      height: 50,
                       margin: const EdgeInsets.symmetric(horizontal: 3),
                       decoration: BoxDecoration(
                         color: primary.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primary.withOpacity(0.15)),
+                        border: Border.all(color: primary.withOpacity(0.12)),
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         ch,
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: primary,
                         ),
@@ -495,13 +647,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
-                      child: _outlineButton(
+                      child: _themedOutlineButton(
                         icon: Icons.copy_rounded,
-                        label: 'Copy Code',
+                        label: 'Copy',
                         onTap: () {
                           Clipboard.setData(
                             ClipboardData(text: pair.inviteCode),
@@ -510,8 +662,21 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    _iconOutlineButton(
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _themedOutlineButton(
+                        icon: Icons.share_rounded,
+                        label: 'Share',
+                        onTap: () async {
+                          await Share.share(
+                            'Join me on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
+                            subject: 'Love App Invitation',
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _themedIconButton(
                       icon: Icons.refresh_rounded,
                       onTap: () {
                         pair.regenerateCode();
@@ -524,218 +689,94 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          // ── Share Options ──
-          _glassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SHARE VIA',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade400,
-                    letterSpacing: 3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _shareOption(
-                  icon: Icons.link_rounded,
-                  label: 'Share Link',
-                  subtitle: pair.inviteLink,
-                  color: const Color(0xFF3B82F6),
-                  onTap: () async {
-                    await Share.share(
-                      'Join me on Love App! ${pair.inviteLink}',
-                      subject: 'Love App Invitation',
-                    );
-                  },
-                ),
-                _divider(),
-                _shareOption(
+          // ── Quick Actions Row ──
+          Row(
+            children: [
+              Expanded(
+                child: _actionTile(
                   icon: Icons.qr_code_2_rounded,
-                  label: 'Show QR Code',
-                  subtitle: 'Let partner scan to connect',
-                  color: const Color(0xFF8B5CF6),
-                  onTap: () => _showQRDialog(),
+                  label: 'Show QR',
+                  onTap: _showQRDialog,
                 ),
-                _divider(),
-                _shareOption(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _actionTile(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR Code',
-                  subtitle: "Scan partner's QR to connect",
-                  color: const Color(0xFFEC4899),
-                  onTap: () => _openQRScanner(),
+                  label: 'Scan QR',
+                  onTap: _openQRScanner,
                 ),
-                _divider(),
-                _shareOption(
-                  icon: Icons.message_rounded,
-                  label: 'Send via Message',
-                  subtitle: 'Share code through messenger',
-                  color: const Color(0xFF22C55E),
-                  onTap: () async {
-                    await Share.share(
-                      'Join me on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
-                      subject: 'Love App Invitation',
-                    );
-                  },
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // ── Enter partner's code ──
-          _glassCard(
+          _themedCard(
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFBBF24).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
+                GestureDetector(
+                  onTap: () => setState(() => _showCodeInput = !_showCodeInput),
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.keyboard_rounded,
+                          color: primary,
+                          size: 18,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.keyboard_rounded,
-                        color: Color(0xFFFBBF24),
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Have a code?',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade800,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            "Enter your partner's invite code",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!_showCodeInput)
-                      GestureDetector(
-                        onTap: () => setState(() => _showCodeInput = true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: primary,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Enter',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Have a code?',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade800,
                           ),
                         ),
                       ),
-                  ],
+                      AnimatedRotation(
+                        turns: _showCodeInput ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.expand_more_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (_showCodeInput) ...[
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _codeController,
-                    textCapitalization: TextCapitalization.characters,
-                    maxLength: 6,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 8,
-                      color: primary,
-                    ),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      hintText: '------',
-                      hintStyle: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 8,
-                        color: Colors.grey.shade300,
-                      ),
-                      filled: true,
-                      fillColor: primary.withOpacity(0.04),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: _codeError
-                              ? Colors.red.shade300
-                              : primary.withOpacity(0.15),
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: _codeError
-                              ? Colors.red.shade300
-                              : primary.withOpacity(0.15),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: primary, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
-                    ),
-                    onChanged: (_) {
-                      if (_codeError) setState(() => _codeError = false);
-                    },
-                  ),
-                  if (_codeError)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Invalid code. Please check and try again.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.red.shade400,
-                        ),
-                      ),
-                    ),
                   const SizedBox(height: 16),
+                  _buildCodeInput(),
+                  const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 48,
                     child: ElevatedButton(
                       onPressed: _submitCode,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        elevation: 8,
-                        shadowColor: primary.withOpacity(0.3),
+                        elevation: 0,
                       ),
                       child: const Text(
                         'Connect Partner',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -1292,6 +1333,191 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 
   Widget _divider() {
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  THEMED HELPERS
+  // ═══════════════════════════════════════════════════
+
+  Widget _themedCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: widget.theme.cardSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: widget.theme.cardBorder, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _themedOutlineButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: primary.withOpacity(0.15)),
+          color: primary.withOpacity(0.04),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 15, color: primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _themedIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: primary.withOpacity(0.15)),
+          color: primary.withOpacity(0.04),
+        ),
+        child: Icon(icon, size: 16, color: primary),
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: widget.theme.cardSurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.theme.cardBorder, width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22, color: primary),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCodeInput() {
+    return TextField(
+      controller: _codeController,
+      textCapitalization: TextCapitalization.characters,
+      maxLength: 6,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 8,
+        color: primary,
+      ),
+      decoration: InputDecoration(
+        counterText: '',
+        hintText: '------',
+        hintStyle: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 8,
+          color: Colors.grey.shade300,
+        ),
+        filled: true,
+        fillColor: primary.withOpacity(0.04),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: _codeError ? Colors.red.shade300 : primary.withOpacity(0.12),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: _codeError ? Colors.red.shade300 : primary.withOpacity(0.12),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primary, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 14,
+          horizontal: 20,
+        ),
+      ),
+      onChanged: (_) {
+        if (_codeError) setState(() => _codeError = false);
+      },
+    );
+  }
+
+  Widget _avatarFallback(String name, double size) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: size,
+      height: size,
+      color: Colors.white,
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.w700,
+            color: primary,
+          ),
+        ),
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════
