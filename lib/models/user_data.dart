@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_theme.dart';
 
 enum Gender { male, female }
 
@@ -28,29 +29,22 @@ class UserData extends ChangeNotifier {
   bool get isMale => _gender == Gender.male;
   bool get isFemale => _gender == Gender.female;
 
-  // ── Theme palette ──
-  static const List<Color> themeAccents = [
-    Color(0xFFEE2B6C), // 0: Розовая
-    Color(0xFF5E548E), // 1: Фиолетовая
-  ];
-  static const List<Color> themeAccentLights = [
-    Color(0xFFFEEAF1), // 0: Розовая
-    Color(0xFFF0E6EF), // 1: Фиолетовая
-  ];
-  static const List<String> themeNames = ['Розовая', 'Фиолетовая'];
-
-  int _themeId = -1; // -1 = использовать пол для определения темы
+  // ── Тема оформления ──────────────────────────────────────────────────────
+  int _themeId = -1; // -1 → используется тема по умолчанию (pink)
 
   int get themeId {
-    if (_themeId >= 0 && _themeId < themeAccents.length) return _themeId;
+    if (_themeId >= 0 && _themeId < AppThemes.all.length) return _themeId;
     return 0; // default = pink
   }
 
-  bool get isPurpleTheme => themeId == 1;
+  /// Полный объект активной темы со всеми цветами
+  AppTheme get theme => AppThemes.byIndex(themeId);
 
-  Color get themeAccent => themeAccents[themeId];
-  Color get themeAccentLight => themeAccentLights[themeId];
-  String get themeName => themeNames[themeId];
+  // Алиасы для удобства (используются в экранах)
+  bool get isPurpleTheme => themeId == 1;
+  Color get themeAccent => theme.primary;
+  Color get themeAccentLight => theme.primaryLight;
+  String get themeName => theme.name;
 
   String get initials {
     if (_displayName.isEmpty) return '?';
@@ -75,13 +69,6 @@ class UserData extends ChangeNotifier {
       if (genderStr == 'male') _gender = Gender.male;
       if (genderStr == 'female') _gender = Gender.female;
       _themeId = prefs.getInt('themeId') ?? -1;
-
-      // Если в кэше есть регистрация, но Firebase Auth пуст — сбрасываем
-      if (_isRegistered && !_fb.isLoggedIn) {
-        debugPrint('User was registered but Firebase Auth is null — resetting');
-        _isRegistered = false;
-        await prefs.setBool('isRegistered', false);
-      }
 
       // Если авторизован → подтягиваем из облака
       if (_fb.isLoggedIn && _isRegistered) {
@@ -213,7 +200,7 @@ class UserData extends ChangeNotifier {
   }
 
   Future<void> setThemeId(int id) async {
-    if (id < 0 || id >= themeAccents.length) return;
+    if (id < 0 || id >= AppThemes.all.length) return;
     _themeId = id;
     await _saveLocal();
     notifyListeners();

@@ -8,6 +8,7 @@ import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_theme.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
@@ -25,11 +26,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // -- Colors --
-  Color get primary => widget.userData.themeAccent;
-  Color get primaryLight => widget.userData.themeAccentLight;
-  bool get _isPurple => widget.userData.isPurpleTheme;
-  int get _themeId => widget.userData.themeId;
+  // -- Theme --
+  AppTheme get _t => widget.userData.theme;
+  Color get primary => _t.primary;
+  Color get primaryLight => _t.primaryLight;
 
   // -- State --
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
@@ -217,9 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: _isPurple
-                        ? [const Color(0xFFE8EAF6), const Color(0xFFE0F2F1)]
-                        : [const Color(0xFFF7F3F0), const Color(0xFFFFFFFF)],
+                    colors: _t.bgGradient,
                   ),
                 ),
               ),
@@ -318,9 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
           left: 24,
           right: 24,
           child: ExpandableTimerCard(
-            primary: primary,
-            primaryLight: primaryLight,
-            themeId: _themeId,
+            theme: _t,
             timerService: _timerService,
             myAvatarUrl: widget.userData.avatarUrl,
             partnerAvatarUrl: _pairData.partnerAvatarUrl,
@@ -1300,12 +1296,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: _isPurple ? const Color(0xFFFDFDFF) : Colors.white,
+          color: _t.cardSurface,
           borderRadius: BorderRadius.circular(32),
-          border: Border.all(
-            color: _isPurple ? Colors.grey.shade200 : const Color(0xFFE5E5E5),
-            width: 0.5,
-          ),
+          border: Border.all(color: _t.cardBorder, width: 0.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -1661,12 +1654,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _isPurple ? const Color(0xFFFDFDFF) : Colors.white,
+        color: _t.cardSurface,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: _isPurple ? Colors.grey.shade200 : const Color(0xFFE5E5E5),
-          width: 0.5,
-        ),
+        border: Border.all(color: _t.cardBorder, width: 0.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -1774,20 +1764,19 @@ class _HomeScreenState extends State<HomeScreen> {
   // ACTION BUTTONS
   // =============================================
   Widget _buildActionButtons() {
-    final purpleIcon = const Color(0xFF5E548E);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _actionButton(
           icon: Icons.brush_rounded,
           label: 'Draw',
-          iconColor: _isPurple ? purpleIcon : const Color(0xFFFFB7B7),
+          iconColor: _t.iconDraw,
           enabled: _pairData.isPaired,
         ),
         _actionButton(
           icon: Icons.sentiment_satisfied_alt_rounded,
           label: 'Mood',
-          iconColor: _isPurple ? purpleIcon : const Color(0xFFFBBF24),
+          iconColor: _t.iconMood,
           enabled: _pairData.isPaired,
           onTap: _showMoodPicker,
           moodImagePath: _pairData.myMood.imagePath,
@@ -1795,14 +1784,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _actionButton(
           icon: Icons.calendar_month_rounded,
           label: 'Calendar',
-          iconColor: _isPurple ? purpleIcon : const Color(0xFF60A5FA),
+          iconColor: _t.iconCalendar,
           enabled: _pairData.isPaired,
           onTap: _openMoodCalendar,
         ),
         _actionButton(
           icon: Icons.photo_camera_rounded,
           label: 'Post',
-          iconColor: _isPurple ? purpleIcon : const Color(0xFF34D399),
+          iconColor: _t.iconPost,
           enabled: _pairData.isPaired,
           onTap: _postPhoto,
         ),
@@ -2451,11 +2440,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isActive
-                  ? (_isPurple
-                        ? const Color(0xFFF0E6EF)
-                        : primary.withOpacity(0.1))
-                  : Colors.transparent,
+              color: isActive ? primary.withOpacity(0.12) : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(

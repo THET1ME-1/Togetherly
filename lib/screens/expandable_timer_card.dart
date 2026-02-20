@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
+import '../theme/app_theme.dart';
 
 /// Расширяемая карточка таймера.
 ///
@@ -12,9 +13,7 @@ import '../services/timer_service.dart';
 /// При раскрытии — вытягивается на весь экран вниз с ease-in-out анимацией,
 /// показывая список всех таймеров с возможностью CRUD.
 class ExpandableTimerCard extends StatefulWidget {
-  final Color primary;
-  final Color primaryLight;
-  final int themeId;
+  final AppTheme theme;
   final TimerService timerService;
   final String partnerAvatarUrl;
   final String myAvatarUrl;
@@ -26,9 +25,7 @@ class ExpandableTimerCard extends StatefulWidget {
 
   const ExpandableTimerCard({
     super.key,
-    required this.primary,
-    required this.primaryLight,
-    required this.themeId,
+    required this.theme,
     required this.timerService,
     required this.partnerAvatarUrl,
     required this.myAvatarUrl,
@@ -57,28 +54,19 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
 
-  bool get _isPurple => widget.themeId == 1;
+  AppTheme get _t => widget.theme;
 
   BorderRadius get _cardBorderRadius =>
-      BorderRadius.all(Radius.circular(_isPurple ? 48 : 32));
+      BorderRadius.all(Radius.circular(_t.heroRadius));
 
-  BoxDecoration get _cardDecoration => _isPurple
-      ? BoxDecoration(
-          borderRadius: _cardBorderRadius,
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF5E548E), Color(0xFF231942)],
-          ),
-        )
-      : BoxDecoration(
-          borderRadius: _cardBorderRadius,
-          gradient: const LinearGradient(
-            begin: Alignment(-1, -1),
-            end: Alignment(1, 1),
-            colors: [Color(0xFFFFB4B0), Color(0xFFFF8E9E)],
-          ),
-        );
+  BoxDecoration get _cardDecoration => BoxDecoration(
+    borderRadius: _cardBorderRadius,
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: _t.heroGradient,
+    ),
+  );
 
   // Emoji palette для выбора
   static const _emojis = [
@@ -113,12 +101,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _shadowColorBase = _isPurple
-        ? Colors.black.withOpacity(0.05)
-        : const Color(0x26FF7E8B); // rgba(255,126,139,0.15)
-    _shadowColorExpanded = _isPurple
-        ? Colors.black.withOpacity(0.10)
-        : const Color(0x40FF7E8B);
+    _shadowColorBase = _t.heroShadowBase;
+    _shadowColorExpanded = _t.heroShadowExpanded;
 
     widget.timerService.addListener(_onTimerChanged);
     _loadSelectedTimeUnit();
@@ -829,7 +813,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(_isPurple ? 0.15 : 0.20),
+          color: Colors.white.withOpacity(_t.heroGlassOpacity),
           shape: BoxShape.circle,
         ),
         child: RotationTransition(
@@ -851,11 +835,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       height: 40,
       constraints: const BoxConstraints(maxWidth: 240),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(_isPurple ? 0.12 : 0.20),
+        color: Colors.white.withOpacity(_t.heroGlassOpacity * 0.75),
         borderRadius: BorderRadius.circular(24),
-        border: _isPurple
-            ? null
-            : Border.all(color: Colors.white.withOpacity(0.3)),
+        border: _t.heroToggleBorder
+            ? Border.all(color: Colors.white.withOpacity(0.3))
+            : null,
       ),
       padding: const EdgeInsets.all(4),
       child: LayoutBuilder(
@@ -904,11 +888,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                             color: selected
-                                ? (_isPurple
-                                      ? const Color(0xFF231942)
-                                      : widget.primary)
+                                ? _t.heroToggleSelectedColor
                                 : Colors.white.withOpacity(
-                                    _isPurple ? 0.5 : 0.8,
+                                    _t.heroGlassOpacity * 4,
                                   ),
                           ),
                         ),
@@ -1098,10 +1080,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(
-                          color: widget.primary,
-                          width: 1.5,
-                        ),
+                        borderSide: BorderSide(color: _t.primary, width: 1.5),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -1149,7 +1128,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide(
-                                color: widget.primary,
+                                color: _t.primary,
                                 width: 1.5,
                               ),
                             ),
@@ -1178,7 +1157,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                             builder: (c, child) => Theme(
                               data: Theme.of(c).copyWith(
                                 colorScheme: ColorScheme.light(
-                                  primary: widget.primary,
+                                  primary: _t.primary,
                                 ),
                               ),
                               child: child!,
@@ -1195,12 +1174,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            color: widget.primary.withOpacity(0.1),
+                            color: _t.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Icon(
                             Icons.calendar_today_rounded,
-                            color: widget.primary,
+                            color: _t.primary,
                             size: 22,
                           ),
                         ),
@@ -1231,11 +1210,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                           height: 42,
                           decoration: BoxDecoration(
                             color: sel
-                                ? widget.primary.withOpacity(0.12)
+                                ? _t.primary.withOpacity(0.12)
                                 : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(12),
                             border: sel
-                                ? Border.all(color: widget.primary, width: 2)
+                                ? Border.all(color: _t.primary, width: 2)
                                 : null,
                           ),
                           child: Center(
@@ -1262,11 +1241,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: isCountdown
-                                ? widget.primary
+                                ? _t.primary
                                 : Colors.transparent,
                             border: Border.all(
                               color: isCountdown
-                                  ? widget.primary
+                                  ? _t.primary
                                   : Colors.grey.shade400,
                               width: 2,
                             ),
@@ -1303,12 +1282,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                           height: 22,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isDefault
-                                ? widget.primary
-                                : Colors.transparent,
+                            color: isDefault ? _t.primary : Colors.transparent,
                             border: Border.all(
                               color: isDefault
-                                  ? widget.primary
+                                  ? _t.primary
                                   : Colors.grey.shade400,
                               width: 2,
                             ),
@@ -1356,7 +1333,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.primary,
+                        backgroundColor: _t.primary,
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(

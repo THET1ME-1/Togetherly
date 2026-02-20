@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -902,10 +902,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
                   childAspectRatio: 1.2,
-                  children: List.generate(UserData.themeAccents.length, (i) {
-                    final accent = UserData.themeAccents[i];
-                    final accentLight = UserData.themeAccentLights[i];
-                    final name = UserData.themeNames[i];
+                  children: List.generate(AppThemes.all.length, (i) {
+                    final t = AppThemes.all[i];
+                    final accent = t.primary;
+                    final accentLight = t.primaryLight;
+                    final name = t.name;
                     final isSelected = widget.userData.themeId == i;
                     return GestureDetector(
                       onTap: () async {

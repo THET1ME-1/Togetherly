@@ -14,9 +14,6 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
-  // Ждём первый auth state (восстановление сессии)
-  await FirebaseAuth.instance.authStateChanges().first;
-
   // Deep links — инициализация
   DeepLinkService().init();
 
@@ -72,20 +69,35 @@ class _LoveAppState extends State<LoveApp> {
       theme: _cachedTheme,
       home: _loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : _buildInitialScreen(),
+          : StreamBuilder<User?>(
+              stream: FirebaseAuth.instance.authStateChanges(),
+              builder: (context, snapshot) {
+                // Firebase ещё восстанавливает сессию — показываем сплэш
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return _buildInitialScreen(firebaseUser: snapshot.data);
+              },
+            ),
     );
   }
 
-  Widget _buildInitialScreen() {
-    // 1. First launch ever — show welcome
+  Widget _buildInitialScreen({User? firebaseUser}) {
+    // 1. Первый запуск — показываем welcome
     if (!_userData.hasSeenWelcome) {
       return WelcomeScreen(userData: _userData);
     }
-    // 2. Seen welcome but not registered — show welcome (Login/Register choice)
+    // 2. Firebase подтвердил, что сессии нет — на экран входа
+    if (firebaseUser == null) {
+      return WelcomeScreen(userData: _userData);
+    }
+    // 3. Firebase авторизован, но профиль не заполнен — на setup
     if (!_userData.isRegistered) {
       return WelcomeScreen(userData: _userData);
     }
-    // 3. Fully registered — go home
+    // 4. Всё в порядке — домой
     return HomeScreen(userData: _userData);
   }
 }
