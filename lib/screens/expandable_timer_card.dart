@@ -293,12 +293,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               const Spacer(),
           ],
         ),
-        // -- Arrow button --
-        Positioned(
-          right: 16,
-          bottom: 12 + bottomPadding * t,
-          child: _buildArrowButton(),
-        ),
+        // -- Arrow button встроен в _buildTimeToggle --
       ],
     );
   }
@@ -453,7 +448,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               Text(timer.emoji, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 24),
             // Toggle
-            _buildTimeToggle(),
+            _buildBottomBar(),
           ],
         ),
       ),
@@ -810,37 +805,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   }
 
   // ── Arrow button ──
-  Widget _buildArrowButton() {
-    return GestureDetector(
-      onTap: _toggle,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(_t.heroGlassOpacity),
-          shape: BoxShape.circle,
-        ),
-        child: RotationTransition(
-          turns: _arrowRotation,
-          child: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Colors.white,
-            size: 26,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Time toggle ──
-  Widget _buildTimeToggle() {
+  Widget _buildBottomBar() {
     const labels = ['Days', 'Months', 'Time'];
     return Container(
-      height: 40,
-      constraints: const BoxConstraints(maxWidth: 240),
+      height: 48,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(_t.heroGlassOpacity * 0.75),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         border: _t.heroToggleBorder
             ? Border.all(color: Colors.white.withOpacity(0.3))
             : null,
@@ -848,60 +819,90 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       padding: const EdgeInsets.all(4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / 3;
-          return Stack(
+          // Ширина трёх вкладок занимает всё место минус кнопка стрелки
+          final arrowSlot = 44.0;
+          final toggleWidth = constraints.maxWidth - arrowSlot - 4;
+          final itemWidth = toggleWidth / 3;
+          return Row(
             children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                left: _selectedTimeUnit * itemWidth,
-                top: 0,
-                bottom: 0,
-                width: itemWidth,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Row(
-                children: List.generate(3, (i) {
-                  final selected = _selectedTimeUnit == i;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedTimeUnit = i);
-                        _saveSelectedTimeUnit(i);
-                        _startTickerIfNeeded();
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: Center(
-                        child: Text(
-                          labels[i],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: selected
-                                ? _t.heroToggleSelectedColor
-                                : Colors.white.withOpacity(
-                                    _t.heroGlassOpacity * 4,
-                                  ),
-                          ),
+              // ── Три вкладки с подвижным индикатором ──
+              SizedBox(
+                width: toggleWidth,
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      left: _selectedTimeUnit * itemWidth,
+                      top: 0,
+                      bottom: 0,
+                      width: itemWidth,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  );
-                }),
+                    Row(
+                      children: List.generate(3, (i) {
+                        final selected = _selectedTimeUnit == i;
+                        return SizedBox(
+                          width: itemWidth,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedTimeUnit = i);
+                              _saveSelectedTimeUnit(i);
+                              _startTickerIfNeeded();
+                            },
+                            behavior: HitTestBehavior.opaque,
+                            child: Center(
+                              child: Text(
+                                labels[i],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: selected
+                                      ? _t.heroToggleSelectedColor
+                                      : Colors.white.withOpacity(
+                                          _t.heroGlassOpacity * 4,
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              // ── Кнопка-стрелка ──
+              GestureDetector(
+                onTap: _toggle,
+                child: SizedBox(
+                  width: arrowSlot,
+                  child: Center(
+                    child: RotationTransition(
+                      turns: _arrowRotation,
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           );
