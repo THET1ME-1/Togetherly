@@ -8,10 +8,16 @@ import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/deep_link_service.dart';
+import '../theme/app_theme.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
-  const ConnectPartnerScreen({super.key, required this.pairData});
+  final AppTheme theme;
+  const ConnectPartnerScreen({
+    super.key,
+    required this.pairData,
+    required this.theme,
+  });
 
   @override
   State<ConnectPartnerScreen> createState() => _ConnectPartnerScreenState();
@@ -19,7 +25,8 @@ class ConnectPartnerScreen extends StatefulWidget {
 
 class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     with SingleTickerProviderStateMixin {
-  static const Color primary = Color(0xFFEE2B6C);
+  Color get primary => widget.theme.primary;
+  Color get primaryLight => widget.theme.primaryLight;
   final _codeController = TextEditingController();
   bool _showCodeInput = false;
   bool _codeError = false;
@@ -265,7 +272,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         const SizedBox(width: 6),
                         Text(
                           pair.relationshipLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: primary,
@@ -379,7 +386,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         color: primary.withOpacity(0.14),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.favorite_rounded,
                         color: primary,
                         size: 28,
@@ -411,7 +418,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   const SizedBox(width: 6),
                   Text(
                     pair.relationshipLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: primary,
@@ -479,7 +486,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       alignment: Alignment.center,
                       child: Text(
                         ch,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: primary,
@@ -653,7 +660,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     textCapitalization: TextCapitalization.characters,
                     maxLength: 6,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 8,
@@ -688,7 +695,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: primary, width: 2),
+                        borderSide: BorderSide(color: primary, width: 2),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         vertical: 16,
@@ -892,7 +899,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   alignment: Alignment.center,
                   child: Text(
                     ch,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: primary,
@@ -1077,7 +1084,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               textCapitalization: TextCapitalization.characters,
               maxLength: 6,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 8,
@@ -1112,7 +1119,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: primary, width: 2),
+                  borderSide: BorderSide(color: primary, width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   vertical: 16,
@@ -1372,7 +1379,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               const SizedBox(height: 20),
               Text(
                 pair.inviteCode,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   color: primary,
@@ -1396,7 +1403,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         label: const Text('Share'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: primary,
-                          side: const BorderSide(color: primary),
+                          side: BorderSide(color: primary),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -1563,7 +1570,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                     ),
                                   ),
                                   if (isSelected)
-                                    const Icon(
+                                    Icon(
                                       Icons.check_circle_rounded,
                                       color: primary,
                                       size: 24,
@@ -1670,7 +1677,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: primary, size: 24),
+              Icon(Icons.check_circle_rounded, color: primary, size: 24),
           ],
         ),
       ),

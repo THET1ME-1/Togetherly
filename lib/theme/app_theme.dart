@@ -147,8 +147,80 @@ abstract final class AppThemes {
     promptButtonColor: Color(0xFF9B86BD),
   );
 
+  // ── 2: Синяя (Cornflower) ─────────────────────────────────────────────────
+  static const blue = AppTheme(
+    index: 2,
+    name: 'Синяя',
+    primary: Color(0xFF6674C5),
+    primaryLight: Color(0xFFEEF0FD),
+    bgGradient: [Color(0xFFECEEFB), Color(0xFFF5F7FF)],
+    heroGradient: [Color(0xFF8B9DCE), Color(0xFF6674C5)],
+    heroShadowBase: Color(0x266674C5),
+    heroShadowExpanded: Color(0x406674C5),
+    heroGlassOpacity: 0.18,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF3D4F9E),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFDDE0F4),
+    iconDraw: Color(0xFF6674C5),
+    iconMood: Color(0xFF6674C5),
+    iconCalendar: Color(0xFF6674C5),
+    iconPost: Color(0xFF6674C5),
+    navActiveBg: Color(0xFFEEF0FD),
+    navActiveIcon: Color(0xFF6674C5),
+    promptButtonColor: Color(0xFF6674C5),
+  );
+
+  // ── 3: Оранжевая (Terracotta) ─────────────────────────────────────────────
+  static const orange = AppTheme(
+    index: 3,
+    name: 'Оранжевая',
+    primary: Color(0xFFC8603A),
+    primaryLight: Color(0xFFFDF0EB),
+    bgGradient: [Color(0xFFFDF2EC), Color(0xFFFFFAF7)],
+    heroGradient: [Color(0xFFD4795A), Color(0xFFC8603A)],
+    heroShadowBase: Color(0x26C8603A),
+    heroShadowExpanded: Color(0x40C8603A),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFC8603A),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFEDE0D8),
+    iconDraw: Color(0xFFC8603A),
+    iconMood: Color(0xFFC8603A),
+    iconCalendar: Color(0xFFC8603A),
+    iconPost: Color(0xFFC8603A),
+    navActiveBg: Color(0xFFFDF0EB),
+    navActiveIcon: Color(0xFFC8603A),
+    promptButtonColor: Color(0xFFC8603A),
+  );
+
+  // ── 4: Зелёная (Forest) ───────────────────────────────────────────────────
+  static const green = AppTheme(
+    index: 4,
+    name: 'Зелёная',
+    primary: Color(0xFF3A6B35),
+    primaryLight: Color(0xFFE8F5E2),
+    bgGradient: [Color(0xFFF5F8F2), Color(0xFFFAFFF7)],
+    heroGradient: [Color(0xFF4A7B44), Color(0xFF2D5016)],
+    heroShadowBase: Color(0x263A6B35),
+    heroShadowExpanded: Color(0x403A6B35),
+    heroGlassOpacity: 0.18,
+    heroToggleBorder: false,
+    heroToggleSelectedColor: Color(0xFF1E3A1A),
+    cardSurface: Color(0xFFFAFFF9),
+    cardBorder: Color(0xFFD8EDD4),
+    iconDraw: Color(0xFF3A6B35),
+    iconMood: Color(0xFF3A6B35),
+    iconCalendar: Color(0xFF3A6B35),
+    iconPost: Color(0xFF3A6B35),
+    navActiveBg: Color(0xFFE4F2E0),
+    navActiveIcon: Color(0xFF3A6B35),
+    promptButtonColor: Color(0xFF3A6B35),
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
-  static const List<AppTheme> all = [pink, purple];
+  static const List<AppTheme> all = [pink, purple, blue, orange, green];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
   static AppTheme byIndex(int index) {

@@ -320,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return _buildWidgetsTab();
       case 2:
-        return ConnectPartnerScreen(pairData: _pairData);
+        return ConnectPartnerScreen(pairData: _pairData, theme: _t);
       case 3:
         return _buildProfileTab();
       default:

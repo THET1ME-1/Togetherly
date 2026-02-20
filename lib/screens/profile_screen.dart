@@ -860,124 +860,210 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Выбери цветовую тему',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Изменения применяются сразу',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-                ),
-                const SizedBox(height: 28),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 1.2,
-                  children: List.generate(AppThemes.all.length, (i) {
-                    final t = AppThemes.all[i];
-                    final accent = t.primary;
-                    final accentLight = t.primaryLight;
-                    final name = t.name;
-                    final isSelected = widget.userData.themeId == i;
-                    return GestureDetector(
-                      onTap: () async {
-                        await widget.userData.setThemeId(i);
-                        setSheet(() {});
-                        setState(() {});
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: accentLight,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? accent : Colors.transparent,
-                            width: 2.5,
+          return DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  // Handle + заголовок (фиксированные)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: accent.withOpacity(0.25),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ]
-                              : [],
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
+                        const SizedBox(height: 20),
+                        Text(
+                          'Выбери цветовую тему',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Изменения применяются сразу',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                  // Прокручиваемая сетка
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                      child: GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 0.88,
+                        children: List.generate(AppThemes.all.length, (i) {
+                          final t = AppThemes.all[i];
+                          final accent = t.primary;
+                          final isSelected = widget.userData.themeId == i;
+                          return GestureDetector(
+                            onTap: () async {
+                              await widget.userData.setThemeId(i);
+                              setSheet(() {});
+                              setState(() {});
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
                               decoration: BoxDecoration(
-                                color: accent,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: accent.withOpacity(0.35),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
+                                color: t.primaryLight,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? accent
+                                      : Colors.transparent,
+                                  width: 2.5,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: accent.withOpacity(0.25),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // ── Мини-превью карточки ──
+                                  Expanded(
+                                    child: Container(
+                                      margin: const EdgeInsets.fromLTRB(
+                                        10,
+                                        10,
+                                        10,
+                                        6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: t.heroGradient,
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.fromLTRB(
+                                        10,
+                                        8,
+                                        10,
+                                        8,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Мок число
+                                          Text(
+                                            '365',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.0,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          // Мок подпись
+                                          Container(
+                                            height: 4,
+                                            width: 36,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(
+                                                0.5,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          // Мок тоггле
+                                          Container(
+                                            height: 14,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(
+                                                t.heroGlassOpacity * 0.75,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(7),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // ── Название + галочка ──
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      0,
+                                      10,
+                                      10,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            t.name,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                              color: isSelected
+                                                  ? accent
+                                                  : Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ),
+                                        if (isSelected)
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 16,
+                                            color: accent,
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    )
-                                  : null,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              name,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? accent
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        }),
                       ),
-                    );
-                  }),
-                ),
-              ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
