@@ -426,73 +426,56 @@ class _HomeScreenState extends State<HomeScreen> {
   // HOME TAB
   // =============================================
   Widget _buildHomeTab() {
-    return Stack(
-      children: [
-        // Scrollable content behind the card
-        SingleChildScrollView(
-          physics: _timerCardExpanded
-              ? const NeverScrollableScrollPhysics()
-              : const BouncingScrollPhysics(),
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).padding.bottom + 100,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    // Placeholder space for: mini-calendar (16+118+8) + timer card (280) = 422
-                    const SizedBox(height: 422),
-                    if (_pairData.isPaired && _showReflection) ...[
-                      const SizedBox(height: 32),
-                      _buildDailyReflection(),
-                    ],
-                    if (!_pairData.isPaired) ...[
-                      const SizedBox(height: 32),
-                      _buildConnectPrompt(),
-                    ],
-                    const SizedBox(height: 32),
-                    _buildActionButtons(),
-                    const SizedBox(height: 40),
-                  ],
+    return SingleChildScrollView(
+      physics: _timerCardExpanded
+          ? const NeverScrollableScrollPhysics()
+          : const BouncingScrollPhysics(),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 100,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                MiniMoodCalendar(
+                  moodService: _moodService,
+                  theme: _t,
+                  onDayTap: _showMoodPickerForDate,
                 ),
-              ),
-              if (_pairData.isPaired) _buildMemoryLaneSection(),
-              if (!_pairData.isPaired) _buildEmptyMemoryLane(),
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 8),
+                ExpandableTimerCard(
+                  theme: _t,
+                  timerService: _timerService,
+                  myAvatarUrl: widget.userData.avatarUrl,
+                  partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                  isPaired: _pairData.isPaired,
+                  onExpandChanged: (expanded) {
+                    setState(() => _timerCardExpanded = expanded);
+                  },
+                ),
+                if (_pairData.isPaired && _showReflection) ...[
+                  const SizedBox(height: 32),
+                  _buildDailyReflection(),
+                ],
+                if (!_pairData.isPaired) ...[
+                  const SizedBox(height: 32),
+                  _buildConnectPrompt(),
+                ],
+                const SizedBox(height: 32),
+                _buildActionButtons(),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
-        ),
-        // Mini mood calendar above the timer card
-        Positioned(
-          top: 16,
-          left: 24,
-          right: 24,
-          child: MiniMoodCalendar(
-            moodService: _moodService,
-            theme: _t,
-            onDayTap: _showMoodPickerForDate,
-          ),
-        ),
-        // Expandable Timer Card overlay
-        Positioned(
-          top: 142,
-          left: 24,
-          right: 24,
-          child: ExpandableTimerCard(
-            theme: _t,
-            timerService: _timerService,
-            myAvatarUrl: widget.userData.avatarUrl,
-            partnerAvatarUrl: _pairData.partnerAvatarUrl,
-            isPaired: _pairData.isPaired,
-            onExpandChanged: (expanded) {
-              setState(() => _timerCardExpanded = expanded);
-            },
-          ),
-        ),
-      ],
+          if (_pairData.isPaired) _buildMemoryLaneSection(),
+          if (!_pairData.isPaired) _buildEmptyMemoryLane(),
+          const SizedBox(height: 40),
+        ],
+      ),
     );
   }
 
@@ -1103,6 +1086,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Открыть выбор настроения для конкретной даты.
   void _showMoodPickerForDate(DateTime date) {
     final today = DateTime.now();
+    final todayNorm = DateTime(today.year, today.month, today.day);
+    // Запрет выбора настроения на будущие даты
+    if (date.isAfter(todayNorm)) return;
     final isToday =
         date.year == today.year &&
         date.month == today.month &&

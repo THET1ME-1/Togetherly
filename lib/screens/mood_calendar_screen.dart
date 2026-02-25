@@ -515,7 +515,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             ),
             const SizedBox(height: 4),
             GestureDetector(
-              onTap: isPartner ? null : () => _showMoodPickerForDay(day),
+              onTap:
+                  isPartner ||
+                      day.isAfter(DateTime(now.year, now.month, now.day))
+                  ? null
+                  : () => _showMoodPickerForDay(day),
               onLongPress: moods.isNotEmpty
                   ? () => _showDayDetail(day, moods, isPartner: isPartner)
                   : null,
@@ -587,7 +591,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 final isToday = _dayKey(now) == key;
 
                 return GestureDetector(
-                  onTap: isPartner ? null : () => _showMoodPickerForDay(day),
+                  onTap:
+                      isPartner ||
+                          day.isAfter(DateTime(now.year, now.month, now.day))
+                      ? null
+                      : () => _showMoodPickerForDay(day),
                   onLongPress: moods.isNotEmpty
                       ? () => _showDayDetail(day, moods, isPartner: isPartner)
                       : null,
