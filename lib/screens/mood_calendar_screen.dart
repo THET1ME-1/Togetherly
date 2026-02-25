@@ -864,6 +864,13 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           label: m.label,
                           date: day,
                         );
+                        // Синхронизируем с live-настроением (аватарка) если это сегодня
+                        final now = DateTime.now();
+                        if (day.year == now.year &&
+                            day.month == now.month &&
+                            day.day == now.day) {
+                          _pair.setMood(m.imagePath, m.label);
+                        }
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

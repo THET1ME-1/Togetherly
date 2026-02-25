@@ -58,11 +58,9 @@ class _LoveAppState extends State<LoveApp> {
 
   Future<void> _init() async {
     try {
-      // Ждём, пока Firebase Auth восстановит сессию.
-      await FirebaseAuth.instance.authStateChanges().first.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => null,
-      );
+      // Загружаем локальный профиль из SharedPreferences.
+      // Firebase Auth восстанавливает сессию асинхронно сам по себе —
+      // authStateChanges() обновит StreamBuilder когда будет готов.
       await _userData.loadFromPrefs();
     } catch (_) {
       // Даже при ошибке убираем спиннер
@@ -79,32 +77,45 @@ class _LoveAppState extends State<LoveApp> {
       theme: _cachedTheme,
       home: _loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : StreamBuilder<User?>(
-              // initialData позволяет сразу использовать текущего пользователя
-              // без ожидания первого эмита стрима — критично при запуске через виджет
-              initialData: FirebaseAuth.instance.currentUser,
-              stream: FirebaseAuth.instance.authStateChanges(),
-              builder: (context, snapshot) {
-                return _buildInitialScreen(firebaseUser: snapshot.data);
+          : ListenableBuilder(
+              listenable: _userData,
+              builder: (context, _) {
+                // Слушаем Firebase Auth для реакции на принудительный выход
+                // (смена пароля на сервере, удаление аккаунта и т.д.)
+                return StreamBuilder<User?>(
+                  stream: FirebaseAuth.instance.authStateChanges(),
+                  builder: (context, snapshot) {
+                    // Если Firebase сообщил о выходе И локальные данные были
+                    // заполнены — сбрасываем сессию
+                    if (snapshot.connectionState != ConnectionState.waiting &&
+                        snapshot.data == null &&
+                        _userData.isRegistered) {
+                      // Откладываем на следующий кадр чтобы не вызвать
+                      // setState во время build
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _userData.logout();
+                      });
+                    }
+                    return _buildInitialScreen();
+                  },
+                );
               },
             ),
     );
   }
 
-  Widget _buildInitialScreen({User? firebaseUser}) {
+  Widget _buildInitialScreen() {
     // 1. Первый запуск — показываем welcome
     if (!_userData.hasSeenWelcome) {
       return WelcomeScreen(userData: _userData);
     }
-    // 2. Firebase подтвердил, что сессии нет — на экран входа
-    if (firebaseUser == null) {
-      return WelcomeScreen(userData: _userData);
+    // 2. Профиль есть локально — сразу домой.
+    //    Firebase Auth подтвердит сессию асинхронно; если токен реально
+    //    аннулирован, StreamBuilder вызовет logout() и перенаправит сюда.
+    if (_userData.isRegistered) {
+      return HomeScreen(userData: _userData);
     }
-    // 3. Firebase авторизован, но профиль не заполнен — на setup
-    if (!_userData.isRegistered) {
-      return WelcomeScreen(userData: _userData);
-    }
-    // 4. Всё в порядке — домой
-    return HomeScreen(userData: _userData);
+    // 3. Профиль не заполнен — на экран входа
+    return WelcomeScreen(userData: _userData);
   }
 }

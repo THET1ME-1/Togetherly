@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
+import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
 import '../services/mood_service.dart';
@@ -101,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
+    _moodService.addListener(_onMoodServiceChanged);
     _timerService.init();
     _initPairData();
     _loadReflectionState();
@@ -130,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _reflectionSub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
+    _moodService.removeListener(_onMoodServiceChanged);
     _widgetService.dispose();
     _pairData.dispose();
     super.dispose();
@@ -256,6 +259,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onUserChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Слушаем MoodService — при любом изменении настроения за сегодня
+  /// синхронизируем его в pairData (аватарка, видимость партнёру).
+  void _onMoodServiceChanged() {
+    if (!mounted || !_pairData.isPaired) return;
+    final today = DateTime.now();
+    final todayEntries = _moodService.myEntriesForDay(today);
+    final current = _pairData.myMood;
+    if (todayEntries.isNotEmpty) {
+      final entry = todayEntries.first;
+      if (current.imagePath != entry.imagePath) {
+        _pairData.setMood(entry.imagePath, entry.label);
+      }
+    } else {
+      if (current.isNotEmpty) {
+        _pairData.clearMood();
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -420,8 +443,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    // Placeholder space for the timer card (16 top + 280 card)
-                    const SizedBox(height: 296),
+                    // Placeholder space for: mini-calendar (16+118+8) + timer card (280) = 422
+                    const SizedBox(height: 422),
                     if (_pairData.isPaired && _showReflection) ...[
                       const SizedBox(height: 32),
                       _buildDailyReflection(),
@@ -442,9 +465,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        // Expandable Timer Card overlay
+        // Mini mood calendar above the timer card
         Positioned(
           top: 16,
+          left: 24,
+          right: 24,
+          child: MiniMoodCalendar(
+            moodService: _moodService,
+            theme: _t,
+            onDayTap: _showMoodPickerForDate,
+          ),
+        ),
+        // Expandable Timer Card overlay
+        Positioned(
+          top: 142,
           left: 24,
           right: 24,
           child: ExpandableTimerCard(
@@ -1066,8 +1100,188 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Открыть выбор настроения для конкретной даты.
+  void _showMoodPickerForDate(DateTime date) {
+    final today = DateTime.now();
+    final isToday =
+        date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    // Найти уже выбранное настроение на эту дату
+    final existingEntries = _moodService.myEntriesForDay(date);
+    final existingPath = existingEntries.isNotEmpty
+        ? existingEntries.first.imagePath
+        : '';
+
+    // Формат заголовка: «Сегодня» или «Пн, 18 фев»
+    final months = [
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек',
+    ];
+    final weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    final dateLabel = isToday
+        ? 'Сегодня'
+        : '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Настроение — $dateLabel',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isToday
+                    ? 'Партнёр увидит ваше настроение'
+                    : 'Укажите настроение для этого дня',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: GridView.builder(
+                  controller: scrollController,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: MoodOption.all.length,
+                  itemBuilder: (ctx2, i) {
+                    final mood = MoodOption.all[i];
+                    final isSelected = existingPath == mood.imagePath;
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx2);
+                        if (isToday) {
+                          _pairData.setMood(mood.imagePath, mood.label);
+                        }
+                        _moodService.addMood(
+                          moodId: mood.id,
+                          imagePath: mood.imagePath,
+                          label: mood.label,
+                          date: date,
+                        );
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? primary.withOpacity(0.12)
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? primary : Colors.grey.shade200,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (mood.imagePath.isNotEmpty)
+                              Image.asset(
+                                mood.imagePath,
+                                width: 44,
+                                height: 44,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox(width: 44, height: 44),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              mood.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? primary
+                                    : Colors.grey.shade600,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (existingPath.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    // Удаляем запись за этот день
+                    for (final e in _moodService.myEntriesForDay(date)) {
+                      await _moodService.deleteMoodEntry(e.id);
+                    }
+                    if (isToday) _pairData.clearMood();
+                  },
+                  child: Text(
+                    'Убрать настроение',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showMoodPicker() {
-    final currentEmoji = _pairData.myMood.imagePath;
+    // Единый источник истины — MoodService (сегодняшняя запись)
+    final today = DateTime.now();
+    final todayEntries = _moodService.myEntriesForDay(today);
+    final currentEmoji = todayEntries.isNotEmpty
+        ? todayEntries.first.imagePath
+        : _pairData.myMood.imagePath;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1126,6 +1340,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     return GestureDetector(
                       onTap: () {
                         Navigator.pop(ctx2);
+                        // Сначала удаляем предыдущие записи за сегодня,
+                        // чтобы не было дублей в moodService
+                        for (final e in _moodService.myEntriesForDay(today)) {
+                          _moodService.deleteMoodEntry(e.id);
+                        }
                         _pairData.setMood(mood.imagePath, mood.label);
                         _moodService.addMood(
                           moodId: mood.id,
@@ -1133,6 +1352,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: mood.label,
                         );
                       },
+                      // _onMoodServiceChanged подхватит изменение и обновит pairData
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
@@ -1181,8 +1401,12 @@ class _HomeScreenState extends State<HomeScreen> {
               if (currentEmoji.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(ctx);
+                    // Удаляем из обоих хранилищ
+                    for (final e in _moodService.myEntriesForDay(today)) {
+                      await _moodService.deleteMoodEntry(e.id);
+                    }
                     _pairData.clearMood();
                   },
                   child: Text(
