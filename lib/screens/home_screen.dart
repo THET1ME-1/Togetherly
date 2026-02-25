@@ -2515,7 +2515,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => MemoryLaneScreen(pairData: _pairData),
+                      builder: (_) =>
+                          MemoryLaneScreen(pairData: _pairData, theme: _t),
                     ),
                   );
                 },
@@ -2596,7 +2597,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => MemoryLaneScreen(pairData: _pairData),
+            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t),
           ),
         );
       },

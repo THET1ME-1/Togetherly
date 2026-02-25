@@ -14,19 +14,25 @@ import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
+import '../theme/app_theme.dart';
 
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
 class MemoryLaneScreen extends StatefulWidget {
   final PairData pairData;
-  const MemoryLaneScreen({super.key, required this.pairData});
+  final AppTheme theme;
+  const MemoryLaneScreen({
+    super.key,
+    required this.pairData,
+    required this.theme,
+  });
 
   @override
   State<MemoryLaneScreen> createState() => _MemoryLaneScreenState();
 }
 
 class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
-  static const Color primary = Color(0xFFEE2B6C);
+  Color get primary => widget.theme.primary;
 
   final FirebaseService _fb = FirebaseService();
   List<Memory> _memories = [];
@@ -132,7 +138,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F6),
+      backgroundColor: widget.theme.bgGradient[0],
       body: Stack(
         children: [
           CustomScrollView(
@@ -1433,6 +1439,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       groupId: _groupId,
                       memoryId: memory.id,
                       fb: _fb,
+                      primary: primary,
                     ),
 
                     SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -2808,11 +2815,13 @@ class _CommentsSection extends StatefulWidget {
   final String groupId;
   final String memoryId;
   final FirebaseService fb;
+  final Color primary;
 
   const _CommentsSection({
     required this.groupId,
     required this.memoryId,
     required this.fb,
+    required this.primary,
   });
 
   @override
@@ -2928,10 +2937,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFEE2B6C),
-                      width: 1.5,
-                    ),
+                    borderSide: BorderSide(color: widget.primary, width: 1.5),
                   ),
                 ),
               ),
@@ -2941,8 +2947,8 @@ class _CommentsSectionState extends State<_CommentsSection> {
               onTap: _sending ? null : _send,
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEE2B6C),
+                decoration: BoxDecoration(
+                  color: widget.primary,
                   shape: BoxShape.circle,
                 ),
                 child: _sending
@@ -3000,12 +3006,12 @@ class _CommentsSectionState extends State<_CommentsSection> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: isMe
-                    ? const Color(0xFFEE2B6C).withOpacity(0.06)
+                    ? widget.primary.withOpacity(0.06)
                     : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isMe
-                      ? const Color(0xFFEE2B6C).withOpacity(0.15)
+                      ? widget.primary.withOpacity(0.15)
                       : Colors.grey.shade200,
                 ),
               ),
@@ -3019,9 +3025,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: isMe
-                              ? const Color(0xFFEE2B6C)
-                              : Colors.grey.shade700,
+                          color: isMe ? widget.primary : Colors.grey.shade700,
                         ),
                       ),
                       const Spacer(),
