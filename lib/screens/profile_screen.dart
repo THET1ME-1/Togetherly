@@ -1,10 +1,19 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
+import '../models/connection.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
+
+/// Entry for a partner across all connections
+class _PartnerEntry {
+  final GroupMember member;
+  final Connection connection;
+  const _PartnerEntry({required this.member, required this.connection});
+}
 
 class ProfileScreen extends StatefulWidget {
   final UserData userData;
@@ -22,6 +31,36 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
+
+  /// UID of the partner selected in the profile (null = first from active group)
+  String? _selectedPartnerUid;
+
+  /// Local relationship type used when no group is connected
+  RelationshipType _localRelType = RelationshipType.couple;
+
+  /// Timer to refresh day counter every hour
+  Timer? _dayTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.pairData.addListener(_onPairDataChanged);
+    // Refresh every hour so the day count updates when crossing midnight
+    _dayTimer = Timer.periodic(const Duration(hours: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.pairData.removeListener(_onPairDataChanged);
+    _dayTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onPairDataChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -588,6 +627,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  RELATIONSHIP CARD
   // ═══════════════════════════════════════════════════
   Widget _buildRelationshipCard(BuildContext context) {
+    // Gather all partners from ALL connections (not just the active one)
+    final allConnections = widget.pairData.manager.connections;
+    final allPartners = <_PartnerEntry>[];
+    for (final conn in allConnections) {
+      if (conn.isPaired) {
+        for (final m in conn.partners) {
+          allPartners.add(_PartnerEntry(member: m, connection: conn));
+        }
+      }
+    }
+
+    // Resolve selected partner (respects manual choice or falls back to first)
+    _PartnerEntry? selectedPartner;
+    if (_selectedPartnerUid != null) {
+      final found = allPartners.where(
+        (p) => p.member.uid == _selectedPartnerUid,
+      );
+      selectedPartner = found.isNotEmpty ? found.first : null;
+    }
+    selectedPartner ??= allPartners.isNotEmpty ? allPartners.first : null;
+
+    // Relationship type: synced with selected partner's group, or local override
+    final relType =
+        selectedPartner?.connection.relationshipType ?? _localRelType;
+    final customLabel =
+        selectedPartner?.connection.customRelationshipLabel ?? '';
+    final relLabel =
+        relType == RelationshipType.custom && customLabel.isNotEmpty
+        ? customLabel
+        : _relTypeToRussian(relType);
+    final relColor = _relTypeToColor(relType);
+    final relIcon = _relTypeToIcon(relType);
+
+    // ── Days together — ALWAYS from system clock (DateTime.now) ──
+    final startDate = selectedPartner?.connection.startDate;
+    final daysString = startDate != null
+        ? '${DateTime.now().difference(startDate).inDays} дней'
+        : '—';
+
+    final hasPaired = allPartners.isNotEmpty;
+
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -602,71 +682,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          // Status
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: widget.pairData.isPaired
-                      ? const Color(0xFF22C55E).withOpacity(0.1)
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
+          // ── Статус (синхронизирован с типом группы, нажимаем — меняем) ──
+          GestureDetector(
+            onTap: () => _showRelationshipTypePicker(
+              context,
+              selectedPartner?.connection,
+            ),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: relColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(relIcon, color: relColor, size: 18),
                 ),
-                child: Icon(
-                  widget.pairData.isPaired
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                  color: widget.pairData.isPaired
-                      ? const Color(0xFF22C55E)
-                      : Colors.grey.shade400,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Статус',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                        fontWeight: FontWeight.w500,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Статус',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.pairData.isPaired ? 'В паре' : 'Без пары',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: widget.pairData.isPaired
-                            ? const Color(0xFF22C55E)
-                            : Colors.grey.shade600,
+                      const SizedBox(height: 2),
+                      Text(
+                        relLabel,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: relColor,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ],
+            ),
           ),
-          if (widget.pairData.isPaired) ...[
-            _divider(),
-            _infoRow(
+          _divider(),
+          // ── Партнёр (выбор независимо от группы) ──
+          GestureDetector(
+            onTap: () => _showPartnerPicker(context, allPartners),
+            behavior: HitTestBehavior.opaque,
+            child: _infoRow(
               icon: Icons.person_rounded,
               label: 'Партнёр',
-              value: widget.pairData.partnerName,
+              value: selectedPartner?.member.name.isNotEmpty == true
+                  ? selectedPartner!.member.name
+                  : 'Не выбран',
+              trailing: Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.grey.shade400,
+                size: 20,
+              ),
             ),
+          ),
+          if (hasPaired) ...[
             _divider(),
             _infoRow(
               icon: Icons.calendar_today_rounded,
               label: 'Вместе',
-              value: '${widget.pairData.daysInLove} дней',
+              value: daysString,
             ),
           ],
-          if (!widget.pairData.isPaired) ...[
+          if (!hasPaired) ...[
             const SizedBox(height: 12),
             Text(
               'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️',
@@ -678,6 +770,357 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // ── Relationship type helpers ──
+  String _relTypeToRussian(RelationshipType type) {
+    switch (type) {
+      case RelationshipType.couple:
+        return 'Влюблённые';
+      case RelationshipType.married:
+        return 'Женаты';
+      case RelationshipType.friends:
+        return 'Друзья';
+      case RelationshipType.buddies:
+        return 'Лучшие друзья';
+      case RelationshipType.custom:
+        return 'Свой статус';
+    }
+  }
+
+  Color _relTypeToColor(RelationshipType type) {
+    switch (type) {
+      case RelationshipType.couple:
+        return const Color(0xFFE91E8C);
+      case RelationshipType.married:
+        return const Color(0xFF9B59B6);
+      case RelationshipType.friends:
+        return const Color(0xFF3498DB);
+      case RelationshipType.buddies:
+        return const Color(0xFF2ECC71);
+      case RelationshipType.custom:
+        return _accent;
+    }
+  }
+
+  IconData _relTypeToIcon(RelationshipType type) {
+    switch (type) {
+      case RelationshipType.couple:
+        return Icons.favorite_rounded;
+      case RelationshipType.married:
+        return Icons.diamond_outlined;
+      case RelationshipType.friends:
+        return Icons.people_outline_rounded;
+      case RelationshipType.buddies:
+        return Icons.diversity_1_rounded;
+      case RelationshipType.custom:
+        return Icons.star_outline_rounded;
+    }
+  }
+
+  // ── Picker: тип отношений ──
+  Future<void> _showRelationshipTypePicker(
+    BuildContext context,
+    Connection? connection,
+  ) async {
+    final types = [
+      RelationshipType.couple,
+      RelationshipType.married,
+      RelationshipType.friends,
+      RelationshipType.buddies,
+    ];
+
+    final current = connection?.relationshipType ?? _localRelType;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Тип отношений',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...types.map((type) {
+                final label = _relTypeToRussian(type);
+                final icon = _relTypeToIcon(type);
+                final color = _relTypeToColor(type);
+                final isSelected = current == type;
+                return GestureDetector(
+                  onTap: () {
+                    if (connection != null) {
+                      connection.setRelationshipType(type);
+                    } else {
+                      setState(() => _localRelType = type);
+                    }
+                    Navigator.pop(ctx);
+                    setState(() {});
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color.withOpacity(0.08)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? color : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          icon,
+                          color: isSelected ? color : Colors.grey.shade500,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isSelected ? color : Colors.grey.shade800,
+                            ),
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: color,
+                            size: 20,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Picker: выбор партнёра из всех групп ──
+  Future<void> _showPartnerPicker(
+    BuildContext context,
+    List<_PartnerEntry> allPartners,
+  ) async {
+    if (allPartners.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Нет подключённых партнёров'),
+          backgroundColor: _accent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Выберите партнёра',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...allPartners.map((entry) {
+                final defaultUid = allPartners.first.member.uid;
+                final isSelected =
+                    entry.member.uid == (_selectedPartnerUid ?? defaultUid);
+                final relColor = _relTypeToColor(
+                  entry.connection.relationshipType,
+                );
+                final initial = entry.member.name.isNotEmpty
+                    ? entry.member.name[0].toUpperCase()
+                    : '?';
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedPartnerUid = entry.member.uid);
+                    Navigator.pop(ctx);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _accent.withOpacity(0.08)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? _accent : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Avatar
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _accentLight,
+                          ),
+                          child: entry.member.avatar.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    entry.member.avatar,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Center(
+                                      child: Text(
+                                        initial,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: _accent,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    initial,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: _accent,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.member.name.isNotEmpty
+                                    ? entry.member.name
+                                    : 'Партнёр',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _relTypeToRussian(
+                                  entry.connection.relationshipType,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: relColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: _accent,
+                            size: 20,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
       ),
     );
   }
