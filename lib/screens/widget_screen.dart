@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/pair_data.dart';
 import '../models/widget_data.dart';
 import '../models/mood_entry.dart';
+import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 
@@ -12,12 +13,14 @@ import '../theme/app_theme.dart';
 class WidgetScreen extends StatefulWidget {
   final PairData pairData;
   final WidgetService widgetService;
+  final MoodService moodService;
   final AppTheme theme;
 
   const WidgetScreen({
     super.key,
     required this.pairData,
     required this.widgetService,
+    required this.moodService,
     required this.theme,
   });
 
@@ -28,6 +31,7 @@ class WidgetScreen extends StatefulWidget {
 class _WidgetScreenState extends State<WidgetScreen> {
   AppTheme get _t => widget.theme;
   WidgetService get _ws => widget.widgetService;
+  MoodService get _moodService => widget.moodService;
   PairData get _pair => widget.pairData;
 
   @override
@@ -439,7 +443,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 ? Image.asset(data.moodEmoji, width: 24, height: 24)
                 : null,
             onTap: () => _showMoodPicker(),
-            onClear: data.hasMood ? () => _ws.clearMood() : null,
+            onClear: data.hasMood
+                ? () async {
+                    final today = DateTime.now();
+                    for (final e in _moodService.myEntriesForDay(today)) {
+                      await _moodService.deleteMoodEntry(e.id);
+                    }
+                    _pair.clearMood();
+                    _ws.clearMood();
+                  }
+                : null,
           ),
           _slotDivider(),
           _buildSlotRow(
@@ -1116,9 +1129,22 @@ class _WidgetScreenState extends State<WidgetScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _MoodPickerSheet(
         theme: _t,
-        onSelect: (option) {
-          _ws.updateMood(option.imagePath, option.label);
+        onSelect: (option) async {
           Navigator.pop(ctx);
+          final today = DateTime.now();
+          // Удаляем старые записи за сегодня во избежание дублей
+          for (final e in _moodService.myEntriesForDay(today)) {
+            await _moodService.deleteMoodEntry(e.id);
+          }
+          _pair.setMood(option.imagePath, option.label);
+          _moodService.addMood(
+            moodId: option.imagePath
+                .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+                .toLowerCase(),
+            imagePath: option.imagePath,
+            label: option.label,
+          );
+          _ws.updateMood(option.imagePath, option.label);
         },
       ),
     );

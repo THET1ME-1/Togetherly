@@ -486,6 +486,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return WidgetScreen(
       pairData: _pairData,
       widgetService: _widgetService,
+      moodService: _moodService,
       theme: _t,
     );
   }
@@ -1077,8 +1078,11 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            MoodCalendarScreen(pairData: _pairData, moodService: _moodService),
+        builder: (_) => MoodCalendarScreen(
+          pairData: _pairData,
+          moodService: _moodService,
+          widgetService: _widgetService,
+        ),
       ),
     );
   }
@@ -1181,6 +1185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pop(ctx2);
                         if (isToday) {
                           _pairData.setMood(mood.imagePath, mood.label);
+                          _widgetService.updateMood(mood.imagePath, mood.label);
                         }
                         _moodService.addMood(
                           moodId: mood.id,
@@ -1242,7 +1247,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     for (final e in _moodService.myEntriesForDay(date)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
-                    if (isToday) _pairData.clearMood();
+                    if (isToday) {
+                      _pairData.clearMood();
+                      _widgetService.clearMood();
+                    }
                   },
                   child: Text(
                     'Убрать настроение',
@@ -1337,6 +1345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           imagePath: mood.imagePath,
                           label: mood.label,
                         );
+                        _widgetService.updateMood(mood.imagePath, mood.label);
                       },
                       // _onMoodServiceChanged подхватит изменение и обновит pairData
                       child: AnimatedContainer(
@@ -1389,11 +1398,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    // Удаляем из обоих хранилищ
+                    // Удаляем из всех хранилищ
                     for (final e in _moodService.myEntriesForDay(today)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
                     _pairData.clearMood();
+                    _widgetService.clearMood();
                   },
                   child: Text(
                     'Clear Mood',

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../services/mood_service.dart';
+import '../services/widget_service.dart';
 
 /// Экран «Mood Calendar»
 /// Верхняя часть — мой календарь, нижняя — календарь партнёра.
@@ -10,11 +11,13 @@ import '../services/mood_service.dart';
 class MoodCalendarScreen extends StatefulWidget {
   final PairData pairData;
   final MoodService moodService;
+  final WidgetService widgetService;
 
   const MoodCalendarScreen({
     super.key,
     required this.pairData,
     required this.moodService,
+    required this.widgetService,
   });
 
   @override
@@ -32,6 +35,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   MoodService get _mood => widget.moodService;
   PairData get _pair => widget.pairData;
+  WidgetService get _ws => widget.widgetService;
 
   @override
   void initState() {
@@ -872,12 +876,13 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           label: m.label,
                           date: day,
                         );
-                        // Синхронизируем с live-настроением (аватарка) если это сегодня
+                        // Синхронизуем с live-настроением (аватарка + виджет) если это сегодня
                         final now = DateTime.now();
                         if (day.year == now.year &&
                             day.month == now.month &&
                             day.day == now.day) {
                           _pair.setMood(m.imagePath, m.label);
+                          _ws.updateMood(m.imagePath, m.label);
                         }
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
