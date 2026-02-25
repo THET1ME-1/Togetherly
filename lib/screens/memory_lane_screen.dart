@@ -1310,94 +1310,118 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    // Action buttons
-                    Row(
+                    // Action buttons — две строки по 2 кнопки
+                    Column(
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              audioPlayer?.dispose();
-                              Navigator.pop(context);
-                              _togglePin(memory);
-                            },
-                            icon: Icon(
-                              memory.isPinned
-                                  ? Icons.push_pin_rounded
-                                  : Icons.push_pin_outlined,
-                              size: 16,
-                            ),
-                            label: Text(memory.isPinned ? 'Unpin' : 'Pin'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: primary,
-                              side: BorderSide(color: primary.withOpacity(0.3)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                        // Строка 1: Pin + Save
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  audioPlayer?.dispose();
+                                  Navigator.pop(context);
+                                  _togglePin(memory);
+                                },
+                                icon: Icon(
+                                  memory.isPinned
+                                      ? Icons.push_pin_rounded
+                                      : Icons.push_pin_outlined,
+                                  size: 16,
+                                ),
+                                label: Text(memory.isPinned ? 'Unpin' : 'Pin'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: primary,
+                                  side: BorderSide(
+                                    color: primary.withOpacity(0.3),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            if (_canDownload(memory)) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    audioPlayer?.dispose();
+                                    Navigator.pop(context);
+                                    _downloadMemoryMedia(memory);
+                                  },
+                                  icon: const Icon(
+                                    Icons.download_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Save'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.blue.shade600,
+                                    side: BorderSide(
+                                      color: Colors.blue.shade200,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        if (_canDownload(memory)) ...[
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                audioPlayer?.dispose();
-                                Navigator.pop(context);
-                                _downloadMemoryMedia(memory);
-                              },
-                              icon: Icon(Icons.download_rounded, size: 16),
-                              label: const Text('Save'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.blue.shade600,
-                                side: BorderSide(color: Colors.blue.shade200),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(width: 10),
+                        // Строка 2: Edit + Delete (только для своих записей)
                         if (memory.authorUid == _fb.uid) ...[
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                audioPlayer?.dispose();
-                                Navigator.pop(context);
-                                _editMemory(memory);
-                              },
-                              icon: const Icon(Icons.edit_rounded, size: 16),
-                              label: const Text('Edit'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.grey.shade700,
-                                side: BorderSide(color: Colors.grey.shade300),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    audioPlayer?.dispose();
+                                    Navigator.pop(context);
+                                    _editMemory(memory);
+                                  },
+                                  icon: const Icon(
+                                    Icons.edit_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Edit'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.grey.shade700,
+                                    side: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                audioPlayer?.dispose();
-                                Navigator.pop(context);
-                                _confirmDelete(memory);
-                              },
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                size: 16,
-                              ),
-                              label: const Text('Delete'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red.shade400,
-                                side: BorderSide(color: Colors.red.shade200),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    audioPlayer?.dispose();
+                                    Navigator.pop(context);
+                                    _confirmDelete(memory);
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Delete'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red.shade400,
+                                    side: BorderSide(
+                                      color: Colors.red.shade200,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ],
