@@ -6,10 +6,9 @@ import '../services/mood_service.dart';
 import '../theme/app_theme.dart';
 
 /// Горизонтальный мини-календарь с настроениями по дням.
-/// Показывает текущую неделю (Пн–Вс). Сегодня — выделен.
-/// Эмодзи = настроение, выбранное на этот день.
-/// Нажатие на день вызывает [onDayTap].
-class MiniMoodCalendar extends StatelessWidget {
+/// Листается бесконечно вперёд и назад. Сегодня — выделен.
+/// При прокрутке от сегодня появляется кнопка «Сегодня».
+class MiniMoodCalendar extends StatefulWidget {
   final MoodService moodService;
   final AppTheme theme;
   final void Function(DateTime date) onDayTap;
@@ -24,36 +23,152 @@ class MiniMoodCalendar extends StatelessWidget {
   static const _dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
   @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final todayNorm = DateTime(today.year, today.month, today.day);
-    // Начало текущей недели — понедельник
-    final monday = todayNorm.subtract(Duration(days: today.weekday - 1));
-    final days = List.generate(7, (i) => monday.add(Duration(days: i)));
+  State<MiniMoodCalendar> createState() => _MiniMoodCalendarState();
+}
 
-    return ListenableBuilder(
-      listenable: moodService,
-      builder: (context, _) {
-        return SizedBox(
+class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
+  // Виртуальный центр списка — сегодня
+  static const int _kCenter = 500000;
+  static const double _kCellWidth = 66.0;
+  static const double _kSeparator = 8.0;
+  static const double _kItemStride = _kCellWidth + _kSeparator;
+
+  late final ScrollController _scrollController;
+  late final DateTime _today;
+  late final DateTime _todayNorm;
+
+  bool _showBackToToday = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _today = DateTime.now();
+    _todayNorm = DateTime(_today.year, _today.month, _today.day);
+    _scrollController = ScrollController(
+      initialScrollOffset: _kCenter * _kItemStride,
+    );
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    // Первый видимый индекс (приблизительно)
+    final leftIndex = offset / _kItemStride;
+    final diff = (leftIndex - _kCenter).abs();
+    final shouldShow = diff > 0.8;
+    if (shouldShow != _showBackToToday) {
+      setState(() => _showBackToToday = shouldShow);
+    }
+  }
+
+  void _scrollToToday() {
+    _scrollController.animateTo(
+      _kCenter * _kItemStride,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Переводим виртуальный индекс → дата
+  DateTime _dateForIndex(int index) {
+    return _todayNorm.add(Duration(days: index - _kCenter));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
           height: 118,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.zero,
-            physics: const BouncingScrollPhysics(),
-            itemCount: days.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              return _DayCell(
-                date: days[index],
-                today: today,
-                moodService: moodService,
-                theme: theme,
-                onTap: onDayTap,
+          child: ListenableBuilder(
+            listenable: widget.moodService,
+            builder: (context, _) {
+              return ListView.builder(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.zero,
+                physics: const BouncingScrollPhysics(),
+                itemCount: _kCenter * 2,
+                itemExtent: _kItemStride,
+                itemBuilder: (context, index) {
+                  final date = _dateForIndex(index);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: _kSeparator),
+                    child: RepaintBoundary(
+                      child: _DayCell(
+                        date: date,
+                        today: _today,
+                        moodService: widget.moodService,
+                        theme: widget.theme,
+                        onTap: widget.onDayTap,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
-        );
-      },
+        ),
+
+        // ── Кнопка «Today» — под списком, по центру ──
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          child: _showBackToToday
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: GestureDetector(
+                    onTap: _scrollToToday,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: widget.theme.primary,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.theme.primary.withOpacity(0.30),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.today_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Today',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }
