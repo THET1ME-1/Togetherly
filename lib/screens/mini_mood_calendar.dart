@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/mood_entry.dart';
 import '../services/mood_service.dart';
@@ -56,7 +58,7 @@ class MiniMoodCalendar extends StatelessWidget {
   }
 }
 
-class _DayCell extends StatelessWidget {
+class _DayCell extends StatefulWidget {
   final DateTime date;
   final DateTime today;
   final MoodService moodService;
@@ -71,28 +73,80 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
-  bool get isToday =>
-      date.year == today.year &&
-      date.month == today.month &&
-      date.day == today.day;
+  @override
+  State<_DayCell> createState() => _DayCellState();
+}
 
-  bool get isFuture =>
-      date.isAfter(DateTime(today.year, today.month, today.day));
+class _DayCellState extends State<_DayCell> {
+  int _currentIndex = 0;
+  Timer? _timer;
+
+  bool get isToday =>
+      widget.date.year == widget.today.year &&
+      widget.date.month == widget.today.month &&
+      widget.date.day == widget.today.day;
+
+  bool get isFuture => widget.date.isAfter(
+    DateTime(widget.today.year, widget.today.month, widget.today.day),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeStartTimer();
+  }
+
+  @override
+  void didUpdateWidget(_DayCell old) {
+    super.didUpdateWidget(old);
+    _maybeStartTimer();
+  }
+
+  void _maybeStartTimer() {
+    final entries = widget.moodService.myEntriesForDay(widget.date);
+    if (entries.length > 1 && _timer == null) {
+      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (mounted) {
+          setState(() {
+            final entries = widget.moodService.myEntriesForDay(widget.date);
+            if (entries.length > 1) {
+              _currentIndex = (_currentIndex + 1) % entries.length;
+            }
+          });
+        }
+      });
+    } else if (entries.length <= 1) {
+      _timer?.cancel();
+      _timer = null;
+      _currentIndex = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final entries = moodService.myEntriesForDay(date);
-    final MoodEntry? topEntry = entries.isNotEmpty ? entries.first : null;
-    final dayName = MiniMoodCalendar._dayNames[date.weekday - 1];
+    final entries = widget.moodService.myEntriesForDay(widget.date);
+    final safeIndex = entries.isEmpty ? 0 : _currentIndex % entries.length;
+    final MoodEntry? current = entries.isNotEmpty ? entries[safeIndex] : null;
+    final dayName = MiniMoodCalendar._dayNames[widget.date.weekday - 1];
 
     final Color cardBg = isToday
-        ? theme.primary.withOpacity(0.13)
+        ? widget.theme.primary.withOpacity(0.13)
         : Colors.white.withOpacity(0.75);
-    final Color textColor = isToday ? theme.primary : const Color(0xFF6B7280);
-    final Color numColor = isToday ? theme.primary : const Color(0xFF1F2937);
+    final Color textColor = isToday
+        ? widget.theme.primary
+        : const Color(0xFF6B7280);
+    final Color numColor = isToday
+        ? widget.theme.primary
+        : const Color(0xFF1F2937);
 
     return GestureDetector(
-      onTap: isFuture ? null : () => onTap(date),
+      onTap: isFuture ? null : () => widget.onTap(widget.date),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: 66,
@@ -101,14 +155,14 @@ class _DayCell extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isToday
-                ? theme.primary.withOpacity(0.35)
+                ? widget.theme.primary.withOpacity(0.35)
                 : Colors.transparent,
             width: 1.5,
           ),
           boxShadow: isToday
               ? [
                   BoxShadow(
-                    color: theme.primary.withOpacity(0.12),
+                    color: widget.theme.primary.withOpacity(0.12),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -131,7 +185,7 @@ class _DayCell extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                date.day.toString(),
+                widget.date.day.toString(),
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -143,14 +197,18 @@ class _DayCell extends StatelessWidget {
               SizedBox(
                 width: 30,
                 height: 30,
-                child: topEntry != null && topEntry.imagePath.isNotEmpty
-                    ? Image.asset(
-                        topEntry.imagePath,
-                        width: 30,
-                        height: 30,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      )
-                    : const SizedBox.shrink(),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 500),
+                  child: current != null && current.imagePath.isNotEmpty
+                      ? Image.asset(
+                          current.imagePath,
+                          key: ValueKey(current.id),
+                          width: 30,
+                          height: 30,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ),
             ],
           ),

@@ -38,6 +38,16 @@
             android:textSize="24sp"
             android:layout_marginTop="2dp" />
 
+        <!-- Фото -->
+        <ImageView
+            android:id="@+id/my_photo"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:background="@android:color/darker_gray" />
+
         <!-- Статус -->
         <TextView
             android:id="@+id/my_status"
@@ -115,6 +125,16 @@
             android:text="😊"
             android:textSize="24sp"
             android:layout_marginTop="2dp" />
+
+        <!-- Фото -->
+        <ImageView
+            android:id="@+id/partner_photo"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:background="@android:color/darker_gray" />
 
         <!-- Статус -->
         <TextView

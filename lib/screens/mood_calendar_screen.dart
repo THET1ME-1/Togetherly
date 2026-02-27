@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
@@ -689,46 +691,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       );
     }
 
-    if (moods.length == 1) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: moods.first.color,
-          borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
-          border: isToday ? Border.all(color: primary, width: 2) : null,
-        ),
-        child: size > 20 && moods.first.imagePath.isNotEmpty
-            ? Center(
-                child: Image.asset(
-                  moods.first.imagePath,
-                  width: size * 0.7,
-                  height: size * 0.7,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const SizedBox(),
-                ),
-              )
-            : null,
-      );
-    }
-
-    // Multiple moods — split square
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
-        border: isToday ? Border.all(color: primary, width: 2) : null,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: CustomPaint(
-        size: Size(size, size),
-        painter: _MoodSplitPainter(
-          colors: moods.map((m) => m.color).toList(),
-          radius: size > 20 ? 4 : 2,
-        ),
-      ),
+    return _CyclingMoodSquare(
+      moods: moods,
+      size: size,
+      isToday: isToday,
+      primary: primary,
     );
   }
 
@@ -876,13 +843,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           label: m.label,
                           date: day,
                         );
-                        // Синхронизуем с live-настроением (аватарка + виджет) если это сегодня
+                        // Синхронизуем live-настроение если выбран сегодняшний день
                         final now = DateTime.now();
                         if (day.year == now.year &&
                             day.month == now.month &&
                             day.day == now.day) {
                           _pair.setMood(m.imagePath, m.label);
-                          _ws.updateMood(m.imagePath, m.label);
+                          // skipCalendar: moodService уже добавил запись
+                          _ws.updateMood(
+                            m.imagePath,
+                            m.label,
+                            skipCalendar: true,
+                          );
                         }
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1070,63 +1042,98 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   }
 }
 
-/// Painter для разделения квадрата на несколько цветов.
-/// Клипируется к RRect, чтобы цвета не выходили за скруглённые углы.
-class _MoodSplitPainter extends CustomPainter {
-  final List<Color> colors;
-  final double radius;
+/// Ячейка настроения с плавной циклической сменой эмодзи раз в секунду.
+class _CyclingMoodSquare extends StatefulWidget {
+  final List<MoodEntry> moods;
+  final double size;
+  final bool isToday;
+  final Color primary;
 
-  _MoodSplitPainter({required this.colors, this.radius = 8});
+  const _CyclingMoodSquare({
+    required this.moods,
+    required this.size,
+    required this.isToday,
+    required this.primary,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (colors.isEmpty) return;
+  State<_CyclingMoodSquare> createState() => _CyclingMoodSquareState();
+}
 
-    // Clip to rounded rect so nothing escapes the corners
-    canvas.save();
-    canvas.clipRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Radius.circular(radius),
-      ),
-    );
+class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
+  int _currentIndex = 0;
+  Timer? _timer;
 
-    final count = colors.length;
-    if (count == 1) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = colors.first,
-      );
-    } else if (count <= 3) {
-      // Split horizontally for 2-3
-      final w = size.width / count;
-      for (var i = 0; i < count; i++) {
-        canvas.drawRect(
-          Rect.fromLTWH(w * i, 0, w, size.height),
-          Paint()..color = colors[i],
-        );
-      }
-    } else {
-      // Grid layout for 4+
-      final cols = count <= 4 ? 2 : (count <= 9 ? 3 : 4);
-      final rows = (count / cols).ceil();
-      final cellW = size.width / cols;
-      final cellH = size.height / rows;
-      for (var i = 0; i < count; i++) {
-        final col = i % cols;
-        final row = i ~/ cols;
-        canvas.drawRect(
-          Rect.fromLTWH(cellW * col, cellH * row, cellW, cellH),
-          Paint()..color = colors[i],
-        );
-      }
-    }
-
-    canvas.restore();
+  @override
+  void initState() {
+    super.initState();
+    _startCycling();
   }
 
   @override
-  bool shouldRepaint(covariant _MoodSplitPainter oldDelegate) {
-    return oldDelegate.colors != colors;
+  void didUpdateWidget(_CyclingMoodSquare old) {
+    super.didUpdateWidget(old);
+    if (old.moods.length != widget.moods.length) {
+      _timer?.cancel();
+      _timer = null;
+      _currentIndex = 0;
+      _startCycling();
+    }
+  }
+
+  void _startCycling() {
+    if (widget.moods.length > 1) {
+      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (mounted) {
+          setState(() {
+            _currentIndex = (_currentIndex + 1) % widget.moods.length;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mood = widget.moods[_currentIndex % widget.moods.length];
+    final size = widget.size;
+    final radius = size > 20 ? 4.0 : 2.0;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        child: Container(
+          key: ValueKey(mood.id),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: mood.color,
+            borderRadius: BorderRadius.circular(radius),
+            border: widget.isToday
+                ? Border.all(color: widget.primary, width: 2)
+                : null,
+          ),
+          child: size > 20 && mood.imagePath.isNotEmpty
+              ? Center(
+                  child: Image.asset(
+                    mood.imagePath,
+                    width: size * 0.7,
+                    height: size * 0.7,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox(),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
   }
 }

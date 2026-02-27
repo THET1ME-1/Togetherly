@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
@@ -121,19 +124,30 @@ class WidgetService extends ChangeNotifier {
     await _updateField({'status': status});
   }
 
-  /// Обновить настроение (emoji)
-  Future<void> updateMood(String emojiPath, String label) async {
+  /// Обновить настроение (emoji).
+  /// [skipCalendar] — передай true если moodService.addMood уже добавил запись,
+  /// чтобы не создавать дубль.
+  Future<void> updateMood(
+    String emojiPath,
+    String label, {
+    bool skipCalendar = false,
+  }) async {
     await _updateField({'moodEmoji': emojiPath, 'moodLabel': label});
 
-    // Автоотправка в календарь через MoodService-совместимый формат
-    if (_autoSendMoodToCalendar && _groupId.isNotEmpty) {
+    // Автоотправка в календарь — только если не пропускаем
+    if (!skipCalendar && _autoSendMoodToCalendar && _groupId.isNotEmpty) {
       try {
         final uid = _fb.currentUser?.uid ?? '';
         final now = DateTime.now();
         final id = '${uid}_${now.millisecondsSinceEpoch}';
+        // Ищем корректный moodId по imagePath
+        final option = MoodOption.all.cast<MoodOption?>().firstWhere(
+          (m) => m!.imagePath == emojiPath,
+          orElse: () => null,
+        );
         final entry = MoodEntry(
           id: id,
-          moodId: label.toLowerCase().replaceAll(' ', '_'),
+          moodId: option?.id ?? label.toLowerCase().replaceAll(' ', '_'),
           imagePath: emojiPath,
           label: label,
           timestamp: now,
@@ -409,7 +423,17 @@ class WidgetService extends ChangeNotifier {
         partner?.musicArtist ?? '',
       );
 
-      // ── Обновить виджет на рабочем столе ──
+      // ── Фото: сохраняем URL, кэшируем локально фоново ──
+      await HomeWidget.saveWidgetData<String>(
+        'my_photo_url',
+        my?.photoUrl ?? '',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'partner_photo_url',
+        partner?.photoUrl ?? '',
+      );
+
+      // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
@@ -417,8 +441,71 @@ class WidgetService extends ChangeNotifier {
       debugPrint(
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
+
+      // Скачиваем фото локально в фоне и обновляем виджет повторно
+      _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
+    }
+  }
+
+  /// Скачивает фото в локальный кэш и обновляет нативный виджет.
+  /// Вызывается fire-and-forget, не блокирует основной поток.
+  void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
+    Future.wait([
+      _downloadPhoto(myUrl, 'my_photo_path'),
+      _downloadPhoto(partnerUrl, 'partner_photo_path'),
+    ]).then((_) async {
+      try {
+        await HomeWidget.updateWidget(
+          name: 'LoveWidgetProvider',
+          qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+        );
+      } catch (e) {
+        debugPrint('WidgetService._cachePhotosForWidget update failed: $e');
+      }
+    });
+  }
+
+  /// Скачивает изображение по [url] в файловый кэш и сохраняет путь
+  /// под ключом [key] в SharedPreferences нативного виджета.
+  Future<void> _downloadPhoto(String? url, String key) async {
+    if (url == null || url.isEmpty) {
+      await HomeWidget.saveWidgetData<String>(key, '');
+      return;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
+      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+
+      // Если URL не изменился и файл существует — не скачиваем повторно
+      if (cachedUrl == url &&
+          cachedPath.isNotEmpty &&
+          File(cachedPath).existsSync()) {
+        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        return;
+      }
+
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/$key.jpg');
+
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        await file.writeAsBytes(response.bodyBytes);
+        await HomeWidget.saveWidgetData<String>(key, file.path);
+        await prefs.setString('${key}_cached_url', url);
+        await prefs.setString('${key}_cached_path', file.path);
+        debugPrint('_downloadPhoto: $key cached at ${file.path}');
+      } else {
+        await HomeWidget.saveWidgetData<String>(key, '');
+      }
+    } catch (e) {
+      debugPrint('_downloadPhoto($key) failed: $e');
+      await HomeWidget.saveWidgetData<String>(key, '');
     }
   }
 

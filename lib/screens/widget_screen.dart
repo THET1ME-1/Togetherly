@@ -498,6 +498,32 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
+                      loadingBuilder: (_, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _t.primary,
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                       errorBuilder: (_, __, ___) => Container(
                         width: 36,
                         height: 36,
@@ -668,6 +694,32 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
+                      loadingBuilder: (_, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _t.primary,
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                       errorBuilder: (_, __, ___) => Container(
                         width: 36,
                         height: 36,
@@ -1131,20 +1183,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
         theme: _t,
         onSelect: (option) async {
           Navigator.pop(ctx);
-          final today = DateTime.now();
-          // Удаляем старые записи за сегодня во избежание дублей
-          for (final e in _moodService.myEntriesForDay(today)) {
-            await _moodService.deleteMoodEntry(e.id);
-          }
           _pair.setMood(option.imagePath, option.label);
+          // Добавляем в календарь с корректным id
           _moodService.addMood(
-            moodId: option.imagePath
-                .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
-                .toLowerCase(),
+            moodId: option.id,
             imagePath: option.imagePath,
             label: option.label,
           );
-          _ws.updateMood(option.imagePath, option.label);
+          // skipCalendar: moodService уже добавил запись — не дублируем
+          _ws.updateMood(option.imagePath, option.label, skipCalendar: true);
         },
       ),
     );

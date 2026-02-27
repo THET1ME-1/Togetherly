@@ -3,7 +3,10 @@ package com.example.love_app
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -54,6 +57,17 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 }
                 setTextViewText(R.id.my_music, myMusicText)
 
+                // ═══════════ Моё фото ═══════════
+                val myPhotoPath = widgetData.getString("my_photo_path", null)
+                    .takeIf { !it.isNullOrEmpty() }
+                val myBitmap = loadScaledBitmap(myPhotoPath, 200)
+                if (myBitmap != null) {
+                    setImageViewBitmap(R.id.my_photo, myBitmap)
+                    setViewVisibility(R.id.my_photo, View.VISIBLE)
+                } else {
+                    setViewVisibility(R.id.my_photo, View.GONE)
+                }
+
                 // ═══════════ Сторона партнёра ═══════════
                 val partnerName = widgetData.getString("partner_name", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "Партнёр"
@@ -80,9 +94,56 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                     else -> ""
                 }
                 setTextViewText(R.id.partner_music, partnerMusicText)
+
+                // ═══════════ Фото партнёра ═══════════
+                val partnerPhotoPath = widgetData.getString("partner_photo_path", null)
+                    .takeIf { !it.isNullOrEmpty() }
+                val partnerBitmap = loadScaledBitmap(partnerPhotoPath, 200)
+                if (partnerBitmap != null) {
+                    setImageViewBitmap(R.id.partner_photo, partnerBitmap)
+                    setViewVisibility(R.id.partner_photo, View.VISIBLE)
+                } else {
+                    setViewVisibility(R.id.partner_photo, View.GONE)
+                }
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)
+        }
+    }
+
+    /**
+     * Читает файл по [path] и декодирует его сразу в нужный размер
+     * ([maxSizePx] × [maxSizePx] px), избегая OOM и TransactionTooLargeException
+     * при передаче битмапа через RemoteViews/Binder (~1 МБ лимит).
+     */
+    private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
+        if (path.isNullOrEmpty()) return null
+        val file = java.io.File(path)
+        if (!file.exists()) return null
+
+        // Узнаём размеры без загрузки пикселей
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, opts)
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
+
+        // Вычисляем inSampleSize для вписывания в maxSizePx
+        var sampleSize = 1
+        var w = opts.outWidth
+        var h = opts.outHeight
+        while (w / 2 >= maxSizePx || h / 2 >= maxSizePx) {
+            sampleSize *= 2
+            w /= 2
+            h /= 2
+        }
+
+        val decodeOpts = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565  // ~4× меньше памяти, чем ARGB_8888
+        }
+        return try {
+            BitmapFactory.decodeFile(path, decodeOpts)
+        } catch (e: OutOfMemoryError) {
+            null
         }
     }
 }
