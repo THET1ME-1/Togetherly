@@ -5,6 +5,7 @@ import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/firebase_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
 
@@ -31,6 +32,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
+  AppStrings get _s => LocaleService.current;
 
   /// UID of the partner selected in the profile (null = first from active group)
   String? _selectedPartnerUid;
@@ -168,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           widget.userData.displayName.isNotEmpty
               ? widget.userData.displayName
-              : 'Пользователь',
+              : _s.user,
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w800,
@@ -178,9 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 4),
         // Email
         Text(
-          widget.userData.email.isNotEmpty
-              ? widget.userData.email
-              : 'Нет email',
+          widget.userData.email.isNotEmpty ? widget.userData.email : _s.noEmail,
           style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
         ),
         const SizedBox(height: 12),
@@ -204,7 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(width: 6),
               Text(
-                widget.userData.isMale ? 'Парень' : 'Девушка',
+                widget.userData.isMale ? _s.boy : _s.girl,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -261,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Редактировать профиль',
+                    _s.editProfile,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -333,7 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: 'Имя',
+                  labelText: _s.name,
                   prefixIcon: const Icon(Icons.person_outline_rounded),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -361,8 +361,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Сохранить',
+                  child: Text(
+                    _s.save,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -404,7 +404,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircularProgressIndicator(color: _accent),
                 const SizedBox(height: 16),
                 Text(
-                  'Загрузка...',
+                  _s.uploading,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -424,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userId = fb.currentUser?.uid ?? '';
       if (userId.isEmpty) {
         if (mounted) Navigator.of(context).pop();
-        if (mounted) _showError('Ошибка: пользователь не авторизован');
+        if (mounted) _showError(_s.userNotAuthorized);
         return;
       }
 
@@ -435,7 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) Navigator.of(context).pop();
 
       if (downloadUrl == null) {
-        if (mounted) _showError('Не удалось загрузить изображение');
+        if (mounted) _showError(_s.failedUploadImage);
         return;
       }
 
@@ -445,7 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Аватарка обновлена'),
+            content: Text(_s.avatarUpdated),
             backgroundColor: _accent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -456,7 +456,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
-      if (mounted) _showError('Ошибка загрузки: ${e.toString()}');
+      if (mounted) _showError(_s.uploadError(e.toString()));
     }
   }
 
@@ -467,7 +467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Имя обновлено'),
+            content: Text(_s.nameUpdated),
             backgroundColor: _accent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -477,7 +477,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      if (mounted) _showError('Ошибка: ${e.toString()}');
+      if (mounted) _showError(_s.uploadError(e.toString()));
     }
   }
 
@@ -501,7 +501,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ИНФОРМАЦИЯ',
+            _s.information,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -512,7 +512,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
           _infoRow(
             icon: Icons.person_outline_rounded,
-            label: 'Имя',
+            label: _s.name,
             value: widget.userData.displayName.isNotEmpty
                 ? widget.userData.displayName
                 : '—',
@@ -530,8 +530,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: widget.userData.isMale
                 ? Icons.male_rounded
                 : Icons.female_rounded,
-            label: 'Пол',
-            value: widget.userData.isMale ? 'Мужской' : 'Женский',
+            label: _s.gender,
+            value: widget.userData.isMale ? _s.male : _s.female,
           ),
           _divider(),
           GestureDetector(
@@ -539,7 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             behavior: HitTestBehavior.opaque,
             child: _infoRow(
               icon: Icons.palette_outlined,
-              label: 'Тема',
+              label: _s.theme,
               value: widget.userData.themeName,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -663,7 +663,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // ── Days together — ALWAYS from system clock (DateTime.now) ──
     final startDate = selectedPartner?.connection.startDate;
     final daysString = startDate != null
-        ? '${DateTime.now().difference(startDate).inDays} дней'
+        ? _s.daysTogetherLabel('${DateTime.now().difference(startDate).inDays}')
         : '—';
 
     final hasPaired = allPartners.isNotEmpty;
@@ -673,7 +673,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ОТНОШЕНИЯ',
+            _s.relationships,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -705,7 +705,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Статус',
+                        _s.statusLabel,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade400,
@@ -739,10 +739,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             behavior: HitTestBehavior.opaque,
             child: _infoRow(
               icon: Icons.person_rounded,
-              label: 'Партнёр',
+              label: _s.partnerLabel,
               value: selectedPartner?.member.name.isNotEmpty == true
                   ? selectedPartner!.member.name
-                  : 'Не выбран',
+                  : _s.notSelected,
               trailing: Icon(
                 Icons.chevron_right_rounded,
                 color: Colors.grey.shade400,
@@ -754,14 +754,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _divider(),
             _infoRow(
               icon: Icons.calendar_today_rounded,
-              label: 'Вместе',
+              label: _s.together,
               value: daysString,
             ),
           ],
           if (!hasPaired) ...[
             const SizedBox(height: 12),
             Text(
-              'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️',
+              _s.invitePartnerToCount,
               style: TextStyle(
                 fontSize: 13,
                 color: Colors.grey.shade500,
@@ -778,15 +778,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _relTypeToRussian(RelationshipType type) {
     switch (type) {
       case RelationshipType.couple:
-        return 'Влюблённые';
+        return _s.inLoveRelType;
       case RelationshipType.married:
-        return 'Женаты';
+        return _s.marriedRelType;
       case RelationshipType.friends:
-        return 'Друзья';
+        return _s.friendsRelType;
       case RelationshipType.buddies:
-        return 'Лучшие друзья';
+        return _s.bestFriendsRelType;
       case RelationshipType.custom:
-        return 'Свой статус';
+        return _s.customStatus;
     }
   }
 
@@ -864,7 +864,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Тип отношений',
+                    _s.relationshipType,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -956,7 +956,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Нет подключённых партнёров'),
+          content: Text(_s.noConnectedPartners),
           backgroundColor: _accent,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -997,7 +997,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Выберите партнёра',
+                    _s.selectPartner,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -1086,7 +1086,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Text(
                                 entry.member.name.isNotEmpty
                                     ? entry.member.name
-                                    : 'Партнёр',
+                                    : _s.partner,
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
@@ -1134,7 +1134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'НАСТРОЙКИ',
+            _s.settings,
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1145,13 +1145,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           _settingsTile(
             icon: Icons.edit_outlined,
-            label: 'Редактировать профиль',
+            label: _s.editProfile,
             onTap: () => _showEditProfileDialog(context),
           ),
           _divider(),
           _settingsTile(
             icon: Icons.palette_outlined,
-            label: 'Тема',
+            label: _s.theme,
             onTap: () => _showThemePicker(context),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1176,19 +1176,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _divider(),
           _settingsTile(
             icon: Icons.notifications_outlined,
-            label: 'Уведомления',
+            label: _s.notifications,
             onTap: () {},
           ),
           _divider(),
           _settingsTile(
             icon: Icons.lock_outline_rounded,
-            label: 'Конфиденциальность',
+            label: _s.privacy,
             onTap: () {},
           ),
           _divider(),
           _settingsTile(
+            icon: Icons.language_rounded,
+            label: _s.language,
+            onTap: () => _showLanguagePicker(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  LocaleService.instance.language == AppLanguage.ru
+                      ? 'RU'
+                      : 'EN',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+          _divider(),
+          _settingsTile(
             icon: Icons.info_outline_rounded,
-            label: 'О приложении',
+            label: _s.aboutApp,
             onTap: () {},
           ),
         ],
@@ -1234,6 +1261,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ═══════════════════════════════════════════════════
+  //  LANGUAGE PICKER
+  // ═══════════════════════════════════════════════════
+  void _showLanguagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _s.selectLanguage,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _languageOption(ctx, code: 'ru', label: 'Русский', flag: '🇷🇺'),
+            const SizedBox(height: 10),
+            _languageOption(ctx, code: 'en', label: 'English', flag: '🇺🇸'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _languageOption(
+    BuildContext ctx, {
+    required String code,
+    required String label,
+    required String flag,
+  }) {
+    final isSelected =
+        LocaleService.instance.language ==
+        (code == 'ru' ? AppLanguage.ru : AppLanguage.en);
+    return GestureDetector(
+      onTap: () {
+        LocaleService.instance.setLanguage(
+          code == 'ru' ? AppLanguage.ru : AppLanguage.en,
+        );
+        Navigator.pop(ctx);
+        setState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? _accent.withOpacity(0.08) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? _accent : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? _accent : Colors.grey.shade800,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: _accent, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
   //  DANGER ZONE
   // ═══════════════════════════════════════════════════
   Widget _buildDangerZone(BuildContext context) {
@@ -1257,7 +1378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Выйти из аккаунта',
+                  _s.logout,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1333,7 +1454,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 20),
                         Text(
-                          'Выбери цветовую тему',
+                          _s.chooseColorTheme,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -1342,7 +1463,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Изменения применяются сразу',
+                          _s.changesApplyImmediately,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey.shade500,
@@ -1522,14 +1643,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Редактировать профиль'),
+        title: Text(_s.editProfileTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
               decoration: InputDecoration(
-                labelText: 'Имя',
+                labelText: _s.name,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1550,7 +1671,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Отмена'),
+            child: Text(_s.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -1560,7 +1681,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
               Navigator.of(ctx).pop();
             },
-            child: Text('Сохранить', style: TextStyle(color: _accent)),
+            child: Text(_s.save, style: TextStyle(color: _accent)),
           ),
         ],
       ),
@@ -1572,12 +1693,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Выйти?'),
-        content: const Text('Вы уверены, что хотите выйти из аккаунта?'),
+        title: Text(_s.logoutQuestion),
+        content: Text(_s.logoutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Отмена'),
+            child: Text(_s.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -1592,7 +1713,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             },
-            child: Text('Выйти', style: TextStyle(color: Colors.red.shade400)),
+            child: Text(
+              _s.logoutBtn,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
+import '../services/locale_service.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
 
@@ -801,9 +802,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       );
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось загрузить фон. Проверьте подключение.'),
-          ),
+          SnackBar(content: Text(LocaleService.current.failedUploadBackground)),
         );
       }
     } finally {

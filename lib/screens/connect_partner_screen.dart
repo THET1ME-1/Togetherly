@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/deep_link_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
@@ -106,7 +107,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         ? (connection.partnerCount > 1
               ? '${connection.partners.first.name} +${connection.partnerCount - 1}'
               : connection.partnerName)
-        : 'Waiting...';
+        : LocaleService.current.waiting;
     return GestureDetector(
       onTap: () async {
         await pair.manager.switchToConnection(index);
@@ -187,7 +188,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             Icon(Icons.add_rounded, size: 18, color: Colors.grey.shade500),
             const SizedBox(width: 4),
             Text(
-              'New',
+              LocaleService.current.newGroup,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -307,7 +308,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Connected',
+                        LocaleService.current.connected,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -322,7 +323,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 Text(
                   partners.length == 1
                       ? partners.first.name
-                      : 'Group of ${partners.length + 1}',
+                      : LocaleService.current.groupOf(partners.length + 1),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -379,7 +380,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MEMBERS · ${partners.length + 1}',
+                  LocaleService.current.membersCount(partners.length + 1),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -397,7 +398,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            m.name.isNotEmpty ? m.name : 'Member',
+                            m.name.isNotEmpty
+                                ? m.name
+                                : LocaleService.current.member,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -414,8 +417,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             color: const Color(0xFF4ADE80).withOpacity(0.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
-                            'Online',
+                          child: Text(
+                            LocaleService.current.online,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
@@ -439,7 +442,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 Expanded(
                   child: _actionTile(
                     icon: Icons.person_add_rounded,
-                    label: 'Invite More',
+                    label: LocaleService.current.inviteMore,
                     onTap: _showInviteMoreSheet,
                   ),
                 ),
@@ -447,7 +450,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Expanded(
                 child: _actionTile(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
+                  label: LocaleService.current.scanQr,
                   onTap: _openQRScanner,
                 ),
               ),
@@ -472,7 +475,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ),
               child: Center(
                 child: Text(
-                  'Disconnect',
+                  LocaleService.current.disconnect,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -547,9 +550,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   },
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Connect Your Partner',
-                  style: TextStyle(
+                Text(
+                  LocaleService.current.connectYourPartner,
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -557,7 +560,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Share your invite code so your\npartner can join this space',
+                  LocaleService.current.shareInviteCodeDesc,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -614,7 +617,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             child: Column(
               children: [
                 Text(
-                  'YOUR INVITE CODE',
+                  LocaleService.current.yourInviteCode,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -653,12 +656,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     Expanded(
                       child: _themedOutlineButton(
                         icon: Icons.copy_rounded,
-                        label: 'Copy',
+                        label: LocaleService.current.copy,
                         onTap: () {
                           Clipboard.setData(
                             ClipboardData(text: pair.inviteCode),
                           );
-                          _showSnack('Code copied!');
+                          _showSnack(LocaleService.current.codeCopied);
                         },
                       ),
                     ),
@@ -666,11 +669,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     Expanded(
                       child: _themedOutlineButton(
                         icon: Icons.share_rounded,
-                        label: 'Share',
+                        label: LocaleService.current.share,
                         onTap: () async {
                           await Share.share(
-                            'Join me on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
-                            subject: 'Love App Invitation',
+                            LocaleService.current.shareInviteText(
+                              pair.inviteCode,
+                              pair.inviteLink,
+                            ),
+                            subject: LocaleService.current.loveAppInvitation,
                           );
                         },
                       ),
@@ -681,7 +687,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       onTap: () {
                         pair.regenerateCode();
                         setState(() {});
-                        _showSnack('New code generated');
+                        _showSnack(LocaleService.current.newCodeGenerated);
                       },
                     ),
                   ],
@@ -697,7 +703,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Expanded(
                 child: _actionTile(
                   icon: Icons.qr_code_2_rounded,
-                  label: 'Show QR',
+                  label: LocaleService.current.showQr,
                   onTap: _showQRDialog,
                 ),
               ),
@@ -705,7 +711,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Expanded(
                 child: _actionTile(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
+                  label: LocaleService.current.scanQr,
                   onTap: _openQRScanner,
                 ),
               ),
@@ -737,7 +743,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Have a code?',
+                          LocaleService.current.haveACode,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -773,9 +779,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Connect Partner',
-                        style: TextStyle(
+                      child: Text(
+                        LocaleService.current.connectPartnerBtn,
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -800,7 +806,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'MEMBERS (${partners.length + 1})',
+          LocaleService.current.membersCountBracket(partners.length + 1),
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -818,7 +824,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    member.name.isNotEmpty ? member.name : 'Member',
+                    member.name.isNotEmpty
+                        ? member.name
+                        : LocaleService.current.member,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -912,7 +920,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'Invite More Members',
+              LocaleService.current.inviteMoreMembers,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -921,7 +929,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              '${pair.members.length}/${pair.maxMembers} members',
+              LocaleService.current.membersOfMax(
+                pair.members.length,
+                pair.maxMembers,
+              ),
               style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 24),
@@ -955,11 +966,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 Expanded(
                   child: _outlineButton(
                     icon: Icons.copy_rounded,
-                    label: 'Copy',
+                    label: LocaleService.current.copy,
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: pair.inviteCode));
                       Navigator.pop(context);
-                      _showSnack('Code copied!');
+                      _showSnack(LocaleService.current.codeCopied);
                     },
                   ),
                 ),
@@ -971,14 +982,17 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       onPressed: () async {
                         Navigator.pop(context);
                         await Share.share(
-                          'Join our group on Love App! Use code: ${pair.inviteCode}\n\nOr click: ${pair.inviteLink}',
-                          subject: 'Love App Group Invitation',
+                          LocaleService.current.shareGroupInviteText(
+                            pair.inviteCode,
+                            pair.inviteLink,
+                          ),
+                          subject: LocaleService.current.groupInvitation,
                         );
                       },
                       icon: const Icon(Icons.share_rounded, size: 16),
-                      label: const Text(
-                        'Share',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                      label: Text(
+                        LocaleService.current.share,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primary,
@@ -1004,17 +1018,18 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   // ═══════════════════════════════════════════════════
 
   String _getConnectedSuccessMessage() {
+    final s = LocaleService.current;
     switch (pair.relationshipType) {
       case RelationshipType.couple:
-        return "You're connected with ${pair.partnerName}!";
+        return s.connectedWithCouple(pair.partnerName);
       case RelationshipType.married:
-        return "You're married to ${pair.partnerName}! 💍";
+        return s.marriedTo(pair.partnerName);
       case RelationshipType.friends:
-        return "You're now friends with ${pair.partnerName}!";
+        return s.friendsWith(pair.partnerName);
       case RelationshipType.buddies:
-        return "You're now buddies with ${pair.partnerName}!";
+        return s.buddiesWith(pair.partnerName);
       case RelationshipType.custom:
-        return "You're now ${pair.relationshipLabel} with ${pair.partnerName}!";
+        return s.customRelWith(pair.relationshipLabel, pair.partnerName);
     }
   }
 
@@ -1046,7 +1061,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Join Another Group',
+                      LocaleService.current.joinAnotherGroup,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -1055,7 +1070,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Enter code, scan QR, or use a link',
+                      LocaleService.current.enterCodeScanQr,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -1073,7 +1088,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Expanded(
                 child: _outlineButton(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
+                  label: LocaleService.current.scanQr,
                   onTap: _openQRScanner,
                 ),
               ),
@@ -1102,7 +1117,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Enter Code',
+                          LocaleService.current.enterCode,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -1175,7 +1190,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Invalid code. Please check and try again.',
+                  LocaleService.current.invalidCodeTryAgain,
                   style: TextStyle(fontSize: 12, color: Colors.red.shade400),
                 ),
               ),
@@ -1194,9 +1209,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   elevation: 8,
                   shadowColor: primary.withOpacity(0.3),
                 ),
-                child: const Text(
-                  'Join Group',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                child: Text(
+                  LocaleService.current.joinGroup,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -1528,7 +1546,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final code = _codeController.text.trim().toUpperCase();
     if (pair.isSelfCode(code)) {
       setState(() => _codeError = true);
-      _showSnack("You can't invite yourself!");
+      _showSnack(LocaleService.current.cantInviteSelf);
       return;
     }
     final ok = await pair.acceptCode(code);
@@ -1537,7 +1555,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       _showSnack('\u{1F389} ${_getConnectedSuccessMessage()}');
     } else {
       setState(() => _codeError = true);
-      _showSnack('Code not found or already used');
+      _showSnack(LocaleService.current.codeNotFound);
     }
   }
 
@@ -1577,7 +1595,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Scan to Connect',
+                LocaleService.current.scanToConnect,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -1621,12 +1639,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       child: OutlinedButton.icon(
                         onPressed: () async {
                           await Share.share(
-                            'Join me on Love App! ${pair.inviteLink}',
-                            subject: 'Love App Invitation',
+                            LocaleService.current.joinMeLinkText(
+                              pair.inviteLink,
+                            ),
+                            subject: LocaleService.current.loveAppInvitation,
                           );
                         },
                         icon: const Icon(Icons.share_rounded),
-                        label: const Text('Share'),
+                        label: Text(LocaleService.current.share),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: primary,
                           side: BorderSide(color: primary),
@@ -1650,9 +1670,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          'Done',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                        child: Text(
+                          LocaleService.current.done,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -1702,7 +1722,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Relationship Status',
+                        LocaleService.current.relationshipStatus,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -1711,7 +1731,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Choose how you want to connect',
+                        LocaleService.current.chooseHowToConnect,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -1721,29 +1741,30 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       _relationshipOption(
                         type: RelationshipType.couple,
                         icon: '❤️',
-                        title: 'In Love',
-                        subtitle: 'Perfect for romantic couples',
+                        title: LocaleService.current.inLoveStatus,
+                        subtitle: LocaleService.current.perfectForCouples,
                       ),
                       const SizedBox(height: 12),
                       _relationshipOption(
                         type: RelationshipType.married,
                         icon: '💍',
-                        title: 'Married',
-                        subtitle: 'For married partners',
+                        title: LocaleService.current.married,
+                        subtitle: LocaleService.current.forMarriedPartners,
                       ),
                       const SizedBox(height: 12),
                       _relationshipOption(
                         type: RelationshipType.friends,
                         icon: '🤝',
-                        title: 'Friends',
-                        subtitle: 'Connect with your best friend',
+                        title: LocaleService.current.friends,
+                        subtitle: LocaleService.current.connectWithBestFriend,
                       ),
                       const SizedBox(height: 12),
                       _relationshipOption(
                         type: RelationshipType.buddies,
                         icon: '👯',
-                        title: 'Best Buddies',
-                        subtitle: 'For inseparable companions',
+                        title: LocaleService.current.bestBuddies,
+                        subtitle:
+                            LocaleService.current.forInseparableCompanions,
                       ),
                       // Custom relationship types
                       ...customTypes.map((entry) {
@@ -1785,7 +1806,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Text(
-                                      entry['label'] ?? 'Custom',
+                                      entry['label'] ??
+                                          LocaleService.current.custom,
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
@@ -1829,7 +1851,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           _showAddCustomRelTypeDialog();
                         },
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Custom Status'),
+                        label: Text(LocaleService.current.addCustomStatus),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             vertical: 14,
@@ -1917,14 +1939,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Add Custom Status'),
+        title: Text(LocaleService.current.addCustomStatus),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: emojiCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Emoji',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.emoji,
                 hintText: '💕',
               ),
               maxLength: 2,
@@ -1932,9 +1954,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             const SizedBox(height: 12),
             TextField(
               controller: labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'e.g., Soulmates',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.label,
+                hintText: LocaleService.current.egSoulmates,
               ),
               maxLength: 30,
               textCapitalization: TextCapitalization.words,
@@ -1944,7 +1966,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1962,7 +1984,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 }
               }
             },
-            child: const Text('Add'),
+            child: Text(LocaleService.current.add),
           ),
         ],
       ),
@@ -1993,7 +2015,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Add New Connection',
+                  LocaleService.current.addNewConnection,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -2002,40 +2024,40 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Choose the type for your new connection',
+                  LocaleService.current.chooseTypeForConnection,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 24),
                 _addGroupOption(
                   type: RelationshipType.couple,
                   icon: '\u2764\uFE0F',
-                  title: 'In Love',
-                  subtitle: 'Perfect for romantic couples',
+                  title: LocaleService.current.inLoveStatus,
+                  subtitle: LocaleService.current.perfectForCouples,
                 ),
                 const SizedBox(height: 12),
                 _addGroupOption(
                   type: RelationshipType.married,
                   icon: '\u{1F48D}',
-                  title: 'Married',
-                  subtitle: 'For married partners',
+                  title: LocaleService.current.married,
+                  subtitle: LocaleService.current.forMarriedPartners,
                 ),
                 const SizedBox(height: 12),
                 _addGroupOption(
                   type: RelationshipType.friends,
                   icon: '\u{1F91D}',
-                  title: 'Friends',
-                  subtitle: 'Connect with your best friend',
+                  title: LocaleService.current.friends,
+                  subtitle: LocaleService.current.connectWithBestFriend,
                 ),
                 const SizedBox(height: 12),
                 _addGroupOption(
                   type: RelationshipType.buddies,
                   icon: '\u{1F46F}',
-                  title: 'Best Buddies',
-                  subtitle: 'For inseparable companions',
+                  title: LocaleService.current.bestBuddies,
+                  subtitle: LocaleService.current.forInseparableCompanions,
                 ),
                 // Show user-created custom relationship types
                 ...allCustomTypes.values.map((ct) {
-                  final label = ct['label'] ?? 'Custom';
+                  final label = ct['label'] ?? LocaleService.current.custom;
                   final emoji = ct['emoji'] ?? '✨';
                   return Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -2043,7 +2065,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       type: RelationshipType.custom,
                       icon: emoji,
                       title: label,
-                      subtitle: 'Your custom type',
+                      subtitle: LocaleService.current.yourCustomType,
                       customLabel: label,
                       customEmoji: emoji,
                     ),
@@ -2075,7 +2097,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         Navigator.of(context).pop();
         _resetCodeInput();
         setState(() {});
-        _showSnack('New connection added!');
+        _showSnack(LocaleService.current.newConnectionAdded);
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -2124,14 +2146,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete Connection?'),
-        content: const Text(
-          'This will remove this connection permanently. If paired, it will disconnect your partner.',
-        ),
+        title: Text(LocaleService.current.deleteConnection),
+        content: Text(LocaleService.current.deleteConnectionDesc),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -2139,9 +2159,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               Navigator.of(context).pop();
               _resetCodeInput();
               setState(() {});
-              _showSnack('Connection removed');
+              _showSnack(LocaleService.current.connectionRemoved);
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
+            child: Text(
+              LocaleService.current.delete,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
           ),
         ],
       ),
@@ -2153,14 +2176,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Disconnect?'),
-        content: const Text(
-          'This will reset your timer and disconnect your partner.',
-        ),
+        title: Text(LocaleService.current.disconnectQuestion),
+        content: Text(LocaleService.current.disconnectDesc),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -2169,7 +2190,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               setState(() {});
             },
             child: Text(
-              'Disconnect',
+              LocaleService.current.disconnect,
               style: TextStyle(color: Colors.red.shade400),
             ),
           ),
@@ -2203,9 +2224,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Scan Partner's QR Code",
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          LocaleService.current.scanPartnersQr,
+          style: const TextStyle(color: Colors.white),
         ),
       ),
       body: MobileScanner(

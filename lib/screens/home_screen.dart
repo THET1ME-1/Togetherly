@@ -10,6 +10,7 @@ import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
@@ -67,34 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? _reflectionSub;
   bool _reflectionJustSaved = false;
 
-  static const _reflectionQuestions = [
-    'What is one small thing your partner did today that made you feel appreciated?',
-    'What moment with your partner made you smile today?',
-    'What is something you admire about your partner right now?',
-    'What is one thing you are grateful for in your relationship today?',
-    'What is a memory with your partner you keep coming back to?',
-    'What is one way your partner surprised you recently?',
-    'What makes your partner unique to you?',
-    'How did your partner support you today?',
-    'What is one thing you want your partner to know today?',
-    'What adventure would you love to go on with your partner?',
-    'What song reminds you of your partner and why?',
-    'What is the best thing about being with your partner?',
-    'What small act of kindness from your partner meant the most lately?',
-    'What is something new you have learned about your partner?',
-    'What is a goal you both share?',
-    'What is one thing you love doing together?',
-    'When did you last feel truly connected to your partner?',
-    'What would make tomorrow special for both of you?',
-    'What compliment do you want to give your partner today?',
-    'What is one habit of your partner you secretly adore?',
-  ];
+  static const _reflectionQuestions = <String>[]; // replaced by locale
+
+  List<String> get _localizedQuestions =>
+      LocaleService.current.reflectionQuestions;
 
   String get _todayQuestion {
+    final questions = _localizedQuestions;
     final dayOfYear = DateTime.now()
         .difference(DateTime(DateTime.now().year))
         .inDays;
-    return _reflectionQuestions[dayOfYear % _reflectionQuestions.length];
+    return questions[dayOfYear % questions.length];
   }
 
   @override
@@ -330,24 +314,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String get _counterLabel {
-    if (!_pairData.isPaired) return 'WAITING FOR CONNECTION';
+    final s = LocaleService.current;
+    if (!_pairData.isPaired) return s.waitingForConnection;
     final suffix = _pairData.relationshipType == RelationshipType.couple
-        ? 'IN LOVE'
-        : 'TOGETHER';
+        ? s.inLove
+        : s.together;
     switch (_selectedTimeUnit) {
       case 0:
-        return 'DAYS $suffix';
+        return s.daysLabel(suffix);
       case 1:
-        return 'MONTHS $suffix';
+        return s.monthsLabel(suffix);
       case 2:
-        return 'TIME $suffix';
+        return s.timeLabel(suffix);
       default:
-        return 'DAYS $suffix';
+        return s.daysLabel(suffix);
     }
   }
 
   String get _statusBadgeText {
-    if (!_pairData.isPaired) return 'Solo';
+    if (!_pairData.isPaired) return LocaleService.current.solo;
     return _pairData.relationshipLabel;
   }
 
@@ -730,7 +715,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Relationship Status',
+                        LocaleService.current.relationshipStatus,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -739,7 +724,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Choose how you want to connect',
+                        LocaleService.current.chooseHowToConnect,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -749,29 +734,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildRelationshipOption(
                         type: RelationshipType.couple,
                         icon: '❤️',
-                        title: 'In Love',
-                        subtitle: 'Perfect for romantic couples',
+                        title: LocaleService.current.inLoveStatus,
+                        subtitle: LocaleService.current.perfectForCouples,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.married,
                         icon: '💍',
-                        title: 'Married',
-                        subtitle: 'For married partners',
+                        title: LocaleService.current.married,
+                        subtitle: LocaleService.current.forMarriedPartners,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.friends,
                         icon: '🤝',
-                        title: 'Friends',
-                        subtitle: 'Connect with your best friend',
+                        title: LocaleService.current.friends,
+                        subtitle: LocaleService.current.connectWithBestFriend,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.buddies,
                         icon: '👯',
-                        title: 'Best Buddies',
-                        subtitle: 'For inseparable companions',
+                        title: LocaleService.current.bestBuddies,
+                        subtitle:
+                            LocaleService.current.forInseparableCompanions,
                       ),
                       // Custom relationship types
                       ...customTypes.map((entry) {
@@ -815,7 +801,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _showAddCustomRelTypeDialog();
                         },
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Custom Status'),
+                        label: Text(LocaleService.current.addCustomStatus),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             vertical: 14,
@@ -958,14 +944,14 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Add Custom Status'),
+        title: Text(LocaleService.current.addCustomStatus),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: emojiCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Emoji',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.emoji,
                 hintText: '💕',
               ),
               maxLength: 2,
@@ -973,9 +959,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'e.g., Soulmates',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.label,
+                hintText: LocaleService.current.egSoulmates,
               ),
               maxLength: 30,
               textCapitalization: TextCapitalization.words,
@@ -985,7 +971,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1003,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
-            child: const Text('Add'),
+            child: Text(LocaleService.current.add),
           ),
         ],
       ),
@@ -1017,14 +1003,14 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Edit Custom Status'),
+        title: Text(LocaleService.current.editCustomStatus),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: emojiCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Emoji',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.emoji,
                 hintText: '💕',
               ),
               maxLength: 2,
@@ -1032,9 +1018,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Label',
-                hintText: 'e.g., Soulmates',
+              decoration: InputDecoration(
+                labelText: LocaleService.current.label,
+                hintText: LocaleService.current.egSoulmates,
               ),
               maxLength: 30,
               textCapitalization: TextCapitalization.words,
@@ -1044,7 +1030,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1063,7 +1049,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
               }
             },
-            child: const Text('Save'),
+            child: Text(LocaleService.current.save),
           ),
         ],
       ),
@@ -1105,23 +1091,11 @@ class _HomeScreenState extends State<HomeScreen> {
         : '';
 
     // Формат заголовка: «Сегодня» или «Пн, 18 фев»
-    final months = [
-      'янв',
-      'фев',
-      'мар',
-      'апр',
-      'май',
-      'июн',
-      'июл',
-      'авг',
-      'сен',
-      'окт',
-      'ноя',
-      'дек',
-    ];
-    final weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    final _s = LocaleService.current;
+    final months = _s.shortMonths;
+    final weekdays = _s.shortWeekdays;
     final dateLabel = isToday
-        ? 'Сегодня'
+        ? _s.todayDate
         : '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
 
     showModalBottomSheet(
@@ -1152,7 +1126,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Настроение — $dateLabel',
+                _s.moodDateLabel(dateLabel),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1161,9 +1135,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                isToday
-                    ? 'Партнёр увидит ваше настроение'
-                    : 'Укажите настроение для этого дня',
+                isToday ? _s.partnerWillSeeMood : _s.indicateMoodForDay,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
@@ -1253,7 +1225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                   },
                   child: Text(
-                    'Убрать настроение',
+                    _s.removeMood,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1304,7 +1276,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'How are you feeling?',
+                LocaleService.current.howAreYouFeeling,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -1313,7 +1285,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Your partner will see your mood',
+                LocaleService.current.partnerWillSeeMood,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
@@ -1406,7 +1378,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _widgetService.clearMood();
                   },
                   child: Text(
-                    'Clear Mood',
+                    LocaleService.current.clearMood,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1460,7 +1432,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 CircularProgressIndicator(color: primary),
                 const SizedBox(height: 16),
                 Text(
-                  'Posting...',
+                  LocaleService.current.posting,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1486,7 +1458,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) Navigator.of(context).pop(); // dismiss loading
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to upload photo')),
+            SnackBar(content: Text(LocaleService.current.failedUploadPhoto)),
           );
         }
         return;
@@ -1504,7 +1476,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Posted to Memory Lane! 📸'),
+            content: Text(LocaleService.current.postedToMemoryLane),
             backgroundColor: primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -1536,7 +1508,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Add a caption',
+                LocaleService.current.addCaption,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1545,7 +1517,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Optional — describe this moment',
+                LocaleService.current.optionalDescribe,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 20),
@@ -1556,7 +1528,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLength: 200,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: 'Write something...',
+                  hintText: LocaleService.current.writeSmth,
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -1581,7 +1553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: TextButton(
                       onPressed: () => Navigator.pop(ctx, null),
                       child: Text(
-                        'Skip',
+                        LocaleService.current.skip,
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontWeight: FontWeight.w600,
@@ -1604,8 +1576,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text(
-                        'Post',
+                      child: Text(
+                        LocaleService.current.post,
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -1656,7 +1628,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Invite Your Partner',
+                    LocaleService.current.inviteYourPartner,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -1665,7 +1637,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Share a link, code, or QR to connect',
+                    LocaleService.current.shareLinkCodeQr,
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                   ),
                 ],
@@ -1691,7 +1663,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Relationship Memory Lane',
+                LocaleService.current.relationshipMemoryLane,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -1719,7 +1691,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Memories will appear here',
+                  LocaleService.current.memoriesWillAppear,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -1728,7 +1700,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Connect with your partner to start',
+                  LocaleService.current.connectWithPartnerToStart,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
               ],
@@ -1909,7 +1881,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // TIME TOGGLE
   // =============================================
   Widget _buildTimeToggle() {
-    const labels = ['Days', 'Months', 'Time'];
+    const labels = <String>[]; // replaced by locale
+    final localLabels = [
+      LocaleService.current.days,
+      LocaleService.current.months,
+      LocaleService.current.time,
+    ];
     return Container(
       height: 40,
       constraints: const BoxConstraints(maxWidth: 240),
@@ -1956,7 +1933,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       behavior: HitTestBehavior.opaque,
                       child: Center(
                         child: Text(
-                          labels[i],
+                          localLabels[i],
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: selected
@@ -2015,7 +1992,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(Icons.check_circle_rounded, color: btnColor, size: 22),
             const SizedBox(width: 10),
             Text(
-              'Ответ отправлен!',
+              LocaleService.current.answerSent,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -2055,7 +2032,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(Icons.auto_awesome, color: btnColor, size: 20),
               const SizedBox(width: 8),
               Text(
-                'Daily Reflection',
+                LocaleService.current.dailyReflection,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -2070,7 +2047,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'TODAY',
+                  LocaleService.current.today,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -2152,7 +2129,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       shadowColor: btnColor.withOpacity(0.25),
                     ),
                     child: Text(
-                      myAnswer == null ? 'Answer Prompt' : 'Edit Answer',
+                      myAnswer == null
+                          ? LocaleService.current.answerPrompt
+                          : LocaleService.current.editAnswer,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -2188,7 +2167,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPartnerAnswer(Map<String, dynamic> data, Color color) {
     final text = data['text'] as String? ?? '';
-    final name = data['authorName'] as String? ?? 'Partner';
+    final name = data['authorName'] as String? ?? LocaleService.current.partner;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -2268,7 +2247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icon(Icons.auto_awesome, color: btnColor, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'Daily Reflection',
+                    LocaleService.current.dailyReflection,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -2294,7 +2273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 4,
                 style: const TextStyle(fontSize: 14, height: 1.6),
                 decoration: InputDecoration(
-                  hintText: 'Share your thoughts...',
+                  hintText: LocaleService.current.shareYourThoughts,
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -2344,8 +2323,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Save',
+                  child: Text(
+                    LocaleService.current.save,
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -2366,13 +2345,13 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _actionButton(
           icon: Icons.brush_rounded,
-          label: 'Draw',
+          label: LocaleService.current.draw,
           iconColor: _t.iconDraw,
           enabled: _pairData.isPaired,
         ),
         _actionButton(
           icon: Icons.sentiment_satisfied_alt_rounded,
-          label: 'Mood',
+          label: LocaleService.current.mood,
           iconColor: _t.iconMood,
           enabled: _pairData.isPaired,
           onTap: _showMoodPicker,
@@ -2380,14 +2359,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         _actionButton(
           icon: Icons.calendar_month_rounded,
-          label: 'Calendar',
+          label: LocaleService.current.calendar,
           iconColor: _t.iconCalendar,
           enabled: _pairData.isPaired,
           onTap: _openMoodCalendar,
         ),
         _actionButton(
           icon: Icons.photo_camera_rounded,
-          label: 'Post',
+          label: LocaleService.current.post,
           iconColor: _t.iconPost,
           enabled: _pairData.isPaired,
           onTap: _postPhoto,
@@ -2503,7 +2482,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Relationship Memory Lane',
+                LocaleService.current.relationshipMemoryLane,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -2521,7 +2500,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
                 child: Text(
-                  'View All',
+                  LocaleService.current.viewAll,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -2554,7 +2533,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'No memories yet',
+                      LocaleService.current.noMemoriesYet,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -2563,7 +2542,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Add your first memory in Memory Lane',
+                      LocaleService.current.addFirstMemory,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade400,
@@ -2688,7 +2667,7 @@ class _HomeScreenState extends State<HomeScreen> {
           left: 12,
           right: 12,
           child: Text(
-            memory.caption ?? 'Photo',
+            memory.caption ?? LocaleService.current.photo,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -2740,9 +2719,9 @@ class _HomeScreenState extends State<HomeScreen> {
               color: const Color(0xFFEC4899),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Text(
-              'VIDEO',
-              style: TextStyle(
+            child: Text(
+              LocaleService.current.video.toUpperCase(),
+              style: const TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
@@ -2756,7 +2735,7 @@ class _HomeScreenState extends State<HomeScreen> {
           left: 12,
           right: 12,
           child: Text(
-            memory.caption ?? 'Video',
+            memory.caption ?? LocaleService.current.videoLabel,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -2791,7 +2770,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Spacer(),
           Text(
-            memory.locationName ?? 'Location',
+            memory.locationName ?? LocaleService.current.location,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -2894,7 +2873,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Spacer(),
           Text(
-            memory.musicTitle ?? 'Audio',
+            memory.musicTitle ?? LocaleService.current.audio,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

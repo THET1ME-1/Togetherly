@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
+import '../services/locale_service.dart';
 import 'home_screen.dart';
 import 'setup_screen.dart';
 
@@ -33,11 +34,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (email.isEmpty || !email.contains('@')) {
-      _showError('Введите корректный email');
+      _showError(LocaleService.current.invalidEmail);
       return;
     }
     if (password.isEmpty) {
-      _showError('Введите пароль');
+      _showError(LocaleService.current.enterPassword);
       return;
     }
 
@@ -52,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (user == null) {
         if (mounted) setState(() => _isLoading = false);
-        _showError('Не удалось войти. Попробуйте ещё раз.');
+        _showError(LocaleService.current.loginFailed);
         return;
       }
 
@@ -89,24 +90,24 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // User exists in Auth but no profile - redirect to setup
         if (mounted) setState(() => _isLoading = false);
-        _showError('Профиль не найден. Зарегистрируйтесь заново.');
+        _showError(LocaleService.current.profileNotFound);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
       final errorMsg = e.toString();
       if (errorMsg.contains('user-not-found')) {
-        _showError('Пользователь с таким email не найден');
+        _showError(LocaleService.current.userNotFound);
       } else if (errorMsg.contains('wrong-password') ||
           errorMsg.contains('invalid-credential')) {
-        _showError('Неверный пароль');
+        _showError(LocaleService.current.wrongPassword);
       } else if (errorMsg.contains('invalid-email')) {
-        _showError('Некорректный email');
+        _showError(LocaleService.current.invalidEmailFormat);
       } else if (errorMsg.contains('too-many-requests')) {
-        _showError('Слишком много попыток. Попробуйте позже');
+        _showError(LocaleService.current.tooManyAttempts);
       } else if (errorMsg.contains('TimeoutException')) {
-        _showError('Сервер не отвечает. Проверьте интернет.');
+        _showError(LocaleService.current.serverNotResponding);
       } else {
-        _showError('Ошибка входа: $errorMsg');
+        _showError(LocaleService.current.loginError(errorMsg));
       }
     }
   }
@@ -169,9 +170,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _isLoading = false);
       final errorMsg = e.toString();
       if (errorMsg.contains('TimeoutException')) {
-        _showError('Google не отвечает. Проверьте интернет.');
+        _showError(LocaleService.current.googleNotResponding);
       } else {
-        _showError('Ошибка входа через Google: $errorMsg');
+        _showError(LocaleService.current.googleLoginError(errorMsg));
       }
     }
   }
@@ -220,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 28),
                 // Title
                 Text(
-                  'С возвращением!',
+                  LocaleService.current.welcomeBack,
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -229,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Войдите в свой аккаунт',
+                  LocaleService.current.loginToAccount,
                   style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 40),
@@ -269,9 +270,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Text(
-                          'Войти через Google',
-                          style: TextStyle(
+                        Text(
+                          LocaleService.current.signInWithGoogle,
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -288,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        'или',
+                        LocaleService.current.or,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade400,
@@ -303,8 +304,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Email field
                 _buildTextField(
                   controller: _emailController,
-                  label: 'Email',
-                  hint: 'your@email.com',
+                  label: LocaleService.current.email,
+                  hint: LocaleService.current.yourEmail,
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -337,9 +338,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            'Войти',
-                            style: TextStyle(
+                        : Text(
+                            LocaleService.current.login,
+                            style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
                             ),
@@ -352,7 +353,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Нет аккаунта? ',
+                      '${LocaleService.current.noAccount} ',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -375,9 +376,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         );
                       },
-                      child: const Text(
-                        'Создать',
-                        style: TextStyle(
+                      child: Text(
+                        LocaleService.current.create,
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: _accent,
@@ -465,7 +466,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
-            'Пароль',
+            LocaleService.current.password,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -484,7 +485,7 @@ class _LoginScreenState extends State<LoginScreen> {
               color: Colors.grey.shade900,
             ),
             decoration: InputDecoration(
-              hintText: 'Ваш пароль',
+              hintText: LocaleService.current.yourPassword,
               hintStyle: TextStyle(
                 color: Colors.grey.shade400,
                 fontWeight: FontWeight.w400,

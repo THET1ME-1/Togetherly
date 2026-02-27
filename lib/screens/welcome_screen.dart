@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
+import '../services/locale_service.dart';
 import 'setup_screen.dart';
 import 'login_screen.dart';
 
@@ -123,9 +124,9 @@ class WelcomeScreen extends StatelessWidget {
                       elevation: 12,
                       shadowColor: _primary.withOpacity(0.4),
                     ),
-                    child: const Text(
-                      'Создать аккаунт',
-                      style: TextStyle(
+                    child: Text(
+                      LocaleService.current.createAccount,
+                      style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
@@ -162,9 +163,9 @@ class WelcomeScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(32),
                       ),
                     ),
-                    child: const Text(
-                      'Уже есть аккаунт',
-                      style: TextStyle(
+                    child: Text(
+                      LocaleService.current.alreadyHaveAccount,
+                      style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),

@@ -6,6 +6,7 @@ import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import '../services/locale_service.dart';
 
 class SetupScreen extends StatefulWidget {
   final UserData userData;
@@ -165,9 +166,9 @@ class _SetupScreenState extends State<SetupScreen>
         setState(() => _isLoading = false);
         final errorMsg = e.toString();
         if (errorMsg.contains('TimeoutException')) {
-          _showError('Google не отвечает. Проверьте интернет.');
+          _showError(LocaleService.current.serverNotResponding);
         } else {
-          _showError('Ошибка входа через Google: $errorMsg');
+          _showError(LocaleService.current.googleLoginError(errorMsg));
         }
       }
     }
@@ -179,15 +180,15 @@ class _SetupScreenState extends State<SetupScreen>
     final password = _passwordController.text;
 
     if (name.isEmpty) {
-      _showError('Введите ваше имя');
+      _showError(LocaleService.current.enterYourName);
       return;
     }
     if (email.isEmpty || !email.contains('@')) {
-      _showError('Введите корректный email');
+      _showError(LocaleService.current.enterValidEmail);
       return;
     }
     if (_selectedGender == null) {
-      _showError('Выберите пол');
+      _showError(LocaleService.current.selectGender);
       return;
     }
 
@@ -200,7 +201,7 @@ class _SetupScreenState extends State<SetupScreen>
       if (!fb.isLoggedIn) {
         // Проверяем пароль только для ручной регистрации
         if (password.length < 6) {
-          _showError('Пароль должен быть минимум 6 символов');
+          _showError(LocaleService.current.passwordMin6);
           if (mounted) setState(() => _isLoading = false);
           return;
         }
@@ -253,9 +254,9 @@ class _SetupScreenState extends State<SetupScreen>
         if (errorMsg.contains('email-already-in-use')) {
           _showEmailExistsDialog();
         } else if (errorMsg.contains('TimeoutException')) {
-          _showError('Сервер не отвечает. Проверьте интернет.');
+          _showError(LocaleService.current.serverNotResponding);
         } else {
-          _showError('Ошибка регистрации: $errorMsg');
+          _showError(LocaleService.current.registrationError(errorMsg));
         }
       }
     }
@@ -274,18 +275,16 @@ class _SetupScreenState extends State<SetupScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Аккаунт существует',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          LocaleService.current.accountExists,
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        content: const Text(
-          'Этот email уже зарегистрирован. Хотите войти в существующий аккаунт?',
-        ),
+        content: Text(LocaleService.current.emailAlreadyRegistered),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Отмена',
+              LocaleService.current.cancel,
               style: TextStyle(color: Colors.grey.shade600),
             ),
           ),
@@ -309,7 +308,7 @@ class _SetupScreenState extends State<SetupScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Войти'),
+            child: Text(LocaleService.current.login),
           ),
         ],
       ),
@@ -391,7 +390,7 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const SizedBox(height: 32),
           Text(
-            'Кто вы?',
+            LocaleService.current.whoAreYou,
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w800,
@@ -400,7 +399,7 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Выберите пол для настройки темы',
+            LocaleService.current.selectGenderForTheme,
             style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
           ),
           const SizedBox(height: 48),
@@ -432,18 +431,18 @@ class _SetupScreenState extends State<SetupScreen>
                   elevation: 12,
                   shadowColor: _accent.withOpacity(0.4),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Продолжить',
-                      style: TextStyle(
+                      LocaleService.current.continueBtn,
+                      style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 20),
                   ],
                 ),
               ),
@@ -461,7 +460,9 @@ class _SetupScreenState extends State<SetupScreen>
     final color = isMale ? const Color(0xFF4A90D9) : const Color(0xFFEE2B6C);
     final bgColor = isMale ? const Color(0xFFE3F0FF) : const Color(0xFFFEEAF1);
     final icon = isMale ? Icons.male_rounded : Icons.female_rounded;
-    final label = isMale ? 'Парень' : 'Девушка';
+    final label = isMale
+        ? LocaleService.current.boy
+        : LocaleService.current.girl;
 
     return GestureDetector(
       onTap: () => setState(() => _selectedGender = gender),
@@ -636,7 +637,7 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const SizedBox(height: 24),
           Text(
-            'Создайте профиль',
+            LocaleService.current.createProfile,
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
@@ -645,7 +646,7 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Войдите через Google или\nзаполните вручную',
+            LocaleService.current.signInGoogleOrManual,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -700,9 +701,9 @@ class _SetupScreenState extends State<SetupScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Text(
-                          'Войти через Google',
-                          style: TextStyle(
+                        Text(
+                          LocaleService.current.signInWithGoogle,
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -719,7 +720,7 @@ class _SetupScreenState extends State<SetupScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'или вручную',
+                  LocaleService.current.orManually,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade400,
@@ -734,15 +735,15 @@ class _SetupScreenState extends State<SetupScreen>
           // Name field
           _buildTextField(
             controller: _nameController,
-            label: 'Имя',
-            hint: 'Ваше имя',
+            label: LocaleService.current.name,
+            hint: LocaleService.current.yourName,
             icon: Icons.person_outline_rounded,
           ),
           const SizedBox(height: 16),
           // Email field
           _buildTextField(
             controller: _emailController,
-            label: 'Email',
+            label: LocaleService.current.email,
             hint: 'your@email.com',
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
@@ -776,9 +777,9 @@ class _SetupScreenState extends State<SetupScreen>
                         color: Colors.white,
                       ),
                     )
-                  : const Text(
-                      'Начать',
-                      style: TextStyle(
+                  : Text(
+                      LocaleService.current.start,
+                      style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
@@ -791,7 +792,7 @@ class _SetupScreenState extends State<SetupScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Уже есть аккаунт? ',
+                LocaleService.current.alreadyHaveAccountQuestion,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
               GestureDetector(
@@ -807,7 +808,7 @@ class _SetupScreenState extends State<SetupScreen>
                   );
                 },
                 child: Text(
-                  'Войти',
+                  LocaleService.current.login,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -903,7 +904,7 @@ class _SetupScreenState extends State<SetupScreen>
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
-            'Пароль',
+            LocaleService.current.password,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -922,7 +923,7 @@ class _SetupScreenState extends State<SetupScreen>
               color: Colors.grey.shade900,
             ),
             decoration: InputDecoration(
-              hintText: 'Минимум 6 символов',
+              hintText: LocaleService.current.minCharsPassword,
               hintStyle: TextStyle(
                 color: Colors.grey.shade400,
                 fontWeight: FontWeight.w400,

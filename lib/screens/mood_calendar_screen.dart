@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
+import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 
@@ -129,7 +130,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         ),
                       )
                     : null,
-                tooltip: 'Уменьшить',
+                tooltip: LocaleService.current.zoomOut,
               ),
               IconButton(
                 icon: const Icon(Icons.zoom_in_rounded, size: 22),
@@ -141,7 +142,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         ),
                       )
                     : null,
-                tooltip: 'Увеличить',
+                tooltip: LocaleService.current.zoomIn,
               ),
             ],
           ),

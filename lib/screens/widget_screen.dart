@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/pair_data.dart';
 import '../models/widget_data.dart';
 import '../models/mood_entry.dart';
+import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
@@ -33,6 +34,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   WidgetService get _ws => widget.widgetService;
   MoodService get _moodService => widget.moodService;
   PairData get _pair => widget.pairData;
+  AppStrings get _s => LocaleService.current;
 
   @override
   void initState() {
@@ -120,7 +122,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
           const SizedBox(width: 12),
           Text(
-            'Виджеты',
+            _s.widgetsTitle,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -151,7 +153,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Сбросить',
+                      _s.resetBtn,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -189,7 +191,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ),
               const SizedBox(width: 6),
               Text(
-                'Превью на рабочем столе',
+                _s.desktopPreview,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -231,7 +233,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     Expanded(
                       child: _buildPreviewHalf(
                         data: my,
-                        label: 'Я',
+                        label: _s.me,
                         isLeft: true,
                       ),
                     ),
@@ -258,7 +260,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                         data: partner,
                         label: _pair.partnerName.isNotEmpty
                             ? _pair.partnerName
-                            : 'Партнёр',
+                            : _s.partner,
                         isLeft: false,
                       ),
                     ),
@@ -324,7 +326,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         const SizedBox(height: 4),
         // Статус
         Text(
-          data.hasStatus ? data.status : 'Нет статуса',
+          data.hasStatus ? data.status : _s.noStatus,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 10,
             fontWeight: data.hasStatus ? FontWeight.w600 : FontWeight.w400,
@@ -411,7 +413,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Мой виджет',
+                    _s.myWidget,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -419,7 +421,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     ),
                   ),
                   Text(
-                    'Нажми, чтобы изменить',
+                    _s.tapToEdit,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: Colors.grey.shade500,
@@ -437,7 +439,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildSlotRow(
             icon: Icons.emoji_emotions_outlined,
             iconColor: _t.iconMood,
-            label: 'Настроение',
+            label: _s.mood,
             value: data.hasMood ? data.moodLabel : null,
             trailing: data.hasMood
                 ? Image.asset(data.moodEmoji, width: 24, height: 24)
@@ -458,11 +460,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildSlotRow(
             icon: Icons.chat_bubble_outline_rounded,
             iconColor: _t.primary,
-            label: 'Статус',
+            label: _s.status,
             value: data.hasStatus ? data.status : null,
             onTap: () => _showTextEditor(
-              title: 'Статус',
-              hint: 'Что у тебя нового?',
+              title: _s.status,
+              hint: _s.statusHint,
               initial: data.status,
               maxLength: 50,
               onSave: (v) => _ws.updateStatus(v),
@@ -473,11 +475,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildSlotRow(
             icon: Icons.mail_outline_rounded,
             iconColor: const Color(0xFFEC4899),
-            label: 'Сообщение',
+            label: _s.message,
             value: data.hasMessage ? '«${data.message}»' : null,
             onTap: () => _showTextEditor(
-              title: 'Сообщение',
-              hint: 'Напиши что-нибудь приятное...',
+              title: _s.message,
+              hint: _s.messageHint,
               initial: data.message,
               maxLength: 200,
               onSave: (v) => _ws.updateMessage(v),
@@ -488,8 +490,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildSlotRow(
             icon: Icons.photo_camera_outlined,
             iconColor: _t.iconPost,
-            label: 'Фото',
-            value: data.hasPhoto ? 'Фото загружено' : null,
+            label: _s.photo,
+            value: data.hasPhoto ? _s.photoUploaded : null,
             trailing: data.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -547,7 +549,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildSlotRow(
             icon: Icons.music_note_rounded,
             iconColor: _t.iconCalendar,
-            label: 'Музыка',
+            label: _s.music,
             value: data.hasMusic
                 ? '${data.musicTitle} — ${data.musicArtist}'
                 : null,
@@ -567,7 +569,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final partner = _ws.firstPartnerData ?? WidgetData(uid: '');
     final partnerName = _pair.partnerName.isNotEmpty
         ? _pair.partnerName
-        : 'Партнёр';
+        : _s.partner;
 
     return _buildGlassCard(
       child: Column(
@@ -602,7 +604,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Виджет $partnerName',
+                    _s.widgetOfPartner(partnerName),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -610,7 +612,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     ),
                   ),
                   Text(
-                    partner.isEmpty ? 'Пока пусто' : 'Обновлено',
+                    partner.isEmpty ? _s.emptyYet : _s.updated,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: Colors.grey.shade500,
@@ -660,7 +662,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildReadonlySlot(
             icon: Icons.emoji_emotions_outlined,
             iconColor: _t.iconMood,
-            label: 'Настроение',
+            label: _s.mood,
             value: partner.hasMood ? partner.moodLabel : null,
             trailing: partner.hasMood
                 ? Image.asset(partner.moodEmoji, width: 24, height: 24)
@@ -670,22 +672,22 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildReadonlySlot(
             icon: Icons.chat_bubble_outline_rounded,
             iconColor: _t.primary,
-            label: 'Статус',
+            label: _s.status,
             value: partner.hasStatus ? partner.status : null,
           ),
           _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.mail_outline_rounded,
             iconColor: const Color(0xFFEC4899),
-            label: 'Сообщение',
+            label: _s.message,
             value: partner.hasMessage ? '«${partner.message}»' : null,
           ),
           _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.photo_camera_outlined,
             iconColor: _t.iconPost,
-            label: 'Фото',
-            value: partner.hasPhoto ? 'Фото' : null,
+            label: _s.photo,
+            value: partner.hasPhoto ? _s.photo : null,
             trailing: partner.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -741,7 +743,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildReadonlySlot(
             icon: Icons.music_note_rounded,
             iconColor: _t.iconCalendar,
-            label: 'Музыка',
+            label: _s.music,
             value: partner.hasMusic
                 ? '${partner.musicTitle} — ${partner.musicArtist}'
                 : null,
@@ -766,7 +768,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Icon(Icons.tune_rounded, size: 16, color: Colors.grey.shade500),
               const SizedBox(width: 6),
               Text(
-                'Настройки виджета',
+                _s.widgetSettings,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -782,8 +784,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
               _buildSettingToggle(
                 icon: Icons.photo_library_outlined,
                 iconColor: _t.iconPost,
-                title: 'Фото → Memory Lane',
-                subtitle: 'Автоматически сохранять фото в воспоминания',
+                title: _s.photoToMemoryLane,
+                subtitle: _s.autoSavePhotoToMemories,
                 value: _ws.autoSendPhotoToMemory,
                 onChanged: (v) => _ws.setAutoSendPhotoToMemory(v),
               ),
@@ -791,8 +793,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
               _buildSettingToggle(
                 icon: Icons.chat_outlined,
                 iconColor: const Color(0xFFEC4899),
-                title: 'Сообщения → Memory Lane',
-                subtitle: 'Автоматически сохранять сообщения',
+                title: _s.messagestoMemoryLane,
+                subtitle: _s.autoSaveMessages,
                 value: _ws.autoSendMessageToMemory,
                 onChanged: (v) => _ws.setAutoSendMessageToMemory(v),
               ),
@@ -800,8 +802,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
               _buildSettingToggle(
                 icon: Icons.music_note_outlined,
                 iconColor: _t.iconCalendar,
-                title: 'Музыка → Memory Lane',
-                subtitle: 'Автоматически сохранять треки',
+                title: _s.musicToMemoryLane,
+                subtitle: _s.autoSaveTracks,
                 value: _ws.autoSendMusicToMemory,
                 onChanged: (v) => _ws.setAutoSendMusicToMemory(v),
               ),
@@ -809,8 +811,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
               _buildSettingToggle(
                 icon: Icons.calendar_month_outlined,
                 iconColor: _t.iconMood,
-                title: 'Настроение → Календарь',
-                subtitle: 'Автоматически отмечать в календаре настроений',
+                title: _s.moodToCalendar,
+                subtitle: _s.autoMarkMoodCalendar,
                 value: _ws.autoSendMoodToCalendar,
                 onChanged: (v) => _ws.setAutoSendMoodToCalendar(v),
               ),
@@ -918,7 +920,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     Icon(Icons.add_rounded, size: 14, color: _t.primary),
                     const SizedBox(width: 2),
                     Text(
-                      'Добавить',
+                      _s.addBtn,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -1094,7 +1096,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           Icon(Icons.edit_rounded, size: 12, color: _t.primary),
           const SizedBox(width: 4),
           Text(
-            'Изменить',
+            _s.editBtn,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1146,7 +1148,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Виджеты',
+                _s.widgetsTitle,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -1155,7 +1157,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Подключи партнёра, чтобы начать\nобмениваться виджетами',
+                _s.connectPartnerForWidgets,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
@@ -1258,7 +1260,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 CircularProgressIndicator(color: _t.primary),
                 const SizedBox(height: 16),
                 Text(
-                  'Загружаем фото...',
+                  _s.uploadingPhoto,
                   style: GoogleFonts.plusJakartaSans(fontSize: 14),
                 ),
               ],
@@ -1296,24 +1298,24 @@ class _WidgetScreenState extends State<WidgetScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Сбросить виджет?',
+          _s.resetWidget,
           style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'Все данные твоего виджета будут очищены.',
+          _s.resetWidgetConfirm,
           style: GoogleFonts.plusJakartaSans(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'Отмена',
+              _s.cancel,
               style: TextStyle(color: Colors.grey.shade600),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Сбросить', style: TextStyle(color: Colors.red)),
+            child: Text(_s.resetBtn, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1358,7 +1360,7 @@ class _MoodPickerSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Выбери настроение',
+            LocaleService.current.chooseMood,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -1537,7 +1539,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
                   elevation: 0,
                 ),
                 child: Text(
-                  'Сохранить',
+                  LocaleService.current.save,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -1582,7 +1584,7 @@ class _PhotoSourceSheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Выбери источник',
+            LocaleService.current.chooseSource,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -1596,7 +1598,7 @@ class _PhotoSourceSheet extends StatelessWidget {
                 child: _sourceButton(
                   context,
                   icon: Icons.camera_alt_rounded,
-                  label: 'Камера',
+                  label: LocaleService.current.camera,
                   source: ImageSource.camera,
                 ),
               ),
@@ -1605,7 +1607,7 @@ class _PhotoSourceSheet extends StatelessWidget {
                 child: _sourceButton(
                   context,
                   icon: Icons.photo_library_rounded,
-                  label: 'Галерея',
+                  label: LocaleService.current.gallery,
                   source: ImageSource.gallery,
                 ),
               ),
@@ -1724,7 +1726,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Музыка',
+              LocaleService.current.music,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -1732,11 +1734,23 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            _buildField(_titleCtrl, 'Название трека', Icons.music_note_rounded),
+            _buildField(
+              _titleCtrl,
+              LocaleService.current.trackName,
+              Icons.music_note_rounded,
+            ),
             const SizedBox(height: 12),
-            _buildField(_artistCtrl, 'Исполнитель', Icons.person_rounded),
+            _buildField(
+              _artistCtrl,
+              LocaleService.current.artist,
+              Icons.person_rounded,
+            ),
             const SizedBox(height: 12),
-            _buildField(_urlCtrl, 'Ссылка (необязательно)', Icons.link_rounded),
+            _buildField(
+              _urlCtrl,
+              LocaleService.current.linkOptional,
+              Icons.link_rounded,
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -1762,7 +1776,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                   elevation: 0,
                 ),
                 child: Text(
-                  'Сохранить',
+                  LocaleService.current.save,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
