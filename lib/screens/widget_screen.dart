@@ -43,6 +43,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   AppStrings get _s => LocaleService.current;
 
   bool _canPinWidgets = false;
+  bool _pairWidgetExpanded = false;
 
   @override
   void initState() {
@@ -122,18 +123,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   children: [
                     // ── Галерея виджетов рабочего стола ──
                     _buildWidgetGallery(),
-                    const SizedBox(height: 24),
-
-                    // ── Мой виджет (редактируемый) ──
-                    _buildMyTile(),
-                    const SizedBox(height: 16),
-
-                    // ── Виджет партнёра (только чтение) ──
-                    _buildPartnerTile(),
-                    const SizedBox(height: 24),
-
-                    // ── Настройки ──
-                    _buildSettingsSection(),
                   ],
                 ),
               ),
@@ -462,6 +451,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFFEE2B6C),
           qualifiedName: 'com.example.love_app.LoveWidgetProvider',
           preview: _buildWidgetPreview(),
+          expandedContent: _buildPairWidgetExpandedContent(),
+          isExpanded: _pairWidgetExpanded,
+          onToggleExpand: () =>
+              setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
         ),
         const SizedBox(height: 16),
 
@@ -526,6 +519,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required Color iconColor,
     required String qualifiedName,
     required Widget preview,
+    Widget? expandedContent,
+    bool isExpanded = false,
+    VoidCallback? onToggleExpand,
   }) {
     final isRu = LocaleService.instance.isRussian;
 
@@ -534,41 +530,55 @@ class _WidgetScreenState extends State<WidgetScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Заголовок ──
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
+          GestureDetector(
+            onTap: onToggleExpand,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 18, color: iconColor),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
                       ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: Colors.grey.shade500,
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                if (onToggleExpand != null)
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.grey.shade400,
+                      size: 24,
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           // ── Превью виджета ──
@@ -600,6 +610,22 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ),
             ),
           ],
+          // ── Раскрываемое содержимое ──
+          AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOut,
+            child: expandedContent != null && isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      Divider(color: Colors.grey.shade200, height: 1),
+                      const SizedBox(height: 16),
+                      expandedContent,
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -888,8 +914,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // PAIR WIDGET PREVIEW (оригинальный)
+  // PAIR WIDGET — раскрытые настройки
   // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPairWidgetExpandedContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMyTile(),
+        const SizedBox(height: 12),
+        _buildPartnerTile(),
+        const SizedBox(height: 12),
+        _buildSettingsSection(),
+      ],
+    );
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   // MY TILE (editable)
