@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pair_data.dart';
 import '../models/widget_data.dart';
 import '../models/mood_entry.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
+import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 
@@ -15,6 +18,7 @@ class WidgetScreen extends StatefulWidget {
   final PairData pairData;
   final WidgetService widgetService;
   final MoodService moodService;
+  final TimerService timerService;
   final AppTheme theme;
 
   const WidgetScreen({
@@ -22,6 +26,7 @@ class WidgetScreen extends StatefulWidget {
     required this.pairData,
     required this.widgetService,
     required this.moodService,
+    required this.timerService,
     required this.theme,
   });
 
@@ -33,18 +38,54 @@ class _WidgetScreenState extends State<WidgetScreen> {
   AppTheme get _t => widget.theme;
   WidgetService get _ws => widget.widgetService;
   MoodService get _moodService => widget.moodService;
+  TimerService get _timerService => widget.timerService;
   PairData get _pair => widget.pairData;
   AppStrings get _s => LocaleService.current;
+
+  bool _canPinWidgets = false;
 
   @override
   void initState() {
     super.initState();
     _ws.addListener(_onDataChanged);
+    _timerService.addListener(_onDataChanged);
+    _checkPinSupport();
+  }
+
+  Future<void> _checkPinSupport() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final supported = await HomeWidget.isRequestPinWidgetSupported();
+      if (mounted) setState(() => _canPinWidgets = supported ?? false);
+    } catch (e) {
+      debugPrint('Pin widget check failed: $e');
+    }
+  }
+
+  Future<void> _pinWidget(String qualifiedName) async {
+    try {
+      await HomeWidget.requestPinWidget(qualifiedAndroidName: qualifiedName);
+    } catch (e) {
+      debugPrint('Pin widget failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              LocaleService.instance.isRussian
+                  ? 'Не удалось добавить виджет'
+                  : 'Failed to add widget',
+            ),
+            backgroundColor: Colors.red.shade400,
+          ),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _ws.removeListener(_onDataChanged);
+    _timerService.removeListener(_onDataChanged);
     super.dispose();
   }
 
@@ -79,8 +120,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
                 child: Column(
                   children: [
-                    // ── Превью виджета для рабочего стола ──
-                    _buildWidgetPreview(),
+                    // ── Галерея виджетов рабочего стола ──
+                    _buildWidgetGallery(),
                     const SizedBox(height: 24),
 
                     // ── Мой виджет (редактируемый) ──
@@ -378,6 +419,477 @@ class _WidgetScreenState extends State<WidgetScreen> {
       ],
     );
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // WIDGET GALLERY — все виджеты с превью и кнопкой «Добавить»
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildWidgetGallery() {
+    final isRu = LocaleService.instance.isRussian;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.dashboard_customize_rounded,
+                size: 16,
+                color: Colors.grey.shade500,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isRu ? 'Виджеты рабочего стола' : 'Home Screen Widgets',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── 1. Парный виджет ──
+        _buildGalleryItem(
+          title: isRu ? 'Парный виджет' : 'Pair Widget',
+          subtitle: isRu
+              ? 'Настроение, статус, сообщения и фото'
+              : 'Mood, status, messages & photos',
+          icon: Icons.favorite_rounded,
+          iconColor: const Color(0xFFEE2B6C),
+          qualifiedName: 'com.example.love_app.LoveWidgetProvider',
+          preview: _buildWidgetPreview(),
+        ),
+        const SizedBox(height: 16),
+
+        // ── 2. Счётчик дней вместе ──
+        _buildGalleryItem(
+          title: isRu ? 'Дни вместе' : 'Days Together',
+          subtitle: isRu
+              ? 'Системный счётчик дней отношений'
+              : 'Relationship day counter',
+          icon: Icons.calendar_today_rounded,
+          iconColor: const Color(0xFFFF6B8A),
+          qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
+          preview: _buildDaysCounterPreview(),
+        ),
+        const SizedBox(height: 16),
+
+        // ── 3. Таймер ──
+        _buildGalleryItem(
+          title: isRu ? 'Таймер' : 'Timer',
+          subtitle: isRu
+              ? 'Выбранный таймер или обратный отсчёт'
+              : 'Selected timer or countdown',
+          icon: Icons.timer_rounded,
+          iconColor: const Color(0xFF8B5CF6),
+          qualifiedName: 'com.example.love_app.TimerWidgetProvider',
+          preview: _buildTimerPreview(),
+        ),
+        const SizedBox(height: 16),
+
+        // ── 4. Фото дня ──
+        _buildGalleryItem(
+          title: isRu ? 'Фото дня' : 'Photo of the Day',
+          subtitle: isRu
+              ? 'Случайное фото из ленты воспоминаний'
+              : 'Random photo from Memory Lane',
+          icon: Icons.photo_camera_rounded,
+          iconColor: const Color(0xFFEC4899),
+          qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+          preview: _buildPhotoDayPreview(),
+        ),
+        const SizedBox(height: 16),
+
+        // ── 5. Настроение ──
+        _buildGalleryItem(
+          title: isRu ? 'Настроение' : 'Mood',
+          subtitle: isRu
+              ? 'Крупный виджет с вашим эмодзи настроения'
+              : 'Large mood emoji widget',
+          icon: Icons.emoji_emotions_rounded,
+          iconColor: const Color(0xFFFBBF24),
+          qualifiedName: 'com.example.love_app.MoodWidgetProvider',
+          preview: _buildMoodPreview(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGalleryItem({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required String qualifiedName,
+    required Widget preview,
+  }) {
+    final isRu = LocaleService.instance.isRussian;
+
+    return _buildGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Заголовок ──
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // ── Превью виджета ──
+          ClipRRect(borderRadius: BorderRadius.circular(16), child: preview),
+          // ── Кнопка «Добавить на рабочий стол» ──
+          if (_canPinWidgets) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _pinWidget(qualifiedName),
+                icon: const Icon(Icons.add_to_home_screen_rounded, size: 18),
+                label: Text(
+                  isRu ? 'Добавить на рабочий стол' : 'Add to Home Screen',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _t.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Счётчик дней
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildDaysCounterPreview() {
+    final start = _pair.startDate;
+    final days = start != null ? DateTime.now().difference(start).inDays : 0;
+    final myName = _pair.isPaired ? _pair.partnerName : '';
+    final emoji = _pair.relationshipEmoji;
+    final startLabel = start != null
+        ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
+        : '';
+    final isRu = LocaleService.instance.isRussian;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFFFFF0F3), const Color(0xFFFFE4EC)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(height: 4),
+          Text(
+            '$days',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFFFF6B8A),
+              height: 1.1,
+            ),
+          ),
+          Text(
+            isRu ? 'дней вместе' : 'days together',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          if (myName.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              myName,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+          if (startLabel.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              isRu ? 'с $startLabel' : 'since $startLabel',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Таймер
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildTimerPreview() {
+    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
+    final isRu = LocaleService.instance.isRussian;
+
+    final title = timer?.title ?? (isRu ? 'Таймер' : 'Timer');
+    final emoji = timer?.emoji ?? '⏱';
+    final days = timer?.daysElapsed.abs() ?? 0;
+    final isCountdown = timer?.isCountdown ?? false;
+    final daysLabel = isCountdown
+        ? (isRu ? 'дней осталось' : 'days left')
+        : (isRu ? 'дней прошло' : 'days elapsed');
+    final date = timer?.formattedStartDate ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFFF3F0FF), const Color(0xFFEDE4FF)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$days',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 44,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF8B5CF6),
+              height: 1.1,
+            ),
+          ),
+          Text(
+            daysLabel,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          if (date.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              date,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Фото дня
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPhotoDayPreview() {
+    final isRu = LocaleService.instance.isRussian;
+
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Stack(
+        children: [
+          // Заглушка
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('📷', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 6),
+                Text(
+                  isRu ? 'Фото дня' : 'Photo of the Day',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isRu
+                      ? 'Случайное фото из воспоминаний'
+                      : 'Random photo from memories',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Нижний оверлей
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text('📸', style: TextStyle(fontSize: 12)),
+                  const SizedBox(width: 4),
+                  Text(
+                    isRu ? 'Фото дня' : 'Photo of the Day',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Настроение
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildMoodPreview() {
+    final myData = _ws.myData;
+    final hasMood = myData != null && myData.hasMood;
+    final isRu = LocaleService.instance.isRussian;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFFFFF8E1), const Color(0xFFFFF3CD)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          if (hasMood) ...[
+            Image.asset(myData.moodEmoji, width: 72, height: 72),
+            const SizedBox(height: 8),
+            Text(
+              myData.moodLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFFF6B8A),
+              ),
+            ),
+          ] else ...[
+            const Text('😶', style: TextStyle(fontSize: 60)),
+            const SizedBox(height: 8),
+            Text(
+              isRu ? 'Нет настроения' : 'No mood set',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PAIR WIDGET PREVIEW (оригинальный)
+  // ════════════════════════════════════════════════════════════════════════════
 
   // ════════════════════════════════════════════════════════════════════════════
   // MY TILE (editable)
