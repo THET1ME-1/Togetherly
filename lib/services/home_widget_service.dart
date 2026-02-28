@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/timer_item.dart';
 import '../models/memory.dart';
@@ -15,6 +16,10 @@ import '../models/memory.dart';
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
 ///  который обновляется в [WidgetService]).
+///
+/// Каждый тип виджета привязан к конкретной группе (groupId).
+/// При синхронизации виджет ВСЕГДА обновляется данными **своей** группы,
+/// даже если сейчас активна другая группа.
 ///
 /// Виджеты:
 /// 1. DaysCounterWidgetProvider — счётчик дней вместе
@@ -26,6 +31,25 @@ class HomeWidgetService {
   static final HomeWidgetService instance = HomeWidgetService._();
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  ПРИВЯЗКА ВИДЖЕТОВ К ГРУППАМ
+  // ════════════════════════════════════════════════════════════════════════
+
+  static const _boundGroupPrefix = 'widget_bound_group_';
+
+  /// Привязать тип виджета к группе (вызывается при пине).
+  Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_boundGroupPrefix$widgetType', groupId);
+    debugPrint('HomeWidgetService: $widgetType bound to group $groupId');
+  }
+
+  /// Получить groupId, к которому привязан виджет. null = не привязан.
+  Future<String?> getBoundGroup(String widgetType) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_boundGroupPrefix$widgetType');
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  1. СЧЁТЧИК ДНЕЙ ВМЕСТЕ
@@ -189,6 +213,126 @@ class HomeWidgetService {
       debugPrint('HomeWidgetService.syncMood failed: $e');
     }
   }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  АВТОСИНХРОНИЗАЦИЯ ВСЕХ ВИДЖЕТОВ ПО ПРИВЯЗАННЫМ ГРУППАМ
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Синхронизирует каждый виджет данными из **его** привязанной группы.
+  ///
+  /// Если виджет привязан к группе, отличной от [activeGroupId], он **не
+  /// обновляется** — на рабочем столе остаются данные, записанные последний
+  /// раз, когда эта группа была активна. Это гарантирует, что переключение
+  /// группы не затирает чужие виджеты.
+  ///
+  /// Обновляются только:
+  ///  • виджеты, привязанные к [activeGroupId]
+  ///  • виджеты, не привязанные ни к какой группе (null → текущая)
+  Future<void> syncAllBoundWidgets({
+    required String activeGroupId,
+    required List<TimerItem> activeTimers,
+    TimerItem? activeSysTimer,
+    DateTime? activeStartDate,
+    required String coupleNames,
+    required String emoji,
+  }) async {
+    try {
+      debugPrint(
+        'HomeWidgetService.syncAllBoundWidgets: activeGroup=$activeGroupId',
+      );
+
+      // ── Days Counter ──
+      final daysGroup = await getBoundGroup('days_counter');
+      if (daysGroup == null || daysGroup == activeGroupId) {
+        debugPrint('  days_counter → syncing (bound=$daysGroup)');
+        await _syncDaysCounterFromMemory(
+          activeSysTimer: activeSysTimer,
+          activeStartDate: activeStartDate,
+          coupleNames: coupleNames,
+          emoji: emoji,
+        );
+      } else {
+        debugPrint(
+          '  days_counter → SKIP (bound=$daysGroup, active=$activeGroupId)',
+        );
+      }
+
+      // ── Timer ──
+      final timerGroup = await getBoundGroup('timer');
+      if (timerGroup == null || timerGroup == activeGroupId) {
+        debugPrint('  timer → syncing (bound=$timerGroup)');
+        await _syncTimerFromMemory(
+          activeTimers: activeTimers,
+          groupId: activeGroupId,
+        );
+      } else {
+        debugPrint('  timer → SKIP (bound=$timerGroup, active=$activeGroupId)');
+      }
+
+      // ── Photo of Day ──
+      final photoGroup = await getBoundGroup('photo_day');
+      if (photoGroup == null || photoGroup == activeGroupId) {
+        debugPrint('  photo_day → syncing (bound=$photoGroup)');
+        await refreshPhotoOfDay(activeGroupId);
+      } else {
+        debugPrint(
+          '  photo_day → SKIP (bound=$photoGroup, active=$activeGroupId)',
+        );
+      }
+
+      // ── Mood — привязан к пользователю, не к группе ──
+      // (mood синхронизируется в WidgetService при изменении)
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncAllBoundWidgets failed: $e');
+    }
+  }
+
+  /// Синхронизирует счётчик дней из данных в памяти (текущая группа).
+  Future<void> _syncDaysCounterFromMemory({
+    TimerItem? activeSysTimer,
+    DateTime? activeStartDate,
+    required String coupleNames,
+    required String emoji,
+  }) async {
+    if (activeSysTimer != null) {
+      final start = activeSysTimer.startDate;
+      await syncDaysCounter(
+        daysCount: activeSysTimer.daysElapsed.abs(),
+        coupleNames: coupleNames,
+        emoji: activeSysTimer.emoji,
+        startDate: _formatDate(start),
+      );
+    } else if (activeStartDate != null) {
+      await syncDaysCounter(
+        daysCount: DateTime.now().difference(activeStartDate).inDays,
+        coupleNames: coupleNames,
+        emoji: emoji,
+        startDate: _formatDate(activeStartDate),
+      );
+    }
+  }
+
+  /// Синхронизирует таймер из данных в памяти (текущая группа).
+  Future<void> _syncTimerFromMemory({
+    required List<TimerItem> activeTimers,
+    required String groupId,
+  }) async {
+    final nonSystem = activeTimers.where((t) => !t.isSystem).toList();
+    if (nonSystem.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final savedId = prefs.getString('widget_timer_id_$groupId');
+    TimerItem? timer;
+    if (savedId != null) {
+      try {
+        timer = nonSystem.firstWhere((t) => t.id == savedId);
+      } catch (_) {}
+    }
+    timer ??= nonSystem.first;
+    await syncTimer(timer);
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   // ════════════════════════════════════════════════════════════════════════
   //  ВСПОМОГАТЕЛЬНЫЕ

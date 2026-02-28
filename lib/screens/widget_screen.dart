@@ -49,7 +49,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _pairWidgetExpanded = false;
   bool _timerWidgetExpanded = false;
   String? _widgetTimerId;
-  static const _widgetTimerKey = 'widget_timer_id';
+
+  String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
   // Геттер: выбранный таймер для виджета (non-system)
   TimerItem? get _widgetTimer {
@@ -95,9 +96,18 @@ class _WidgetScreenState extends State<WidgetScreen> {
     }
   }
 
-  Future<void> _pinWidget(String qualifiedName) async {
+  Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
     try {
       await HomeWidget.requestPinWidget(qualifiedAndroidName: qualifiedName);
+      // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
+      if (widgetType != null && _pair.pairId.isNotEmpty) {
+        await HomeWidgetService.instance.bindWidgetToGroup(
+          widgetType,
+          _pair.pairId,
+        );
+        // Немедленно записать актуальные данные в виджет
+        await _syncWidgetDataAfterPin(widgetType);
+      }
     } catch (e) {
       debugPrint('Pin widget failed: $e');
       if (mounted) {
@@ -112,6 +122,55 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         );
       }
+    }
+  }
+
+  /// Сразу после пина записывает данные текущей группы в виджет.
+  Future<void> _syncWidgetDataAfterPin(String widgetType) async {
+    final hws = HomeWidgetService.instance;
+    switch (widgetType) {
+      case 'days_counter':
+        final sysTimer = _timerService.systemTimer;
+        final start = sysTimer?.startDate ?? _pair.startDate;
+        final emoji = sysTimer?.emoji ?? _pair.relationshipEmoji;
+        final days = sysTimer != null
+            ? sysTimer.daysElapsed.abs()
+            : (start != null ? DateTime.now().difference(start).inDays : 0);
+        final startLabel = start != null
+            ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
+            : '';
+        final names = _pair.partnerName.isNotEmpty
+            ? '${_pair.partnerName}'
+            : '';
+        await hws.syncDaysCounter(
+          daysCount: days,
+          coupleNames: names,
+          emoji: emoji,
+          startDate: startLabel,
+        );
+        break;
+      case 'timer':
+        final timer = _widgetTimer;
+        if (timer != null) await hws.syncTimer(timer);
+        break;
+      case 'photo_day':
+        await hws.refreshPhotoOfDay(_pair.pairId);
+        break;
+      case 'pair':
+        // Парный виджет синхронизируется WidgetService
+        break;
+      case 'mood':
+        // Настроение синхронизируется при изменении
+        break;
+    }
+  }
+
+  @override
+  void didUpdateWidget(WidgetScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pairData.pairId != widget.pairData.pairId) {
+      // Сменилась группа — загружаем выбор таймера для новой группы
+      _loadWidgetTimerId();
     }
   }
 
@@ -483,6 +542,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFFEE2B6C),
           qualifiedName: 'com.example.love_app.LoveWidgetProvider',
           preview: _buildWidgetPreview(),
+          widgetType: 'pair',
           expandedContent: _buildPairWidgetExpandedContent(),
           isExpanded: _pairWidgetExpanded,
           onToggleExpand: () =>
@@ -500,6 +560,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFFFF6B8A),
           qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
           preview: _buildDaysCounterPreview(),
+          widgetType: 'days_counter',
         ),
         const SizedBox(height: 16),
 
@@ -513,6 +574,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFF8B5CF6),
           qualifiedName: 'com.example.love_app.TimerWidgetProvider',
           preview: _buildTimerPreview(),
+          widgetType: 'timer',
           expandedContent: _buildTimerSelector(),
           isExpanded: _timerWidgetExpanded,
           onToggleExpand: () =>
@@ -530,6 +592,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFFEC4899),
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
           preview: _buildPhotoDayPreview(),
+          widgetType: 'photo_day',
         ),
         const SizedBox(height: 16),
 
@@ -543,6 +606,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           iconColor: const Color(0xFFFBBF24),
           qualifiedName: 'com.example.love_app.MoodWidgetProvider',
           preview: _buildMoodPreview(),
+          widgetType: 'mood',
         ),
       ],
     );
@@ -555,6 +619,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required Color iconColor,
     required String qualifiedName,
     required Widget preview,
+    String? widgetType,
     Widget? expandedContent,
     bool isExpanded = false,
     VoidCallback? onToggleExpand,
@@ -626,7 +691,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
               width: double.infinity,
               height: 44,
               child: ElevatedButton.icon(
-                onPressed: () => _pinWidget(qualifiedName),
+                onPressed: () =>
+                    _pinWidget(qualifiedName, widgetType: widgetType),
                 icon: const Icon(Icons.add_to_home_screen_rounded, size: 18),
                 label: Text(
                   isRu ? 'Добавить на рабочий стол' : 'Add to Home Screen',
