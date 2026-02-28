@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
+import '../models/timer_item.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
@@ -238,34 +239,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Синхронизирует данные во все виджеты рабочего стола:
   /// счётчик дней, таймер, фото дня.
-  void _syncHomeWidgets() {
-    if (!_pairData.isPaired || _pairData.startDate == null) return;
+  Future<void> _syncHomeWidgets() async {
+    if (!_pairData.isPaired) return;
 
     final hws = HomeWidgetService.instance;
-    final start = _pairData.startDate!;
-    final now = DateTime.now();
-
-    // 1. Счётчик дней вместе
-    final days = now.difference(start).inDays;
     final myName = widget.userData.displayName;
     final partnerName = _pairData.partnerName;
     final coupleNames = '$myName & $partnerName';
-    final startFormatted =
-        '${start.day.toString().padLeft(2, '0')}.'
-        '${start.month.toString().padLeft(2, '0')}.'
-        '${start.year}';
 
-    hws.syncDaysCounter(
-      daysCount: days,
-      coupleNames: coupleNames,
-      emoji: _pairData.relationshipEmoji,
-      startDate: startFormatted,
-    );
+    // 1. Счётчик дней — читаем ИЗ СИСТЕМНОГО таймера (isSystem == true),
+    //    потому что пользователь может переименовать его и изменить дату
+    final sysTimer = _timerService.systemTimer;
+    if (sysTimer != null) {
+      final start = sysTimer.startDate;
+      final days = sysTimer.daysElapsed.abs();
+      final startFormatted =
+          '${start.day.toString().padLeft(2, '0')}.'
+          '${start.month.toString().padLeft(2, '0')}.'
+          '${start.year}';
+      hws.syncDaysCounter(
+        daysCount: days,
+        coupleNames: coupleNames,
+        emoji: sysTimer.emoji,
+        startDate: startFormatted,
+      );
+    } else if (_pairData.startDate != null) {
+      // fallback — если системный таймер ещё не создан
+      final start = _pairData.startDate!;
+      final days = DateTime.now().difference(start).inDays;
+      final startFormatted =
+          '${start.day.toString().padLeft(2, '0')}.'
+          '${start.month.toString().padLeft(2, '0')}.'
+          '${start.year}';
+      hws.syncDaysCounter(
+        daysCount: days,
+        coupleNames: coupleNames,
+        emoji: _pairData.relationshipEmoji,
+        startDate: startFormatted,
+      );
+    }
 
-    // 2. Таймер (дефолтный или системный)
-    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
-    if (timer != null) {
-      hws.syncTimer(timer);
+    // 2. Таймер — берём сохранённый выбор пользователя (non-system),
+    //    иначе первый несистемный, иначе дефолтный
+    final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
+    TimerItem? widgetTimer;
+    if (nonSystem.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final savedId = prefs.getString('widget_timer_id');
+      if (savedId != null) {
+        try {
+          widgetTimer = nonSystem.firstWhere((t) => t.id == savedId);
+        } catch (_) {}
+      }
+      widgetTimer ??= nonSystem.first;
+    }
+    if (widgetTimer != null) {
+      hws.syncTimer(widgetTimer);
     }
 
     // 3. Фото дня — случайное из Memory Lane

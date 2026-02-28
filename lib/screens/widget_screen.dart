@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pair_data.dart';
+import '../models/timer_item.dart';
 import '../models/widget_data.dart';
 import '../models/mood_entry.dart';
+import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
@@ -44,6 +47,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   bool _canPinWidgets = false;
   bool _pairWidgetExpanded = false;
+  bool _timerWidgetExpanded = false;
+  String? _widgetTimerId;
+  static const _widgetTimerKey = 'widget_timer_id';
+
+  // Геттер: выбранный таймер для виджета (non-system)
+  TimerItem? get _widgetTimer {
+    final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
+    if (nonSystem.isEmpty) return null;
+    if (_widgetTimerId != null) {
+      try {
+        return nonSystem.firstWhere((t) => t.id == _widgetTimerId);
+      } catch (_) {}
+    }
+    return nonSystem.first;
+  }
 
   @override
   void initState() {
@@ -51,6 +69,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
     _checkPinSupport();
+    _loadWidgetTimerId();
+  }
+
+  Future<void> _loadWidgetTimerId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString(_widgetTimerKey);
+    if (mounted) setState(() => _widgetTimerId = id);
+  }
+
+  Future<void> _selectWidgetTimer(TimerItem timer) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_widgetTimerKey, timer.id);
+    setState(() => _widgetTimerId = timer.id);
+    await HomeWidgetService.instance.syncTimer(timer);
   }
 
   Future<void> _checkPinSupport() async {
@@ -475,12 +507,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _buildGalleryItem(
           title: isRu ? 'Таймер' : 'Timer',
           subtitle: isRu
-              ? 'Выбранный таймер или обратный отсчёт'
-              : 'Selected timer or countdown',
+              ? 'Выберите таймер для виджета'
+              : 'Choose a timer for the widget',
           icon: Icons.timer_rounded,
           iconColor: const Color(0xFF8B5CF6),
           qualifiedName: 'com.example.love_app.TimerWidgetProvider',
           preview: _buildTimerPreview(),
+          expandedContent: _buildTimerSelector(),
+          isExpanded: _timerWidgetExpanded,
+          onToggleExpand: () =>
+              setState(() => _timerWidgetExpanded = !_timerWidgetExpanded),
         ),
         const SizedBox(height: 16),
 
@@ -636,14 +672,22 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildDaysCounterPreview() {
-    final start = _pair.startDate;
-    final days = start != null ? DateTime.now().difference(start).inDays : 0;
-    final myName = _pair.isPaired ? _pair.partnerName : '';
-    final emoji = _pair.relationshipEmoji;
+    final isRu = LocaleService.instance.isRussian;
+    // Данные берём ИЗ системного таймера (isSystem == true)
+    final sysTimer = _timerService.systemTimer;
+    final start = sysTimer?.startDate ?? _pair.startDate;
+    final emoji = sysTimer?.emoji ?? _pair.relationshipEmoji;
+    final days = sysTimer != null
+        ? sysTimer.daysElapsed.abs()
+        : (start != null ? DateTime.now().difference(start).inDays : 0);
     final startLabel = start != null
         ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
         : '';
-    final isRu = LocaleService.instance.isRussian;
+
+    // Название: из системного таймера или имена пары
+    final displayTitle = sysTimer?.title.isNotEmpty == true
+        ? sysTimer!.title
+        : (_pair.partnerName.isNotEmpty ? _pair.partnerName : '');
 
     return Container(
       width: double.infinity,
@@ -676,10 +720,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
               color: Colors.grey.shade500,
             ),
           ),
-          if (myName.isNotEmpty) ...[
+          if (displayTitle.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              myName,
+              displayTitle,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 color: Colors.grey.shade600,
@@ -706,17 +750,56 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildTimerPreview() {
-    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
+    final timer = _widgetTimer;
     final isRu = LocaleService.instance.isRussian;
 
-    final title = timer?.title ?? (isRu ? 'Таймер' : 'Timer');
-    final emoji = timer?.emoji ?? '⏱';
-    final days = timer?.daysElapsed.abs() ?? 0;
-    final isCountdown = timer?.isCountdown ?? false;
+    if (timer == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F0FF),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.timer_off_rounded,
+              size: 36,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isRu ? 'Нет таймеров' : 'No timers',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isRu
+                  ? 'Добавьте таймер в разделе «Таймеры»'
+                  : 'Add a timer in the Timers section',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                color: Colors.grey.shade400,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final title = timer.title;
+    final emoji = timer.emoji;
+    final days = timer.daysElapsed.abs();
+    final isCountdown = timer.isCountdown;
     final daysLabel = isCountdown
         ? (isRu ? 'дней осталось' : 'days left')
         : (isRu ? 'дней прошло' : 'days elapsed');
-    final date = timer?.formattedStartDate ?? '';
+    final date = timer.formattedStartDate;
 
     return Container(
       width: double.infinity,
@@ -779,6 +862,107 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВЫБОР ТАЙМЕРА ДЛЯ ВИДЖЕТА
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildTimerSelector() {
+    final isRu = LocaleService.instance.isRussian;
+    final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
+
+    if (nonSystem.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          isRu
+              ? 'Нет таймеров. Добавьте таймер в разделе «Таймеры».'
+              : 'No timers. Add a timer in the Timers section.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isRu ? 'Выберите таймер для виджета:' : 'Select timer for widget:',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...nonSystem.map((timer) {
+          final isSelected = timer.id == (_widgetTimerId ?? nonSystem.first.id);
+          return GestureDetector(
+            onTap: () => _selectWidgetTimer(timer),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF8B5CF6).withOpacity(0.1)
+                    : Colors.grey.shade50,
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF8B5CF6)
+                      : Colors.grey.shade200,
+                  width: isSelected ? 1.5 : 1,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Text(timer.emoji, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          timer.title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected
+                                ? const Color(0xFF8B5CF6)
+                                : Colors.grey.shade800,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${timer.daysElapsed.abs()} '
+                          '${timer.isCountdown ? (isRu ? 'дн. осталось' : 'd. left') : (isRu ? 'дн. прошло' : 'd. elapsed')} • ${timer.formattedStartDate}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 20,
+                      color: const Color(0xFF8B5CF6),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
