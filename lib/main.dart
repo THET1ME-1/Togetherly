@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
+import 'services/firebase_service.dart';
 import 'services/locale_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
@@ -17,6 +18,9 @@ void main() async {
 
   // Deep links — инициализация
   DeepLinkService().init();
+
+  // FCM — push-уведомления
+  FirebaseService().initFCM();
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();

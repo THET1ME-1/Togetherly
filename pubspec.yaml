@@ -59,6 +59,7 @@ dependencies:
   http: ^1.2.0                    # HTTP запросы (скачивание)\n  
   intl: ^0.19.0                   # Форматирование дат
   home_widget: ^0.7.0             # Настоящий виджет рабочего стола
+  firebase_messaging: ^15.2.4     # Push-уведомления (FCM)
 
 dev_dependencies:
   flutter_test:

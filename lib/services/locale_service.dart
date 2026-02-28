@@ -391,6 +391,13 @@ abstract class AppStrings {
   String get yesterday;
   List<String> get shortMonths;
   List<String> get shortWeekdays;
+
+  // ── I Miss You ──
+  String get iMissYou;
+  String get iMissYouSent;
+  String missYouNotifTitle(String name);
+  String get missYouNotifBody;
+  String missYouStreak(int count);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1061,6 +1068,18 @@ class _RuStrings extends AppStrings {
   ];
   @override
   List<String> get shortWeekdays => ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+  // ── I Miss You ──
+  @override
+  String get iMissYou => 'Я скучаю';
+  @override
+  String get iMissYouSent => 'Отправлено! 💕';
+  @override
+  String missYouNotifTitle(String name) => '$name скучает по вам';
+  @override
+  String get missYouNotifBody => 'Думает о вас и вспоминает 💭';
+  @override
+  String missYouStreak(int count) => '🔥 $count';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1737,4 +1756,16 @@ class _EnStrings extends AppStrings {
     'Sat',
     'Sun',
   ];
+
+  // ── I Miss You ──
+  @override
+  String get iMissYou => 'I miss you';
+  @override
+  String get iMissYouSent => 'Sent! 💕';
+  @override
+  String missYouNotifTitle(String name) => '$name misses you';
+  @override
+  String get missYouNotifBody => 'Thinking about you right now 💭';
+  @override
+  String missYouStreak(int count) => '🔥 $count';
 }

@@ -22,6 +22,7 @@ import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import 'widget_screen.dart';
+import 'miss_you_button.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -532,12 +533,12 @@ class _HomeScreenState extends State<HomeScreen> {
               name: widget.userData.displayName,
             ),
           ],
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           // Badge — tappable to change relationship type
           GestureDetector(
             onTap: _pairData.isPaired ? _showRelationshipTypeDialog : null,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: _pairData.isPaired
                     ? primary.withOpacity(0.1)
@@ -557,14 +558,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       _statusBadgeEmoji,
                       style: const TextStyle(fontSize: 13),
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 4),
                   ] else ...[
                     Icon(
                       Icons.favorite_border,
                       color: Colors.grey.shade400,
                       size: 14,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                   ],
                   Text(
                     _statusBadgeText,
@@ -588,6 +589,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          if (_pairData.isPaired) ...[
+            const SizedBox(width: 8),
+            MissYouButton(
+              theme: _t,
+              groupId: _pairData.pairId,
+              senderName: widget.userData.displayName,
+              enabled: _pairData.isPaired,
+            ),
+          ],
           const Spacer(),
         ],
       ),

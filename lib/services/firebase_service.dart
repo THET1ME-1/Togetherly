@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import '../models/memory.dart';
@@ -140,6 +141,33 @@ class FirebaseService {
       }
     } catch (_) {}
     await _auth.signOut();
+  }
+
+  /// Инициализация FCM: запрашиваем разрешение и сохраняем токен.
+  Future<void> initFCM() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final token = await messaging.getToken();
+      if (token != null) await _saveFcmToken(token);
+
+      // Обновляем токен при ротации
+      messaging.onTokenRefresh.listen(_saveFcmToken);
+    } catch (e) {
+      debugPrint('initFCM failed: $e');
+    }
+  }
+
+  Future<void> _saveFcmToken(String token) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      await _db.collection('users').doc(u.uid).set({
+        'fcmToken': token,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('_saveFcmToken failed: $e');
+    }
   }
 
   // ══════════════════════════════════════════════
@@ -1767,6 +1795,56 @@ class FirebaseService {
 
   static String _reflectionDayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // ══════════════════════════════════════════════
+  //  I MISS YOU
+  // ══════════════════════════════════════════════
+
+  /// Отправить «Я скучаю» — записывает в Firestore.
+  /// Cloud Function слушает этот документ и отправляет push-уведомление.
+  Future<void> sendMissYou({
+    required String groupId,
+    required String senderName,
+  }) async {
+    final myUid = uid;
+    if (myUid == null || groupId.isEmpty) return;
+    try {
+      // 1. Инкремент общего счётчика
+      await _db.collection('groups').doc(groupId).set({
+        'missYouCount': FieldValue.increment(1),
+        'lastMissYou': {
+          'senderUid': myUid,
+          'senderName': senderName,
+          'timestamp': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+
+      // 2. Добавить запись в subcollection для push-триггера
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('missYouEvents')
+          .add({
+            'senderUid': myUid,
+            'senderName': senderName,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      debugPrint('sendMissYou failed: $e');
+    }
+  }
+
+  /// Слушать счётчик «Я скучаю» в реальном времени.
+  StreamSubscription listenToMissYouCount({
+    required String groupId,
+    required void Function(int count) onData,
+  }) {
+    return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
+      final data = snap.data();
+      final count = (data?['missYouCount'] as int?) ?? 0;
+      onData(count);
+    });
+  }
 
   // ══════════════════════════════════════════════
   //  HELPERS
