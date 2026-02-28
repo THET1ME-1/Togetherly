@@ -136,6 +136,9 @@ class FirebaseService {
 
   Future<void> signOut() async {
     try {
+      await setOnlineStatus(false);
+    } catch (_) {}
+    try {
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
       }
@@ -1872,6 +1875,47 @@ class FirebaseService {
       final data = snap.data();
       final count = (data?['missYouCount'] as int?) ?? 0;
       onData(count);
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  //  PRESENCE — отслеживание статуса онлайн/офлайн
+  //  Firestore: users/{uid}/isOnline (bool)
+  //                          lastSeen (Timestamp)
+  // ══════════════════════════════════════════════
+
+  /// Обновляет статус присутствия текущего пользователя.
+  /// Вызывается из AppLifecycleListener при переходе foreground/background.
+  Future<void> setOnlineStatus(bool isOnline) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      final data = <String, dynamic>{
+        'isOnline': isOnline,
+        'lastSeen': FieldValue.serverTimestamp(),
+      };
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set(data, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
+      debugPrint('setOnlineStatus: uid=${u.uid}, isOnline=$isOnline');
+    } catch (e) {
+      debugPrint('setOnlineStatus failed: $e');
+    }
+  }
+
+  /// Стрим присутствия пользователя по uid.
+  /// Возвращает Map с полями isOnline (bool) и lastSeen (DateTime?).
+  Stream<Map<String, dynamic>> streamUserPresence(String uid) {
+    return _db.collection('users').doc(uid).snapshots().map((snap) {
+      final data = snap.data();
+      if (data == null) return {'isOnline': false, 'lastSeen': null};
+      final isOnline = (data['isOnline'] as bool?) ?? false;
+      final ts = data['lastSeen'];
+      DateTime? lastSeen;
+      if (ts is Timestamp) lastSeen = ts.toDate();
+      return {'isOnline': isOnline, 'lastSeen': lastSeen};
     });
   }
 

@@ -44,6 +44,7 @@ class LoveApp extends StatefulWidget {
 class _LoveAppState extends State<LoveApp> {
   final UserData _userData = UserData();
   bool _loading = true;
+  AppLifecycleListener? _lifecycleListener;
 
   // Cache theme to avoid recreating on every build
   static final ThemeData _cachedTheme = ThemeData(
@@ -56,10 +57,18 @@ class _LoveAppState extends State<LoveApp> {
   void initState() {
     super.initState();
     _init();
+    // Отслеживаем жизненный цикл приложения для обновления статуса присутствия
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () => FirebaseService().setOnlineStatus(true),
+      onPause: () => FirebaseService().setOnlineStatus(false),
+      onDetach: () => FirebaseService().setOnlineStatus(false),
+      onHide: () => FirebaseService().setOnlineStatus(false),
+    );
   }
 
   @override
   void dispose() {
+    _lifecycleListener?.dispose();
     super.dispose();
   }
 
@@ -77,6 +86,11 @@ class _LoveAppState extends State<LoveApp> {
         // Если тихий вход удался — isLoggedIn теперь true.
         // Если нет — пользователь попадёт на экран входа после dispose
         // пустого uid (FirebaseService запросы будут отклоняться).
+      }
+
+      // Устанавливаем статус "онлайн" при запуске
+      if (FirebaseService().isLoggedIn) {
+        FirebaseService().setOnlineStatus(true);
       }
     } catch (_) {
       // Даже при ошибке убираем спиннер

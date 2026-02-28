@@ -328,6 +328,7 @@ abstract class AppStrings {
   String membersCount(int count);
   String get member;
   String get online;
+  String get offline;
   String get inviteMore;
   String get scanQr;
   String get disconnect;
@@ -928,6 +929,8 @@ class _RuStrings extends AppStrings {
   String get member => 'Участник';
   @override
   String get online => 'Онлайн';
+  @override
+  String get offline => 'Не в сети';
   @override
   String get inviteMore => 'Пригласить ещё';
   @override
@@ -1609,6 +1612,8 @@ class _EnStrings extends AppStrings {
   String get member => 'Member';
   @override
   String get online => 'Online';
+  @override
+  String get offline => 'Offline';
   @override
   String get inviteMore => 'Invite More';
   @override

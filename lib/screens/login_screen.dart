@@ -78,6 +78,9 @@ class _LoginScreenState extends State<LoginScreen> {
           isReturningUser: true, // Login - don't clear existing data
         );
 
+        // Устанавливаем статус "онлайн" после входа
+        fb.setOnlineStatus(true);
+
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
@@ -139,6 +142,9 @@ class _LoginScreenState extends State<LoginScreen> {
             avatarUrl: avatarUrl,
             isReturningUser: true, // Login - don't clear existing data
           );
+
+          // Устанавливаем статус "онлайн" после входа
+          fb.setOnlineStatus(true);
 
           if (!mounted) return;
           Navigator.of(context).pushReplacement(

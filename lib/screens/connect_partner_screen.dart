@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/deep_link_service.dart';
+import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
@@ -34,6 +35,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   late AnimationController _pulseController;
   StreamSubscription? _deepLinkSub;
 
+  // Presence: uid → isOnline
+  final Map<String, bool> _partnerOnlineStatus = {};
+  final Map<String, StreamSubscription<Map<String, dynamic>>> _presenceSubs =
+      {};
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +57,43 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         _submitCode();
       }
     });
+
+    // Подписываемся на присутствие партнёров
+    _subscribeToPartnerPresence();
+    // Переподписываемся при изменении состава группы
+    widget.pairData.addListener(_onPairDataChanged);
+  }
+
+  void _onPairDataChanged() {
+    _subscribeToPartnerPresence();
+  }
+
+  void _subscribeToPartnerPresence() {
+    final partners = widget.pairData.partners;
+    final newUids = partners.map((p) => p.uid).toSet();
+
+    // Отменяем подписки для вышедших участников
+    final removed = _presenceSubs.keys.toSet().difference(newUids);
+    for (final uid in removed) {
+      _presenceSubs.remove(uid)?.cancel();
+      _partnerOnlineStatus.remove(uid);
+    }
+
+    // Добавляем подписки для новых участников
+    for (final member in partners) {
+      if (member.uid.isEmpty || _presenceSubs.containsKey(member.uid)) continue;
+      final sub = FirebaseService().streamUserPresence(member.uid).listen((
+        data,
+      ) {
+        if (mounted) {
+          setState(() {
+            _partnerOnlineStatus[member.uid] =
+                (data['isOnline'] as bool?) ?? false;
+          });
+        }
+      });
+      _presenceSubs[member.uid] = sub;
+    }
   }
 
   @override
@@ -58,6 +101,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     _codeController.dispose();
     _pulseController.dispose();
     _deepLinkSub?.cancel();
+    widget.pairData.removeListener(_onPairDataChanged);
+    for (final sub in _presenceSubs.values) {
+      sub.cancel();
+    }
+    _presenceSubs.clear();
     super.dispose();
   }
 
@@ -408,24 +456,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             ),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4ADE80).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            LocaleService.current.online,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF16A34A),
-                            ),
-                          ),
-                        ),
+                        _buildPresenceBadge(m.uid),
                       ],
                     ),
                   ),
@@ -847,6 +878,52 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// Бейдж онлайн/офлайн статуса для партнёра
+  Widget _buildPresenceBadge(String uid) {
+    final isOnline = _partnerOnlineStatus[uid] ?? false;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        key: ValueKey(isOnline),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: isOnline
+              ? const Color(0xFF4ADE80).withOpacity(0.12)
+              : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isOnline
+                    ? const Color(0xFF16A34A)
+                    : Colors.grey.shade400,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isOnline
+                  ? LocaleService.current.online
+                  : LocaleService.current.offline,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isOnline
+                    ? const Color(0xFF16A34A)
+                    : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

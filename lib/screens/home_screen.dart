@@ -94,6 +94,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _initPairData();
     _loadReflectionState();
 
+    // Устанавливаем статус "онлайн" при открытии главного экрана
+    _fb.setOnlineStatus(true);
+
     // Dynamic timer - only start when needed (Time mode)
     _startTimerIfNeeded();
 
