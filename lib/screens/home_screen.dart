@@ -2152,7 +2152,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 12),
               GestureDetector(
-                onTap: () => setState(() => _showReflection = false),
+                onTap: () {
+                  setState(() => _showReflection = false);
+                  _markReflectionAnsweredToday();
+                },
                 child: Container(
                   width: 44,
                   height: 44,

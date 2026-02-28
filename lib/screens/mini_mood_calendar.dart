@@ -38,6 +38,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   late final DateTime _todayNorm;
 
   bool _showBackToToday = false;
+  double _todayScrollOffset = _kCenter * _kItemStride;
 
   @override
   void initState() {
@@ -48,14 +49,19 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
       initialScrollOffset: _kCenter * _kItemStride,
     );
     _scrollController.addListener(_onScroll);
+    // После первого фрейма сдвигаем скролл так, чтобы сегодня был последним справа
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final viewport = _scrollController.position.viewportDimension;
+      _todayScrollOffset = (_kCenter * _kItemStride) - viewport + _kItemStride;
+      _scrollController.jumpTo(_todayScrollOffset);
+    });
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.offset;
-    // Первый видимый индекс (приблизительно)
-    final leftIndex = offset / _kItemStride;
-    final diff = (leftIndex - _kCenter).abs();
+    final diff = (offset - _todayScrollOffset).abs() / _kItemStride;
     final shouldShow = diff > 0.8;
     if (shouldShow != _showBackToToday) {
       setState(() => _showBackToToday = shouldShow);
@@ -64,7 +70,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
 
   void _scrollToToday() {
     _scrollController.animateTo(
-      _kCenter * _kItemStride,
+      _todayScrollOffset,
       duration: const Duration(milliseconds: 450),
       curve: Curves.easeInOut,
     );
