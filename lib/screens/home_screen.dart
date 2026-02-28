@@ -18,6 +18,7 @@ import 'memory_lane_screen.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
+import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
@@ -154,6 +155,38 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _selectedNavIndex = 1);
       }
     }
+    // loveapp://home → главная вкладка (index 0)
+    else if (uri.host == 'home') {
+      if (mounted) {
+        setState(() => _selectedNavIndex = 0);
+      }
+    }
+    // loveapp://memory_lane → открываем Memory Lane
+    else if (uri.host == 'memory_lane') {
+      if (mounted && _pairData.isPaired) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t),
+          ),
+        );
+      }
+    }
+    // loveapp://mood → открываем экран настроения (mood calendar)
+    else if (uri.host == 'mood') {
+      if (mounted && _pairData.isPaired) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MoodCalendarScreen(
+              pairData: _pairData,
+              moodService: _moodService,
+              widgetService: _widgetService,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _startTimerIfNeeded() {
@@ -192,12 +225,51 @@ class _HomeScreenState extends State<HomeScreen> {
           relationshipEmoji: _pairData.relationshipEmoji,
           partnerName: _pairData.partnerName,
         );
+
+        // Синхронизируем виджеты рабочего стола
+        _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
       }
 
       setState(() {});
     }
+  }
+
+  /// Синхронизирует данные во все виджеты рабочего стола:
+  /// счётчик дней, таймер, фото дня.
+  void _syncHomeWidgets() {
+    if (!_pairData.isPaired || _pairData.startDate == null) return;
+
+    final hws = HomeWidgetService.instance;
+    final start = _pairData.startDate!;
+    final now = DateTime.now();
+
+    // 1. Счётчик дней вместе
+    final days = now.difference(start).inDays;
+    final myName = widget.userData.displayName;
+    final partnerName = _pairData.partnerName;
+    final coupleNames = '$myName & $partnerName';
+    final startFormatted =
+        '${start.day.toString().padLeft(2, '0')}.'
+        '${start.month.toString().padLeft(2, '0')}.'
+        '${start.year}';
+
+    hws.syncDaysCounter(
+      daysCount: days,
+      coupleNames: coupleNames,
+      emoji: _pairData.relationshipEmoji,
+      startDate: startFormatted,
+    );
+
+    // 2. Таймер (дефолтный или системный)
+    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
+    if (timer != null) {
+      hws.syncTimer(timer);
+    }
+
+    // 3. Фото дня — случайное из Memory Lane
+    hws.refreshPhotoOfDay(_pairData.pairId);
   }
 
   void _startMemoryListener() {

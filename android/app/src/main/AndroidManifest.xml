@@ -75,7 +75,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- ═══ Виджет рабочего стола ═══ -->
+        <!-- ═══ Виджет рабочего стола: Парный ═══ -->
         <receiver android:name=".LoveWidgetProvider"
             android:exported="true">
             <intent-filter>
@@ -84,6 +84,54 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/love_widget_info" />
+        </receiver>
+
+        <!-- ═══ Виджет: Счётчик дней вместе ═══ -->
+        <receiver android:name=".DaysCounterWidgetProvider"
+            android:exported="true"
+            android:label="Дни вместе">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/days_counter_widget_info" />
+        </receiver>
+
+        <!-- ═══ Виджет: Таймер / Обратный отсчёт ═══ -->
+        <receiver android:name=".TimerWidgetProvider"
+            android:exported="true"
+            android:label="Таймер">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/timer_widget_info" />
+        </receiver>
+
+        <!-- ═══ Виджет: Фото дня ═══ -->
+        <receiver android:name=".PhotoDayWidgetProvider"
+            android:exported="true"
+            android:label="Фото дня">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/photo_day_widget_info" />
+        </receiver>
+
+        <!-- ═══ Виджет: Настроение ═══ -->
+        <receiver android:name=".MoodWidgetProvider"
+            android:exported="true"
+            android:label="Настроение">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mood_widget_info" />
         </receiver>
     </application>
     <!-- Required to query activities that can process text, see:

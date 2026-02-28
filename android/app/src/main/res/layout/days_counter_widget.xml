@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_rounded"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/love_emoji"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="❤️"
+        android:textSize="20sp" />
+
+    <TextView
+        android:id="@+id/days_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0"
+        android:textSize="42sp"
+        android:textStyle="bold"
+        android:textColor="#FF6B8A"
+        android:layout_marginTop="2dp"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/days_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="дней вместе"
+        android:textSize="13sp"
+        android:textColor="#888888" />
+
+    <TextView
+        android:id="@+id/couple_names"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="11sp"
+        android:textColor="#666666"
+        android:layout_marginTop="6dp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/start_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="9sp"
+        android:textColor="#AAAAAA"
+        android:layout_marginTop="2dp" />
+
+</LinearLayout>

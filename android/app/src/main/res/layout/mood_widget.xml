@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_rounded"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="12dp">
+
+    <!-- Крупная картинка эмодзи настроения -->
+    <ImageView
+        android:id="@+id/mood_emoji_image"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
+    <!-- Заглушка если нет настроения -->
+    <TextView
+        android:id="@+id/mood_placeholder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="😶"
+        android:textSize="60sp"
+        android:visibility="visible" />
+
+    <!-- Название настроения -->
+    <TextView
+        android:id="@+id/mood_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#FF6B8A"
+        android:layout_marginTop="6dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <!-- Имя пользователя -->
+    <TextView
+        android:id="@+id/mood_user_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="11sp"
+        android:textColor="#888888"
+        android:layout_marginTop="2dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+</LinearLayout>

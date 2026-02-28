@@ -10,6 +10,7 @@ import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'firebase_service.dart';
+import 'home_widget_service.dart';
 import 'mood_service.dart';
 
 /// Сервис для синхронизации виджет-данных между партнёрами.
@@ -441,6 +442,15 @@ class WidgetService extends ChangeNotifier {
       debugPrint(
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
+
+      // ── Синхронизируем виджет настроения ──
+      if (my != null && my.moodEmoji.isNotEmpty) {
+        HomeWidgetService.instance.syncMood(
+          moodEmojiAssetPath: my.moodEmoji,
+          moodLabel: my.moodLabel,
+          userName: my.displayName.isNotEmpty ? my.displayName : 'Я',
+        );
+      }
 
       // Скачиваем фото локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
