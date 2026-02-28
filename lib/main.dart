@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
@@ -67,9 +66,18 @@ class _LoveAppState extends State<LoveApp> {
   Future<void> _init() async {
     try {
       // Загружаем локальный профиль из SharedPreferences.
-      // Firebase Auth восстанавливает сессию асинхронно сам по себе —
-      // authStateChanges() обновит StreamBuilder когда будет готов.
       await _userData.loadFromPrefs();
+
+      // Если пользователь зарегистрирован, но Firebase Auth не имеет
+      // активной сессии (например, после перезапуска процесса),
+      // пробуем тихо восстановить Google-аккаунт без диалога.
+      if (_userData.isRegistered && !FirebaseService().isLoggedIn) {
+        debugPrint('Auth session lost, trying silent sign-in...');
+        await FirebaseService().signInSilently();
+        // Если тихий вход удался — isLoggedIn теперь true.
+        // Если нет — пользователь попадёт на экран входа после dispose
+        // пустого uid (FirebaseService запросы будут отклоняться).
+      }
     } catch (_) {
       // Даже при ошибке убираем спиннер
     } finally {
@@ -89,21 +97,7 @@ class _LoveAppState extends State<LoveApp> {
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
             : ListenableBuilder(
                 listenable: _userData,
-                builder: (context, _) {
-                  return StreamBuilder<User?>(
-                    stream: FirebaseAuth.instance.authStateChanges(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState != ConnectionState.waiting &&
-                          snapshot.data == null &&
-                          _userData.isRegistered) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _userData.logout();
-                        });
-                      }
-                      return _buildInitialScreen();
-                    },
-                  );
-                },
+                builder: (context, _) => _buildInitialScreen(),
               ),
       ),
     );
@@ -115,8 +109,7 @@ class _LoveAppState extends State<LoveApp> {
       return WelcomeScreen(userData: _userData);
     }
     // 2. Профиль есть локально — сразу домой.
-    //    Firebase Auth подтвердит сессию асинхронно; если токен реально
-    //    аннулирован, StreamBuilder вызовет logout() и перенаправит сюда.
+    //    Firebase сессия восстановлена в _init() через signInSilently().
     if (_userData.isRegistered) {
       return HomeScreen(userData: _userData);
     }

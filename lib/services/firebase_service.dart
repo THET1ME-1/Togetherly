@@ -143,6 +143,35 @@ class FirebaseService {
     await _auth.signOut();
   }
 
+  /// Тихий вход без показа диалога Google.
+  /// Восстанавливает сессию при перезапуске приложения:
+  /// сначала проверяет кэш Firebase Auth, затем пробует GoogleSignIn.signInSilently().
+  Future<User?> signInSilently() async {
+    try {
+      // Firebase Auth уже авторизован — возвращаем текущего пользователя
+      final current = _auth.currentUser;
+      if (current != null) return current;
+
+      // Пробуем восстановить Google-аккаунт без диалога
+      final googleAccount = await _googleSignIn.signInSilently();
+      if (googleAccount == null) return null;
+
+      final googleAuth = await googleAccount.authentication.timeout(
+        const Duration(seconds: 15),
+      );
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      debugPrint('signInSilently success: ${userCredential.user?.uid}');
+      return userCredential.user;
+    } catch (e) {
+      debugPrint('signInSilently failed: $e');
+      return null;
+    }
+  }
+
   /// Инициализация FCM: запрашиваем разрешение и сохраняем токен.
   Future<void> initFCM() async {
     try {
