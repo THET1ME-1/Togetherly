@@ -80,6 +80,33 @@ service cloud.firestore {
         allow create: if request.auth != null
                       && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
       }
+
+      // ── Совместное рисование ──
+      // Структура: groups/{groupId}/canvas/main/strokes/{strokeId}
+      //            groups/{groupId}/canvas/main/live/{userId}
+      //
+      // Вспомогательная функция: является ли запрашивающий участником группы
+      function isMember() {
+        return request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+      }
+
+      // Завершённые штрихи — читают и пишут все участники группы
+      match /canvas/main/strokes/{strokeId} {
+        allow read:   if isMember();
+        allow create: if isMember();
+        // Удалять может только автор штриха (undo) ИЛИ любой участник (clear canvas)
+        allow delete: if isMember();
+        // Обновление не используется
+        allow update: if false;
+      }
+
+      // Текущий (live) штрих — каждый пишет только свой документ, читают все
+      match /canvas/main/live/{authorId} {
+        allow read:   if isMember();
+        allow create, update: if isMember() && request.auth.uid == authorId;
+        allow delete: if isMember() && request.auth.uid == authorId;
+      }
     }
 
     // Всё остальное — запрещено

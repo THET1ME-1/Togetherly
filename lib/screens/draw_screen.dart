@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -17,26 +17,29 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Palette & user colours
-// ─────────────────────────────────────────────────────────────────────────────
+//  Palette 
+
 const List<Color> _kPalette = [
   Color(0xFF000000),
+  Color(0xFF374151),
   Color(0xFF6B7280),
+  Color(0xFFD1D5DB),
   Color(0xFFFFFFFF),
   Color(0xFFEF4444),
   Color(0xFFF97316),
+  Color(0xFFFBBF24),
   Color(0xFFEAB308),
+  Color(0xFF84CC16),
   Color(0xFF22C55E),
+  Color(0xFF10B981),
   Color(0xFF06B6D4),
   Color(0xFF3B82F6),
+  Color(0xFF6366F1),
   Color(0xFF8B5CF6),
   Color(0xFFEC4899),
-  Color(0xFFF472B6),
+  Color(0xFFF43F5E),
   Color(0xFF92400E),
   Color(0xFF065F46),
-  Color(0xFF1E3A5F),
-  Color(0xFFFFF7ED),
 ];
 
 const List<Color> _kUserColors = [
@@ -46,9 +49,8 @@ const List<Color> _kUserColors = [
   Color(0xFFF97316),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DrawScreen
-// ─────────────────────────────────────────────────────────────────────────────
+//  DrawScreen 
+
 class DrawScreen extends StatefulWidget {
   final UserData userData;
   final PairData pairData;
@@ -65,421 +67,755 @@ class DrawScreen extends StatefulWidget {
   State<DrawScreen> createState() => _DrawScreenState();
 }
 
-class _DrawScreenState extends State<DrawScreen> {
-  // ── Tool state ───────────────────────────────────────────────────────────
+class _DrawScreenState extends State<DrawScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  static const double _kCanvasPad = 16.0;
+  static const int _liveThrottleMs = 60;
+  static const double _kMinScale = 0.2;
+  static const double _kMaxScale = 10.0;
+
+  final FirebaseService _fb = FirebaseService();
+  final ImagePicker _imagePicker = ImagePicker();
+  final GlobalKey _canvasKey = GlobalKey();
+
+  final ValueNotifier<int> _repaintNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<List<DrawStroke>> _partnerNotifier =
+      ValueNotifier<List<DrawStroke>>([]);
+
+  final List<String> _myStrokeIds = [];
+  final List<DrawStroke> _redoStack = [];
+  final Map<String, DrawStroke> _pendingLocalStrokes = {};
+  final Set<String> _cancelledPendingStrokeIds = {};
+  final Map<String, DrawStroke> _partnerLiveMap = {};
+  final Map<String, int> _partnerTimestamps = {};
+  final Set<int> _activePointers = <int>{};
+
+  List<DrawStroke> _remoteStrokes = [];
+  List<DrawStroke> _visibleStrokes = [];
+  final List<DrawPoint> _currentPoints = [];
+
   DrawTool _activeTool = DrawTool.brush;
-  late Color _activeColor;
+  Color _activeColor = const Color(0xFF000000);
   double _strokeWidth = 5.0;
   Color _bgColor = Colors.white;
 
-  // ── Canvas data ──────────────────────────────────────────────────────────
-  // Completed strokes received from Firestore
-  List<DrawStroke> _strokes = [];
-
-  // Mutable point list for the current in-progress gesture (no allocation per point)
-  final List<DrawPoint> _currentPoints = [];
   int _currentColorValue = 0xFF000000;
   double _currentStrokeWidth = 5.0;
   bool _currentIsEraser = false;
+  DrawShapeType? _currentShapeType;
   bool _isDrawing = false;
 
-  // Partner live strokes keyed by uid
-  final Map<String, DrawStroke?> _partnerLiveStrokes = {};
+  // Hint / onboarding
+  bool _showHint = true;
+  int _hintStep = 0; // 0=draw, 1=tools, 2=pinch - auto-dismiss
 
-  // Canvas size — captured once by LayoutBuilder, eagerly set for first gesture
-  Size _canvasSize = Size.zero;
-  final _canvasKey = GlobalKey();
-
-  // ValueNotifier drives canvas repaints without rebuilding the full widget tree
-  final _repaintNotifier = ValueNotifier<int>(0);
-
-  // ── Images ───────────────────────────────────────────────────────────────
-  final Map<String, ui.Image> _imageCache = {};
-  final _imagePicker = ImagePicker();
+  bool _saving = false;
   bool _uploadingImage = false;
 
-  // ── Undo / Redo ──────────────────────────────────────────────────────────
-  final List<String> _myStrokeIds = [];
-  final List<DrawStroke> _redoStack = [];
-
-  // ── Firebase ─────────────────────────────────────────────────────────────
-  final _fb = FirebaseService();
-  StreamSubscription? _strokesSub;
-  StreamSubscription? _liveSub;
-
-  // Throttle live-push to at most 1 write per _liveThrottleMs milliseconds
-  static const int _liveThrottleMs = 80;
-  DateTime _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
-
-  int _orderCounter = 0;
-
-  // ── UI ───────────────────────────────────────────────────────────────────
-  bool _showHint = true;
-  bool _saving = false;
-  bool _sidebarVisible = true;
-
-  // ── Zoom / Pan ────────────────────────────────────────────────────────────
+  // Pan / zoom
+  Size _canvasSize = Size.zero;
   double _scale = 1.0;
   Offset _canvasOffset = Offset.zero;
   double _baseScale = 1.0;
   Offset _baseOffset = Offset.zero;
   Offset _baseFocalPoint = Offset.zero;
   bool _isZooming = false;
+  int? _drawingPointerId;
+  int _orderCounter = 0;
+  DateTime _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Toolbar expansion
+  bool _toolbarExpanded = false;
+  late AnimationController _toolbarAnim;
+
+  // Partner cursor pulse animation
+  late AnimationController _pulseAnim;
+
+  StreamSubscription? _strokesSub;
+  StreamSubscription? _liveSub;
+  StreamSubscription? _bgColorSub;
+  Timer? _staleTimer;
+  Timer? _hintTimer;
+
   String get _myUid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
+  bool get _hasSharedCanvas => _groupId.isNotEmpty;
 
-  Color _colorForUser(String uid) {
-    final members = widget.pairData.members;
-    final idx = members.indexWhere((m) => m.uid == uid);
-    if (idx < 0) return _kUserColors[0];
-    return _kUserColors[idx % _kUserColors.length];
+  bool get _isShapeTool =>
+      _activeTool == DrawTool.line ||
+      _activeTool == DrawTool.rect ||
+      _activeTool == DrawTool.circle;
+
+  DrawShapeType? get _activeShapeType {
+    switch (_activeTool) {
+      case DrawTool.line:
+        return DrawShapeType.line;
+      case DrawTool.rect:
+        return DrawShapeType.rect;
+      case DrawTool.circle:
+        return DrawShapeType.circle;
+      default:
+        return null;
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Lifecycle
-  // ─────────────────────────────────────────────────────────────────────────
+  bool get _canUndo => _myStrokeIds.isNotEmpty;
+  bool get _canRedo => _redoStack.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    _activeColor = _colorForUser(_myUid);
-    _currentColorValue = _activeColor.value;
+    WidgetsBinding.instance.addObserver(this);
+
+    _activeColor = widget.pairData.isPaired
+        ? _colorForUser(_myUid)
+        : const Color(0xFF000000);
+    _currentColorValue = _activeColor.toARGB32();
+
+    _toolbarAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+
+    _pulseAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
     _startFirebaseListeners();
-    // Auto-dismiss hint
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _showHint = false);
-    });
+    _scheduleHints();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _strokesSub?.cancel();
     _liveSub?.cancel();
+    _bgColorSub?.cancel();
+    _staleTimer?.cancel();
+    _hintTimer?.cancel();
+    _toolbarAnim.dispose();
+    _pulseAnim.dispose();
+    _clearLiveStroke();
     _repaintNotifier.dispose();
-    _clearLiveStroke(); // fire-and-forget
+    _partnerNotifier.dispose();
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Firebase
-  // ─────────────────────────────────────────────────────────────────────────
+  /// Сбрасываем все состояния жестов при уходе приложения в фон.
+  /// Это предотвращает «залипание» после того, как система
+  /// пропустила PointerUp-событие (шторка уведомлений, звонок и т.д.).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _activePointers.clear();
+      _isZooming = false;
+      _cancelCurrentGesture();
+    }
+  }
+
+  void _scheduleHints() {
+    _hintTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted || !_showHint) return;
+      setState(() => _hintStep = 1);
+      _hintTimer = Timer(const Duration(seconds: 5), () {
+        if (!mounted || !_showHint) return;
+        setState(() => _hintStep = 2);
+        _hintTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) setState(() => _showHint = false);
+        });
+      });
+    });
+  }
+
+  //  Colour helpers 
+
+  Color _colorForUser(String uid) {
+    final members = widget.pairData.members;
+    final idx = members.indexWhere((m) => m.uid == uid);
+    if (idx < 0) return _kUserColors.first;
+    return _kUserColors[idx % _kUserColors.length];
+  }
+
+  //  Snackbar 
+
+  void _showMessage(String message, {Color? backgroundColor}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  //  Firebase listeners 
 
   void _startFirebaseListeners() {
-    if (_groupId.isEmpty) return;
+    if (!_hasSharedCanvas) return;
 
-    // Completed strokes
     _strokesSub = _fb
         .listenToDrawingStrokes(groupId: _groupId)
         .handleError((e) => debugPrint('[Draw] strokes error: $e'))
-        .listen((rawList) {
-          if (!mounted) return;
-          final parsed = <DrawStroke>[];
-          for (final r in rawList) {
-            try {
-              parsed.add(DrawStroke.fromFirestore(r.data, r.id));
-            } catch (e) {
-              debugPrint('[Draw] parse stroke error: $e');
-            }
-          }
-          // Pre-load images
-          for (final s in parsed) {
-            if (s.isImageStroke &&
-                s.imageUrl != null &&
-                !_imageCache.containsKey(s.imageUrl)) {
-              _loadNetworkImage(s.imageUrl!);
-            }
-          }
-          if (parsed.isNotEmpty) {
-            _orderCounter =
-                parsed.map((s) => s.orderIndex).reduce(math.max) + 1;
-          }
-          setState(() => _strokes = parsed);
-        });
+        .listen(_onRemoteStrokes);
 
-    // Partner live strokes
     _liveSub = _fb
         .listenToLiveDrawingStrokes(groupId: _groupId, myUserId: _myUid)
         .handleError((e) => debugPrint('[Draw] live error: $e'))
-        .listen((liveMap) {
-          if (!mounted) return;
-          bool changed = false;
+        .listen(_onLiveStrokes);
 
-          for (final entry in liveMap.entries) {
-            final uid = entry.key;
-            final data = entry.value;
-            DrawStroke? stroke;
-            try {
-              stroke =
-                  data.isEmpty ? null : DrawStroke.fromLiveMap(data, uid);
-            } catch (e) {
-              debugPrint('[Draw] parse live error: $e');
-            }
-            _partnerLiveStrokes[uid] = stroke;
-            changed = true;
-          }
+    _bgColorSub = _fb
+        .listenToCanvasBgColor(groupId: _groupId)
+        .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
+        .listen(_onBgColor);
 
-          // Remove stale partners
-          final toRemove = _partnerLiveStrokes.keys
-              .where((uid) => !liveMap.containsKey(uid))
-              .toList();
-          for (final uid in toRemove) {
-            _partnerLiveStrokes.remove(uid);
-            changed = true;
-          }
-
-          if (changed) {
-            // Only need repaint, not full rebuild
-            _repaintNotifier.value++;
-            setState(() {});
-          }
-        });
+    _staleTimer = Timer.periodic(const Duration(seconds: 2), _removeStalePartners);
   }
 
-  Future<void> _loadNetworkImage(String url) async {
-    try {
-      final completer = Completer<ui.Image>();
-      final stream = NetworkImage(url).resolve(ImageConfiguration.empty);
-      late ImageStreamListener listener;
-      listener = ImageStreamListener(
-        (info, _) {
-          if (!completer.isCompleted) completer.complete(info.image);
-        },
-        onError: (e, _) {
-          if (!completer.isCompleted) completer.completeError(e);
-        },
-      );
-      stream.addListener(listener);
-      final img = await completer.future;
-      stream.removeListener(listener);
-      if (mounted) setState(() => _imageCache[url] = img);
-    } catch (e) {
-      debugPrint('[Draw] image load error: $e');
-    }
-  }
+  void _onRemoteStrokes(List<dynamic> rawList) {
+    if (!mounted) return;
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Gestures
-  // ─────────────────────────────────────────────────────────────────────────
-
-  // ── Scale-aware gestures (1 finger = draw, 2 fingers = zoom/pan) ─────────
-
-  /// Convert a touch position (local to GestureDetector) → canvas-space pixels.
-  Offset _screenToCanvas(Offset screenLocal) =>
-      (screenLocal - _canvasOffset) / _scale;
-
-  void _onScaleStart(ScaleStartDetails d) {
-    if (d.pointerCount >= 2) {
-      // Two fingers → zoom/pan; cancel any ongoing drawing
-      _isZooming = true;
-      if (_isDrawing) {
-        _isDrawing = false;
-        _currentPoints.clear();
-        _clearLiveStroke();
-        _repaintNotifier.value++;
+    final parsed = <DrawStroke>[];
+    for (final raw in rawList) {
+      try {
+        parsed.add(DrawStroke.fromFirestore(raw.data, raw.id));
+      } catch (e) {
+        debugPrint('[Draw] parse stroke error: $e');
       }
-      _baseScale = _scale;
-      _baseOffset = _canvasOffset;
-      _baseFocalPoint = d.localFocalPoint;
-      return;
+    }
+    parsed.sort(_compareStrokes);
+    _remoteStrokes = parsed;
+
+    final remainingPending = Map<String, DrawStroke>.from(_pendingLocalStrokes);
+    final updatedMyIds = List<String>.from(_myStrokeIds);
+
+    for (final remote in parsed) {
+      final matchKey = remainingPending.entries
+          .where((e) => _looksLikeSameStroke(remote, e.value))
+          .map((e) => e.key)
+          .firstOrNull;
+      if (matchKey != null) {
+        remainingPending.remove(matchKey);
+        for (int i = 0; i < updatedMyIds.length; i++) {
+          if (updatedMyIds[i] == matchKey) updatedMyIds[i] = remote.id;
+        }
+      }
     }
 
-    // Single finger → draw
-    _isZooming = false;
+    _pendingLocalStrokes
+      ..clear()
+      ..addAll(remainingPending);
+    _myStrokeIds
+      ..clear()
+      ..addAll(updatedMyIds);
+
+    if (parsed.isNotEmpty || remainingPending.isNotEmpty) {
+      final maxOrder = [
+        ...parsed.map((s) => s.orderIndex),
+        ...remainingPending.values.map((s) => s.orderIndex),
+      ].reduce(math.max);
+      _orderCounter = maxOrder + 1;
+    }
+
+    setState(() => _visibleStrokes = _composeVisibleStrokes());
+  }
+
+  void _onLiveStrokes(Map<String, Map<String, dynamic>> liveMap) {
+    if (!mounted) return;
+    bool changed = false;
+
+    for (final entry in liveMap.entries) {
+      final uid = entry.key;
+      final data = entry.value;
+
+      if (data.isEmpty) {
+        if (_partnerLiveMap.containsKey(uid)) {
+          _partnerLiveMap.remove(uid);
+          _partnerTimestamps.remove(uid);
+          changed = true;
+        }
+        continue;
+      }
+
+      try {
+        final stroke = DrawStroke.fromLiveMap(data, uid);
+        _partnerLiveMap[uid] = stroke;
+        _partnerTimestamps[uid] =
+            (data['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+        _partnerNotifier.value = List.of(_partnerLiveMap.values);
+        changed = true;
+      } catch (e) {
+        debugPrint('[Draw] parse live error: $e');
+      }
+    }
+
+    final missing = _partnerLiveMap.keys
+        .where((uid) => !liveMap.containsKey(uid))
+        .toList();
+    if (missing.isNotEmpty) {
+      for (final uid in missing) {
+        _partnerLiveMap.remove(uid);
+        _partnerTimestamps.remove(uid);
+      }
+      _partnerNotifier.value = List.of(_partnerLiveMap.values);
+      changed = true;
+    }
+
+    if (changed && mounted) setState(() {});
+  }
+
+  void _onBgColor(int? value) {
+    if (!mounted || value == null) return;
+    final next = Color(value);
+    if (next.toARGB32() != _bgColor.toARGB32()) {
+      setState(() => _bgColor = next);
+    }
+  }
+
+  void _removeStalePartners(Timer _) {
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final stale = _partnerTimestamps.entries
+        .where((e) => now - e.value > 4000)
+        .map((e) => e.key)
+        .toList();
+    if (stale.isEmpty) return;
+    for (final uid in stale) {
+      _partnerLiveMap.remove(uid);
+      _partnerTimestamps.remove(uid);
+    }
+    _partnerNotifier.value = List.of(_partnerLiveMap.values);
+    setState(() {});
+  }
+
+  //  Stroke helpers 
+
+  int _compareStrokes(DrawStroke a, DrawStroke b) {
+    final o = a.orderIndex.compareTo(b.orderIndex);
+    return o != 0 ? o : a.id.compareTo(b.id);
+  }
+
+  List<DrawStroke> _composeVisibleStrokes() {
+    final combined = <DrawStroke>[
+      ..._remoteStrokes,
+      ..._pendingLocalStrokes.values,
+    ];
+    combined.sort(_compareStrokes);
+    return combined;
+  }
+
+  bool _looksLikeSameStroke(DrawStroke remote, DrawStroke local) {
+    if (remote.userId != local.userId) return false;
+    if (remote.orderIndex != local.orderIndex) return false;
+    if (remote.colorValue != local.colorValue) return false;
+    if ((remote.strokeWidth - local.strokeWidth).abs() > 0.01) return false;
+    if (remote.isEraser != local.isEraser) return false;
+    if (remote.shapeType != local.shapeType) return false;
+    if (remote.isImageStroke != local.isImageStroke) return false;
+
+    if (remote.isImageStroke) {
+      return remote.imageUrl == local.imageUrl &&
+          ((remote.imageX ?? 0) - (local.imageX ?? 0)).abs() < 0.0001 &&
+          ((remote.imageY ?? 0) - (local.imageY ?? 0)).abs() < 0.0001 &&
+          ((remote.imageWidth ?? 0) - (local.imageWidth ?? 0)).abs() < 0.0001 &&
+          ((remote.imageHeight ?? 0) - (local.imageHeight ?? 0)).abs() < 0.0001;
+    }
+
+    if (remote.points.length != local.points.length) return false;
+    if (remote.points.isEmpty) return true;
+
+    final rf = remote.points.first;
+    final lf = local.points.first;
+    final rl = remote.points.last;
+    final ll = local.points.last;
+    return (rf.x - lf.x).abs() < 0.0001 &&
+        (rf.y - lf.y).abs() < 0.0001 &&
+        (rl.x - ll.x).abs() < 0.0001 &&
+        (rl.y - ll.y).abs() < 0.0001;
+  }
+
+  //  Coordinate transforms 
+
+  Offset _screenToCanvas(Offset localPoint) =>
+      (localPoint - _canvasOffset) / _scale;
+
+  //  Tool selection 
+
+  void _selectTool(DrawTool tool) {
+    _cancelCurrentGesture();
+    setState(() => _activeTool = tool);
+    if (_showHint) setState(() => _showHint = false);
+  }
+
+  void _cancelCurrentGesture() {
+    final had = _isDrawing || _currentPoints.isNotEmpty;
+    _isDrawing = false;
+    _drawingPointerId = null;
+    _currentShapeType = null;
+    _currentPoints.clear();
+    if (had) {
+      _clearLiveStroke();
+      _repaintNotifier.value++;
+    }
+  }
+
+  //  Drawing gestures 
+
+  void _startStroke(Offset localPoint) {
     if (_canvasSize.isEmpty) return;
+
     if (_activeTool == DrawTool.fill) {
       _applyFill();
       return;
     }
+
+    _redoStack.clear();
+    _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
+    if (_showHint) setState(() => _showHint = false);
+
+    if (_isShapeTool) {
+      final pt = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+      _currentPoints
+        ..clear()
+        ..add(pt)
+        ..add(pt);
+      _currentShapeType = _activeShapeType;
+      _currentColorValue = _activeColor.toARGB32();
+      _currentStrokeWidth = _strokeWidth;
+      _currentIsEraser = false;
+      _isDrawing = true;
+      _repaintNotifier.value++;
+      return;
+    }
+
     _currentPoints
       ..clear()
-      ..add(DrawPoint.fromOffset(_screenToCanvas(d.localFocalPoint), _canvasSize));
+      ..add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
+    _currentShapeType = null;
     _currentColorValue = _activeTool == DrawTool.eraser
-        ? _bgColor.value
-        : _activeColor.value;
+        ? _bgColor.toARGB32()
+        : _activeColor.toARGB32();
     _currentStrokeWidth = _strokeWidth;
     _currentIsEraser = _activeTool == DrawTool.eraser;
     _isDrawing = true;
-    _redoStack.clear();
-    if (_showHint) setState(() => _showHint = false);
     _repaintNotifier.value++;
   }
 
-  void _onScaleUpdate(ScaleUpdateDetails d) {
-    if (_isZooming || d.pointerCount >= 2) {
-      _isZooming = true;
-      final newScale = (_baseScale * d.scale).clamp(0.3, 8.0);
-      // Keep the focal point anchored in canvas-space while scaling
-      final focalCanvas = (_baseFocalPoint - _baseOffset) / _baseScale;
-      final newOffset = d.localFocalPoint - focalCanvas * newScale;
-      setState(() {
-        _scale = newScale;
-        _canvasOffset = newOffset;
-      });
-      return;
-    }
-
+  void _updateStroke(Offset localPoint) {
     if (!_isDrawing || _canvasSize.isEmpty) return;
-    _currentPoints.add(
-        DrawPoint.fromOffset(_screenToCanvas(d.localFocalPoint), _canvasSize));
-    _repaintNotifier.value++;
-
-    final now = DateTime.now();
-    if (now.difference(_lastLivePush).inMilliseconds >= _liveThrottleMs) {
-      _lastLivePush = now;
-      _pushLiveStroke();
+    if (_currentShapeType != null) {
+      final end = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+      if (_currentPoints.length >= 2) {
+        _currentPoints[1] = end;
+      } else {
+        _currentPoints.add(end);
+      }
+    } else {
+      _currentPoints.add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
     }
+    _repaintNotifier.value++;
+    _pushLiveStrokeIfNeeded();
   }
 
-  void _onScaleEnd(ScaleEndDetails d) {
-    if (_isZooming) {
-      _isZooming = false;
-      return;
-    }
+  void _finishStroke() {
     if (!_isDrawing) return;
     _isDrawing = false;
+    _drawingPointerId = null;
     _commitCurrentStroke();
   }
 
+  void _pushLiveStrokeIfNeeded() {
+    final now = DateTime.now();
+    if (now.difference(_lastLivePush).inMilliseconds >= _liveThrottleMs) {
+      _lastLivePush = now;
+      unawaited(_pushLiveStrokeAsync());
+    }
+  }
+
+  Future<void> _pushLiveStrokeAsync() async {
+    if (!_hasSharedCanvas || _currentPoints.isEmpty) return;
+    final stroke = DrawStroke(
+      id: 'live_$_myUid',
+      userId: _myUid,
+      colorValue: _currentColorValue,
+      strokeWidth: _currentStrokeWidth,
+      points: List<DrawPoint>.unmodifiable(_currentPoints),
+      isEraser: _currentIsEraser,
+      shapeType: _currentShapeType,
+      orderIndex: -1,
+    );
+    try {
+      await _fb.updateLiveDrawingStroke(
+        groupId: _groupId,
+        userId: _myUid,
+        liveData: stroke.toLiveMap(),
+      );
+    } catch (e) {
+      debugPrint('[Draw] live push error: $e');
+    }
+  }
+
+  void _clearLiveStroke() {
+    if (!_hasSharedCanvas) return;
+    _fb
+        .clearLiveDrawingStroke(groupId: _groupId, userId: _myUid)
+        .catchError((e) => debugPrint('[Draw] clear live error: $e'));
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    // Если перед новым касанием в Set нет активных пальцев, но
+    // флаги жеста остались — это признак пропущенного PointerUp
+    // (уведомление, звонок). Очищаем «зависший» стейт.
+    if (_activePointers.isEmpty) {
+      _isZooming = false;
+      if (_isDrawing) _cancelCurrentGesture();
+    }
+
+    _activePointers.add(event.pointer);
+
+    if (_activePointers.length >= 2) {
+      _isZooming = false; // будет перехвачено onScaleStart
+      _cancelCurrentGesture();
+      return;
+    }
+
+    // Один палец — принудительно сбрасываем zoom, если он завис
+    _isZooming = false;
+    _drawingPointerId = event.pointer;
+    _startStroke(event.localPosition);
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_isZooming || _activePointers.length != 1) return;
+    if (_drawingPointerId != event.pointer) return;
+    _updateStroke(event.localPosition);
+  }
+
+  void _onPointerUp(PointerEvent event) {
+    final wasDrawing = _drawingPointerId == event.pointer;
+    _activePointers.remove(event.pointer);
+
+    if (wasDrawing && !_isZooming) {
+      _finishStroke();
+    }
+
+    // Когда все пальцы подняты — сбрасываем ВСЕ состояния,
+    // чтобы зависший стейт не накапливался между жестами.
+    if (_activePointers.isEmpty) {
+      _drawingPointerId = null;
+      _isZooming = false;
+      if (_isDrawing) _cancelCurrentGesture();
+    }
+  }
+
+  void _onScaleStart(ScaleStartDetails details) {
+    if (details.pointerCount < 2) return;
+    _isZooming = true;
+    _cancelCurrentGesture();
+    _baseScale = _scale;
+    _baseOffset = _canvasOffset;
+    _baseFocalPoint = details.localFocalPoint;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (!_isZooming && details.pointerCount < 2) return;
+    _isZooming = true;
+    final nextScale = (_baseScale * details.scale).clamp(_kMinScale, _kMaxScale);
+    final focalCanvas = (_baseFocalPoint - _baseOffset) / _baseScale;
+    final nextOffset = details.localFocalPoint - focalCanvas * nextScale;
+    setState(() {
+      _scale = nextScale;
+      _canvasOffset = nextOffset;
+    });
+  }
+
+  void _onScaleEnd(ScaleEndDetails _) {
+    _isZooming = false;
+    // После pinch-zoom все пальцы подняты — убедимся, что
+    // рисование не осталось в «подвешенном» состоянии.
+    if (_activePointers.isEmpty) {
+      _drawingPointerId = null;
+      if (_isDrawing) _cancelCurrentGesture();
+    }
+  }
+
+  void _resetZoom() {
+    setState(() {
+      _scale = 1.0;
+      _canvasOffset = Offset.zero;
+    });
+  }
+
+  //  Commit stroke 
+
   void _commitCurrentStroke() {
-    if (_currentPoints.length < 2) {
-      // Single tap → draw a dot
+    final shapeType = _currentShapeType;
+
+    if (shapeType != null) {
+      if (_currentPoints.length < 2 ||
+          (_currentPoints[0].x == _currentPoints[1].x &&
+              _currentPoints[0].y == _currentPoints[1].y)) {
+        _currentPoints.clear();
+        _currentShapeType = null;
+        _clearLiveStroke();
+        _repaintNotifier.value++;
+        return;
+      }
+    } else if (_currentPoints.length < 2) {
       if (_currentPoints.length == 1 && !_currentIsEraser) {
-        // Duplicate the point so the painter draws a circle
-        _currentPoints.add(_currentPoints[0]);
+        _currentPoints.add(_currentPoints.first);
       } else {
         _currentPoints.clear();
+        _currentShapeType = null;
         _clearLiveStroke();
         _repaintNotifier.value++;
         return;
       }
     }
 
-    // Snapshot before clearing (List.of makes an unmodifiable copy)
-    final points = List<DrawPoint>.unmodifiable(_currentPoints);
-    final colorValue = _currentColorValue;
-    final sw = _currentStrokeWidth;
-    final isEraser = _currentIsEraser;
-    final order = _orderCounter;
+    final stroke = DrawStroke(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+      userId: _myUid,
+      colorValue: _currentColorValue,
+      strokeWidth: _currentStrokeWidth,
+      points: List<DrawPoint>.unmodifiable(_currentPoints),
+      isEraser: _currentIsEraser,
+      shapeType: shapeType,
+      orderIndex: _orderCounter,
+    );
 
     _currentPoints.clear();
+    _currentShapeType = null;
     _clearLiveStroke();
+    _repaintNotifier.value++;
     _orderCounter++;
+    _submitStroke(stroke);
+  }
 
-    // ── Optimistic update ──────────────────────────────────────────────────
-    // Add the stroke to the local list immediately so the canvas keeps
-    // showing it while the Firestore write happens in the background.
-    // The Firestore listener will later replace it with the confirmed copy.
-    final tempId = '_temp_${DateTime.now().millisecondsSinceEpoch}';
-    final stroke = DrawStroke(
-      id: tempId,
-      userId: _myUid,
-      colorValue: colorValue,
-      strokeWidth: sw,
-      points: points,
-      isEraser: isEraser,
-      orderIndex: order,
-    );
+  void _submitStroke(DrawStroke stroke) {
+    if (!_hasSharedCanvas) {
+      setState(() {
+        _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
+      });
+      _myStrokeIds.add(stroke.id);
+      return;
+    }
+
     setState(() {
-      _strokes = [..._strokes, stroke];
+      _pendingLocalStrokes[stroke.id] = stroke;
+      _visibleStrokes = _composeVisibleStrokes();
     });
+    _myStrokeIds.add(stroke.id);
 
     _fb
-        .addDrawingStroke(
-          groupId: _groupId,
-          strokeData: stroke.toFirestore(),
-        )
-        .then((id) {
-          if (id.isNotEmpty && mounted) _myStrokeIds.add(id);
+        .addDrawingStroke(groupId: _groupId, strokeData: stroke.toFirestore())
+        .then((remoteId) async {
+          if (remoteId.isEmpty) throw Exception('Empty stroke id');
+          if (_cancelledPendingStrokeIds.remove(stroke.id)) {
+            await _fb.deleteDrawingStroke(
+                groupId: _groupId, strokeId: remoteId);
+          }
         })
         .catchError((e) {
           debugPrint('[Draw] commit error: $e');
-          // Roll back the optimistic stroke if Firebase rejected the write
-          if (mounted) {
-            setState(() {
-              _strokes = _strokes.where((s) => s.id != tempId).toList();
-            });
-          }
+          if (!mounted) return;
+          setState(() {
+            _pendingLocalStrokes.remove(stroke.id);
+            _visibleStrokes = _composeVisibleStrokes();
+          });
+          _myStrokeIds.remove(stroke.id);
         });
   }
 
-  void _pushLiveStroke() {
-    if (_groupId.isEmpty || _currentPoints.isEmpty) return;
-    final data = <String, dynamic>{
-      'userId': _myUid,
-      'colorValue': _currentColorValue,
-      'strokeWidth': _currentStrokeWidth,
-      'isEraser': _currentIsEraser,
-      'points': _currentPoints.map((p) => {'x': p.x, 'y': p.y}).toList(),
-      'ts': DateTime.now().millisecondsSinceEpoch,
-    };
-    _fb
-        .updateLiveDrawingStroke(
-          groupId: _groupId,
-          userId: _myUid,
-          liveData: data,
-        )
-        .catchError((e) => debugPrint('[Draw] live push error: $e'));
-  }
-
-  void _clearLiveStroke() {
-    if (_groupId.isEmpty) return;
-    _fb
-        .clearLiveDrawingStroke(groupId: _groupId, userId: _myUid)
-        .catchError((e) => debugPrint('[Draw] clear live error: $e'));
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Undo / Redo
-  // ─────────────────────────────────────────────────────────────────────────
+  //  Undo / Redo 
 
   Future<void> _undo() async {
     if (_myStrokeIds.isEmpty) return;
-    final id = _myStrokeIds.removeLast();
-    final removed = _strokes.where((s) => s.id == id).firstOrNull;
-    if (removed != null) _redoStack.add(removed);
-    setState(() {});
+    final undoKey = _myStrokeIds.removeLast();
+
+    DrawStroke? removed;
+    String? remoteIdForDelete;
+
+    if (_pendingLocalStrokes.containsKey(undoKey)) {
+      removed = _pendingLocalStrokes.remove(undoKey);
+      _cancelledPendingStrokeIds.add(undoKey);
+    } else {
+      removed = _visibleStrokes.where((s) => s.id == undoKey).firstOrNull;
+      if (removed != null) {
+        _remoteStrokes = _remoteStrokes.where((s) => s.id != undoKey).toList();
+        remoteIdForDelete = undoKey;
+      }
+    }
+
+    if (removed == null) return;
+    _redoStack.add(removed);
+    setState(() => _visibleStrokes = _composeVisibleStrokes());
+
+    if (!_hasSharedCanvas || remoteIdForDelete == null) return;
+
     try {
-      await _fb.deleteDrawingStroke(groupId: _groupId, strokeId: id);
+      await _fb.deleteDrawingStroke(
+          groupId: _groupId, strokeId: remoteIdForDelete);
     } catch (e) {
       debugPrint('[Draw] undo error: $e');
-      _myStrokeIds.add(id); // rollback
+      if (!mounted) return;
+      _myStrokeIds.add(undoKey);
+      _redoStack.removeLast();
+      setState(() {
+        _remoteStrokes = [..._remoteStrokes, removed!]..sort(_compareStrokes);
+        _visibleStrokes = _composeVisibleStrokes();
+      });
     }
   }
 
   Future<void> _redo() async {
     if (_redoStack.isEmpty) return;
-    final stroke = _redoStack.removeLast();
-    setState(() {});
-    try {
-      final id = await _fb.addDrawingStroke(
-        groupId: _groupId,
-        strokeData: stroke.toFirestore(),
-      );
-      if (id.isNotEmpty) {
-        _myStrokeIds.add(id);
-        _orderCounter++;
-      }
-    } catch (e) {
-      debugPrint('[Draw] redo error: $e');
-      _redoStack.add(stroke); // rollback
+    final base = _redoStack.removeLast();
+    final stroke = DrawStroke(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+      userId: _myUid,
+      colorValue: base.colorValue,
+      strokeWidth: base.strokeWidth,
+      points: List<DrawPoint>.unmodifiable(base.points),
+      isEraser: base.isEraser,
+      shapeType: base.shapeType,
+      orderIndex: _orderCounter,
+      imageUrl: base.imageUrl,
+      imageX: base.imageX,
+      imageY: base.imageY,
+      imageWidth: base.imageWidth,
+      imageHeight: base.imageHeight,
+    );
+    _orderCounter++;
+    _submitStroke(stroke);
+  }
+
+  //  Fill / Clear 
+
+  void _applyFill() {
+    _cancelCurrentGesture();
+    final next = _activeColor;
+    setState(() => _bgColor = next);
+    if (_hasSharedCanvas) {
+      _fb
+          .setCanvasBgColor(groupId: _groupId, colorValue: next.toARGB32())
+          .catchError((e) => debugPrint('[Draw] fill error: $e'));
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fill / Clear / Photo
-  // ─────────────────────────────────────────────────────────────────────────
-
-  void _applyFill() => setState(() => _bgColor = _activeColor);
-
   Future<void> _confirmClear() async {
     final s = LocaleService.current;
-    final ok = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(s.clearCanvas),
         content: Text(s.clearCanvasConfirm),
         actions: [
@@ -487,481 +823,177 @@ class _DrawScreenState extends State<DrawScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(s.cancel),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
             child: Text(s.clearCanvas),
           ),
         ],
       ),
     );
-    if (ok == true && mounted) {
-      // Snapshot for rollback in case Firebase fails
-      final previousStrokes = List<DrawStroke>.from(_strokes);
-      final previousBg = _bgColor;
-      _myStrokeIds.clear();
-      _redoStack.clear();
-      // Optimistic clear — canvas is empty immediately
+
+    if (confirmed != true || !mounted) return;
+
+    final prevVisible = List<DrawStroke>.from(_visibleStrokes);
+    final prevRemote = List<DrawStroke>.from(_remoteStrokes);
+    final prevPending = Map<String, DrawStroke>.from(_pendingLocalStrokes);
+    final prevBg = _bgColor;
+
+    _myStrokeIds.clear();
+    _redoStack.clear();
+    _pendingLocalStrokes.clear();
+    _remoteStrokes = [];
+    setState(() {
+      _visibleStrokes = [];
+      _bgColor = Colors.white;
+    });
+
+    if (!_hasSharedCanvas) return;
+
+    try {
+      await Future.wait([
+        _fb.clearDrawingCanvas(groupId: _groupId),
+        _fb.setCanvasBgColor(
+            groupId: _groupId, colorValue: Colors.white.toARGB32()),
+      ]);
+    } catch (e) {
+      debugPrint('[Draw] clear error: $e');
+      if (!mounted) return;
+      _remoteStrokes = prevRemote;
+      _pendingLocalStrokes
+        ..clear()
+        ..addAll(prevPending);
       setState(() {
-        _strokes = [];
-        _bgColor = Colors.white;
+        _visibleStrokes = prevVisible;
+        _bgColor = prevBg;
       });
-      try {
-        await _fb.clearDrawingCanvas(groupId: _groupId);
-      } catch (e) {
-        debugPrint('[Draw] clear error: $e');
-        // Rollback if Firebase rejected the delete
-        if (mounted) {
-          setState(() {
-            _strokes = previousStrokes;
-            _bgColor = previousBg;
-          });
-        }
-      }
+    }
+  }
+
+  //  Photo 
+
+  Future<ui.Image?> _decodeImageFromFile(String path) async {
+    try {
+      final bytes = await File(path).readAsBytes();
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromList(bytes, (image) {
+        if (!completer.isCompleted) completer.complete(image);
+      });
+      return completer.future;
+    } catch (e) {
+      debugPrint('[Draw] decode image error: $e');
+      return null;
     }
   }
 
   Future<void> _insertPhoto() async {
+    final s = LocaleService.current;
+    if (!_hasSharedCanvas) {
+      _showMessage(s.photoRequiresPartner, backgroundColor: Colors.black87);
+      return;
+    }
+
     try {
       final picked = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 70,
-        maxWidth: 1200,
+        maxWidth: 1600,
       );
       if (picked == null || !mounted) return;
 
       setState(() => _uploadingImage = true);
-      String? url;
+      String? imageUrl;
       try {
-        url = await _fb.uploadDrawingImage(
+        imageUrl = await _fb.uploadDrawingImage(
           groupId: _groupId,
           localPath: picked.path,
         );
       } finally {
         if (mounted) setState(() => _uploadingImage = false);
       }
-      if (url == null || url.isEmpty || !mounted) return;
 
-      final img = await _decodeImageFromFile(picked.path);
-      final ar = (img != null && img.height > 0)
-          ? img.width / img.height
+      if (imageUrl == null || imageUrl.isEmpty) return;
+
+      final decoded = await _decodeImageFromFile(picked.path);
+      final aspect = (decoded != null && decoded.height > 0)
+          ? decoded.width / decoded.height
           : 1.0;
-      const w = 0.8;
-      final h = (w / ar).clamp(0.01, 1.0);
-      final x = (1.0 - w) / 2;
-      final y = ((1.0 - h) / 2).clamp(0.0, 0.99);
+
+      const iw = 0.78;
+      final ih = (iw / aspect).clamp(0.10, 0.90);
+      final ix = (1.0 - iw) / 2;
+      final iy = ((1.0 - ih) / 2).clamp(0.0, 0.9);
 
       final stroke = DrawStroke(
-        id: 'local',
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
         userId: _myUid,
         colorValue: 0xFF000000,
         strokeWidth: 0,
         points: const [],
         orderIndex: _orderCounter,
-        imageUrl: url,
-        imageX: x,
-        imageY: y,
-        imageWidth: w,
-        imageHeight: h,
+        imageUrl: imageUrl,
+        imageX: ix,
+        imageY: iy,
+        imageWidth: iw,
+        imageHeight: ih,
       );
-      final id = await _fb.addDrawingStroke(
-        groupId: _groupId,
-        strokeData: stroke.toFirestore(),
-      );
-      if (id.isNotEmpty) {
-        _myStrokeIds.add(id);
-        _orderCounter++;
-      }
+      _orderCounter++;
+      _submitStroke(stroke);
     } catch (e) {
       debugPrint('[Draw] insert photo error: $e');
     }
   }
 
-  Future<ui.Image?> _decodeImageFromFile(String path) async {
-    try {
-      final bytes = await File(path).readAsBytes();
-      final completer = Completer<ui.Image>();
-      ui.decodeImageFromList(bytes, (img) {
-        if (!completer.isCompleted) completer.complete(img);
-      });
-      return completer.future;
-    } catch (e) {
-      debugPrint('[Draw] decode error: $e');
-      return null;
+  //  Save / Share 
+
+  Future<Directory> _resolveSaveDirectory() async {
+    if (Platform.isAndroid) {
+      final d = Directory('/storage/emulated/0/Download');
+      if (await d.exists()) return d;
     }
+    return getApplicationDocumentsDirectory();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Save / Share
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Future<void> _saveOrShare({bool share = false}) async {
+  Future<void> _saveOrShare({required bool share}) async {
     if (_saving) return;
+    final s = LocaleService.current;
     setState(() => _saving = true);
     try {
-      final boundary = _canvasKey.currentContext
-          ?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
+
       final image = await boundary.toImage(pixelRatio: 2.5);
-      final bd = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (bd == null) return;
-      final bytes = bd.buffer.asUint8List();
-      final dir = await getTemporaryDirectory();
-      final file = File(
-          '${dir.path}/drawing_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(bytes);
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: share ? '🎨 ${LocaleService.current.drawTogether}' : null,
-      );
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final bytes = byteData.buffer.asUint8List();
+      final name = 'drawing_${DateTime.now().millisecondsSinceEpoch}.png';
+
+      if (share) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$name');
+        await file.writeAsBytes(bytes, flush: true);
+        await Share.shareXFiles([XFile(file.path)], text: ' ${s.drawTogether}');
+      } else {
+        final dir = await _resolveSaveDirectory();
+        if (!await dir.exists()) await dir.create(recursive: true);
+        final file = File('${dir.path}/$name');
+        await file.writeAsBytes(bytes, flush: true);
+        _showMessage(s.drawingSavedTo(file.path));
+      }
     } catch (e) {
-      debugPrint('[Draw] save error: $e');
+      debugPrint('[Draw] save/share error: $e');
+      _showMessage(
+        share ? s.failedToShareDrawing : s.failedToSaveDrawing,
+        backgroundColor: Colors.red.shade700,
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context) {
-    final s = LocaleService.current;
-    final t = widget.theme;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(s, t),
-            Expanded(
-              child: Stack(
-                children: [
-                  // Canvas fills the entire area
-                  Positioned.fill(child: _buildCanvasArea(s)),
-                  // Floating transparent sidebar overlaid on left
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: _buildSidebar(s, t),
-                  ),
-                  // Toggle tab on the right edge of the sidebar
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOut,
-                    left: _sidebarVisible ? 58 : 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(child: _buildSidebarToggleBtn(t)),
-                  ),
-                ],
-              ),
-            ),
-            _buildBottomColorBar(t),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Top bar
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Widget _buildTopBar(AppStrings s, AppTheme t) {
-    final drawingPartners = _partnerLiveStrokes.entries
-        .where((e) => (e.value?.points.length ?? 0) > 1)
-        .map((e) {
-          return widget.pairData.partners
-                  .where((p) => p.uid == e.key)
-                  .map((p) => p.name)
-                  .firstOrNull ??
-              '?';
-        })
-        .toList();
-
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(s.drawTogether,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15)),
-                if (drawingPartners.isNotEmpty)
-                  Text(
-                    s.partnerIsDrawing(drawingPartners.join(', ')),
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: t.primary,
-                        fontWeight: FontWeight.w500),
-                  ),
-              ],
-            ),
-          ),
-          _topIconBtn(Icons.undo_rounded,
-              _myStrokeIds.isNotEmpty ? _undo : null,
-              tooltip: s.undoAction),
-          _topIconBtn(Icons.redo_rounded,
-              _redoStack.isNotEmpty ? _redo : null,
-              tooltip: s.redoAction),
-          _saving
-              ? const SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Padding(
-                    padding: EdgeInsets.all(8),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : _topIconBtn(Icons.save_alt_rounded,
-                  () => _saveOrShare(share: false),
-                  tooltip: s.saveDrawing),
-          _topIconBtn(Icons.share_rounded, () => _saveOrShare(share: true),
-              tooltip: s.shareDrawing),
-        ],
-      ),
-    );
-  }
-
-  Widget _topIconBtn(IconData icon, VoidCallback? onTap,
-      {String? tooltip}) {
-    return Tooltip(
-      message: tooltip ?? '',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon,
-                size: 22,
-                color: onTap != null
-                    ? Colors.grey.shade700
-                    : Colors.grey.shade300),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Sidebar
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Widget _buildSidebar(AppStrings s, AppTheme t) {
-    return ClipRect(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        width: _sidebarVisible ? 58.0 : 0.0,
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            width: 58,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.80),
-              border: Border(
-                right: BorderSide(
-                    color: Colors.white.withOpacity(0.4), width: 0.5),
-              ),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                _sidebarTool(
-                    icon: Icons.brush_rounded,
-                    tool: DrawTool.brush,
-                    tooltip: s.brush,
-                    t: t),
-                _sidebarTool(
-                    icon: Icons.auto_fix_normal_rounded,
-                    tool: DrawTool.eraser,
-                    tooltip: s.eraser,
-                    t: t),
-                _sidebarTool(
-                    icon: Icons.format_color_fill_rounded,
-                    tool: DrawTool.fill,
-                    tooltip: s.fillBg,
-                    t: t),
-                const SizedBox(height: 4),
-                Divider(
-                    height: 1,
-                    indent: 10,
-                    endIndent: 10,
-                    color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                _uploadingImage
-                    ? const SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: Padding(
-                          padding: EdgeInsets.all(10),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : _sidebarIconBtn(
-                        Icons.add_photo_alternate_rounded,
-                        _insertPhoto,
-                        tooltip: s.insertPhoto,
-                      ),
-                const SizedBox(height: 4),
-                Divider(
-                    height: 1,
-                    indent: 10,
-                    endIndent: 10,
-                    color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                _buildThicknessBtn(s),
-                const Spacer(),
-                _sidebarIconBtn(
-                  Icons.delete_outline_rounded,
-                  _confirmClear,
-                  tooltip: s.clearCanvas,
-                  color: Colors.red.shade300,
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarToggleBtn(AppTheme t) {
-    return GestureDetector(
-      onTap: () => setState(() => _sidebarVisible = !_sidebarVisible),
-      child: Container(
-        width: 18,
-        height: 52,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.80),
-          borderRadius:
-              const BorderRadius.horizontal(right: Radius.circular(10)),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.10),
-                blurRadius: 6,
-                offset: const Offset(2, 0)),
-          ],
-        ),
-        child: Icon(
-          _sidebarVisible
-              ? Icons.chevron_left_rounded
-              : Icons.chevron_right_rounded,
-          size: 16,
-          color: Colors.grey.shade600,
-        ),
-      ),
-    );
-  }
-
-  Widget _sidebarTool({
-    required IconData icon,
-    required DrawTool tool,
-    required String tooltip,
-    required AppTheme t,
-  }) {
-    final active = _activeTool == tool;
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: () => setState(() => _activeTool = tool),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color:
-                active ? t.primary.withOpacity(0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: active
-                ? Border.all(
-                    color: t.primary.withOpacity(0.4), width: 1.5)
-                : null,
-          ),
-          child: Icon(icon,
-              size: 22,
-              color: active ? t.primary : Colors.grey.shade500),
-        ),
-      ),
-    );
-  }
-
-  Widget _sidebarIconBtn(
-    IconData icon,
-    VoidCallback? onTap, {
-    String? tooltip,
-    Color? color,
-  }) {
-    return Tooltip(
-      message: tooltip ?? '',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon,
-              size: 22, color: color ?? Colors.grey.shade500),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThicknessBtn(AppStrings s) {
-    final clamped = _strokeWidth.clamp(3.0, 20.0);
-    return Tooltip(
-      message: s.strokeThickness,
-      child: GestureDetector(
-        onTap: _showThicknessPicker,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12)),
-          child: Center(
-            child: Container(
-              width: clamped,
-              height: clamped,
-              decoration: BoxDecoration(
-                  color: _activeColor, shape: BoxShape.circle),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  //  Bottom sheet pickers 
 
   void _showThicknessPicker() {
     double temp = _strokeWidth;
@@ -969,164 +1001,94 @@ class _DrawScreenState extends State<DrawScreen> {
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, inner) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(LocaleService.current.strokeThickness,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16)),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text('${temp.round()}',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: _activeColor)),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: temp.clamp(3.0, 30.0),
-                    height: temp.clamp(3.0, 30.0),
+        builder: (ctx, ss) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
-                        color: _activeColor, shape: BoxShape.circle),
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
-                ],
-              ),
-              Slider(
-                value: temp,
-                min: 1,
-                max: 40,
-                divisions: 39,
-                activeColor: _activeColor,
-                onChanged: (v) {
-                  inner(() => temp = v);
-                  setState(() => _strokeWidth = v);
-                },
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [2.0, 5.0, 10.0, 20.0, 35.0].map((w) {
-                  final sel = (temp - w).abs() < 0.5;
-                  return GestureDetector(
-                    onTap: () {
-                      inner(() => temp = w);
-                      setState(() => _strokeWidth = w);
-                    },
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: sel
-                              ? _activeColor
-                              : Colors.grey.shade200,
-                          width: sel ? 2 : 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: w.clamp(2.0, 30.0),
-                          height: w.clamp(2.0, 30.0),
-                          decoration: BoxDecoration(
-                              color: _activeColor,
-                              shape: BoxShape.circle),
-                        ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  LocaleService.current.strokeThickness,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.brush, size: 16, color: Colors.grey.shade400),
+                    Expanded(
+                      child: Slider(
+                        value: temp,
+                        min: 1,
+                        max: 40,
+                        divisions: 39,
+                        activeColor: _activeColor,
+                        onChanged: (v) {
+                          ss(() => temp = v);
+                          setState(() => _strokeWidth = v);
+                        },
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-            ],
+                    Icon(Icons.brush, size: 28, color: Colors.grey.shade400),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [2.0, 5.0, 10.0, 20.0, 35.0].map((w) {
+                    final sel = (temp - w).abs() < 0.1;
+                    return GestureDetector(
+                      onTap: () {
+                        ss(() => temp = w);
+                        setState(() => _strokeWidth = w);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? _activeColor.withValues(alpha: 0.1)
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: sel ? _activeColor : Colors.grey.shade300,
+                            width: sel ? 2 : 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: w.clamp(2.0, 30.0),
+                            height: w.clamp(2.0, 30.0),
+                            decoration: BoxDecoration(
+                              color: _activeColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Bottom colour bar
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Widget _buildBottomColorBar(AppTheme t) {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, -2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: _showColorPicker,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _activeColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 6),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              dragStartBehavior: DragStartBehavior.down,
-              itemCount: _kPalette.length,
-              itemBuilder: (_, i) {
-                final c = _kPalette[i];
-                final sel = _activeColor.value == c.value;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _activeColor = c),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    margin: const EdgeInsets.symmetric(
-                        horizontal: 3, vertical: 8),
-                    width: sel ? 38 : 32,
-                    height: sel ? 38 : 32,
-                    decoration: BoxDecoration(
-                      color: c,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: sel ? t.primary : Colors.grey.shade300,
-                        width: sel ? 2.5 : 1,
-                      ),
-                      boxShadow: sel
-                          ? [
-                              BoxShadow(
-                                  color: c.withOpacity(0.5),
-                                  blurRadius: 6,
-                                  spreadRadius: 1)
-                            ]
-                          : null,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1136,168 +1098,491 @@ class _DrawScreenState extends State<DrawScreen> {
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(LocaleService.current.brush,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 8,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: _kPalette.length,
-              itemBuilder: (_, i) {
-                final c = _kPalette[i];
-                final sel = _activeColor.value == c.value;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _activeColor = c);
-                    Navigator.pop(ctx);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: c,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: sel
-                            ? widget.theme.primary
-                            : Colors.grey.shade300,
-                        width: sel ? 3 : 1,
-                      ),
-                    ),
-                    child: sel
-                        ? const Icon(Icons.check,
-                            color: Colors.white, size: 18)
-                        : null,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                );
-              },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                LocaleService.current.brush,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 10,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: _kPalette.length,
+                itemBuilder: (_, i) {
+                  final c = _kPalette[i];
+                  final sel = c.toARGB32() == _activeColor.toARGB32();
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _activeColor = c);
+                      Navigator.pop(ctx);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: sel
+                              ? widget.theme.primary
+                              : (c == Colors.white
+                                  ? Colors.grey.shade300
+                                  : Colors.transparent),
+                          width: sel ? 3 : 1.5,
+                        ),
+                        boxShadow: sel
+                            ? [
+                                BoxShadow(
+                                    color: c.withValues(alpha: 0.5),
+                                    blurRadius: 8)
+                              ]
+                            : null,
+                      ),
+                      child: sel
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: c == Colors.white
+                                  ? Colors.black
+                                  : Colors.white,
+                              size: 16,
+                            )
+                          : null,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  //  BUILD 
+
+  @override
+  Widget build(BuildContext context) {
+    final s = LocaleService.current;
+    final t = widget.theme;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFECECEC),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildTopBar(s, t),
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(child: _buildCanvasArea()),
+                  // Floating partner badges - top right
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: _buildPartnerBadges(),
+                  ),
+                  // Scale indicator - top left
+                  if (_scale != 1.0)
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: _buildScaleIndicator(),
+                    ),
+                  // Onboarding hint
+                  if (_showHint)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 88,
+                      child: Center(child: _buildHintBubble(s)),
+                    ),
+                ],
+              ),
             ),
+            _buildBottomToolbar(s, t),
           ],
         ),
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Canvas area
-  // ─────────────────────────────────────────────────────────────────────────
+  //  Top bar 
 
-  Widget _buildCanvasArea(AppStrings s) {
+  Widget _buildTopBar(AppStrings s, AppTheme t) {
+    final drawingPartners = _partnerLiveMap.entries
+        .where((e) => e.value.points.length > 1)
+        .map((e) =>
+            widget.pairData.partners
+                .where((p) => p.uid == e.key)
+                .map((p) => p.name)
+                .firstOrNull ??
+            '?')
+        .toList();
+
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _topIconBtn(Icons.arrow_back_ios_new_rounded,
+              () => Navigator.pop(context)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.drawTogether,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                if (drawingPartners.isNotEmpty)
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      s.partnerIsDrawing(drawingPartners.join(', ')),
+                      key: ValueKey(drawingPartners.join()),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: t.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          _topIconBtn(
+            Icons.undo_rounded,
+            _canUndo ? _undo : null,
+            tooltip: s.undoAction,
+          ),
+          _topIconBtn(
+            Icons.redo_rounded,
+            _canRedo ? _redo : null,
+            tooltip: s.redoAction,
+          ),
+          _saving
+              ? const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Padding(
+                    padding: EdgeInsets.all(11),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : _topIconBtn(
+                  Icons.save_alt_rounded,
+                  () => _saveOrShare(share: false),
+                  tooltip: s.saveDrawing,
+                ),
+          _topIconBtn(
+            Icons.share_rounded,
+            () => _saveOrShare(share: true),
+            tooltip: s.shareDrawing,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _topIconBtn(IconData icon, VoidCallback? onTap, {String? tooltip}) {
+    final btn = Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            icon,
+            size: 20,
+            color: onTap == null
+                ? Colors.grey.shade300
+                : Colors.grey.shade700,
+          ),
+        ),
+      ),
+    );
+    if (tooltip != null) return Tooltip(message: tooltip, child: btn);
+    return btn;
+  }
+
+  //  Canvas area 
+
+  Widget _buildCanvasArea() {
     return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final newSize = constraints.biggest;
-        if (!newSize.isEmpty && newSize != _canvasSize) {
-          _canvasSize = newSize;
+      builder: (context, constraints) {
+        final available = constraints.biggest;
+        final nextSize = Size(
+          (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity),
+          (available.height - _kCanvasPad * 2).clamp(1.0, double.infinity),
+        );
+        // Обновляем размер холста напрямую во время build-фазы.
+        // addPostFrameCallback здесь лишний и создавал лишние перерисовки.
+        if (!nextSize.isEmpty && nextSize != _canvasSize) {
+          _canvasSize = nextSize;
         }
-
-        final partnerStrokes = _partnerLiveStrokes.values
-            .whereType<DrawStroke>()
-            .toList();
 
         return Stack(
           children: [
-            // Canvas with zoom/pan transform
-            Positioned.fill(
-              child: ClipRect(
-                child: Transform(
-                  transform: Matrix4.identity()
-                    ..translate(_canvasOffset.dx, _canvasOffset.dy)
-                    ..scale(_scale),
-                  child: RepaintBoundary(
-                    key: _canvasKey,
-                    child: _CanvasWidget(
-                      bgColor: _bgColor,
-                      strokes: _strokes,
-                      currentPoints: _currentPoints,
-                      currentColorValue: _currentColorValue,
-                      currentStrokeWidth: _currentStrokeWidth,
-                      currentIsEraser: _currentIsEraser,
-                      partnerStrokes: partnerStrokes,
-                      canvasSize: _canvasSize,
-                      repaintNotifier: _repaintNotifier,
+            // Subtle grid background
+            const Positioned.fill(child: _GridBackground()),
+            // White canvas with shadow
+            Positioned(
+              left: _kCanvasPad,
+              top: _kCanvasPad,
+              right: _kCanvasPad,
+              bottom: _kCanvasPad,
+              child: Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRect(
+                  child: Transform(
+                    transform: Matrix4.identity()
+                      ..translateByDouble(
+                          _canvasOffset.dx, _canvasOffset.dy, 0.0, 1.0)
+                      ..scaleByDouble(_scale, _scale, 1.0, 1.0),
+                    child: RepaintBoundary(
+                      key: _canvasKey,
+                      child: _CanvasScene(
+                        bgColor: _bgColor,
+                        strokes: _visibleStrokes,
+                        currentPoints: _currentPoints,
+                        currentColorValue: _currentColorValue,
+                        currentStrokeWidth: _currentStrokeWidth,
+                        currentIsEraser: _currentIsEraser,
+                        currentShapeType: _currentShapeType,
+                        partnerNotifier: _partnerNotifier,
+                        canvasSize: _canvasSize,
+                        repaintNotifier: _repaintNotifier,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            // Gesture layer — onScale handles both 1-finger draw and 2-finger zoom
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onScaleStart: _onScaleStart,
-                onScaleUpdate: _onScaleUpdate,
-                onScaleEnd: _onScaleEnd,
-                child: const SizedBox.expand(),
-              ),
-            ),
+            // Input layer
             Positioned(
-              top: 12,
-              right: 12,
-              child: _buildPartnerBadges(),
-            ),
-            if (_showHint)
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Center(child: _buildHintBubble(s)),
+              left: _kCanvasPad,
+              top: _kCanvasPad,
+              right: _kCanvasPad,
+              bottom: _kCanvasPad,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: _onPointerUp,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onScaleStart: _onScaleStart,
+                  onScaleUpdate: _onScaleUpdate,
+                  onScaleEnd: _onScaleEnd,
+                  child: const SizedBox.expand(),
+                ),
               ),
+            ),
+            // Partner cursor overlays
+            ValueListenableBuilder<List<DrawStroke>>(
+              valueListenable: _partnerNotifier,
+              builder: (_, strokes, _) {
+                if (_canvasSize.isEmpty) return const SizedBox.shrink();
+                return Stack(
+                  children: strokes
+                      .where((s) => s.points.isNotEmpty)
+                      .map((stroke) => _buildPartnerCursor(stroke))
+                      .toList(),
+                );
+              },
+            ),
           ],
         );
       },
     );
   }
 
+  Widget _buildPartnerCursor(DrawStroke stroke) {
+    final last = stroke.points.last;
+    final sx = last.x * _canvasSize.width * _scale +
+        _canvasOffset.dx +
+        _kCanvasPad;
+    final sy = last.y * _canvasSize.height * _scale +
+        _canvasOffset.dy +
+        _kCanvasPad;
+    final name = widget.pairData.partners
+            .where((p) => p.uid == stroke.userId)
+            .map((p) => p.name)
+            .firstOrNull ??
+        '?';
+    final color = _colorForUser(stroke.userId);
+
+    return Positioned(
+      left: sx - 12,
+      top: sy - 12,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _pulseAnim,
+          builder: (_, child) {
+            final pulse = 0.7 + 0.3 * _pulseAnim.value;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.scale(
+                  scale: pulse,
+                  child: child,
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                          color: color.withValues(alpha: 0.4),
+                          blurRadius: 6),
+                    ],
+                  ),
+                  child: Text(
+                    name.length > 8 ? name.substring(0, 8) : name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.85),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                    color: color.withValues(alpha: 0.45), blurRadius: 10),
+              ],
+            ),
+            child: const Icon(Icons.brush_rounded,
+                size: 12, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScaleIndicator() {
+    final pct = (_scale * 100).round();
+    return GestureDetector(
+      onTap: _resetZoom,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          '$pct%',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  //  Partner badges 
+
   Widget _buildPartnerBadges() {
     final partners = widget.pairData.partners;
     if (partners.isEmpty) return const SizedBox.shrink();
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: partners.map((p) {
-        final isDrawing =
-            (_partnerLiveStrokes[p.uid]?.points.length ?? 0) > 1;
+        final isDrawing = (_partnerLiveMap[p.uid]?.points.length ?? 0) > 1;
+        final color = _colorForUser(p.uid);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.only(left: 4),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: _colorForUser(p.uid)
-                .withOpacity(isDrawing ? 0.9 : 0.4),
-            borderRadius: BorderRadius.circular(12),
+            color: color.withValues(alpha: isDrawing ? 0.9 : 0.4),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: isDrawing
                 ? [
                     BoxShadow(
-                        color:
-                            _colorForUser(p.uid).withOpacity(0.4),
-                        blurRadius: 8)
+                        color: color.withValues(alpha: 0.4), blurRadius: 10)
                   ]
                 : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (isDrawing)
-                const Text('✏️ ', style: TextStyle(fontSize: 11)),
+              if (isDrawing) ...[
+                const _PulsingDot(),
+                const SizedBox(width: 4),
+              ],
               Text(
                 p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
                 style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700),
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -1306,81 +1591,480 @@ class _DrawScreenState extends State<DrawScreen> {
     );
   }
 
+  //  Hint bubble 
+
   Widget _buildHintBubble(AppStrings s) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 32),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.65),
-        borderRadius: BorderRadius.circular(16),
+    final hints = [s.drawHint, s.brush, s.strokeThickness];
+    final icons = [
+      Icons.gesture_rounded,
+      Icons.expand_rounded,
+      Icons.pinch_rounded,
+    ];
+
+    return GestureDetector(
+      onTap: () => setState(() => _showHint = false),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        child: Container(
+          key: ValueKey(_hintStep),
+          margin: const EdgeInsets.symmetric(horizontal: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 12,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icons[_hintStep.clamp(0, 2)],
+                  color: Colors.white70, size: 20),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  hints[_hintStep.clamp(0, 2)],
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.close_rounded, color: Colors.white38, size: 16),
+            ],
+          ),
+        ),
       ),
-      child: Text(
-        s.drawHint,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w500),
+    );
+  }
+
+  //  Bottom toolbar 
+
+  Widget _buildBottomToolbar(AppStrings s, AppTheme t) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Expanded tools row (shown when toolbar is expanded)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            child: _toolbarExpanded
+                ? _buildExpandedTools(s, t)
+                : const SizedBox.shrink(),
+          ),
+          // Main toolbar row
+          _buildMainToolbarRow(s, t),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpandedTools(AppStrings s, AppTheme t) {
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFFF9F9F9),
+      child: Row(
+        children: [
+          _toolBtn(Icons.remove_rounded, DrawTool.line, s.drawLine, t,
+              compact: true),
+          _toolBtn(Icons.crop_square_rounded, DrawTool.rect, s.drawRect, t,
+              compact: true),
+          _toolBtn(Icons.circle_outlined, DrawTool.circle, s.drawCircle, t,
+              compact: true),
+          _toolBtn(Icons.format_color_fill_rounded, DrawTool.fill, s.fillBg,
+              t, compact: true),
+          const Spacer(),
+          _uploadingImage
+              ? const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child:
+                      Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : _actionBtn(
+                  Icons.add_photo_alternate_rounded,
+                  _insertPhoto,
+                  tooltip: s.insertPhoto,
+                ),
+          _actionBtn(
+            Icons.delete_outline_rounded,
+            _confirmClear,
+            tooltip: s.clearCanvas,
+            color: Colors.red.shade400,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainToolbarRow(AppStrings s, AppTheme t) {
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            const SizedBox(width: 8),
+            // Color dot - opens color picker
+            GestureDetector(
+              onTap: _showColorPicker,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _activeColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _activeColor.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            // Color scroll bar
+            Expanded(
+              child: SizedBox(
+                height: 64,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  dragStartBehavior: DragStartBehavior.down,
+                  itemCount: _kPalette.length,
+                  itemBuilder: (_, i) {
+                    final c = _kPalette[i];
+                    final sel = c.toARGB32() == _activeColor.toARGB32();
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _activeColor = c),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 130),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 3, vertical: 10),
+                        width: sel ? 40 : 34,
+                        height: sel ? 40 : 34,
+                        decoration: BoxDecoration(
+                          color: c,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: sel
+                                ? t.primary
+                                : (c == Colors.white
+                                    ? Colors.grey.shade400
+                                    : Colors.transparent),
+                            width: sel ? 2.5 : 1,
+                          ),
+                          boxShadow: sel
+                              ? [
+                                  BoxShadow(
+                                    color: c.withValues(alpha: 0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  )
+                                ]
+                              : null,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            // Brush tool
+            _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),
+            // Eraser
+            _toolBtn(
+                Icons.auto_fix_normal_rounded, DrawTool.eraser, s.eraser, t),
+            // Thickness
+            _actionBtn(
+              Icons.line_weight_rounded,
+              _showThicknessPicker,
+              tooltip: s.strokeThickness,
+              badge: _strokeWidth.round().toString(),
+            ),
+            // Expand/collapse more tools
+            _expandBtn(t),
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _toolBtn(
+      IconData icon, DrawTool tool, String tooltip, AppTheme t,
+      {bool compact = false}) {
+    final active = _activeTool == tool;
+    final size = compact ? 36.0 : 42.0;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: () => _selectTool(tool),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          margin: EdgeInsets.symmetric(
+              horizontal: compact ? 2 : 3, vertical: compact ? 8 : 6),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: active
+                ? t.primary.withValues(alpha: 0.13)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: active
+                ? Border.all(
+                    color: t.primary.withValues(alpha: 0.45), width: 1.5)
+                : null,
+          ),
+          child: Icon(
+            icon,
+            size: compact ? 20 : 22,
+            color: active ? t.primary : Colors.grey.shade500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionBtn(IconData icon, VoidCallback? onTap,
+      {required String tooltip, Color? color, String? badge}) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: color ?? Colors.grey.shade500,
+                ),
+              ),
+              if (badge != null)
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade600,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _expandBtn(AppTheme t) {
+    return GestureDetector(
+      onTap: () {
+        setState(() => _toolbarExpanded = !_toolbarExpanded);
+        if (_toolbarExpanded) {
+          _toolbarAnim.forward();
+        } else {
+          _toolbarAnim.reverse();
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: _toolbarExpanded
+              ? t.primary.withValues(alpha: 0.13)
+              : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: _toolbarExpanded
+              ? Border.all(
+                  color: t.primary.withValues(alpha: 0.4), width: 1.5)
+              : null,
+        ),
+        child: AnimatedRotation(
+          duration: const Duration(milliseconds: 260),
+          turns: _toolbarExpanded ? 0.5 : 0.0,
+          child: Icon(
+            Icons.expand_less_rounded,
+            size: 22,
+            color:
+                _toolbarExpanded ? t.primary : Colors.grey.shade500,
+          ),
+        ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _CanvasWidget  — owns the painter, reacts to ValueNotifier for fast repaints
-// ─────────────────────────────────────────────────────────────────────────────
-class _CanvasWidget extends StatefulWidget {
+//  Grid background 
+
+class _GridBackground extends StatelessWidget {
+  const _GridBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _GridPainter());
+  }
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFD4D4D4)
+      ..strokeWidth = 0.5;
+    const step = 24.0;
+    for (double x = 0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+//  Pulsing dot widget 
+
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot();
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, _) => Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.5 + 0.5 * _anim.value),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+//  _CanvasScene 
+
+class _CanvasScene extends StatefulWidget {
   final Color bgColor;
   final List<DrawStroke> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
-  final List<DrawStroke> partnerStrokes;
+  final DrawShapeType? currentShapeType;
+  final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
   final ValueNotifier<int> repaintNotifier;
 
-  const _CanvasWidget({
+  const _CanvasScene({
     required this.bgColor,
     required this.strokes,
     required this.currentPoints,
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
-    required this.partnerStrokes,
+    required this.currentShapeType,
+    required this.partnerNotifier,
     required this.canvasSize,
     required this.repaintNotifier,
   });
 
   @override
-  State<_CanvasWidget> createState() => _CanvasWidgetState();
+  State<_CanvasScene> createState() => _CanvasSceneState();
 }
 
-class _CanvasWidgetState extends State<_CanvasWidget> {
+class _CanvasSceneState extends State<_CanvasScene> {
+  late Listenable _repaint;
+
   @override
   void initState() {
     super.initState();
-    widget.repaintNotifier.addListener(_onRepaint);
+    _repaint = Listenable.merge([widget.repaintNotifier, widget.partnerNotifier]);
   }
 
   @override
-  void didUpdateWidget(_CanvasWidget old) {
+  void didUpdateWidget(covariant _CanvasScene old) {
     super.didUpdateWidget(old);
-    if (old.repaintNotifier != widget.repaintNotifier) {
-      old.repaintNotifier.removeListener(_onRepaint);
-      widget.repaintNotifier.addListener(_onRepaint);
+    if (old.repaintNotifier != widget.repaintNotifier ||
+        old.partnerNotifier != widget.partnerNotifier) {
+      _repaint =
+          Listenable.merge([widget.repaintNotifier, widget.partnerNotifier]);
     }
-  }
-
-  @override
-  void dispose() {
-    widget.repaintNotifier.removeListener(_onRepaint);
-    super.dispose();
-  }
-
-  void _onRepaint() {
-    if (mounted) setState(() {});
   }
 
   @override
@@ -1389,29 +2073,26 @@ class _CanvasWidgetState extends State<_CanvasWidget> {
       color: widget.bgColor,
       child: Stack(
         children: [
-          // Images below vector strokes
           if (!widget.canvasSize.isEmpty)
             ...widget.strokes
                 .where((s) => s.isImageStroke && s.imageUrl != null)
-                .map((s) {
-              final x = (s.imageX ?? 0) * widget.canvasSize.width;
-              final y = (s.imageY ?? 0) * widget.canvasSize.height;
-              final w = (s.imageWidth ?? 1) * widget.canvasSize.width;
-              final h = (s.imageHeight ?? 1) * widget.canvasSize.height;
+                .map((stroke) {
+              final x = (stroke.imageX ?? 0) * widget.canvasSize.width;
+              final y = (stroke.imageY ?? 0) * widget.canvasSize.height;
+              final w = (stroke.imageWidth ?? 1) * widget.canvasSize.width;
+              final h = (stroke.imageHeight ?? 1) * widget.canvasSize.height;
               return Positioned(
                 left: x,
                 top: y,
                 width: w,
                 height: h,
                 child: Image.network(
-                  s.imageUrl!,
+                  stroke.imageUrl!,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) =>
-                      const SizedBox.shrink(),
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
               );
             }),
-          // Vector strokes
           Positioned.fill(
             child: CustomPaint(
               painter: _DrawingPainter(
@@ -1422,8 +2103,10 @@ class _CanvasWidgetState extends State<_CanvasWidget> {
                 currentColorValue: widget.currentColorValue,
                 currentStrokeWidth: widget.currentStrokeWidth,
                 currentIsEraser: widget.currentIsEraser,
-                partnerStrokes: widget.partnerStrokes,
+                currentShapeType: widget.currentShapeType,
+                partnerNotifier: widget.partnerNotifier,
                 canvasSize: widget.canvasSize,
+                repaint: _repaint,
               ),
             ),
           ),
@@ -1433,64 +2116,114 @@ class _CanvasWidgetState extends State<_CanvasWidget> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Painter
-// ─────────────────────────────────────────────────────────────────────────────
+//  _DrawingPainter 
+
 class _DrawingPainter extends CustomPainter {
   final List<DrawStroke> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
-  final List<DrawStroke> partnerStrokes;
+  final DrawShapeType? currentShapeType;
+  final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
 
-  const _DrawingPainter({
+  _DrawingPainter({
     required this.strokes,
     required this.currentPoints,
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
-    required this.partnerStrokes,
+    required this.currentShapeType,
+    required this.partnerNotifier,
     required this.canvasSize,
-  });
+    required Listenable repaint,
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-
-    // saveLayer is required for BlendMode.dstOut (eraser) to work
-    canvas.saveLayer(
-        Rect.fromLTWH(0, 0, size.width, size.height), Paint());
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
 
     for (final s in strokes) {
-      _drawStroke(canvas, s.points, s.colorValue, s.strokeWidth,
-          s.isEraser, size);
+      if (s.shapeType != null) {
+        _drawShape(canvas, s.points, s.colorValue, s.strokeWidth,
+            s.shapeType!, size);
+      } else {
+        _drawStroke(
+            canvas, s.points, s.colorValue, s.strokeWidth, s.isEraser, size);
+      }
     }
 
     if (currentPoints.isNotEmpty) {
-      _drawStroke(canvas, currentPoints, currentColorValue,
-          currentStrokeWidth, currentIsEraser, size);
+      if (currentShapeType != null && currentPoints.length >= 2) {
+        _drawShape(canvas, currentPoints, currentColorValue,
+            currentStrokeWidth, currentShapeType!, size);
+      } else {
+        _drawStroke(canvas, currentPoints, currentColorValue,
+            currentStrokeWidth, currentIsEraser, size);
+      }
     }
 
-    for (final s in partnerStrokes) {
-      _drawPartnerStroke(canvas, s.points, s.colorValue,
-          s.strokeWidth, s.isEraser, size);
+    for (final s in partnerNotifier.value) {
+      if (s.shapeType != null && s.points.length >= 2) {
+        _drawShape(canvas, s.points, s.colorValue, s.strokeWidth,
+            s.shapeType!, size,
+            alpha: 0.85);
+      } else if (s.shapeType == null) {
+        _drawStroke(canvas, s.points, s.colorValue, s.strokeWidth,
+            s.isEraser, size,
+            alpha: 0.85);
+      }
     }
 
     canvas.restore();
   }
 
+  void _drawShape(
+    Canvas canvas,
+    List<DrawPoint> points,
+    int colorValue,
+    double strokeWidth,
+    DrawShapeType shapeType,
+    Size size, {
+    double alpha = 1.0,
+  }) {
+    if (points.length < 2) return;
+    final c = Color(colorValue);
+    final paint = Paint()
+      ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final s = points.first.toOffset(size);
+    final e = points.last.toOffset(size);
+
+    switch (shapeType) {
+      case DrawShapeType.line:
+        canvas.drawLine(s, e, paint);
+      case DrawShapeType.rect:
+        canvas.drawRect(Rect.fromPoints(s, e), paint);
+      case DrawShapeType.circle:
+        final dx = e.dx - s.dx;
+        final dy = e.dy - s.dy;
+        final radius = math.sqrt(dx * dx + dy * dy) / 2;
+        final center = Offset((s.dx + e.dx) / 2, (s.dy + e.dy) / 2);
+        canvas.drawCircle(center, radius, paint);
+    }
+  }
+
   void _drawStroke(
     Canvas canvas,
-    List<DrawPoint> pts,
+    List<DrawPoint> points,
     int colorValue,
     double strokeWidth,
     bool isEraser,
-    Size size,
-  ) {
-    if (pts.isEmpty) return;
-
+    Size size, {
+    double alpha = 1.0,
+  }) {
+    if (points.isEmpty) return;
     final paint = Paint()
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
@@ -1502,71 +2235,47 @@ class _DrawingPainter extends CustomPainter {
         ..blendMode = BlendMode.dstOut
         ..color = const Color(0xFFFFFFFF);
     } else {
-      paint.color = Color(colorValue);
+      final c = Color(colorValue);
+      paint.color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;
     }
 
-    if (pts.length == 1) {
+    if (points.length == 1) {
       if (!isEraser) {
         canvas.drawCircle(
-            pts[0].toOffset(size), strokeWidth / 2, paint..style = PaintingStyle.fill);
+          points.first.toOffset(size),
+          strokeWidth / 2,
+          paint..style = PaintingStyle.fill,
+        );
       }
       return;
     }
 
     final path = Path();
-    final o0 = pts[0].toOffset(size);
-    path.moveTo(o0.dx, o0.dy);
-    for (int i = 1; i < pts.length - 1; i++) {
-      final p0 = pts[i].toOffset(size);
-      final p1 = pts[i + 1].toOffset(size);
-      final mid =
-          Offset((p0.dx + p1.dx) / 2, (p0.dy + p1.dy) / 2);
+    final first = points.first.toOffset(size);
+    path.moveTo(first.dx, first.dy);
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final p0 = points[i].toOffset(size);
+      final p1 = points[i + 1].toOffset(size);
+      final mid = Offset((p0.dx + p1.dx) / 2, (p0.dy + p1.dy) / 2);
       path.quadraticBezierTo(p0.dx, p0.dy, mid.dx, mid.dy);
     }
-    final last = pts.last.toOffset(size);
+
+    final last = points.last.toOffset(size);
     path.lineTo(last.dx, last.dy);
     canvas.drawPath(path, paint..style = PaintingStyle.stroke);
   }
 
-  void _drawPartnerStroke(
-    Canvas canvas,
-    List<DrawPoint> pts,
-    int colorValue,
-    double strokeWidth,
-    bool isEraser,
-    Size size,
-  ) {
-    if (pts.length < 2) return;
-
-    final paint = Paint()
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
-    if (isEraser) {
-      paint
-        ..blendMode = BlendMode.dstOut
-        ..color = const Color(0xFFFFFFFF);
-    } else {
-      paint.color = Color(colorValue).withOpacity(0.8);
-    }
-
-    final path = Path();
-    path.moveTo(pts[0].toOffset(size).dx, pts[0].toOffset(size).dy);
-    for (int i = 1; i < pts.length; i++) {
-      final o = pts[i].toOffset(size);
-      path.lineTo(o.dx, o.dy);
-    }
-    canvas.drawPath(path, paint);
-  }
-
   @override
   bool shouldRepaint(covariant _DrawingPainter old) =>
-      !identical(old.currentPoints, currentPoints) ||
       old.strokes != strokes ||
-      old.partnerStrokes != partnerStrokes ||
+      old.currentPoints != currentPoints ||
       old.currentColorValue != currentColorValue ||
       old.currentStrokeWidth != currentStrokeWidth ||
-      old.currentIsEraser != currentIsEraser;
+      old.currentIsEraser != currentIsEraser ||
+      old.currentShapeType != currentShapeType ||
+      old.canvasSize != canvasSize;
 }
+
+// ignore: unused_element
+Future<void> unawaited(Future<void> future) => future;

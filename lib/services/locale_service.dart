@@ -316,13 +316,20 @@ abstract class AppStrings {
   String get brush;
   String get eraser;
   String get fillBg;
+  String get drawLine;
+  String get drawRect;
+  String get drawCircle;
   String get insertPhoto;
+  String get photoRequiresPartner;
   String get undoAction;
   String get redoAction;
   String get clearCanvas;
   String get clearCanvasConfirm;
   String get saveDrawing;
   String get shareDrawing;
+  String drawingSavedTo(String path);
+  String get failedToSaveDrawing;
+  String get failedToShareDrawing;
   String get strokeThickness;
   String get drawHint;
   String partnerIsDrawing(String name);
@@ -901,7 +908,15 @@ class _RuStrings extends AppStrings {
   @override
   String get fillBg => 'Заливка фона';
   @override
+  String get drawLine => 'Линия';
+  @override
+  String get drawRect => 'Прямоугольник';
+  @override
+  String get drawCircle => 'Круг';
+  @override
   String get insertPhoto => 'Вставить фото';
+  @override
+  String get photoRequiresPartner => 'Фото доступно только при совместном рисовании с партнёром';
   @override
   String get undoAction => 'Отменить';
   @override
@@ -914,6 +929,12 @@ class _RuStrings extends AppStrings {
   String get saveDrawing => 'Сохранить';
   @override
   String get shareDrawing => 'Поделиться';
+  @override
+  String drawingSavedTo(String path) => 'Рисунок сохранён: $path';
+  @override
+  String get failedToSaveDrawing => 'Не удалось сохранить рисунок';
+  @override
+  String get failedToShareDrawing => 'Не удалось поделиться рисунком';
   @override
   String get strokeThickness => 'Толщина';
   @override
@@ -1614,7 +1635,15 @@ class _EnStrings extends AppStrings {
   @override
   String get fillBg => 'Fill BG';
   @override
+  String get drawLine => 'Line';
+  @override
+  String get drawRect => 'Rectangle';
+  @override
+  String get drawCircle => 'Circle';
+  @override
   String get insertPhoto => 'Insert Photo';
+  @override
+  String get photoRequiresPartner => 'Photo sharing is available only when drawing with a partner';
   @override
   String get undoAction => 'Undo';
   @override
@@ -1627,6 +1656,12 @@ class _EnStrings extends AppStrings {
   String get saveDrawing => 'Save';
   @override
   String get shareDrawing => 'Share';
+  @override
+  String drawingSavedTo(String path) => 'Drawing saved to: $path';
+  @override
+  String get failedToSaveDrawing => 'Failed to save drawing';
+  @override
+  String get failedToShareDrawing => 'Failed to share drawing';
   @override
   String get strokeThickness => 'Thickness';
   @override

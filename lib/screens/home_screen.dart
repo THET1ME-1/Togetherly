@@ -1132,7 +1132,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
 
   void _openDraw() {
-    if (!_pairData.isPaired) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2436,7 +2435,7 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.brush_rounded,
           label: LocaleService.current.draw,
           iconColor: _t.iconDraw,
-          enabled: _pairData.isPaired,
+          enabled: true,
           onTap: _openDraw,
         ),
         _actionButton(

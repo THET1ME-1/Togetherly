@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Tools available in the drawing canvas.
-enum DrawTool { brush, eraser, fill, image }
+enum DrawTool { brush, eraser, fill, image, line, rect, circle }
+
+/// Geometric shape types for shape-drawing tools.
+enum DrawShapeType { line, rect, circle }
 
 /// A single 2-D point on the canvas (normalised 0..1 relative to canvas size
 /// so strokes look correct on any screen size).
@@ -37,6 +40,9 @@ class DrawStroke {
   final List<DrawPoint> points;
   final bool isEraser;
 
+  /// Non-null when this stroke was drawn with a shape tool (line/rect/circle).
+  final DrawShapeType? shapeType;
+
   /// Global ordering counter so strokes are drawn in the correct order.
   final int orderIndex;
 
@@ -57,6 +63,7 @@ class DrawStroke {
     required this.strokeWidth,
     required this.points,
     this.isEraser = false,
+    this.shapeType,
     required this.orderIndex,
     this.imageUrl,
     this.imageX,
@@ -66,6 +73,7 @@ class DrawStroke {
   });
 
   bool get isImageStroke => imageUrl != null;
+  bool get isShapeStroke => shapeType != null;
 
   Color get color => Color(colorValue);
 
@@ -79,6 +87,7 @@ class DrawStroke {
         'isEraser': isEraser,
         'orderIndex': orderIndex,
         'createdAt': DateTime.now().millisecondsSinceEpoch,
+        if (shapeType != null) 'shapeType': shapeType!.name,
         if (imageUrl != null) 'imageUrl': imageUrl,
         if (imageX != null) 'imageX': imageX,
         if (imageY != null) 'imageY': imageY,
@@ -97,6 +106,7 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
+      shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: (data['orderIndex'] as num?)?.toInt() ?? 0,
       imageUrl: data['imageUrl'] as String?,
       imageX: (data['imageX'] as num?)?.toDouble(),
@@ -113,6 +123,7 @@ class DrawStroke {
         'strokeWidth': strokeWidth,
         'isEraser': isEraser,
         'points': points.map((p) => p.toMap()).toList(),
+        if (shapeType != null) 'shapeType': shapeType!.name,
         'ts': DateTime.now().millisecondsSinceEpoch,
       };
 
@@ -127,7 +138,18 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
+      shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: -1,
     );
+  }
+}
+
+DrawShapeType? _parseShapeType(String? value) {
+  if (value == null) return null;
+  switch (value) {
+    case 'line': return DrawShapeType.line;
+    case 'rect': return DrawShapeType.rect;
+    case 'circle': return DrawShapeType.circle;
+    default: return null;
   }
 }

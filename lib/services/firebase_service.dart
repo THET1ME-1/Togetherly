@@ -2040,6 +2040,35 @@ class FirebaseService {
     }
   }
 
+  /// Persist the canvas background colour so both users see the same fill.
+  /// Stored as `bgColor` on the `groups/{groupId}/canvas/main` meta-document.
+  Future<void> setCanvasBgColor({
+    required String groupId,
+    required int colorValue,
+  }) async {
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvas')
+          .doc('main')
+          .set({'bgColor': colorValue}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('setCanvasBgColor failed: $e');
+    }
+  }
+
+  /// Stream of background colour changes for the shared canvas.
+  Stream<int?> listenToCanvasBgColor({required String groupId}) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('canvas')
+        .doc('main')
+        .snapshots()
+        .map((snap) => (snap.data()?['bgColor'] as num?)?.toInt());
+  }
+
   /// Upload a drawing image to Firebase Storage and return the download URL.
   Future<String?> uploadDrawingImage({
     required String groupId,
