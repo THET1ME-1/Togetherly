@@ -1920,6 +1920,136 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  COLLABORATIVE DRAWING CANVAS
+  //  Firestore structure:
+  //    groups/{groupId}/canvas/main/strokes/{strokeId}  – completed strokes
+  //    groups/{groupId}/canvas/main/live/{userId}        – in-progress stroke
+  // ══════════════════════════════════════════════
+
+  CollectionReference _strokesRef(String groupId) => _db
+      .collection('groups')
+      .doc(groupId)
+      .collection('canvas')
+      .doc('main')
+      .collection('strokes');
+
+  CollectionReference _liveRef(String groupId) => _db
+      .collection('groups')
+      .doc(groupId)
+      .collection('canvas')
+      .doc('main')
+      .collection('live');
+
+  /// Stream of all completed strokes ordered by [orderIndex].
+  Stream<List<_DrawStrokeRaw>> listenToDrawingStrokes({
+    required String groupId,
+  }) {
+    return _strokesRef(groupId)
+        .orderBy('orderIndex')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (d) => _DrawStrokeRaw(
+                  id: d.id,
+                  data: Map<String, dynamic>.from(d.data() as Map),
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  /// Persist a completed stroke and return its new Firestore document ID.
+  Future<String> addDrawingStroke({
+    required String groupId,
+    required Map<String, dynamic> strokeData,
+  }) async {
+    try {
+      final ref = await _strokesRef(groupId).add(strokeData);
+      return ref.id;
+    } catch (e) {
+      debugPrint('addDrawingStroke failed: $e');
+      return '';
+    }
+  }
+
+  /// Delete a single stroke by ID (used for undo).
+  Future<void> deleteDrawingStroke({
+    required String groupId,
+    required String strokeId,
+  }) async {
+    try {
+      await _strokesRef(groupId).doc(strokeId).delete();
+    } catch (e) {
+      debugPrint('deleteDrawingStroke failed: $e');
+    }
+  }
+
+  /// Write the current in-progress stroke of [userId] so partners can see it live.
+  Future<void> updateLiveDrawingStroke({
+    required String groupId,
+    required String userId,
+    required Map<String, dynamic> liveData,
+  }) async {
+    try {
+      await _liveRef(groupId).doc(userId).set(liveData);
+    } catch (e) {
+      debugPrint('updateLiveDrawingStroke failed: $e');
+    }
+  }
+
+  /// Remove the live stroke document when the user lifts their finger.
+  Future<void> clearLiveDrawingStroke({
+    required String groupId,
+    required String userId,
+  }) async {
+    try {
+      await _liveRef(groupId).doc(userId).delete();
+    } catch (e) {
+      debugPrint('clearLiveDrawingStroke failed: $e');
+    }
+  }
+
+  /// Stream of all partners' live strokes (excludes [myUserId]).
+  Stream<Map<String, Map<String, dynamic>>> listenToLiveDrawingStrokes({
+    required String groupId,
+    required String myUserId,
+  }) {
+    return _liveRef(groupId).snapshots().map((snap) {
+      final result = <String, Map<String, dynamic>>{};
+      for (final doc in snap.docs) {
+        if (doc.id != myUserId) {
+          result[doc.id] = Map<String, dynamic>.from(doc.data() as Map);
+        }
+      }
+      return result;
+    });
+  }
+
+  /// Delete all strokes for a canvas (clear canvas).
+  Future<void> clearDrawingCanvas({required String groupId}) async {
+    try {
+      final snap = await _strokesRef(groupId).get();
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('clearDrawingCanvas failed: $e');
+    }
+  }
+
+  /// Upload a drawing image to Firebase Storage and return the download URL.
+  Future<String?> uploadDrawingImage({
+    required String groupId,
+    required String localPath,
+  }) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    return uploadFile(localPath, 'groups/$groupId/canvas/img_$ts.jpg');
+  }
+
+  // ══════════════════════════════════════════════
   //  HELPERS
   // ══════════════════════════════════════════════
 
@@ -1928,4 +2058,11 @@ class FirebaseService {
     final rng = Random();
     return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
   }
+}
+
+/// Internal transfer object used by [listenToDrawingStrokes].
+class _DrawStrokeRaw {
+  final String id;
+  final Map<String, dynamic> data;
+  const _DrawStrokeRaw({required this.id, required this.data});
 }

@@ -25,6 +25,7 @@ import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import 'widget_screen.dart';
 import 'miss_you_button.dart';
+import 'draw_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -1129,6 +1130,21 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   // MOOD PICKER
   // =============================================
+
+  void _openDraw() {
+    if (!_pairData.isPaired) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DrawScreen(
+          userData: widget.userData,
+          pairData: _pairData,
+          theme: _t,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
 
   void _openMoodCalendar() {
     Navigator.push(
@@ -2421,6 +2437,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: LocaleService.current.draw,
           iconColor: _t.iconDraw,
           enabled: _pairData.isPaired,
+          onTap: _openDraw,
         ),
         _actionButton(
           icon: Icons.sentiment_satisfied_alt_rounded,

@@ -310,6 +310,22 @@ abstract class AppStrings {
   String get draw;
   String get calendar;
   String get noMemoriesYet;
+
+  // ── Draw Screen ──
+  String get drawTogether;
+  String get brush;
+  String get eraser;
+  String get fillBg;
+  String get insertPhoto;
+  String get undoAction;
+  String get redoAction;
+  String get clearCanvas;
+  String get clearCanvasConfirm;
+  String get saveDrawing;
+  String get shareDrawing;
+  String get strokeThickness;
+  String get drawHint;
+  String partnerIsDrawing(String name);
   String get addFirstMemory;
   String get video;
   String get videoLabel;
@@ -874,6 +890,36 @@ class _RuStrings extends AppStrings {
   String get calendar => 'Календарь';
   @override
   String get noMemoriesYet => 'Пока нет воспоминаний';
+
+  // ── Draw Screen ──
+  @override
+  String get drawTogether => 'Рисуем вместе';
+  @override
+  String get brush => 'Кисть';
+  @override
+  String get eraser => 'Ластик';
+  @override
+  String get fillBg => 'Заливка фона';
+  @override
+  String get insertPhoto => 'Вставить фото';
+  @override
+  String get undoAction => 'Отменить';
+  @override
+  String get redoAction => 'Повторить';
+  @override
+  String get clearCanvas => 'Очистить';
+  @override
+  String get clearCanvasConfirm => 'Очистить весь холст? Это удалит рисунки обоих.';
+  @override
+  String get saveDrawing => 'Сохранить';
+  @override
+  String get shareDrawing => 'Поделиться';
+  @override
+  String get strokeThickness => 'Толщина';
+  @override
+  String get drawHint => 'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
+  @override
+  String partnerIsDrawing(String name) => '$name рисует…';
   @override
   String get addFirstMemory => 'Добавьте первое воспоминание в Ленту';
   @override
@@ -1557,6 +1603,36 @@ class _EnStrings extends AppStrings {
   String get calendar => 'Calendar';
   @override
   String get noMemoriesYet => 'No memories yet';
+
+  // ── Draw Screen ──
+  @override
+  String get drawTogether => 'Draw Together';
+  @override
+  String get brush => 'Brush';
+  @override
+  String get eraser => 'Eraser';
+  @override
+  String get fillBg => 'Fill BG';
+  @override
+  String get insertPhoto => 'Insert Photo';
+  @override
+  String get undoAction => 'Undo';
+  @override
+  String get redoAction => 'Redo';
+  @override
+  String get clearCanvas => 'Clear';
+  @override
+  String get clearCanvasConfirm => 'Clear the entire canvas? This removes both users\' drawings.';
+  @override
+  String get saveDrawing => 'Save';
+  @override
+  String get shareDrawing => 'Share';
+  @override
+  String get strokeThickness => 'Thickness';
+  @override
+  String get drawHint => 'Start drawing! Your partner will see your strokes in real time.';
+  @override
+  String partnerIsDrawing(String name) => '$name is drawing…';
   @override
   String get addFirstMemory => 'Add your first memory in Memory Lane';
   @override
