@@ -321,6 +321,8 @@ abstract class AppStrings {
   String get drawCircle;
   String get insertPhoto;
   String get photoRequiresPartner;
+  String get photoFromGallery;
+  String get photoFromCamera;
   String get undoAction;
   String get redoAction;
   String get clearCanvas;
@@ -917,6 +919,10 @@ class _RuStrings extends AppStrings {
   String get insertPhoto => 'Вставить фото';
   @override
   String get photoRequiresPartner => 'Фото доступно только при совместном рисовании с партнёром';
+  @override
+  String get photoFromGallery => 'Из галереи';
+  @override
+  String get photoFromCamera => 'Сделать фото';
   @override
   String get undoAction => 'Отменить';
   @override
@@ -1644,6 +1650,10 @@ class _EnStrings extends AppStrings {
   String get insertPhoto => 'Insert Photo';
   @override
   String get photoRequiresPartner => 'Photo sharing is available only when drawing with a partner';
+  @override
+  String get photoFromGallery => 'From Gallery';
+  @override
+  String get photoFromCamera => 'Take Photo';
   @override
   String get undoAction => 'Undo';
   @override

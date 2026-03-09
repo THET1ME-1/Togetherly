@@ -979,8 +979,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  MEMORY DETAIL — full screen
   // ═══════════════════════════════════════════════════
   void _showMemoryDetail(Memory memory) {
-    AudioPlayer? audioPlayer;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (_) => _MemoryDetailSheet(
+        memory: memory,
+        groupId: _groupId,
+        fb: _fb,
+        primary: primary,
+        isOwner: memory.authorUid == _fb.uid,
+        canDownload: _canDownload(memory),
+        typeColor: _memoryTypeColor(memory.type),
+        onTogglePin: () => _togglePin(memory),
+        onDownload: () => _downloadMemoryMedia(memory),
+        onEdit: () => _editMemory(memory),
+        onDelete: () => _confirmDelete(memory),
+      ),
+    );
+  }
 
+  // ignore: unused_element
+  void _showMemoryDetailLEGACY(Memory memory) {
+    AudioPlayer? audioPlayer;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1442,7 +1467,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       primary: primary,
                     ),
 
-                    SizedBox(height: MediaQuery.of(context).padding.bottom),
+                    const _KeyboardPaddingBox(),
                   ],
                 ),
               ),
@@ -2808,6 +2833,455 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 }
 
 // ══════════════════════════════════════════════════════
+//  Memory Detail Sheet Widget
+//  Extracted StatefulWidget — keyboard animation only
+//  rebuilds this isolated subtree, not the whole page.
+// ══════════════════════════════════════════════════════
+
+class _MemoryDetailSheet extends StatefulWidget {
+  final Memory memory;
+  final String groupId;
+  final FirebaseService fb;
+  final Color primary;
+  final bool isOwner;
+  final bool canDownload;
+  final Color typeColor;
+  final VoidCallback onTogglePin;
+  final VoidCallback onDownload;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _MemoryDetailSheet({
+    required this.memory,
+    required this.groupId,
+    required this.fb,
+    required this.primary,
+    required this.isOwner,
+    required this.canDownload,
+    required this.typeColor,
+    required this.onTogglePin,
+    required this.onDownload,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<_MemoryDetailSheet> createState() => _MemoryDetailSheetState();
+}
+
+class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
+  AudioPlayer? _audioPlayer;
+
+  @override
+  void dispose() {
+    _audioPlayer?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final memory = widget.memory;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize:
+          memory.type == MemoryType.photo || memory.type == MemoryType.video
+              ? 0.85
+              : 0.7,
+      maxChildSize: 0.95,
+      builder: (_, sc) => SingleChildScrollView(
+        controller: sc,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: widget.typeColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(memory.typeEmoji,
+                      style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 4),
+                  Text(
+                    memory.typeLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: widget.typeColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (memory.type == MemoryType.photo)
+              RepaintBoundary(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: memory.imageUrl?.isNotEmpty == true
+                      ? Image.network(
+                          memory.imageUrl!,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _noImgBox(200),
+                        )
+                      : _noImgBox(200),
+                ),
+              ),
+            if (memory.type == MemoryType.video)
+              RepaintBoundary(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    children: [
+                      if (memory.imageUrl?.isNotEmpty == true)
+                        Image.network(
+                          memory.imageUrl!,
+                          width: double.infinity,
+                          height: 220,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                              height: 220,
+                              color: Colors.grey.shade900),
+                        )
+                      else
+                        Container(
+                            height: 220, color: Colors.grey.shade900),
+                      Container(
+                          height: 220,
+                          color: Colors.black.withOpacity(0.4)),
+                      SizedBox(
+                        height: 220,
+                        width: double.infinity,
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              final url = memory.videoUrl;
+                              if (url != null && url.isNotEmpty) {
+                                launchUrl(Uri.parse(url),
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.play_arrow_rounded,
+                                  size: 40,
+                                  color: Color(0xFFEC4899)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (memory.type == MemoryType.location)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FAF4),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD1F0DE)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF22C55E).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.location_on_rounded,
+                              color: Color(0xFF22C55E), size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                memory.locationName ?? 'Unknown location',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade900,
+                                ),
+                              ),
+                              if (memory.latitude != null)
+                                Text(
+                                  '${memory.latitude!.toStringAsFixed(5)}, '
+                                  '${memory.longitude?.toStringAsFixed(5) ?? ""}',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (memory.latitude != null &&
+                        memory.longitude != null) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            final url =
+                                'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
+                            launchUrl(Uri.parse(url),
+                                mode: LaunchMode.externalApplication);
+                          },
+                          icon: const Icon(Icons.map_rounded, size: 18),
+                          label: const Text('Open in Google Maps'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF22C55E),
+                            side: const BorderSide(
+                                color: Color(0xFF22C55E)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (memory.type == MemoryType.music)
+              _MusicPlayerWidget(
+                memory: memory,
+                player: _audioPlayer,
+                onPlayerCreated: (p) => setState(() => _audioPlayer = p),
+                primary: widget.primary,
+                typeColor: widget.typeColor,
+              ),
+            if (memory.type == MemoryType.text)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFEF3C7)),
+                ),
+                child: Text(
+                  memory.caption ?? '',
+                  style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade800,
+                      height: 1.6),
+                ),
+              ),
+            if (memory.type != MemoryType.text &&
+                memory.caption != null &&
+                memory.caption!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                memory.caption!,
+                style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade800,
+                    height: 1.5),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                if (memory.authorAvatar.isNotEmpty)
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundImage: NetworkImage(memory.authorAvatar),
+                  ),
+                if (memory.authorAvatar.isNotEmpty)
+                  const SizedBox(width: 8),
+                Text(
+                  memory.authorName,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700),
+                ),
+                const Spacer(),
+                Text(
+                  _fmtDate(memory.createdAt),
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onTogglePin();
+                        },
+                        icon: Icon(
+                          memory.isPinned
+                              ? Icons.push_pin_rounded
+                              : Icons.push_pin_outlined,
+                          size: 16,
+                        ),
+                        label:
+                            Text(memory.isPinned ? 'Unpin' : 'Pin'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: widget.primary,
+                          side: BorderSide(
+                              color:
+                                  widget.primary.withOpacity(0.3)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    if (widget.canDownload) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            widget.onDownload();
+                          },
+                          icon: const Icon(Icons.download_rounded,
+                              size: 16),
+                          label: const Text('Save'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade600,
+                            side: BorderSide(
+                                color: Colors.blue.shade200),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (widget.isOwner) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            widget.onEdit();
+                          },
+                          icon: const Icon(Icons.edit_rounded, size: 16),
+                          label: const Text('Edit'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey.shade700,
+                            side:
+                                BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            widget.onDelete();
+                          },
+                          icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 16),
+                          label: const Text('Delete'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red.shade400,
+                            side: BorderSide(
+                                color: Colors.red.shade200),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 24),
+            RepaintBoundary(
+              child: _CommentsSection(
+                groupId: widget.groupId,
+                memoryId: widget.memory.id,
+                fb: widget.fb,
+                primary: widget.primary,
+              ),
+            ),
+            const _KeyboardPaddingBox(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _noImgBox(double h) => Container(
+        height: h,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Icon(Icons.image_not_supported_rounded,
+              color: Colors.grey.shade400, size: 48),
+        ),
+      );
+
+  static String _fmtDate(DateTime dt) {
+    const months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${months[dt.month]} ${dt.day}, ${dt.year} at $h:$m';
+  }
+}
+
+// ══════════════════════════════════════════════════════
 //  Comments Section Widget
 // ══════════════════════════════════════════════════════
 
@@ -2916,7 +3390,10 @@ class _CommentsSectionState extends State<_CommentsSection> {
               child: TextField(
                 controller: _ctrl,
                 textCapitalization: TextCapitalization.sentences,
-                maxLines: null,
+                maxLines: 4,
+                minLines: 1,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Write a comment…',
@@ -3091,5 +3568,22 @@ class _CommentsSectionState extends State<_CommentsSection> {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// Isolated keyboard-inset padding widget
+// Only this widget rebuilds on every frame of the keyboard animation,
+// leaving the heavy modal sheet tree completely untouched.
+// ══════════════════════════════════════════════════════
+class _KeyboardPaddingBox extends StatelessWidget {
+  const _KeyboardPaddingBox();
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom
+        + MediaQuery.paddingOf(context).bottom
+        + 24;
+    return SizedBox(height: bottom);
   }
 }

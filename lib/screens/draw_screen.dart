@@ -75,7 +75,6 @@ class _DrawScreenState extends State<DrawScreen>
   static const double _kMaxScale = 10.0;
 
   final FirebaseService _fb = FirebaseService();
-  final ImagePicker _imagePicker = ImagePicker();
   final GlobalKey _canvasKey = GlobalKey();
 
   final ValueNotifier<int> _repaintNotifier = ValueNotifier<int>(0);
@@ -110,7 +109,6 @@ class _DrawScreenState extends State<DrawScreen>
   int _hintStep = 0; // 0=draw, 1=tools, 2=pinch - auto-dismiss
 
   bool _saving = false;
-  bool _uploadingImage = false;
 
   // Pan / zoom
   Size _canvasSize = Size.zero;
@@ -787,11 +785,6 @@ class _DrawScreenState extends State<DrawScreen>
       isEraser: base.isEraser,
       shapeType: base.shapeType,
       orderIndex: _orderCounter,
-      imageUrl: base.imageUrl,
-      imageX: base.imageX,
-      imageY: base.imageY,
-      imageWidth: base.imageWidth,
-      imageHeight: base.imageHeight,
     );
     _orderCounter++;
     _submitStroke(stroke);
@@ -867,80 +860,6 @@ class _DrawScreenState extends State<DrawScreen>
         _visibleStrokes = prevVisible;
         _bgColor = prevBg;
       });
-    }
-  }
-
-  //  Photo 
-
-  Future<ui.Image?> _decodeImageFromFile(String path) async {
-    try {
-      final bytes = await File(path).readAsBytes();
-      final completer = Completer<ui.Image>();
-      ui.decodeImageFromList(bytes, (image) {
-        if (!completer.isCompleted) completer.complete(image);
-      });
-      return completer.future;
-    } catch (e) {
-      debugPrint('[Draw] decode image error: $e');
-      return null;
-    }
-  }
-
-  Future<void> _insertPhoto() async {
-    final s = LocaleService.current;
-    if (!_hasSharedCanvas) {
-      _showMessage(s.photoRequiresPartner, backgroundColor: Colors.black87);
-      return;
-    }
-
-    try {
-      final picked = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 70,
-        maxWidth: 1600,
-      );
-      if (picked == null || !mounted) return;
-
-      setState(() => _uploadingImage = true);
-      String? imageUrl;
-      try {
-        imageUrl = await _fb.uploadDrawingImage(
-          groupId: _groupId,
-          localPath: picked.path,
-        );
-      } finally {
-        if (mounted) setState(() => _uploadingImage = false);
-      }
-
-      if (imageUrl == null || imageUrl.isEmpty) return;
-
-      final decoded = await _decodeImageFromFile(picked.path);
-      final aspect = (decoded != null && decoded.height > 0)
-          ? decoded.width / decoded.height
-          : 1.0;
-
-      const iw = 0.78;
-      final ih = (iw / aspect).clamp(0.10, 0.90);
-      final ix = (1.0 - iw) / 2;
-      final iy = ((1.0 - ih) / 2).clamp(0.0, 0.9);
-
-      final stroke = DrawStroke(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
-        userId: _myUid,
-        colorValue: 0xFF000000,
-        strokeWidth: 0,
-        points: const [],
-        orderIndex: _orderCounter,
-        imageUrl: imageUrl,
-        imageX: ix,
-        imageY: iy,
-        imageWidth: iw,
-        imageHeight: ih,
-      );
-      _orderCounter++;
-      _submitStroke(stroke);
-    } catch (e) {
-      debugPrint('[Draw] insert photo error: $e');
     }
   }
 
@@ -1693,21 +1612,6 @@ class _DrawScreenState extends State<DrawScreen>
           _toolBtn(Icons.format_color_fill_rounded, DrawTool.fill, s.fillBg,
               t, compact: true),
           const Spacer(),
-          _uploadingImage
-              ? const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child:
-                      Padding(
-                    padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : _actionBtn(
-                  Icons.add_photo_alternate_rounded,
-                  _insertPhoto,
-                  tooltip: s.insertPhoto,
-                ),
           _actionBtn(
             Icons.delete_outline_rounded,
             _confirmClear,
@@ -2071,46 +1975,20 @@ class _CanvasSceneState extends State<_CanvasScene> {
   Widget build(BuildContext context) {
     return Container(
       color: widget.bgColor,
-      child: Stack(
-        children: [
-          if (!widget.canvasSize.isEmpty)
-            ...widget.strokes
-                .where((s) => s.isImageStroke && s.imageUrl != null)
-                .map((stroke) {
-              final x = (stroke.imageX ?? 0) * widget.canvasSize.width;
-              final y = (stroke.imageY ?? 0) * widget.canvasSize.height;
-              final w = (stroke.imageWidth ?? 1) * widget.canvasSize.width;
-              final h = (stroke.imageHeight ?? 1) * widget.canvasSize.height;
-              return Positioned(
-                left: x,
-                top: y,
-                width: w,
-                height: h,
-                child: Image.network(
-                  stroke.imageUrl!,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                ),
-              );
-            }),
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _DrawingPainter(
-                strokes: widget.strokes
-                    .where((s) => !s.isImageStroke)
-                    .toList(),
-                currentPoints: widget.currentPoints,
-                currentColorValue: widget.currentColorValue,
-                currentStrokeWidth: widget.currentStrokeWidth,
-                currentIsEraser: widget.currentIsEraser,
-                currentShapeType: widget.currentShapeType,
-                partnerNotifier: widget.partnerNotifier,
-                canvasSize: widget.canvasSize,
-                repaint: _repaint,
-              ),
-            ),
+      child: Positioned.fill(
+        child: CustomPaint(
+          painter: _DrawingPainter(
+            strokes: widget.strokes,
+            currentPoints: widget.currentPoints,
+            currentColorValue: widget.currentColorValue,
+            currentStrokeWidth: widget.currentStrokeWidth,
+            currentIsEraser: widget.currentIsEraser,
+            currentShapeType: widget.currentShapeType,
+            partnerNotifier: widget.partnerNotifier,
+            canvasSize: widget.canvasSize,
+            repaint: _repaint,
           ),
-        ],
+        ),
       ),
     );
   }
