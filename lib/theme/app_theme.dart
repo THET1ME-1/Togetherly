@@ -129,7 +129,10 @@ abstract final class AppThemes {
     name: 'Фиолетовая',
     primary: Color(0xFF9B86BD), // Calming Lavender
     primaryLight: Color(0xFFE6E6FA), // Soft Lavender
-    bgGradient: [Color(0xFFE6E6FA), Color(0xFFF0FFF0)], // lavender → mint
+    bgGradient: [
+      Color(0xFFE6E6FA),
+      Color(0xFFF3F0FF),
+    ], // lavender → soft lavender
     heroGradient: [Color(0xFF6C5B7B), Color(0xFF352F44)], // deep purple
     heroShadowBase: Color(0x0D000000), // black 5%
     heroShadowExpanded: Color(0x1A9B86BD), // lavender 10%
