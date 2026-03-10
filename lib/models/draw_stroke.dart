@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Tools available in the drawing canvas.
-enum DrawTool { brush, eraser, fill, image, line, rect, circle }
+enum DrawTool { brush, eraser, fill, image, line, rect, circle, hand }
 
 /// Geometric shape types for shape-drawing tools.
 enum DrawShapeType { line, rect, circle }
@@ -19,16 +19,14 @@ class DrawPoint {
 
   Map<String, dynamic> toMap() => {'x': x, 'y': y};
 
-  factory DrawPoint.fromMap(Map<String, dynamic> map) => DrawPoint(
-        (map['x'] as num).toDouble(),
-        (map['y'] as num).toDouble(),
-      );
+  factory DrawPoint.fromMap(Map<String, dynamic> map) =>
+      DrawPoint((map['x'] as num).toDouble(), (map['y'] as num).toDouble());
 
   /// Create from an absolute Offset and canvas size.
   factory DrawPoint.fromOffset(Offset offset, Size canvasSize) => DrawPoint(
-        canvasSize.width > 0 ? offset.dx / canvasSize.width : 0,
-        canvasSize.height > 0 ? offset.dy / canvasSize.height : 0,
-      );
+    canvasSize.width > 0 ? offset.dx / canvasSize.width : 0,
+    canvasSize.height > 0 ? offset.dy / canvasSize.height : 0,
+  );
 }
 
 /// One complete or in-progress drawing stroke (brush, eraser, or image).
@@ -39,6 +37,7 @@ class DrawStroke {
   final double strokeWidth;
   final List<DrawPoint> points;
   final bool isEraser;
+  final bool isFill;
 
   /// Non-null when this stroke was drawn with a shape tool (line/rect/circle).
   final DrawShapeType? shapeType;
@@ -63,6 +62,7 @@ class DrawStroke {
     required this.strokeWidth,
     required this.points,
     this.isEraser = false,
+    this.isFill = false,
     this.shapeType,
     required this.orderIndex,
     this.imageUrl,
@@ -80,20 +80,21 @@ class DrawStroke {
   // ── Firestore serialisation ───────────────────────────────────────────────
 
   Map<String, dynamic> toFirestore() => {
-        'userId': userId,
-        'colorValue': colorValue,
-        'strokeWidth': strokeWidth,
-        'points': points.map((p) => p.toMap()).toList(),
-        'isEraser': isEraser,
-        'orderIndex': orderIndex,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        if (shapeType != null) 'shapeType': shapeType!.name,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        if (imageX != null) 'imageX': imageX,
-        if (imageY != null) 'imageY': imageY,
-        if (imageWidth != null) 'imageWidth': imageWidth,
-        if (imageHeight != null) 'imageHeight': imageHeight,
-      };
+    'userId': userId,
+    'colorValue': colorValue,
+    'strokeWidth': strokeWidth,
+    'points': points.map((p) => p.toMap()).toList(),
+    'isEraser': isEraser,
+    'isFill': isFill,
+    'orderIndex': orderIndex,
+    'createdAt': DateTime.now().millisecondsSinceEpoch,
+    if (shapeType != null) 'shapeType': shapeType!.name,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+    if (imageX != null) 'imageX': imageX,
+    if (imageY != null) 'imageY': imageY,
+    if (imageWidth != null) 'imageWidth': imageWidth,
+    if (imageHeight != null) 'imageHeight': imageHeight,
+  };
 
   factory DrawStroke.fromFirestore(Map<String, dynamic> data, String id) {
     final rawPoints = (data['points'] as List?) ?? [];
@@ -106,6 +107,7 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
+      isFill: (data['isFill'] as bool?) ?? false,
       shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: (data['orderIndex'] as num?)?.toInt() ?? 0,
       imageUrl: data['imageUrl'] as String?,
@@ -118,14 +120,15 @@ class DrawStroke {
 
   /// Lightweight serialisation used for the live-stroke Firestore document.
   Map<String, dynamic> toLiveMap() => {
-        'userId': userId,
-        'colorValue': colorValue,
-        'strokeWidth': strokeWidth,
-        'isEraser': isEraser,
-        'points': points.map((p) => p.toMap()).toList(),
-        if (shapeType != null) 'shapeType': shapeType!.name,
-        'ts': DateTime.now().millisecondsSinceEpoch,
-      };
+    'userId': userId,
+    'colorValue': colorValue,
+    'strokeWidth': strokeWidth,
+    'isEraser': isEraser,
+    'isFill': isFill,
+    'points': points.map((p) => p.toMap()).toList(),
+    if (shapeType != null) 'shapeType': shapeType!.name,
+    'ts': DateTime.now().millisecondsSinceEpoch,
+  };
 
   factory DrawStroke.fromLiveMap(Map<String, dynamic> data, String userId) {
     final rawPoints = (data['points'] as List?) ?? [];
@@ -138,6 +141,7 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
+      isFill: (data['isFill'] as bool?) ?? false,
       shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: -1,
     );
@@ -147,9 +151,13 @@ class DrawStroke {
 DrawShapeType? _parseShapeType(String? value) {
   if (value == null) return null;
   switch (value) {
-    case 'line': return DrawShapeType.line;
-    case 'rect': return DrawShapeType.rect;
-    case 'circle': return DrawShapeType.circle;
-    default: return null;
+    case 'line':
+      return DrawShapeType.line;
+    case 'rect':
+      return DrawShapeType.rect;
+    case 'circle':
+      return DrawShapeType.circle;
+    default:
+      return null;
   }
 }

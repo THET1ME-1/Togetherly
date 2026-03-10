@@ -1933,6 +1933,9 @@ class FirebaseService {
       .doc('main')
       .collection('strokes');
 
+  DocumentReference<Map<String, dynamic>> _canvasMainRef(String groupId) =>
+      _db.collection('groups').doc(groupId).collection('canvas').doc('main');
+
   CollectionReference _liveRef(String groupId) => _db
       .collection('groups')
       .doc(groupId)
@@ -2026,14 +2029,26 @@ class FirebaseService {
     });
   }
 
-  /// Delete all strokes for a canvas (clear canvas).
-  Future<void> clearDrawingCanvas({required String groupId}) async {
+  /// Delete all strokes and live cursors for a canvas and publish a clear event.
+  Future<void> clearDrawingCanvas({
+    required String groupId,
+    required int clearVersion,
+    int? bgColorValue,
+  }) async {
     try {
-      final snap = await _strokesRef(groupId).get();
+      final strokesSnap = await _strokesRef(groupId).get();
+      final liveSnap = await _liveRef(groupId).get();
       final batch = _db.batch();
-      for (final doc in snap.docs) {
+      for (final doc in strokesSnap.docs) {
         batch.delete(doc.reference);
       }
+      for (final doc in liveSnap.docs) {
+        batch.delete(doc.reference);
+      }
+      batch.set(_canvasMainRef(groupId), {
+        'clearVersion': clearVersion,
+        if (bgColorValue != null) 'bgColor': bgColorValue,
+      }, SetOptions(merge: true));
       await batch.commit();
     } catch (e) {
       debugPrint('clearDrawingCanvas failed: $e');
@@ -2047,12 +2062,9 @@ class FirebaseService {
     required int colorValue,
   }) async {
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('canvas')
-          .doc('main')
-          .set({'bgColor': colorValue}, SetOptions(merge: true));
+      await _canvasMainRef(
+        groupId,
+      ).set({'bgColor': colorValue}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('setCanvasBgColor failed: $e');
     }
@@ -2060,13 +2072,38 @@ class FirebaseService {
 
   /// Stream of background colour changes for the shared canvas.
   Stream<int?> listenToCanvasBgColor({required String groupId}) {
-    return _db
-        .collection('groups')
-        .doc(groupId)
-        .collection('canvas')
-        .doc('main')
-        .snapshots()
-        .map((snap) => (snap.data()?['bgColor'] as num?)?.toInt());
+    return _canvasMainRef(
+      groupId,
+    ).snapshots().map((snap) => (snap.data()?['bgColor'] as num?)?.toInt());
+  }
+
+  /// Stream of clear events for the shared canvas.
+  Stream<int?> listenToCanvasClearVersion({required String groupId}) {
+    return _canvasMainRef(groupId).snapshots().map(
+      (snap) => (snap.data()?['clearVersion'] as num?)?.toInt(),
+    );
+  }
+
+  /// Persist the canvas rotation so both users see the same orientation.
+  /// Stored as `canvasRotation` (angle in milli-radians, int) on the canvas/main doc.
+  Future<void> setCanvasRotation({
+    required String groupId,
+    required int rotationQuarterTurns, // actually milli-radians
+  }) async {
+    try {
+      await _canvasMainRef(
+        groupId,
+      ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('setCanvasRotation failed: $e');
+    }
+  }
+
+  /// Stream of canvas rotation changes (value is angle in milli-radians).
+  Stream<int?> listenToCanvasRotation({required String groupId}) {
+    return _canvasMainRef(groupId).snapshots().map(
+      (snap) => (snap.data()?['canvasRotation'] as num?)?.toInt(),
+    );
   }
 
   /// Upload a drawing image to Firebase Storage and return the download URL.

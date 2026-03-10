@@ -315,7 +315,9 @@ abstract class AppStrings {
   String get drawTogether;
   String get brush;
   String get eraser;
+  String get panTool;
   String get fillBg;
+  String get rotateCanvas;
   String get drawLine;
   String get drawRect;
   String get drawCircle;
@@ -908,7 +910,11 @@ class _RuStrings extends AppStrings {
   @override
   String get eraser => 'Ластик';
   @override
-  String get fillBg => 'Заливка фона';
+  String get panTool => 'Рука';
+  @override
+  String get fillBg => 'Заливка';
+  @override
+  String get rotateCanvas => 'Повернуть холст';
   @override
   String get drawLine => 'Линия';
   @override
@@ -918,7 +924,8 @@ class _RuStrings extends AppStrings {
   @override
   String get insertPhoto => 'Вставить фото';
   @override
-  String get photoRequiresPartner => 'Фото доступно только при совместном рисовании с партнёром';
+  String get photoRequiresPartner =>
+      'Фото доступно только при совместном рисовании с партнёром';
   @override
   String get photoFromGallery => 'Из галереи';
   @override
@@ -930,7 +937,8 @@ class _RuStrings extends AppStrings {
   @override
   String get clearCanvas => 'Очистить';
   @override
-  String get clearCanvasConfirm => 'Очистить весь холст? Это удалит рисунки обоих.';
+  String get clearCanvasConfirm =>
+      'Очистить весь холст? Это удалит рисунки обоих.';
   @override
   String get saveDrawing => 'Сохранить';
   @override
@@ -944,7 +952,8 @@ class _RuStrings extends AppStrings {
   @override
   String get strokeThickness => 'Толщина';
   @override
-  String get drawHint => 'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
+  String get drawHint =>
+      'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
   @override
   String partnerIsDrawing(String name) => '$name рисует…';
   @override
@@ -1639,7 +1648,11 @@ class _EnStrings extends AppStrings {
   @override
   String get eraser => 'Eraser';
   @override
-  String get fillBg => 'Fill BG';
+  String get panTool => 'Hand';
+  @override
+  String get fillBg => 'Fill';
+  @override
+  String get rotateCanvas => 'Rotate Canvas';
   @override
   String get drawLine => 'Line';
   @override
@@ -1649,7 +1662,8 @@ class _EnStrings extends AppStrings {
   @override
   String get insertPhoto => 'Insert Photo';
   @override
-  String get photoRequiresPartner => 'Photo sharing is available only when drawing with a partner';
+  String get photoRequiresPartner =>
+      'Photo sharing is available only when drawing with a partner';
   @override
   String get photoFromGallery => 'From Gallery';
   @override
@@ -1661,7 +1675,8 @@ class _EnStrings extends AppStrings {
   @override
   String get clearCanvas => 'Clear';
   @override
-  String get clearCanvasConfirm => 'Clear the entire canvas? This removes both users\' drawings.';
+  String get clearCanvasConfirm =>
+      'Clear the entire canvas? This removes both users\' drawings.';
   @override
   String get saveDrawing => 'Save';
   @override
@@ -1675,7 +1690,8 @@ class _EnStrings extends AppStrings {
   @override
   String get strokeThickness => 'Thickness';
   @override
-  String get drawHint => 'Start drawing! Your partner will see your strokes in real time.';
+  String get drawHint =>
+      'Start drawing! Your partner will see your strokes in real time.';
   @override
   String partnerIsDrawing(String name) => '$name is drawing…';
   @override
