@@ -335,6 +335,18 @@ abstract class AppStrings {
   String get strokeThickness;
   String get drawHint;
   String partnerIsDrawing(String name);
+  // ── Draw Gallery ──
+  String get newCanvas;
+  String get myDrawings;
+  String get continueDrawing;
+  String get drawingMode;
+  String get untitledCanvas;
+  String get renameCanvas;
+  String get canvasNameLabel;
+  String get deleteCanvas;
+  String get deleteCanvasConfirm;
+  String get noDrawingsYet;
+  String get openCanvas;
   String get addFirstMemory;
   String get video;
   String get videoLabel;
@@ -947,6 +959,29 @@ class _RuStrings extends AppStrings {
   String get drawHint => 'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
   @override
   String partnerIsDrawing(String name) => '$name рисует…';
+  // ── Draw Gallery ──
+  @override
+  String get newCanvas => 'Новый холст';
+  @override
+  String get myDrawings => 'Мои рисунки';
+  @override
+  String get continueDrawing => 'Продолжить рисунок';
+  @override
+  String get drawingMode => 'Рисование';
+  @override
+  String get untitledCanvas => 'Холст';
+  @override
+  String get renameCanvas => 'Переименовать';
+  @override
+  String get canvasNameLabel => 'Название';
+  @override
+  String get deleteCanvas => 'Удалить рисунок';
+  @override
+  String get deleteCanvasConfirm => 'Удалить этот рисунок? Это действие нельзя отменить.';
+  @override
+  String get noDrawingsYet => 'Нет сохранённых рисунков';
+  @override
+  String get openCanvas => 'Открыть';
   @override
   String get addFirstMemory => 'Добавьте первое воспоминание в Ленту';
   @override
@@ -1678,6 +1713,29 @@ class _EnStrings extends AppStrings {
   String get drawHint => 'Start drawing! Your partner will see your strokes in real time.';
   @override
   String partnerIsDrawing(String name) => '$name is drawing…';
+  // ── Draw Gallery ──
+  @override
+  String get newCanvas => 'New Canvas';
+  @override
+  String get myDrawings => 'My Drawings';
+  @override
+  String get continueDrawing => 'Continue Drawing';
+  @override
+  String get drawingMode => 'Drawing';
+  @override
+  String get untitledCanvas => 'Canvas';
+  @override
+  String get renameCanvas => 'Rename';
+  @override
+  String get canvasNameLabel => 'Name';
+  @override
+  String get deleteCanvas => 'Delete Drawing';
+  @override
+  String get deleteCanvasConfirm => 'Delete this drawing? This cannot be undone.';
+  @override
+  String get noDrawingsYet => 'No saved drawings yet';
+  @override
+  String get openCanvas => 'Open';
   @override
   String get addFirstMemory => 'Add your first memory in Memory Lane';
   @override

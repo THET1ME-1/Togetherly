@@ -69,8 +69,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
     super.initState();
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
+    _moodService.addListener(_onDataChanged);
     _checkPinSupport();
     _loadWidgetTimerId();
+    // Подписываемся на настроение партнёров
+    for (final p in _pair.partners) {
+      _moodService.listenToPartner(p.uid);
+    }
   }
 
   Future<void> _loadWidgetTimerId() async {
@@ -88,11 +93,14 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Future<void> _checkPinSupport() async {
     if (!Platform.isAndroid) return;
+    // requestPinWidget supported on Android 8.0+ (API 26+) on most launchers.
+    // Some launchers return false even though pinning works — show button anyway.
     try {
       final supported = await HomeWidget.isRequestPinWidgetSupported();
-      if (mounted) setState(() => _canPinWidgets = supported ?? false);
+      if (mounted) setState(() => _canPinWidgets = (supported ?? false) || true);
     } catch (e) {
-      debugPrint('Pin widget check failed: $e');
+      // Fallback: show button on Android regardless
+      if (mounted) setState(() => _canPinWidgets = true);
     }
   }
 
@@ -160,7 +168,28 @@ class _WidgetScreenState extends State<WidgetScreen> {
         // Парный виджет синхронизируется WidgetService
         break;
       case 'mood':
-        // Настроение синхронизируется при изменении
+        // Синхронизируем из Mood Calendar за сегодня
+        {
+          final today = DateTime.now();
+          final myEntries = _moodService.myEntriesForDay(today);
+          final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+          final partnerUid = _pair.partners.isNotEmpty
+              ? _pair.partners.first.uid
+              : '';
+          final partnerEntries = partnerUid.isNotEmpty
+              ? _moodService.partnerEntriesForDay(partnerUid, today)
+              : <MoodEntry>[];
+          final partnerEntry =
+              partnerEntries.isNotEmpty ? partnerEntries.first : null;
+          await hws.syncMood(
+            moodEmojiAssetPath: myEntry?.imagePath ?? '',
+            moodLabel: myEntry?.label ?? '',
+            userName: _ws.myData?.displayName ?? '',
+            partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
+            partnerMoodLabel: partnerEntry?.label ?? '',
+            partnerUserName: _pair.partnerName,
+          );
+        }
         break;
     }
   }
@@ -178,6 +207,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   void dispose() {
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
+    _moodService.removeListener(_onDataChanged);
     super.dispose();
   }
 
@@ -600,8 +630,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _buildGalleryItem(
           title: isRu ? 'Настроение' : 'Mood',
           subtitle: isRu
-              ? 'Крупный виджет с вашим эмодзи настроения'
-              : 'Large mood emoji widget',
+              ? 'Горизонтальный виджет: моё и партнёра'
+              : 'Horizontal widget: mine & partner\'s',
           icon: Icons.emoji_emotions_rounded,
           iconColor: const Color(0xFFFBBF24),
           qualifiedName: 'com.example.love_app.MoodWidgetProvider',
@@ -1119,47 +1149,135 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildMoodPreview() {
-    final myData = _ws.myData;
-    final hasMood = myData != null && myData.hasMood;
     final isRu = LocaleService.instance.isRussian;
+    final today = DateTime.now();
+
+    // Моё настроение из Mood Calendar за сегодня
+    final myEntries = _moodService.myEntriesForDay(today);
+    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+
+    // Настроение партнёра из Mood Calendar за сегодня
+    final partnerUid =
+        _pair.partners.isNotEmpty ? _pair.partners.first.uid : '';
+    final partnerEntries = partnerUid.isNotEmpty
+        ? _moodService.partnerEntriesForDay(partnerUid, today)
+        : <MoodEntry>[];
+    final partnerEntry =
+        partnerEntries.isNotEmpty ? partnerEntries.first : null;
+
+    final myName = _ws.myData?.displayName.isNotEmpty == true
+        ? _ws.myData!.displayName
+        : (isRu ? 'Я' : 'Me');
+    final partnerName = _pair.partnerName.isNotEmpty
+        ? _pair.partnerName
+        : (isRu ? 'Партнёр' : 'Partner');
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [const Color(0xFFFFF8E1), const Color(0xFFFFF3CD)],
+          colors: [Color(0xFFFFF8E1), Color(0xFFFFF3CD)],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
+      child: Row(
         children: [
-          if (hasMood) ...[
-            Image.asset(myData.moodEmoji, width: 72, height: 72),
-            const SizedBox(height: 8),
-            Text(
-              myData.moodLabel,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFFFF6B8A),
+          // ── Левая часть: Моё настроение ──
+          Expanded(
+            child: _buildMoodHalf(
+              entry: myEntry,
+              name: myName,
+              isLeft: true,
+              isRu: isRu,
+            ),
+          ),
+          // ── Разделитель ──
+          Container(
+            width: 1,
+            height: 80,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.grey.shade200.withOpacity(0),
+                  Colors.grey.shade300,
+                  Colors.grey.shade200.withOpacity(0),
+                ],
               ),
             ),
-          ] else ...[
-            const Text('😶', style: TextStyle(fontSize: 60)),
-            const SizedBox(height: 8),
-            Text(
-              isRu ? 'Нет настроения' : 'No mood set',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                color: Colors.grey.shade500,
-              ),
+          ),
+          // ── Правая часть: Настроение партнёра ──
+          Expanded(
+            child: _buildMoodHalf(
+              entry: partnerEntry,
+              name: partnerName,
+              isLeft: false,
+              isRu: isRu,
             ),
-          ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMoodHalf({
+    required MoodEntry? entry,
+    required String name,
+    required bool isLeft,
+    required bool isRu,
+  }) {
+    return Column(
+      crossAxisAlignment:
+          isLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      children: [
+        Text(
+          name,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade500,
+            letterSpacing: 0.3,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6),
+        if (entry != null) ...[
+          Image.asset(
+            entry.imagePath,
+            width: 48,
+            height: 48,
+            errorBuilder: (_, __, ___) =>
+                const Text('😶', style: TextStyle(fontSize: 36)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            entry.label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFF6B8A),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ] else ...[
+          const Text('😶', style: TextStyle(fontSize: 36)),
+          const SizedBox(height: 4),
+          Text(
+            isRu ? 'Нет' : 'None',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: Colors.grey.shade400,
+            ),
+          ),
+        ],
+      ],
     );
   }
 

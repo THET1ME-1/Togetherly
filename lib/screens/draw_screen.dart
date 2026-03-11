@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/draw_stroke.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../services/canvas_storage_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -56,11 +57,19 @@ class DrawScreen extends StatefulWidget {
   final PairData pairData;
   final AppTheme theme;
 
+  /// Unique identifier for this canvas (default: 'main').
+  final String canvasId;
+
+  /// Human-readable title shown in the top bar.
+  final String? canvasName;
+
   const DrawScreen({
     super.key,
     required this.userData,
     required this.pairData,
     required this.theme,
+    this.canvasId = 'main',
+    this.canvasName,
   });
 
   @override
@@ -137,6 +146,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   String get _myUid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
+  String get _canvasId => widget.canvasId;
   bool get _hasSharedCanvas => _groupId.isNotEmpty;
 
   bool get _isShapeTool =>
@@ -181,12 +191,42 @@ class _DrawScreenState extends State<DrawScreen>
     )..repeat(reverse: true);
 
     _startFirebaseListeners();
+    _markPresence(true);
     _scheduleHints();
+  }
+
+  //  Thumbnail capture
+
+  /// Saves a PNG thumbnail to [CanvasStorageService] then pops the route.
+  Future<void> _captureThumbnailAndExit() async {
+    await _captureThumbnail();
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _captureThumbnail() async {
+    try {
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 1.5);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      await CanvasStorageService.instance.updatePreview(
+        _myUid,
+        _canvasId,
+        byteData.buffer.asUint8List(),
+      );
+    } catch (e) {
+      debugPrint('[Draw] thumbnail error: $e');
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _markPresence(false);
     _strokesSub?.cancel();
     _liveSub?.cancel();
     _bgColorSub?.cancel();
@@ -200,6 +240,17 @@ class _DrawScreenState extends State<DrawScreen>
     super.dispose();
   }
 
+  /// Notify Firebase that the user is on / has left this canvas.
+  void _markPresence(bool present) {
+    if (!_hasSharedCanvas) return;
+    _fb.setCanvasPresence(
+      groupId: _groupId,
+      canvasId: _canvasId,
+      userId: _myUid,
+      present: present,
+    );
+  }
+
   /// Сбрасываем все состояния жестов при уходе приложения в фон.
   /// Это предотвращает «залипание» после того, как система
   /// пропустила PointerUp-событие (шторка уведомлений, звонок и т.д.).
@@ -211,6 +262,9 @@ class _DrawScreenState extends State<DrawScreen>
       _activePointers.clear();
       _isZooming = false;
       _cancelCurrentGesture();
+      _markPresence(false);
+    } else if (state == AppLifecycleState.resumed) {
+      _markPresence(true);
     }
   }
 
@@ -260,17 +314,18 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_hasSharedCanvas) return;
 
     _strokesSub = _fb
-        .listenToDrawingStrokes(groupId: _groupId)
+        .listenToDrawingStrokes(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] strokes error: $e'))
         .listen(_onRemoteStrokes);
 
     _liveSub = _fb
-        .listenToLiveDrawingStrokes(groupId: _groupId, myUserId: _myUid)
+        .listenToLiveDrawingStrokes(
+            groupId: _groupId, myUserId: _myUid, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] live error: $e'))
         .listen(_onLiveStrokes);
 
     _bgColorSub = _fb
-        .listenToCanvasBgColor(groupId: _groupId)
+        .listenToCanvasBgColor(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
         .listen(_onBgColor);
 
@@ -554,6 +609,7 @@ class _DrawScreenState extends State<DrawScreen>
         groupId: _groupId,
         userId: _myUid,
         liveData: stroke.toLiveMap(),
+        canvasId: _canvasId,
       );
     } catch (e) {
       debugPrint('[Draw] live push error: $e');
@@ -563,7 +619,8 @@ class _DrawScreenState extends State<DrawScreen>
   void _clearLiveStroke() {
     if (!_hasSharedCanvas) return;
     _fb
-        .clearLiveDrawingStroke(groupId: _groupId, userId: _myUid)
+        .clearLiveDrawingStroke(
+            groupId: _groupId, userId: _myUid, canvasId: _canvasId)
         .catchError((e) => debugPrint('[Draw] clear live error: $e'));
   }
 
@@ -713,12 +770,15 @@ class _DrawScreenState extends State<DrawScreen>
     _myStrokeIds.add(stroke.id);
 
     _fb
-        .addDrawingStroke(groupId: _groupId, strokeData: stroke.toFirestore())
+        .addDrawingStroke(
+            groupId: _groupId,
+            strokeData: stroke.toFirestore(),
+            canvasId: _canvasId)
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(stroke.id)) {
             await _fb.deleteDrawingStroke(
-                groupId: _groupId, strokeId: remoteId);
+                groupId: _groupId, strokeId: remoteId, canvasId: _canvasId);
           }
         })
         .catchError((e) {
@@ -760,7 +820,9 @@ class _DrawScreenState extends State<DrawScreen>
 
     try {
       await _fb.deleteDrawingStroke(
-          groupId: _groupId, strokeId: remoteIdForDelete);
+          groupId: _groupId,
+          strokeId: remoteIdForDelete,
+          canvasId: _canvasId);
     } catch (e) {
       debugPrint('[Draw] undo error: $e');
       if (!mounted) return;
@@ -798,7 +860,10 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _bgColor = next);
     if (_hasSharedCanvas) {
       _fb
-          .setCanvasBgColor(groupId: _groupId, colorValue: next.toARGB32())
+          .setCanvasBgColor(
+              groupId: _groupId,
+              colorValue: next.toARGB32(),
+              canvasId: _canvasId)
           .catchError((e) => debugPrint('[Draw] fill error: $e'));
     }
   }
@@ -845,9 +910,11 @@ class _DrawScreenState extends State<DrawScreen>
 
     try {
       await Future.wait([
-        _fb.clearDrawingCanvas(groupId: _groupId),
+        _fb.clearDrawingCanvas(groupId: _groupId, canvasId: _canvasId),
         _fb.setCanvasBgColor(
-            groupId: _groupId, colorValue: Colors.white.toARGB32()),
+            groupId: _groupId,
+            colorValue: Colors.white.toARGB32(),
+            canvasId: _canvasId),
       ]);
     } catch (e) {
       debugPrint('[Draw] clear error: $e');
@@ -1108,42 +1175,49 @@ class _DrawScreenState extends State<DrawScreen>
     final s = LocaleService.current;
     final t = widget.theme;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFECECEC),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(s, t),
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(child: _buildCanvasArea()),
-                  // Floating partner badges - top right
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: _buildPartnerBadges(),
-                  ),
-                  // Scale indicator - top left
-                  if (_scale != 1.0)
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _captureThumbnailAndExit();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFECECEC),
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildTopBar(s, t),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _buildCanvasArea()),
+                    // Floating partner badges - top right
                     Positioned(
                       top: 10,
-                      left: 10,
-                      child: _buildScaleIndicator(),
+                      right: 10,
+                      child: _buildPartnerBadges(),
                     ),
-                  // Onboarding hint
-                  if (_showHint)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 88,
-                      child: Center(child: _buildHintBubble(s)),
-                    ),
-                ],
+                    // Scale indicator - top left
+                    if (_scale != 1.0)
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: _buildScaleIndicator(),
+                      ),
+                    // Onboarding hint
+                    if (_showHint)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 88,
+                        child: Center(child: _buildHintBubble(s)),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            _buildBottomToolbar(s, t),
-          ],
+              _buildBottomToolbar(s, t),
+            ],
+          ),
         ),
       ),
     );
@@ -1178,7 +1252,7 @@ class _DrawScreenState extends State<DrawScreen>
       child: Row(
         children: [
           _topIconBtn(Icons.arrow_back_ios_new_rounded,
-              () => Navigator.pop(context)),
+              _captureThumbnailAndExit),
           const SizedBox(width: 4),
           Expanded(
             child: Column(
@@ -1186,7 +1260,7 @@ class _DrawScreenState extends State<DrawScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  s.drawTogether,
+                  widget.canvasName ?? s.drawTogether,
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
@@ -1975,7 +2049,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
   Widget build(BuildContext context) {
     return Container(
       color: widget.bgColor,
-      child: Positioned.fill(
+      child: SizedBox.expand(
         child: CustomPaint(
           painter: _DrawingPainter(
             strokes: widget.strokes,
@@ -2155,5 +2229,4 @@ class _DrawingPainter extends CustomPainter {
       old.canvasSize != canvasSize;
 }
 
-// ignore: unused_element
-Future<void> unawaited(Future<void> future) => future;
+

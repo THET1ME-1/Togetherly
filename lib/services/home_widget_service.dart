@@ -188,27 +188,44 @@ class HomeWidgetService {
 
   /// Синхронизирует виджет настроения.
   ///
-  /// [moodEmojiAssetPath] — путь к ассету (напр. 'assets/images/emoji/033-love.png').
-  /// [moodLabel]          — текстовое название настроения.
-  /// [userName]           — имя пользователя.
+  /// [moodEmojiAssetPath]        — путь к ассету моего эмодзи (напр. 'assets/images/emoji/033-love.png').
+  /// [moodLabel]                 — текстовое название моего настроения.
+  /// [userName]                  — моё имя.
+  /// [partnerMoodEmojiAssetPath] — путь к ассету эмодзи партнёра.
+  /// [partnerMoodLabel]          — текстовое название настроения партнёра.
+  /// [partnerUserName]           — имя партнёра.
   Future<void> syncMood({
     required String moodEmojiAssetPath,
     required String moodLabel,
     String userName = '',
+    String partnerMoodEmojiAssetPath = '',
+    String partnerMoodLabel = '',
+    String partnerUserName = '',
   }) async {
     try {
-      String localPath = '';
+      // ── Моё настроение ──
+      String myLocalPath = '';
       if (moodEmojiAssetPath.isNotEmpty) {
-        localPath = await _copyAssetToLocal(moodEmojiAssetPath);
+        myLocalPath = await _copyAssetToLocal(moodEmojiAssetPath);
       }
-      await HomeWidget.saveWidgetData<String>('mood_emoji_path', localPath);
+      await HomeWidget.saveWidgetData<String>('mood_emoji_path', myLocalPath);
       await HomeWidget.saveWidgetData<String>('mood_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('mood_user_name', userName);
+
+      // ── Настроение партнёра ──
+      String partnerLocalPath = '';
+      if (partnerMoodEmojiAssetPath.isNotEmpty) {
+        partnerLocalPath = await _copyAssetToLocal(partnerMoodEmojiAssetPath);
+      }
+      await HomeWidget.saveWidgetData<String>('partner_mood_emoji_path', partnerLocalPath);
+      await HomeWidget.saveWidgetData<String>('partner_mood_label', partnerMoodLabel);
+      await HomeWidget.saveWidgetData<String>('partner_mood_user_name', partnerUserName);
+
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
       );
-      debugPrint('HomeWidgetService: mood synced — $moodLabel');
+      debugPrint('HomeWidgetService: mood synced — me=$moodLabel, partner=$partnerMoodLabel');
     } catch (e) {
       debugPrint('HomeWidgetService.syncMood failed: $e');
     }

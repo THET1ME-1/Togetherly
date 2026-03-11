@@ -87,8 +87,9 @@ service cloud.firestore {
       }
 
       // ── Совместное рисование ──
-      // Структура: groups/{groupId}/canvas/main/strokes/{strokeId}
-      //            groups/{groupId}/canvas/main/live/{userId}
+      // Структура: groups/{groupId}/canvas/{canvasId}/strokes/{strokeId}
+      //            groups/{groupId}/canvas/{canvasId}/live/{userId}
+      //            groups/{groupId}/canvas/{canvasId}           ← meta (bgColor)
       //
       // Вспомогательная функция: является ли запрашивающий участником группы
       function isMember() {
@@ -96,18 +97,24 @@ service cloud.firestore {
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
       }
 
+      // Мета-документ холста (хранит bgColor и прочие настройки)
+      match /canvas/{canvasId} {
+        allow read:   if isMember();
+        allow write:  if isMember();
+      }
+
       // Завершённые штрихи — читают и пишут все участники группы
-      match /canvas/main/strokes/{strokeId} {
+      match /canvas/{canvasId}/strokes/{strokeId} {
         allow read:   if isMember();
         allow create: if isMember();
-        // Удалять может только автор штриха (undo) ИЛИ любой участник (clear canvas)
+        // Удалять может любой участник (undo / clear canvas)
         allow delete: if isMember();
         // Обновление не используется
         allow update: if false;
       }
 
       // Текущий (live) штрих — каждый пишет только свой документ, читают все
-      match /canvas/main/live/{authorId} {
+      match /canvas/{canvasId}/live/{authorId} {
         allow read:   if isMember();
         allow create, update: if isMember() && request.auth.uid == authorId;
         allow delete: if isMember() && request.auth.uid == authorId;
