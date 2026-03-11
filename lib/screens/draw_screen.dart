@@ -18,7 +18,7 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
-//  Palette 
+//  Palette
 
 const List<Color> _kPalette = [
   Color(0xFF000000),
@@ -50,7 +50,7 @@ const List<Color> _kUserColors = [
   Color(0xFFF97316),
 ];
 
-//  DrawScreen 
+//  DrawScreen
 
 class DrawScreen extends StatefulWidget {
   final UserData userData;
@@ -119,17 +119,23 @@ class _DrawScreenState extends State<DrawScreen>
 
   bool _saving = false;
 
-  // Pan / zoom
+  // Pan / zoom / rotation
   Size _canvasSize = Size.zero;
   double _scale = 1.0;
+  double _canvasRotation = 0.0; // radians
   Offset _canvasOffset = Offset.zero;
   double _baseScale = 1.0;
+  double _baseRotation = 0.0;
   Offset _baseOffset = Offset.zero;
   Offset _baseFocalPoint = Offset.zero;
   bool _isZooming = false;
   int? _drawingPointerId;
   int _orderCounter = 0;
   DateTime _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Palm tool
+  Offset _palmPanStart = Offset.zero;
+  Offset _palmBaseOffset = Offset.zero;
 
   // Toolbar expansion
   bool _toolbarExpanded = false;
@@ -210,8 +216,7 @@ class _DrawScreenState extends State<DrawScreen>
               as RenderRepaintBoundary?;
       if (boundary == null) return;
       final image = await boundary.toImage(pixelRatio: 1.5);
-      final byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) return;
       await CanvasStorageService.instance.updatePreview(
         _myUid,
@@ -282,7 +287,7 @@ class _DrawScreenState extends State<DrawScreen>
     });
   }
 
-  //  Colour helpers 
+  //  Colour helpers
 
   Color _colorForUser(String uid) {
     final members = widget.pairData.members;
@@ -291,7 +296,7 @@ class _DrawScreenState extends State<DrawScreen>
     return _kUserColors[idx % _kUserColors.length];
   }
 
-  //  Snackbar 
+  //  Snackbar
 
   void _showMessage(String message, {Color? backgroundColor}) {
     if (!mounted) return;
@@ -308,7 +313,7 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  Firebase listeners 
+  //  Firebase listeners
 
   void _startFirebaseListeners() {
     if (!_hasSharedCanvas) return;
@@ -320,7 +325,10 @@ class _DrawScreenState extends State<DrawScreen>
 
     _liveSub = _fb
         .listenToLiveDrawingStrokes(
-            groupId: _groupId, myUserId: _myUid, canvasId: _canvasId)
+          groupId: _groupId,
+          myUserId: _myUid,
+          canvasId: _canvasId,
+        )
         .handleError((e) => debugPrint('[Draw] live error: $e'))
         .listen(_onLiveStrokes);
 
@@ -329,7 +337,10 @@ class _DrawScreenState extends State<DrawScreen>
         .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
         .listen(_onBgColor);
 
-    _staleTimer = Timer.periodic(const Duration(seconds: 2), _removeStalePartners);
+    _staleTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      _removeStalePartners,
+    );
   }
 
   void _onRemoteStrokes(List<dynamic> rawList) {
@@ -401,7 +412,8 @@ class _DrawScreenState extends State<DrawScreen>
         final stroke = DrawStroke.fromLiveMap(data, uid);
         _partnerLiveMap[uid] = stroke;
         _partnerTimestamps[uid] =
-            (data['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+            (data['ts'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch;
         _partnerNotifier.value = List.of(_partnerLiveMap.values);
         changed = true;
       } catch (e) {
@@ -448,7 +460,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {});
   }
 
-  //  Stroke helpers 
+  //  Stroke helpers
 
   int _compareStrokes(DrawStroke a, DrawStroke b) {
     final o = a.orderIndex.compareTo(b.orderIndex);
@@ -494,12 +506,24 @@ class _DrawScreenState extends State<DrawScreen>
         (rl.y - ll.y).abs() < 0.0001;
   }
 
-  //  Coordinate transforms 
+  //  Coordinate transforms
 
-  Offset _screenToCanvas(Offset localPoint) =>
-      (localPoint - _canvasOffset) / _scale;
+  /// Rotates [o] by [angle] radians around the origin.
+  Offset _rotateOffset(Offset o, double angle) {
+    final cos = math.cos(angle);
+    final sin = math.sin(angle);
+    return Offset(o.dx * cos - o.dy * sin, o.dx * sin + o.dy * cos);
+  }
 
-  //  Tool selection 
+  /// Converts a screen-local point to canvas coordinates,
+  /// accounting for pan, rotation, and scale.
+  Offset _screenToCanvas(Offset localPoint) {
+    final translated = localPoint - _canvasOffset;
+    final rotated = _rotateOffset(translated, -_canvasRotation);
+    return rotated / _scale;
+  }
+
+  //  Tool selection
 
   void _selectTool(DrawTool tool) {
     _cancelCurrentGesture();
@@ -519,7 +543,7 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  //  Drawing gestures 
+  //  Drawing gestures
 
   void _startStroke(Offset localPoint) {
     if (_canvasSize.isEmpty) return;
@@ -564,14 +588,19 @@ class _DrawScreenState extends State<DrawScreen>
   void _updateStroke(Offset localPoint) {
     if (!_isDrawing || _canvasSize.isEmpty) return;
     if (_currentShapeType != null) {
-      final end = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+      final end = DrawPoint.fromOffset(
+        _screenToCanvas(localPoint),
+        _canvasSize,
+      );
       if (_currentPoints.length >= 2) {
         _currentPoints[1] = end;
       } else {
         _currentPoints.add(end);
       }
     } else {
-      _currentPoints.add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
+      _currentPoints.add(
+        DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize),
+      );
     }
     _repaintNotifier.value++;
     _pushLiveStrokeIfNeeded();
@@ -620,7 +649,10 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_hasSharedCanvas) return;
     _fb
         .clearLiveDrawingStroke(
-            groupId: _groupId, userId: _myUid, canvasId: _canvasId)
+          groupId: _groupId,
+          userId: _myUid,
+          canvasId: _canvasId,
+        )
         .catchError((e) => debugPrint('[Draw] clear live error: $e'));
   }
 
@@ -643,12 +675,26 @@ class _DrawScreenState extends State<DrawScreen>
 
     // Один палец — принудительно сбрасываем zoom, если он завис
     _isZooming = false;
+
+    // Palm tool: начинаем пан холста одним пальцем
+    if (_activeTool == DrawTool.palm) {
+      _palmPanStart = event.localPosition;
+      _palmBaseOffset = _canvasOffset;
+      return;
+    }
+
     _drawingPointerId = event.pointer;
     _startStroke(event.localPosition);
   }
 
   void _onPointerMove(PointerMoveEvent event) {
     if (_isZooming || _activePointers.length != 1) return;
+    // Palm tool: панорамируем холст
+    if (_activeTool == DrawTool.palm) {
+      final delta = event.localPosition - _palmPanStart;
+      setState(() => _canvasOffset = _palmBaseOffset + delta);
+      return;
+    }
     if (_drawingPointerId != event.pointer) return;
     _updateStroke(event.localPosition);
   }
@@ -677,16 +723,29 @@ class _DrawScreenState extends State<DrawScreen>
     _baseScale = _scale;
     _baseOffset = _canvasOffset;
     _baseFocalPoint = details.localFocalPoint;
+    _baseRotation = _canvasRotation;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
-    final nextScale = (_baseScale * details.scale).clamp(_kMinScale, _kMaxScale);
-    final focalCanvas = (_baseFocalPoint - _baseOffset) / _baseScale;
-    final nextOffset = details.localFocalPoint - focalCanvas * nextScale;
+    final nextScale = (_baseScale * details.scale).clamp(
+      _kMinScale,
+      _kMaxScale,
+    );
+    final nextRotation = _baseRotation + details.rotation;
+    // Фокальная точка в координатах холста (вычисляется один раз из базового состояния)
+    final focalCanvas = _rotateOffset(
+      (_baseFocalPoint - _baseOffset) / _baseScale,
+      -_baseRotation,
+    );
+    // Новый offset: фокальная точка холста должна оказаться под пальцами
+    final nextOffset =
+        details.localFocalPoint -
+        _rotateOffset(focalCanvas * nextScale, nextRotation);
     setState(() {
       _scale = nextScale;
+      _canvasRotation = nextRotation;
       _canvasOffset = nextOffset;
     });
   }
@@ -705,10 +764,11 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {
       _scale = 1.0;
       _canvasOffset = Offset.zero;
+      _canvasRotation = 0.0;
     });
   }
 
-  //  Commit stroke 
+  //  Commit stroke
 
   void _commitCurrentStroke() {
     final shapeType = _currentShapeType;
@@ -771,14 +831,18 @@ class _DrawScreenState extends State<DrawScreen>
 
     _fb
         .addDrawingStroke(
-            groupId: _groupId,
-            strokeData: stroke.toFirestore(),
-            canvasId: _canvasId)
+          groupId: _groupId,
+          strokeData: stroke.toFirestore(),
+          canvasId: _canvasId,
+        )
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(stroke.id)) {
             await _fb.deleteDrawingStroke(
-                groupId: _groupId, strokeId: remoteId, canvasId: _canvasId);
+              groupId: _groupId,
+              strokeId: remoteId,
+              canvasId: _canvasId,
+            );
           }
         })
         .catchError((e) {
@@ -792,7 +856,7 @@ class _DrawScreenState extends State<DrawScreen>
         });
   }
 
-  //  Undo / Redo 
+  //  Undo / Redo
 
   Future<void> _undo() async {
     if (_myStrokeIds.isEmpty) return;
@@ -820,9 +884,10 @@ class _DrawScreenState extends State<DrawScreen>
 
     try {
       await _fb.deleteDrawingStroke(
-          groupId: _groupId,
-          strokeId: remoteIdForDelete,
-          canvasId: _canvasId);
+        groupId: _groupId,
+        strokeId: remoteIdForDelete,
+        canvasId: _canvasId,
+      );
     } catch (e) {
       debugPrint('[Draw] undo error: $e');
       if (!mounted) return;
@@ -852,7 +917,7 @@ class _DrawScreenState extends State<DrawScreen>
     _submitStroke(stroke);
   }
 
-  //  Fill / Clear 
+  //  Fill / Clear
 
   void _applyFill() {
     _cancelCurrentGesture();
@@ -861,9 +926,10 @@ class _DrawScreenState extends State<DrawScreen>
     if (_hasSharedCanvas) {
       _fb
           .setCanvasBgColor(
-              groupId: _groupId,
-              colorValue: next.toARGB32(),
-              canvasId: _canvasId)
+            groupId: _groupId,
+            colorValue: next.toARGB32(),
+            canvasId: _canvasId,
+          )
           .catchError((e) => debugPrint('[Draw] fill error: $e'));
     }
   }
@@ -912,9 +978,10 @@ class _DrawScreenState extends State<DrawScreen>
       await Future.wait([
         _fb.clearDrawingCanvas(groupId: _groupId, canvasId: _canvasId),
         _fb.setCanvasBgColor(
-            groupId: _groupId,
-            colorValue: Colors.white.toARGB32(),
-            canvasId: _canvasId),
+          groupId: _groupId,
+          colorValue: Colors.white.toARGB32(),
+          canvasId: _canvasId,
+        ),
       ]);
     } catch (e) {
       debugPrint('[Draw] clear error: $e');
@@ -930,7 +997,7 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  //  Save / Share 
+  //  Save / Share
 
   Future<Directory> _resolveSaveDirectory() async {
     if (Platform.isAndroid) {
@@ -946,7 +1013,8 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _saving = true);
     try {
       final boundary =
-          _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+          _canvasKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary == null) return;
 
       final image = await boundary.toImage(pixelRatio: 2.5);
@@ -979,7 +1047,7 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  //  Bottom sheet pickers 
+  //  Bottom sheet pickers
 
   void _showThicknessPicker() {
     double temp = _strokeWidth;
@@ -1011,7 +1079,9 @@ class _DrawScreenState extends State<DrawScreen>
                 Text(
                   LocaleService.current.strokeThickness,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -1107,7 +1177,9 @@ class _DrawScreenState extends State<DrawScreen>
               Text(
                 LocaleService.current.brush,
                 style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 16),
               GridView.builder(
@@ -1136,15 +1208,16 @@ class _DrawScreenState extends State<DrawScreen>
                           color: sel
                               ? widget.theme.primary
                               : (c == Colors.white
-                                  ? Colors.grey.shade300
-                                  : Colors.transparent),
+                                    ? Colors.grey.shade300
+                                    : Colors.transparent),
                           width: sel ? 3 : 1.5,
                         ),
                         boxShadow: sel
                             ? [
                                 BoxShadow(
-                                    color: c.withValues(alpha: 0.5),
-                                    blurRadius: 8)
+                                  color: c.withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                ),
                               ]
                             : null,
                       ),
@@ -1168,7 +1241,7 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  BUILD 
+  //  BUILD
 
   @override
   Widget build(BuildContext context) {
@@ -1197,8 +1270,8 @@ class _DrawScreenState extends State<DrawScreen>
                       right: 10,
                       child: _buildPartnerBadges(),
                     ),
-                    // Scale indicator - top left
-                    if (_scale != 1.0)
+                    // Scale / rotation indicator - top left
+                    if (_scale != 1.0 || _canvasRotation != 0.0)
                       Positioned(
                         top: 10,
                         left: 10,
@@ -1223,17 +1296,19 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  Top bar 
+  //  Top bar
 
   Widget _buildTopBar(AppStrings s, AppTheme t) {
     final drawingPartners = _partnerLiveMap.entries
         .where((e) => e.value.points.length > 1)
-        .map((e) =>
-            widget.pairData.partners
-                .where((p) => p.uid == e.key)
-                .map((p) => p.name)
-                .firstOrNull ??
-            '?')
+        .map(
+          (e) =>
+              widget.pairData.partners
+                  .where((p) => p.uid == e.key)
+                  .map((p) => p.name)
+                  .firstOrNull ??
+              '?',
+        )
         .toList();
 
     return Container(
@@ -1251,8 +1326,10 @@ class _DrawScreenState extends State<DrawScreen>
       ),
       child: Row(
         children: [
-          _topIconBtn(Icons.arrow_back_ios_new_rounded,
-              _captureThumbnailAndExit),
+          _topIconBtn(
+            Icons.arrow_back_ios_new_rounded,
+            _captureThumbnailAndExit,
+          ),
           const SizedBox(width: 4),
           Expanded(
             child: Column(
@@ -1262,7 +1339,9 @@ class _DrawScreenState extends State<DrawScreen>
                 Text(
                   widget.canvasName ?? s.drawTogether,
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 if (drawingPartners.isNotEmpty)
                   AnimatedSwitcher(
@@ -1327,9 +1406,7 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null
-                ? Colors.grey.shade300
-                : Colors.grey.shade700,
+            color: onTap == null ? Colors.grey.shade300 : Colors.grey.shade700,
           ),
         ),
       ),
@@ -1338,7 +1415,7 @@ class _DrawScreenState extends State<DrawScreen>
     return btn;
   }
 
-  //  Canvas area 
+  //  Canvas area
 
   Widget _buildCanvasArea() {
     return LayoutBuilder(
@@ -1379,7 +1456,11 @@ class _DrawScreenState extends State<DrawScreen>
                   child: Transform(
                     transform: Matrix4.identity()
                       ..translateByDouble(
-                          _canvasOffset.dx, _canvasOffset.dy, 0.0, 1.0)
+                        _canvasOffset.dx,
+                        _canvasOffset.dy,
+                        0.0,
+                        1.0,
+                      )
                       ..scaleByDouble(_scale, _scale, 1.0, 1.0),
                     child: RepaintBoundary(
                       key: _canvasKey,
@@ -1442,13 +1523,12 @@ class _DrawScreenState extends State<DrawScreen>
 
   Widget _buildPartnerCursor(DrawStroke stroke) {
     final last = stroke.points.last;
-    final sx = last.x * _canvasSize.width * _scale +
-        _canvasOffset.dx +
-        _kCanvasPad;
-    final sy = last.y * _canvasSize.height * _scale +
-        _canvasOffset.dy +
-        _kCanvasPad;
-    final name = widget.pairData.partners
+    final sx =
+        last.x * _canvasSize.width * _scale + _canvasOffset.dx + _kCanvasPad;
+    final sy =
+        last.y * _canvasSize.height * _scale + _canvasOffset.dy + _kCanvasPad;
+    final name =
+        widget.pairData.partners
             .where((p) => p.uid == stroke.userId)
             .map((p) => p.name)
             .firstOrNull ??
@@ -1466,21 +1546,21 @@ class _DrawScreenState extends State<DrawScreen>
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Transform.scale(
-                  scale: pulse,
-                  child: child,
-                ),
+                Transform.scale(scale: pulse, child: child),
                 const SizedBox(height: 2),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                          color: color.withValues(alpha: 0.4),
-                          blurRadius: 6),
+                        color: color.withValues(alpha: 0.4),
+                        blurRadius: 6,
+                      ),
                     ],
                   ),
                   child: Text(
@@ -1503,12 +1583,14 @@ class _DrawScreenState extends State<DrawScreen>
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2.5),
               boxShadow: [
-                BoxShadow(
-                    color: color.withValues(alpha: 0.45), blurRadius: 10),
+                BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 10),
               ],
             ),
-            child: const Icon(Icons.brush_rounded,
-                size: 12, color: Colors.white),
+            child: const Icon(
+              Icons.brush_rounded,
+              size: 12,
+              color: Colors.white,
+            ),
           ),
         ),
       ),
@@ -1517,6 +1599,8 @@ class _DrawScreenState extends State<DrawScreen>
 
   Widget _buildScaleIndicator() {
     final pct = (_scale * 100).round();
+    final deg = (_canvasRotation * 180 / math.pi).round();
+    final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$deg°' : '$pct%';
     return GestureDetector(
       onTap: _resetZoom,
       child: Container(
@@ -1526,7 +1610,7 @@ class _DrawScreenState extends State<DrawScreen>
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
-          '$pct%',
+          label,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 12,
@@ -1537,7 +1621,7 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  Partner badges 
+  //  Partner badges
 
   Widget _buildPartnerBadges() {
     final partners = widget.pairData.partners;
@@ -1558,17 +1642,16 @@ class _DrawScreenState extends State<DrawScreen>
             boxShadow: isDrawing
                 ? [
                     BoxShadow(
-                        color: color.withValues(alpha: 0.4), blurRadius: 10)
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                    ),
                   ]
                 : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (isDrawing) ...[
-                const _PulsingDot(),
-                const SizedBox(width: 4),
-              ],
+              if (isDrawing) ...[const _PulsingDot(), const SizedBox(width: 4)],
               Text(
                 p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
                 style: const TextStyle(
@@ -1584,7 +1667,7 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  Hint bubble 
+  //  Hint bubble
 
   Widget _buildHintBubble(AppStrings s) {
     final hints = [s.drawHint, s.brush, s.strokeThickness];
@@ -1615,8 +1698,11 @@ class _DrawScreenState extends State<DrawScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icons[_hintStep.clamp(0, 2)],
-                  color: Colors.white70, size: 20),
+              Icon(
+                icons[_hintStep.clamp(0, 2)],
+                color: Colors.white70,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
@@ -1638,7 +1724,7 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  //  Bottom toolbar 
+  //  Bottom toolbar
 
   Widget _buildBottomToolbar(AppStrings s, AppTheme t) {
     return Container(
@@ -1677,14 +1763,34 @@ class _DrawScreenState extends State<DrawScreen>
       color: const Color(0xFFF9F9F9),
       child: Row(
         children: [
-          _toolBtn(Icons.remove_rounded, DrawTool.line, s.drawLine, t,
-              compact: true),
-          _toolBtn(Icons.crop_square_rounded, DrawTool.rect, s.drawRect, t,
-              compact: true),
-          _toolBtn(Icons.circle_outlined, DrawTool.circle, s.drawCircle, t,
-              compact: true),
-          _toolBtn(Icons.format_color_fill_rounded, DrawTool.fill, s.fillBg,
-              t, compact: true),
+          _toolBtn(
+            Icons.remove_rounded,
+            DrawTool.line,
+            s.drawLine,
+            t,
+            compact: true,
+          ),
+          _toolBtn(
+            Icons.crop_square_rounded,
+            DrawTool.rect,
+            s.drawRect,
+            t,
+            compact: true,
+          ),
+          _toolBtn(
+            Icons.circle_outlined,
+            DrawTool.circle,
+            s.drawCircle,
+            t,
+            compact: true,
+          ),
+          _toolBtn(
+            Icons.format_color_fill_rounded,
+            DrawTool.fill,
+            s.fillBg,
+            t,
+            compact: true,
+          ),
           const Spacer(),
           _actionBtn(
             Icons.delete_outline_rounded,
@@ -1742,7 +1848,9 @@ class _DrawScreenState extends State<DrawScreen>
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 130),
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 3, vertical: 10),
+                          horizontal: 3,
+                          vertical: 10,
+                        ),
                         width: sel ? 40 : 34,
                         height: sel ? 40 : 34,
                         decoration: BoxDecoration(
@@ -1752,8 +1860,8 @@ class _DrawScreenState extends State<DrawScreen>
                             color: sel
                                 ? t.primary
                                 : (c == Colors.white
-                                    ? Colors.grey.shade400
-                                    : Colors.transparent),
+                                      ? Colors.grey.shade400
+                                      : Colors.transparent),
                             width: sel ? 2.5 : 1,
                           ),
                           boxShadow: sel
@@ -1762,7 +1870,7 @@ class _DrawScreenState extends State<DrawScreen>
                                     color: c.withValues(alpha: 0.5),
                                     blurRadius: 8,
                                     spreadRadius: 1,
-                                  )
+                                  ),
                                 ]
                               : null,
                         ),
@@ -1773,11 +1881,17 @@ class _DrawScreenState extends State<DrawScreen>
               ),
             ),
             const SizedBox(width: 4),
+            // Palm (hand) tool — pan & rotate canvas without drawing
+            _toolBtn(Icons.pan_tool_rounded, DrawTool.palm, s.palmTool, t),
             // Brush tool
             _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),
             // Eraser
             _toolBtn(
-                Icons.auto_fix_normal_rounded, DrawTool.eraser, s.eraser, t),
+              Icons.auto_fix_normal_rounded,
+              DrawTool.eraser,
+              s.eraser,
+              t,
+            ),
             // Thickness
             _actionBtn(
               Icons.line_weight_rounded,
@@ -1795,8 +1909,12 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   Widget _toolBtn(
-      IconData icon, DrawTool tool, String tooltip, AppTheme t,
-      {bool compact = false}) {
+    IconData icon,
+    DrawTool tool,
+    String tooltip,
+    AppTheme t, {
+    bool compact = false,
+  }) {
     final active = _activeTool == tool;
     final size = compact ? 36.0 : 42.0;
     return Tooltip(
@@ -1806,7 +1924,9 @@ class _DrawScreenState extends State<DrawScreen>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           margin: EdgeInsets.symmetric(
-              horizontal: compact ? 2 : 3, vertical: compact ? 8 : 6),
+            horizontal: compact ? 2 : 3,
+            vertical: compact ? 8 : 6,
+          ),
           width: size,
           height: size,
           decoration: BoxDecoration(
@@ -1816,7 +1936,9 @@ class _DrawScreenState extends State<DrawScreen>
             borderRadius: BorderRadius.circular(12),
             border: active
                 ? Border.all(
-                    color: t.primary.withValues(alpha: 0.45), width: 1.5)
+                    color: t.primary.withValues(alpha: 0.45),
+                    width: 1.5,
+                  )
                 : null,
           ),
           child: Icon(
@@ -1829,8 +1951,13 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  Widget _actionBtn(IconData icon, VoidCallback? onTap,
-      {required String tooltip, Color? color, String? badge}) {
+  Widget _actionBtn(
+    IconData icon,
+    VoidCallback? onTap, {
+    required String tooltip,
+    Color? color,
+    String? badge,
+  }) {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -1858,7 +1985,9 @@ class _DrawScreenState extends State<DrawScreen>
                   bottom: 4,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 3, vertical: 1),
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade600,
                       borderRadius: BorderRadius.circular(4),
@@ -1866,9 +1995,10 @@ class _DrawScreenState extends State<DrawScreen>
                     child: Text(
                       badge,
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700),
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -1900,8 +2030,7 @@ class _DrawScreenState extends State<DrawScreen>
               : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: _toolbarExpanded
-              ? Border.all(
-                  color: t.primary.withValues(alpha: 0.4), width: 1.5)
+              ? Border.all(color: t.primary.withValues(alpha: 0.4), width: 1.5)
               : null,
         ),
         child: AnimatedRotation(
@@ -1910,8 +2039,7 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             Icons.expand_less_rounded,
             size: 22,
-            color:
-                _toolbarExpanded ? t.primary : Colors.grey.shade500,
+            color: _toolbarExpanded ? t.primary : Colors.grey.shade500,
           ),
         ),
       ),
@@ -1919,7 +2047,7 @@ class _DrawScreenState extends State<DrawScreen>
   }
 }
 
-//  Grid background 
+//  Grid background
 
 class _GridBackground extends StatelessWidget {
   const _GridBackground();
@@ -1949,7 +2077,7 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter _) => false;
 }
 
-//  Pulsing dot widget 
+//  Pulsing dot widget
 
 class _PulsingDot extends StatefulWidget {
   const _PulsingDot();
@@ -1995,7 +2123,7 @@ class _PulsingDotState extends State<_PulsingDot>
   }
 }
 
-//  _CanvasScene 
+//  _CanvasScene
 
 class _CanvasScene extends StatefulWidget {
   final Color bgColor;
@@ -2032,7 +2160,10 @@ class _CanvasSceneState extends State<_CanvasScene> {
   @override
   void initState() {
     super.initState();
-    _repaint = Listenable.merge([widget.repaintNotifier, widget.partnerNotifier]);
+    _repaint = Listenable.merge([
+      widget.repaintNotifier,
+      widget.partnerNotifier,
+    ]);
   }
 
   @override
@@ -2040,8 +2171,10 @@ class _CanvasSceneState extends State<_CanvasScene> {
     super.didUpdateWidget(old);
     if (old.repaintNotifier != widget.repaintNotifier ||
         old.partnerNotifier != widget.partnerNotifier) {
-      _repaint =
-          Listenable.merge([widget.repaintNotifier, widget.partnerNotifier]);
+      _repaint = Listenable.merge([
+        widget.repaintNotifier,
+        widget.partnerNotifier,
+      ]);
     }
   }
 
@@ -2068,7 +2201,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
   }
 }
 
-//  _DrawingPainter 
+//  _DrawingPainter
 
 class _DrawingPainter extends CustomPainter {
   final List<DrawStroke> strokes;
@@ -2099,33 +2232,69 @@ class _DrawingPainter extends CustomPainter {
 
     for (final s in strokes) {
       if (s.shapeType != null) {
-        _drawShape(canvas, s.points, s.colorValue, s.strokeWidth,
-            s.shapeType!, size);
+        _drawShape(
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.shapeType!,
+          size,
+        );
       } else {
         _drawStroke(
-            canvas, s.points, s.colorValue, s.strokeWidth, s.isEraser, size);
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.isEraser,
+          size,
+        );
       }
     }
 
     if (currentPoints.isNotEmpty) {
       if (currentShapeType != null && currentPoints.length >= 2) {
-        _drawShape(canvas, currentPoints, currentColorValue,
-            currentStrokeWidth, currentShapeType!, size);
+        _drawShape(
+          canvas,
+          currentPoints,
+          currentColorValue,
+          currentStrokeWidth,
+          currentShapeType!,
+          size,
+        );
       } else {
-        _drawStroke(canvas, currentPoints, currentColorValue,
-            currentStrokeWidth, currentIsEraser, size);
+        _drawStroke(
+          canvas,
+          currentPoints,
+          currentColorValue,
+          currentStrokeWidth,
+          currentIsEraser,
+          size,
+        );
       }
     }
 
     for (final s in partnerNotifier.value) {
       if (s.shapeType != null && s.points.length >= 2) {
-        _drawShape(canvas, s.points, s.colorValue, s.strokeWidth,
-            s.shapeType!, size,
-            alpha: 0.85);
+        _drawShape(
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.shapeType!,
+          size,
+          alpha: 0.85,
+        );
       } else if (s.shapeType == null) {
-        _drawStroke(canvas, s.points, s.colorValue, s.strokeWidth,
-            s.isEraser, size,
-            alpha: 0.85);
+        _drawStroke(
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.isEraser,
+          size,
+          alpha: 0.85,
+        );
       }
     }
 
@@ -2228,5 +2397,3 @@ class _DrawingPainter extends CustomPainter {
       old.currentShapeType != currentShapeType ||
       old.canvasSize != canvasSize;
 }
-
-

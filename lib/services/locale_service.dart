@@ -315,6 +315,7 @@ abstract class AppStrings {
   String get drawTogether;
   String get brush;
   String get eraser;
+  String get palmTool;
   String get fillBg;
   String get drawLine;
   String get drawRect;
@@ -920,6 +921,8 @@ class _RuStrings extends AppStrings {
   @override
   String get eraser => 'Ластик';
   @override
+  String get palmTool => 'Рука (перемещение)';
+  @override
   String get fillBg => 'Заливка фона';
   @override
   String get drawLine => 'Линия';
@@ -930,7 +933,8 @@ class _RuStrings extends AppStrings {
   @override
   String get insertPhoto => 'Вставить фото';
   @override
-  String get photoRequiresPartner => 'Фото доступно только при совместном рисовании с партнёром';
+  String get photoRequiresPartner =>
+      'Фото доступно только при совместном рисовании с партнёром';
   @override
   String get photoFromGallery => 'Из галереи';
   @override
@@ -942,7 +946,8 @@ class _RuStrings extends AppStrings {
   @override
   String get clearCanvas => 'Очистить';
   @override
-  String get clearCanvasConfirm => 'Очистить весь холст? Это удалит рисунки обоих.';
+  String get clearCanvasConfirm =>
+      'Очистить весь холст? Это удалит рисунки обоих.';
   @override
   String get saveDrawing => 'Сохранить';
   @override
@@ -956,7 +961,8 @@ class _RuStrings extends AppStrings {
   @override
   String get strokeThickness => 'Толщина';
   @override
-  String get drawHint => 'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
+  String get drawHint =>
+      'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
   @override
   String partnerIsDrawing(String name) => '$name рисует…';
   // ── Draw Gallery ──
@@ -977,7 +983,8 @@ class _RuStrings extends AppStrings {
   @override
   String get deleteCanvas => 'Удалить рисунок';
   @override
-  String get deleteCanvasConfirm => 'Удалить этот рисунок? Это действие нельзя отменить.';
+  String get deleteCanvasConfirm =>
+      'Удалить этот рисунок? Это действие нельзя отменить.';
   @override
   String get noDrawingsYet => 'Нет сохранённых рисунков';
   @override
@@ -1674,6 +1681,8 @@ class _EnStrings extends AppStrings {
   @override
   String get eraser => 'Eraser';
   @override
+  String get palmTool => 'Hand (pan)';
+  @override
   String get fillBg => 'Fill BG';
   @override
   String get drawLine => 'Line';
@@ -1684,7 +1693,8 @@ class _EnStrings extends AppStrings {
   @override
   String get insertPhoto => 'Insert Photo';
   @override
-  String get photoRequiresPartner => 'Photo sharing is available only when drawing with a partner';
+  String get photoRequiresPartner =>
+      'Photo sharing is available only when drawing with a partner';
   @override
   String get photoFromGallery => 'From Gallery';
   @override
@@ -1696,7 +1706,8 @@ class _EnStrings extends AppStrings {
   @override
   String get clearCanvas => 'Clear';
   @override
-  String get clearCanvasConfirm => 'Clear the entire canvas? This removes both users\' drawings.';
+  String get clearCanvasConfirm =>
+      'Clear the entire canvas? This removes both users\' drawings.';
   @override
   String get saveDrawing => 'Save';
   @override
@@ -1710,7 +1721,8 @@ class _EnStrings extends AppStrings {
   @override
   String get strokeThickness => 'Thickness';
   @override
-  String get drawHint => 'Start drawing! Your partner will see your strokes in real time.';
+  String get drawHint =>
+      'Start drawing! Your partner will see your strokes in real time.';
   @override
   String partnerIsDrawing(String name) => '$name is drawing…';
   // ── Draw Gallery ──
@@ -1731,7 +1743,8 @@ class _EnStrings extends AppStrings {
   @override
   String get deleteCanvas => 'Delete Drawing';
   @override
-  String get deleteCanvasConfirm => 'Delete this drawing? This cannot be undone.';
+  String get deleteCanvasConfirm =>
+      'Delete this drawing? This cannot be undone.';
   @override
   String get noDrawingsYet => 'No saved drawings yet';
   @override
