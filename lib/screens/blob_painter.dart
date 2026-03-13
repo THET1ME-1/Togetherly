@@ -2,15 +2,17 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Blob keyframe — stores corner radii in PIXELS, not percentages.
-//  This gives predictable shapes regardless of card size.
+//  Blob keyframe — stores 8 border-radius percentage values
+//  matching the CSS syntax:  tl tr br bl / tl tr br bl
+//  (horizontal radii first, then vertical radii)
 //
-//  Each keyframe has 4 corner radii: [tl, tr, br, bl]
-//  rx = horizontal radius, ry = vertical radius (elliptical corners)
+//  Values are 0..1 fractions of size. For a smooth organic look we keep
+//  them in a narrow band (0.38 – 0.58) and keep bottom corners very
+//  stable so the "Days / Months / Time" bar is never clipped.
 // ─────────────────────────────────────────────────────────────────────────────
 class _BlobKeyframe {
-  final List<double> rx; // [tl, tr, br, bl] horizontal px
-  final List<double> ry; // [tl, tr, br, bl] vertical   px
+  final List<double> rx; // [tl, tr, br, bl] horizontal, 0..1 fraction
+  final List<double> ry; // [tl, tr, br, bl] vertical,   0..1 fraction
 
   const _BlobKeyframe({required this.rx, required this.ry});
 
@@ -23,40 +25,23 @@ class _BlobKeyframe {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Blob keyframes — pixel-based, gentle organic shapes.
+//  Blob keyframes — gentle, organic variations.
 //
-//  Top corners (tl, tr): 50–100 px — visible organic movement.
-//  Bottom corners (br, bl): FIXED at 32 px — toggle bar is never clipped.
-//  The morph happens only in the top/side regions.
+//  Top corners (tl, tr) — wide motion for a fluid organic look.
+//  Bottom corners (br, bl) — FIXED at round-rect baseline (~0.09–0.12)
+//  so the "Days / Months / Time" toggle bar is never clipped.
 // ─────────────────────────────────────────────────────────────────────────────
-const _kBottom = 32.0; // bottom corners are always stable
-
 final _kBlobs = <_BlobKeyframe>[
-  // keyframe 0 — balanced, slightly organic
-  _BlobKeyframe(
-    rx: [72, 64, _kBottom, _kBottom],
-    ry: [80, 70, _kBottom, _kBottom],
-  ),
-  // keyframe 1 — lean top-left wider
-  _BlobKeyframe(
-    rx: [90, 56, _kBottom, _kBottom],
-    ry: [68, 86, _kBottom, _kBottom],
-  ),
-  // keyframe 2 — lean top-right wider
-  _BlobKeyframe(
-    rx: [58, 88, _kBottom, _kBottom],
-    ry: [84, 60, _kBottom, _kBottom],
-  ),
-  // keyframe 3 — both tops rounded
-  _BlobKeyframe(
-    rx: [80, 78, _kBottom, _kBottom],
-    ry: [74, 80, _kBottom, _kBottom],
-  ),
-  // keyframe 4 — asymmetric wave
-  _BlobKeyframe(
-    rx: [66, 72, _kBottom, _kBottom],
-    ry: [88, 66, _kBottom, _kBottom],
-  ),
+  // keyframe 0 — resting / balanced
+  _BlobKeyframe(rx: [0.46, 0.54, 0.10, 0.10], ry: [0.48, 0.48, 0.11, 0.11]),
+  // keyframe 1 — lean top-left
+  _BlobKeyframe(rx: [0.40, 0.56, 0.10, 0.10], ry: [0.42, 0.52, 0.11, 0.11]),
+  // keyframe 2 — lean top-right
+  _BlobKeyframe(rx: [0.54, 0.42, 0.10, 0.10], ry: [0.52, 0.44, 0.11, 0.11]),
+  // keyframe 3 — wider top, stable bottom
+  _BlobKeyframe(rx: [0.48, 0.52, 0.10, 0.10], ry: [0.40, 0.54, 0.11, 0.11]),
+  // keyframe 4 — subtle wave
+  _BlobKeyframe(rx: [0.44, 0.50, 0.10, 0.10], ry: [0.50, 0.46, 0.11, 0.11]),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,37 +71,31 @@ class BlobClipper extends CustomClipper<Path> {
       old.blobValue != blobValue || old.expandProgress != expandProgress;
 
   // ── Path builder ──────────────────────────────────────────────────────────
-  //  Smooth path with cubic bezier corners (k ≈ 0.5523 for perfect 90° arcs).
-  //  Radii are in pixels and clamped to half the size to avoid overlap.
+  //  Smooth superellipse-style path. Every corner uses a cubic bezier with
+  //  the standard 90° arc constant (k ≈ 0.5523) so curves are always round.
   // ─────────────────────────────────────────────────────────────────────────
   static Path _buildPath(Size size, _BlobKeyframe shape, double roundedCorner) {
     final w = size.width;
     final h = size.height;
     const kB = 0.5523; // bezier constant for perfect 90° arc
-    const rr = 32.0; // round-rect target radius
+
+    // Round-rect baseline (32 px corners) as fractions
+    final rrx = (32.0 / w).clamp(0.0, 0.5);
+    final rry = (32.0 / h).clamp(0.0, 0.5);
 
     final ep = roundedCorner.clamp(0.0, 1.0);
 
-    // Lerp from blob radius → stable 32px; clamp so radii don't exceed half size
-    double lr(double blobR) {
-      final raw = blobR + (rr - blobR) * ep;
-      return raw.clamp(24.0, w * 0.48); // never sharper than 24px
-    }
+    // Lerp from blob shape → round-rect
+    double lr(double blobR, double rrR) => blobR + (rrR - blobR) * ep;
 
-    double lrV(double blobR) {
-      final raw = blobR + (rr - blobR) * ep;
-      return raw.clamp(24.0, h * 0.48);
-    }
-
-    final tlrx = lr(shape.rx[0]);
-    final tlry = lrV(shape.ry[0]);
-    final trrx = lr(shape.rx[1]);
-    final trry = lrV(shape.ry[1]);
-    // Bottom corners — always exactly 32px (no blob influence)
-    final brrx = rr.clamp(0.0, w * 0.48);
-    final brry = rr.clamp(0.0, h * 0.48);
-    final blrx = rr.clamp(0.0, w * 0.48);
-    final blry = rr.clamp(0.0, h * 0.48);
+    final tlrx = lr(shape.rx[0], rrx) * w;
+    final tlry = lr(shape.ry[0], rry) * h;
+    final trrx = lr(shape.rx[1], rrx) * w;
+    final trry = lr(shape.ry[1], rry) * h;
+    final brrx = lr(shape.rx[2], rrx) * w;
+    final brry = lr(shape.ry[2], rry) * h;
+    final blrx = lr(shape.rx[3], rrx) * w;
+    final blry = lr(shape.ry[3], rry) * h;
 
     final path = Path();
 
