@@ -7,6 +7,7 @@ import '../models/timer_item.dart';
 import '../services/locale_service.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
+import 'blob_painter.dart';
 
 /// Расширяемая карточка таймера.
 ///
@@ -19,6 +20,7 @@ class ExpandableTimerCard extends StatefulWidget {
   final String partnerAvatarUrl;
   final String myAvatarUrl;
   final bool isPaired;
+  final bool blobEnabled;
 
   /// Callback, уведомляющий родителя о состоянии раскрытия
   /// (чтобы скрывать bottom nav).
@@ -31,6 +33,7 @@ class ExpandableTimerCard extends StatefulWidget {
     required this.partnerAvatarUrl,
     required this.myAvatarUrl,
     required this.isPaired,
+    this.blobEnabled = true,
     this.onExpandChanged,
   });
 
@@ -250,8 +253,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: _cardBorderRadius,
+            child: AnimatedBlobClip(
+              enabled: widget.blobEnabled,
+              expandAnim: _expandAnim,
               child: DecoratedBox(
                 decoration: _cardDecoration,
                 child: _buildCardStack(

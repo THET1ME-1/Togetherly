@@ -279,13 +279,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
 
     // Настроение партнёра сегодня
-    final partnerUid =
-        _pairData.partners.isNotEmpty ? _pairData.partners.first.uid : '';
+    final partnerUid = _pairData.partners.isNotEmpty
+        ? _pairData.partners.first.uid
+        : '';
     final partnerEntries = partnerUid.isNotEmpty
         ? _moodService.partnerEntriesForDay(partnerUid, today)
         : <MoodEntry>[];
-    final partnerEntry =
-        partnerEntries.isNotEmpty ? partnerEntries.first : null;
+    final partnerEntry = partnerEntries.isNotEmpty
+        ? partnerEntries.first
+        : null;
 
     await HomeWidgetService.instance.syncMood(
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
@@ -539,6 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   myAvatarUrl: widget.userData.avatarUrl,
                   partnerAvatarUrl: _pairData.partnerAvatarUrl,
                   isPaired: _pairData.isPaired,
+                  blobEnabled: widget.userData.blobAnimationEnabled,
                   onExpandChanged: (expanded) {
                     setState(() => _timerCardExpanded = expanded);
                   },
@@ -1201,7 +1204,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 s.drawingMode,
                 style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w700),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 16),
               _DrawModeOption(
@@ -1238,8 +1243,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openNewCanvas() async {
     final s = LocaleService.current;
-    final canvases =
-        await _storage.getCanvases(widget.userData.uid);
+    final canvases = await _storage.getCanvases(widget.userData.uid);
     final meta = await _storage.createCanvas(
       widget.userData.uid,
       name: '${s.untitledCanvas} ${canvases.length + 1}',
@@ -3296,7 +3300,9 @@ class _DrawModeOption extends StatelessWidget {
             color: color.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-                color: color.withValues(alpha: 0.18), width: 1.2),
+              color: color.withValues(alpha: 0.18),
+              width: 1.2,
+            ),
           ),
           child: Row(
             children: [
@@ -3314,18 +3320,29 @@ class _DrawModeOption extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded,
-                  size: 16, color: Colors.grey.shade400),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Colors.grey.shade400,
+              ),
             ],
           ),
         ),

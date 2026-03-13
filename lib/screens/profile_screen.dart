@@ -1186,6 +1186,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () {},
           ),
           _divider(),
+          // ── Blob animation toggle ──
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.grey.shade600,
+                  size: 20,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    _s.blobAnimation,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ),
+                Switch.adaptive(
+                  value: widget.userData.blobAnimationEnabled,
+                  activeColor: _accent,
+                  onChanged: (val) {
+                    widget.userData.setBlobAnimationEnabled(val);
+                    setState(() {});
+                  },
+                ),
+              ],
+            ),
+          ),
+          _divider(),
           _settingsTile(
             icon: Icons.language_rounded,
             label: _s.language,

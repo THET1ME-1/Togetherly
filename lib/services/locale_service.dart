@@ -274,6 +274,7 @@ abstract class AppStrings {
   String get editProfile;
   String get notifications;
   String get privacy;
+  String get blobAnimation;
   String get aboutApp;
   String get logout;
   String get logoutQuestion;
@@ -844,6 +845,8 @@ class _RuStrings extends AppStrings {
   String get notifications => 'Уведомления';
   @override
   String get privacy => 'Конфиденциальность';
+  @override
+  String get blobAnimation => 'Живая форма карточки таймера';
   @override
   String get aboutApp => 'О приложении';
   @override
@@ -1604,6 +1607,8 @@ class _EnStrings extends AppStrings {
   String get notifications => 'Notifications';
   @override
   String get privacy => 'Privacy';
+  @override
+  String get blobAnimation => 'Animated timer card shape';
   @override
   String get aboutApp => 'About App';
   @override
