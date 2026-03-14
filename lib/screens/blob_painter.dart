@@ -6,9 +6,8 @@ import 'package:flutter/material.dart';
 //  matching the CSS syntax:  tl tr br bl / tl tr br bl
 //  (horizontal radii first, then vertical radii)
 //
-//  Values are 0..1 fractions of size. For a smooth organic look we keep
-//  them in a narrow band (0.38 – 0.58) and keep bottom corners very
-//  stable so the "Days / Months / Time" bar is never clipped.
+//  Values are 0..1 fractions of size. Top corners morph more freely,
+//  bottom corners morph subtly so the toggle bar stays visible.
 // ─────────────────────────────────────────────────────────────────────────────
 class _BlobKeyframe {
   final List<double> rx; // [tl, tr, br, bl] horizontal, 0..1 fraction
@@ -25,23 +24,21 @@ class _BlobKeyframe {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Blob keyframes — gentle, organic variations.
+//  Original CSS keyframes from the HTML design:
+//    .fluid-blob { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55% }
+//    .blob-1     { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50% }
+//    .blob-2     { border-radius: 50% 50% 30% 70% / 50% 60% 40% 60% }
+//    .blob-3     { border-radius: 60% 40% 50% 50% / 30% 70% 50% 50% }
+//    .blob-4     { border-radius: 45% 55% 65% 35% / 55% 45% 55% 45% }
 //
-//  Top corners (tl, tr) — wide motion for a fluid organic look.
-//  Bottom corners (br, bl) — FIXED at round-rect baseline (~0.09–0.12)
-//  so the "Days / Months / Time" toggle bar is never clipped.
+//  Applied to the BACKGROUND layer only — content is NEVER blob-clipped.
 // ─────────────────────────────────────────────────────────────────────────────
 final _kBlobs = <_BlobKeyframe>[
-  // keyframe 0 — resting / balanced
-  _BlobKeyframe(rx: [0.46, 0.54, 0.10, 0.10], ry: [0.48, 0.48, 0.11, 0.11]),
-  // keyframe 1 — lean top-left
-  _BlobKeyframe(rx: [0.40, 0.56, 0.10, 0.10], ry: [0.42, 0.52, 0.11, 0.11]),
-  // keyframe 2 — lean top-right
-  _BlobKeyframe(rx: [0.54, 0.42, 0.10, 0.10], ry: [0.52, 0.44, 0.11, 0.11]),
-  // keyframe 3 — wider top, stable bottom
-  _BlobKeyframe(rx: [0.48, 0.52, 0.10, 0.10], ry: [0.40, 0.54, 0.11, 0.11]),
-  // keyframe 4 — subtle wave
-  _BlobKeyframe(rx: [0.44, 0.50, 0.10, 0.10], ry: [0.50, 0.46, 0.11, 0.11]),
+  _BlobKeyframe(rx: [0.42, 0.58, 0.70, 0.30], ry: [0.45, 0.45, 0.55, 0.55]),
+  _BlobKeyframe(rx: [0.40, 0.60, 0.70, 0.30], ry: [0.40, 0.50, 0.60, 0.50]),
+  _BlobKeyframe(rx: [0.50, 0.50, 0.30, 0.70], ry: [0.50, 0.60, 0.40, 0.60]),
+  _BlobKeyframe(rx: [0.60, 0.40, 0.50, 0.50], ry: [0.30, 0.70, 0.50, 0.50]),
+  _BlobKeyframe(rx: [0.45, 0.55, 0.65, 0.35], ry: [0.55, 0.45, 0.55, 0.45]),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -126,20 +123,27 @@ class BlobClipper extends CustomClipper<Path> {
 // ─────────────────────────────────────────────────────────────────────────────
 //  AnimatedBlobClip
 //
-//  Wraps [child] with a smoothly morphing blob clip.
-//  • enabled = false → plain ClipRRect(32px)
-//  • enabled = true  → ClipPath with BlobClipper, isolated by RepaintBoundary
-//  • expandProgress drives the collapse from blob→roundRect
+//  Слои:
+//    [background] — градиент/фото. Клипуется blob-формой — визуальная клякса.
+//    [child]      — контент. Клипуется обычным ClipRRect(32) — NEVER blob-клипом.
+//
+//  Так Days/Months/Time и стрелка всегда полностью видны.
 // ─────────────────────────────────────────────────────────────────────────────
 class AnimatedBlobClip extends StatefulWidget {
+  /// Фоновый слой — клипуется blob-формой (градиент + опционально фото).
+  final Widget background;
+
+  /// Контент — клипуется только по ClipRRect(32), никогда blob-клипом.
   final Widget child;
+
   final bool enabled;
 
-  /// 0.0 = fully collapsed (max blob), 1.0 = fully expanded (round rect)
+  /// 0.0 = свёрнута (клякса), 1.0 = развёрнута (обычный раундед рект)
   final Animation<double> expandAnim;
 
   const AnimatedBlobClip({
     super.key,
+    required this.background,
     required this.child,
     required this.enabled,
     required this.expandAnim,
@@ -154,7 +158,7 @@ class _AnimatedBlobClipState extends State<AnimatedBlobClip>
   late AnimationController _blobCtrl;
   late Animation<double> _blobAnim;
 
-  static const _blobCount = 5; // matches _kBlobs.length
+  static const _blobCount = 5;
   static const _cycleDuration = Duration(seconds: 18);
 
   @override
@@ -191,24 +195,43 @@ class _AnimatedBlobClipState extends State<AnimatedBlobClip>
     if (!widget.enabled) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(32),
-        child: widget.child,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            Positioned.fill(child: widget.background),
+            widget.child,
+          ],
+        ),
       );
     }
 
     return AnimatedBuilder(
       animation: Listenable.merge([_blobAnim, widget.expandAnim]),
-      builder: (context, child) {
-        return ClipPath(
-          clipper: BlobClipper(
-            blobValue: _blobAnim.value,
-            expandProgress: Curves.easeIn.transform(
-              widget.expandAnim.value.clamp(0.0, 1.0),
+      builder: (context, _) {
+        final ep = Curves.easeIn.transform(
+          widget.expandAnim.value.clamp(0.0, 1.0),
+        );
+        return Stack(
+          fit: StackFit.passthrough,
+          children: [
+            // Слой 1: blob-форма — клипует только градиент/фото
+            Positioned.fill(
+              child: ClipPath(
+                clipper: BlobClipper(
+                  blobValue: _blobAnim.value,
+                  expandProgress: ep,
+                ),
+                child: widget.background,
+              ),
             ),
-          ),
-          child: RepaintBoundary(child: child),
+            // Слой 2: контент — никогда не обрезается blob'om
+            ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: RepaintBoundary(child: widget.child),
+            ),
+          ],
         );
       },
-      child: widget.child,
     );
   }
 }

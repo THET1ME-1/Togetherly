@@ -73,6 +73,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     ),
   );
 
+  /// Градиент без borderRadius — для blob-слоя (ClipPath уже задаёт форму)
+  BoxDecoration get _blobGradientDecoration => BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: _t.heroGradient,
+    ),
+  );
+
   // Emoji palette для выбора
   static const _emojis = [
     '❤️',
@@ -256,15 +265,29 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
             child: AnimatedBlobClip(
               enabled: widget.blobEnabled,
               expandAnim: _expandAnim,
-              child: DecoratedBox(
-                decoration: _cardDecoration,
-                child: _buildCardStack(
-                  bgImage,
-                  compactContent,
-                  t,
-                  bottomPadding,
-                  collapsedHeight,
-                ),
+              // Фон: градиент + опциональное фото — клипуется blob-формой
+              background: bgImage != null
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: _blobGradientDecoration,
+                          child: const SizedBox.expand(),
+                        ),
+                        Positioned.fill(child: bgImage),
+                      ],
+                    )
+                  : DecoratedBox(
+                      decoration: _blobGradientDecoration,
+                      child: const SizedBox.expand(),
+                    ),
+              // Контент: текст + тоггл — ClipRRect(32), никогда blob-клипом
+              child: _buildCardStack(
+                null,
+                compactContent,
+                t,
+                bottomPadding,
+                collapsedHeight,
               ),
             ),
           ),
