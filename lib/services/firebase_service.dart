@@ -1926,28 +1926,34 @@ class FirebaseService {
   //    groups/{groupId}/canvas/main/live/{userId}        – in-progress stroke
   // ══════════════════════════════════════════════
 
-  CollectionReference _strokesRef(String groupId) => _db
-      .collection('groups')
-      .doc(groupId)
-      .collection('canvas')
-      .doc('main')
-      .collection('strokes');
+  CollectionReference _strokesRef(String groupId, [String canvasId = 'main']) =>
+      _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvas')
+          .doc(canvasId)
+          .collection('strokes');
 
-  DocumentReference<Map<String, dynamic>> _canvasMainRef(String groupId) =>
-      _db.collection('groups').doc(groupId).collection('canvas').doc('main');
+  DocumentReference<Map<String, dynamic>> _canvasMainRef(
+    String groupId, [
+    String canvasId = 'main',
+  ]) =>
+      _db.collection('groups').doc(groupId).collection('canvas').doc(canvasId);
 
-  CollectionReference _liveRef(String groupId) => _db
-      .collection('groups')
-      .doc(groupId)
-      .collection('canvas')
-      .doc('main')
-      .collection('live');
+  CollectionReference _liveRef(String groupId, [String canvasId = 'main']) =>
+      _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvas')
+          .doc(canvasId)
+          .collection('live');
 
   /// Stream of all completed strokes ordered by [orderIndex].
   Stream<List<_DrawStrokeRaw>> listenToDrawingStrokes({
     required String groupId,
+    String canvasId = 'main',
   }) {
-    return _strokesRef(groupId)
+    return _strokesRef(groupId, canvasId)
         .orderBy('orderIndex')
         .snapshots()
         .map(
@@ -1966,9 +1972,10 @@ class FirebaseService {
   Future<String> addDrawingStroke({
     required String groupId,
     required Map<String, dynamic> strokeData,
+    String canvasId = 'main',
   }) async {
     try {
-      final ref = await _strokesRef(groupId).add(strokeData);
+      final ref = await _strokesRef(groupId, canvasId).add(strokeData);
       return ref.id;
     } catch (e) {
       debugPrint('addDrawingStroke failed: $e');
@@ -1980,9 +1987,10 @@ class FirebaseService {
   Future<void> deleteDrawingStroke({
     required String groupId,
     required String strokeId,
+    String canvasId = 'main',
   }) async {
     try {
-      await _strokesRef(groupId).doc(strokeId).delete();
+      await _strokesRef(groupId, canvasId).doc(strokeId).delete();
     } catch (e) {
       debugPrint('deleteDrawingStroke failed: $e');
     }
@@ -1993,9 +2001,10 @@ class FirebaseService {
     required String groupId,
     required String userId,
     required Map<String, dynamic> liveData,
+    String canvasId = 'main',
   }) async {
     try {
-      await _liveRef(groupId).doc(userId).set(liveData);
+      await _liveRef(groupId, canvasId).doc(userId).set(liveData);
     } catch (e) {
       debugPrint('updateLiveDrawingStroke failed: $e');
     }
@@ -2005,9 +2014,10 @@ class FirebaseService {
   Future<void> clearLiveDrawingStroke({
     required String groupId,
     required String userId,
+    String canvasId = 'main',
   }) async {
     try {
-      await _liveRef(groupId).doc(userId).delete();
+      await _liveRef(groupId, canvasId).doc(userId).delete();
     } catch (e) {
       debugPrint('clearLiveDrawingStroke failed: $e');
     }
@@ -2017,8 +2027,9 @@ class FirebaseService {
   Stream<Map<String, Map<String, dynamic>>> listenToLiveDrawingStrokes({
     required String groupId,
     required String myUserId,
+    String canvasId = 'main',
   }) {
-    return _liveRef(groupId).snapshots().map((snap) {
+    return _liveRef(groupId, canvasId).snapshots().map((snap) {
       final result = <String, Map<String, dynamic>>{};
       for (final doc in snap.docs) {
         if (doc.id != myUserId) {
@@ -2032,12 +2043,14 @@ class FirebaseService {
   /// Delete all strokes and live cursors for a canvas and publish a clear event.
   Future<void> clearDrawingCanvas({
     required String groupId,
-    required int clearVersion,
+    int? clearVersion,
     int? bgColorValue,
+    String canvasId = 'main',
   }) async {
+    final version = clearVersion ?? DateTime.now().millisecondsSinceEpoch;
     try {
-      final strokesSnap = await _strokesRef(groupId).get();
-      final liveSnap = await _liveRef(groupId).get();
+      final strokesSnap = await _strokesRef(groupId, canvasId).get();
+      final liveSnap = await _liveRef(groupId, canvasId).get();
       final batch = _db.batch();
       for (final doc in strokesSnap.docs) {
         batch.delete(doc.reference);
@@ -2045,9 +2058,9 @@ class FirebaseService {
       for (final doc in liveSnap.docs) {
         batch.delete(doc.reference);
       }
-      batch.set(_canvasMainRef(groupId), {
-        'clearVersion': clearVersion,
-        if (bgColorValue != null) 'bgColor': bgColorValue,
+      batch.set(_canvasMainRef(groupId, canvasId), {
+        'clearVersion': version,
+        'bgColor': ?bgColorValue,
       }, SetOptions(merge: true));
       await batch.commit();
     } catch (e) {
@@ -2060,10 +2073,12 @@ class FirebaseService {
   Future<void> setCanvasBgColor({
     required String groupId,
     required int colorValue,
+    String canvasId = 'main',
   }) async {
     try {
       await _canvasMainRef(
         groupId,
+        canvasId,
       ).set({'bgColor': colorValue}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('setCanvasBgColor failed: $e');
@@ -2071,9 +2086,13 @@ class FirebaseService {
   }
 
   /// Stream of background colour changes for the shared canvas.
-  Stream<int?> listenToCanvasBgColor({required String groupId}) {
+  Stream<int?> listenToCanvasBgColor({
+    required String groupId,
+    String canvasId = 'main',
+  }) {
     return _canvasMainRef(
       groupId,
+      canvasId,
     ).snapshots().map((snap) => (snap.data()?['bgColor'] as num?)?.toInt());
   }
 
@@ -2113,6 +2132,119 @@ class FirebaseService {
   }) async {
     final ts = DateTime.now().millisecondsSinceEpoch;
     return uploadFile(localPath, 'groups/$groupId/canvas/img_$ts.jpg');
+  }
+
+  // ── Canvas Catalogue ─────────────────────────────────────────────────────
+  // Firestore: groups/{groupId}/canvasCatalogue/{canvasId}
+
+  /// Create or update a canvas meta entry in the shared catalogue.
+  Future<void> upsertCanvasMeta({
+    required String groupId,
+    required String canvasId,
+    required String name,
+    required int createdAt,
+    required int updatedAt,
+    String? createdBy,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'id': canvasId,
+        'name': name,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+      };
+      if (createdBy != null) data['createdBy'] = createdBy;
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .doc(canvasId)
+          .set(data, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('upsertCanvasMeta failed: $e');
+    }
+  }
+
+  /// Rename a canvas in the shared catalogue.
+  Future<void> renameCanvasMeta({
+    required String groupId,
+    required String canvasId,
+    required String newName,
+  }) async {
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .doc(canvasId)
+          .update({
+            'name': newName,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          });
+    } catch (e) {
+      debugPrint('renameCanvasMeta failed: $e');
+    }
+  }
+
+  /// Delete a canvas meta entry from the shared catalogue.
+  Future<void> deleteCanvasMeta({
+    required String groupId,
+    required String canvasId,
+  }) async {
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .doc(canvasId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteCanvasMeta failed: $e');
+    }
+  }
+
+  /// Stream of all canvas meta entries for a group.
+  Stream<List<Map<String, dynamic>>> listenToCanvasCatalogue({
+    required String groupId,
+  }) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('canvasCatalogue')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => Map<String, dynamic>.from(d.data()))
+              .toList(),
+        );
+  }
+
+  /// Record / remove the current user's presence on a specific canvas.
+  Future<void> setCanvasPresence({
+    required String groupId,
+    required String canvasId,
+    required String userId,
+    required bool present,
+  }) async {
+    try {
+      final ref = _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvas')
+          .doc(canvasId)
+          .collection('presence')
+          .doc(userId);
+      if (present) {
+        await ref.set({
+          'userId': userId,
+          'joinedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await ref.delete();
+      }
+    } catch (e) {
+      debugPrint('setCanvasPresence failed: $e');
+    }
   }
 
   // ══════════════════════════════════════════════

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,8 +38,7 @@ class CanvasStorageService {
       if (raw == null) return _seedDefault(uid);
       final decoded = jsonDecode(raw) as List<dynamic>;
       final list = decoded
-          .map((e) =>
-              CanvasMeta.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map((e) => CanvasMeta.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
       if (list.isEmpty) return _seedDefault(uid);
       return list;
@@ -51,8 +49,11 @@ class CanvasStorageService {
 
   /// Creates a new canvas entry (prepended to the list) and returns it.
   /// When [groupId] is non-empty the canvas meta is also pushed to Firebase.
-  Future<CanvasMeta> createCanvas(String uid,
-      {String? name, String groupId = ''}) async {
+  Future<CanvasMeta> createCanvas(
+    String uid, {
+    String? name,
+    String groupId = '',
+  }) async {
     final canvases = await getCanvases(uid);
     final id = 'canvas_${DateTime.now().millisecondsSinceEpoch}';
     final meta = CanvasMeta(
@@ -79,11 +80,13 @@ class CanvasStorageService {
   }
 
   /// Replaces the matching entry (by id) with [updated].
-  Future<void> updateCanvas(String uid, CanvasMeta updated,
-      {String groupId = ''}) async {
+  Future<void> updateCanvas(
+    String uid,
+    CanvasMeta updated, {
+    String groupId = '',
+  }) async {
     final canvases = await getCanvases(uid);
-    final next =
-        canvases.map((c) => c.id == updated.id ? updated : c).toList();
+    final next = canvases.map((c) => c.id == updated.id ? updated : c).toList();
     await _save(uid, next);
 
     if (groupId.isNotEmpty) {
@@ -98,25 +101,37 @@ class CanvasStorageService {
   }
 
   /// Rename a canvas (local + Firebase).
-  Future<void> renameCanvas(String uid, String canvasId, String newName,
-      {String groupId = ''}) async {
+  Future<void> renameCanvas(
+    String uid,
+    String canvasId,
+    String newName, {
+    String groupId = '',
+  }) async {
     final canvases = await getCanvases(uid);
     final idx = canvases.indexWhere((c) => c.id == canvasId);
     if (idx < 0) return;
-    canvases[idx] =
-        canvases[idx].copyWith(name: newName, updatedAt: DateTime.now());
+    canvases[idx] = canvases[idx].copyWith(
+      name: newName,
+      updatedAt: DateTime.now(),
+    );
     await _save(uid, canvases);
 
     if (groupId.isNotEmpty) {
       _fb.renameCanvasMeta(
-          groupId: groupId, canvasId: canvasId, newName: newName);
+        groupId: groupId,
+        canvasId: canvasId,
+        newName: newName,
+      );
     }
   }
 
   /// Stores a PNG thumbnail [bytes] for the canvas identified by [canvasId]
   /// and bumps its [updatedAt] timestamp.
   Future<void> updatePreview(
-      String uid, String canvasId, Uint8List bytes) async {
+    String uid,
+    String canvasId,
+    Uint8List bytes,
+  ) async {
     final canvases = await getCanvases(uid);
     final idx = canvases.indexWhere((c) => c.id == canvasId);
     if (idx < 0) return;
@@ -128,8 +143,11 @@ class CanvasStorageService {
   }
 
   /// Removes the canvas with [canvasId] from the list.
-  Future<void> deleteCanvas(String uid, String canvasId,
-      {String groupId = ''}) async {
+  Future<void> deleteCanvas(
+    String uid,
+    String canvasId, {
+    String groupId = '',
+  }) async {
     final canvases = await getCanvases(uid);
     await _save(uid, canvases.where((c) => c.id != canvasId).toList());
 
@@ -146,8 +164,9 @@ class CanvasStorageService {
     _catalogueSub?.cancel();
     if (groupId.isEmpty) return;
 
-    _catalogueSub =
-        _fb.listenToCanvasCatalogue(groupId: groupId).listen((remoteList) async {
+    _catalogueSub = _fb.listenToCanvasCatalogue(groupId: groupId).listen((
+      remoteList,
+    ) async {
       await _mergeRemoteCanvases(uid, remoteList);
       onRemoteChange?.call();
     });
@@ -161,7 +180,9 @@ class CanvasStorageService {
 
   /// Merge remote canvas entries into local storage.
   Future<void> _mergeRemoteCanvases(
-      String uid, List<Map<String, dynamic>> remoteList) async {
+    String uid,
+    List<Map<String, dynamic>> remoteList,
+  ) async {
     final local = await getCanvases(uid);
     final localById = {for (final c in local) c.id: c};
 
@@ -170,9 +191,11 @@ class CanvasStorageService {
       final id = remote['id'] as String;
       final name = (remote['name'] as String?) ?? 'Canvas';
       final createdAt = DateTime.fromMillisecondsSinceEpoch(
-          (remote['createdAt'] as num?)?.toInt() ?? 0);
+        (remote['createdAt'] as num?)?.toInt() ?? 0,
+      );
       final updatedAt = DateTime.fromMillisecondsSinceEpoch(
-          (remote['updatedAt'] as num?)?.toInt() ?? 0);
+        (remote['updatedAt'] as num?)?.toInt() ?? 0,
+      );
 
       if (!localById.containsKey(id)) {
         // New canvas from partner — add it locally
@@ -186,8 +209,7 @@ class CanvasStorageService {
       } else {
         // Update name if remote is newer
         final existing = localById[id]!;
-        if (updatedAt.isAfter(existing.updatedAt) &&
-            name != existing.name) {
+        if (updatedAt.isAfter(existing.updatedAt) && name != existing.name) {
           localById[id] = existing.copyWith(name: name, updatedAt: updatedAt);
           changed = true;
         }

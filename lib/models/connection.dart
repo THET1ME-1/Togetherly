@@ -125,8 +125,9 @@ class Connection {
   bool get canInviteMore {
     if (!isPaired) return true; // not yet connected, invite is needed
     if (relationshipType == RelationshipType.couple ||
-        relationshipType == RelationshipType.married)
+        relationshipType == RelationshipType.married) {
       return false;
+    }
     return members.length < maxMembers;
   }
 

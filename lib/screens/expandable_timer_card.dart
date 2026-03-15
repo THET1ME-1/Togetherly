@@ -222,7 +222,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
     // Высота карточки в свёрнутом виде
-    const collapsedHeight = 280.0;
+    const collapsedHeight = 340.0;
     const headerHeight = 64.0;
     const cardTopOffset = 16.0;
     const bottomNavHeight = 64.0;

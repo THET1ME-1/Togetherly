@@ -11,7 +11,6 @@ import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
-import 'mood_service.dart';
 
 /// Сервис для синхронизации виджет-данных между партнёрами.
 ///

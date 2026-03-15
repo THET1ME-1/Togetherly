@@ -66,10 +66,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   Future<void> _load() async {
     final list = await _storage.getCanvases(_uid);
-    if (mounted) setState(() {
-      _canvases = list;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _canvases = list;
+        _loading = false;
+      });
+    }
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -96,15 +98,18 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     final s = LocaleService.current;
     // Prompt for a name.
     final name = await _showNameDialog(
-        title: s.newCanvas,
-        initial: '${s.untitledCanvas} ${_canvases.length + 1}');
+      title: s.newCanvas,
+      initial: '${s.untitledCanvas} ${_canvases.length + 1}',
+    );
     if (name == null || !mounted) return;
 
-    final meta = await _storage.createCanvas(_uid,
-        name: name.trim().isEmpty
-            ? '${s.untitledCanvas} ${_canvases.length + 1}'
-            : name.trim(),
-        groupId: _groupId);
+    final meta = await _storage.createCanvas(
+      _uid,
+      name: name.trim().isEmpty
+          ? '${s.untitledCanvas} ${_canvases.length + 1}'
+          : name.trim(),
+      groupId: _groupId,
+    );
 
     if (!mounted) return;
     await Navigator.push(
@@ -125,11 +130,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   Future<void> _renameCanvas(CanvasMeta meta) async {
     final s = LocaleService.current;
-    final name =
-        await _showNameDialog(title: s.renameCanvas, initial: meta.name);
+    final name = await _showNameDialog(
+      title: s.renameCanvas,
+      initial: meta.name,
+    );
     if (name == null || name.trim().isEmpty || !mounted) return;
-    await _storage.renameCanvas(_uid, meta.id, name.trim(),
-        groupId: _groupId);
+    await _storage.renameCanvas(_uid, meta.id, name.trim(), groupId: _groupId);
     _load();
   }
 
@@ -138,8 +144,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(s.deleteCanvas),
         content: Text(s.deleteCanvasConfirm),
         actions: [
@@ -149,8 +154,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style:
-                FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
             child: Text(s.delete),
           ),
         ],
@@ -161,18 +165,21 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     _load();
   }
 
-  Future<String?> _showNameDialog(
-      {required String title, required String initial}) async {
+  Future<String?> _showNameDialog({
+    required String title,
+    required String initial,
+  }) async {
     final s = LocaleService.current;
     final controller = TextEditingController(text: initial);
-    controller.selection =
-        TextSelection(baseOffset: 0, extentOffset: initial.length);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: initial.length,
+    );
 
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(title),
         content: TextField(
           controller: controller,
@@ -180,8 +187,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(
             labelText: s.canvasNameLabel,
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
@@ -205,7 +211,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       context: ctx,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -215,8 +222,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(4)),
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
             const SizedBox(height: 8),
             ListTile(
@@ -228,10 +236,14 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               },
             ),
             ListTile(
-              leading:
-                  Icon(Icons.delete_outline_rounded, color: Colors.red.shade400),
-              title: Text(s.deleteCanvas,
-                  style: TextStyle(color: Colors.red.shade400)),
+              leading: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red.shade400,
+              ),
+              title: Text(
+                s.deleteCanvas,
+                style: TextStyle(color: Colors.red.shade400),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _deleteCanvas(meta);
@@ -271,9 +283,10 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
             child: TextButton.icon(
               onPressed: _createNewCanvas,
               icon: Icon(Icons.add_rounded, color: t.primary, size: 20),
-              label: Text(s.newCanvas,
-                  style: TextStyle(
-                      color: t.primary, fontWeight: FontWeight.w600)),
+              label: Text(
+                s.newCanvas,
+                style: TextStyle(color: t.primary, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],
@@ -281,8 +294,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _canvases.isEmpty
-              ? _buildEmpty(s, t)
-              : _buildGrid(s, t),
+          ? _buildEmpty(s, t)
+          : _buildGrid(s, t),
     );
   }
 
@@ -304,9 +317,10 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           Text(
             s.noDrawingsYet,
             style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280)),
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6B7280),
+            ),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -316,9 +330,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: t.primary,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
@@ -365,14 +379,14 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(18)),
+                  top: Radius.circular(18),
+                ),
                 child: _buildThumbnail(meta, t),
               ),
             ),
             // ── Info strip ─────────────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -381,13 +395,14 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     _formatDate(meta.updatedAt),
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -432,7 +447,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       final m = dt.minute.toString().padLeft(2, '0');
       return '$h:$m';
     }
-    if (diff.inDays == 1) return LocaleService.instance.isRussian ? 'Вчера' : 'Yesterday';
+    if (diff.inDays == 1)
+      return LocaleService.instance.isRussian ? 'Вчера' : 'Yesterday';
     if (diff.inDays < 7) {
       final weekdays = LocaleService.instance.isRussian
           ? ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
@@ -440,8 +456,34 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       return weekdays[dt.weekday % 7];
     }
     final months = LocaleService.instance.isRussian
-        ? ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
-        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        ? [
+            'янв',
+            'фев',
+            'мар',
+            'апр',
+            'май',
+            'июн',
+            'июл',
+            'авг',
+            'сен',
+            'окт',
+            'ноя',
+            'дек',
+          ]
+        : [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ];
     return '${dt.day} ${months[dt.month - 1]}';
   }
 }

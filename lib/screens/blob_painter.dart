@@ -1,144 +1,192 @@
-import 'dart:ui' show lerpDouble;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Blob keyframe — stores 8 border-radius percentage values
-//  matching the CSS syntax:  tl tr br bl / tl tr br bl
-//  (horizontal radii first, then vertical radii)
+//  True organic blob — liquid / ink-drop / gel shape.
 //
-//  Values are 0..1 fractions of size. Top corners morph more freely,
-//  bottom corners morph subtly so the toggle bar stays visible.
-// ─────────────────────────────────────────────────────────────────────────────
-class _BlobKeyframe {
-  final List<double> rx; // [tl, tr, br, bl] horizontal, 0..1 fraction
-  final List<double> ry; // [tl, tr, br, bl] vertical,   0..1 fraction
-
-  const _BlobKeyframe({required this.rx, required this.ry});
-
-  static _BlobKeyframe lerp(_BlobKeyframe a, _BlobKeyframe b, double t) {
-    return _BlobKeyframe(
-      rx: List.generate(4, (i) => lerpDouble(a.rx[i], b.rx[i], t)!),
-      ry: List.generate(4, (i) => lerpDouble(a.ry[i], b.ry[i], t)!),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Original CSS keyframes from the HTML design:
-//    .fluid-blob { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55% }
-//    .blob-1     { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50% }
-//    .blob-2     { border-radius: 50% 50% 30% 70% / 50% 60% 40% 60% }
-//    .blob-3     { border-radius: 60% 40% 50% 50% / 30% 70% 50% 50% }
-//    .blob-4     { border-radius: 45% 55% 65% 35% / 55% 45% 55% 45% }
+//  NOT a rounded rectangle. The perimeter is generated from polar coordinates:
+//    r(θ, t) = base + Σ aᵢ · sin(nᵢ·θ + φᵢ(t))
 //
-//  Applied to the BACKGROUND layer only — content is NEVER blob-clipped.
+//  Multiple sine harmonics with incommensurate frequencies create a
+//  continuously morphing, never-repeating, asymmetric amoeba shape.
+//
+//  Three animation channels:
+//    _morphCtrl  (6 s)   — phase scroll that continuously changes the outline
+//    _rotCtrl    (10 s)  — slow rotation of the whole blob
+//    _breathCtrl (5 s)   — gentle scale breathing 0.96 → 1.04
+//
+//  60 polar sample points → Catmull-Rom spline = perfectly smooth outline.
+//  Content is NEVER blob-clipped (stays readable inside ClipRRect).
 // ─────────────────────────────────────────────────────────────────────────────
-final _kBlobs = <_BlobKeyframe>[
-  _BlobKeyframe(rx: [0.42, 0.58, 0.70, 0.30], ry: [0.45, 0.45, 0.55, 0.55]),
-  _BlobKeyframe(rx: [0.40, 0.60, 0.70, 0.30], ry: [0.40, 0.50, 0.60, 0.50]),
-  _BlobKeyframe(rx: [0.50, 0.50, 0.30, 0.70], ry: [0.50, 0.60, 0.40, 0.60]),
-  _BlobKeyframe(rx: [0.60, 0.40, 0.50, 0.50], ry: [0.30, 0.70, 0.50, 0.50]),
-  _BlobKeyframe(rx: [0.45, 0.55, 0.65, 0.35], ry: [0.55, 0.45, 0.55, 0.45]),
+
+const _kPoints = 60;
+
+// Sine harmonics: (spatial frequency, amplitude, temporal speed).
+// Low freqs = large gentle lobes. Higher freqs = fine organic detail.
+// Incommensurate speeds ensure the pattern never exactly repeats.
+const _kWaves = [
+  (n: 2, amp: 0.025, speed: 1.00), // gentle 2-lobe asymmetry
+  (n: 3, amp: 0.018, speed: 0.73), // subtle three-lobe wobble
+  (n: 4, amp: 0.010, speed: 1.37), // fine four-lobe detail
+  (n: 5, amp: 0.006, speed: 1.83), // micro texture
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BlobClipper
-//  blobValue      : 0.0 → (kBlobs.length - 1) cycling through keyframes
-//  expandProgress : 0.0 = full blob, 1.0 = full round-rect (32 px radius)
 // ─────────────────────────────────────────────────────────────────────────────
 class BlobClipper extends CustomClipper<Path> {
-  final double blobValue;
+  /// 0→1 continuously cycling morph phase
+  final double morphTime;
+
+  /// Rotation angle in radians (0→2π)
+  final double rotation;
+
+  /// Scale multiplier for breathing (e.g. 0.96…1.04)
+  final double scale;
+
+  /// 0.0 = full blob, 1.0 = rounded rect (for expand transition)
   final double expandProgress;
 
-  const BlobClipper({required this.blobValue, required this.expandProgress});
+  const BlobClipper({
+    required this.morphTime,
+    required this.rotation,
+    required this.scale,
+    required this.expandProgress,
+  });
 
   @override
   Path getClip(Size size) {
-    final count = _kBlobs.length;
-    final clamped = blobValue.clamp(0.0, (count - 1).toDouble());
-    final idx = clamped.floor().clamp(0, count - 1);
-    final frac = clamped - idx;
-    final next = (idx + 1) % count;
-    final blob = _BlobKeyframe.lerp(_kBlobs[idx], _kBlobs[next], frac);
-    return _buildPath(size, blob, expandProgress);
+    final ep = expandProgress.clamp(0.0, 1.0);
+
+    // Fully expanded → plain rounded rect
+    if (ep >= 0.995) {
+      return Path()..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          const Radius.circular(32),
+        ),
+      );
+    }
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Use the SMALLER half-dimension as base radius for both axes.
+    // This keeps the blob circular so rotation never pushes lobes
+    // into the shorter dimension causing flat clipping.
+    final baseR = math.min(cx, cy) * scale * 0.93;
+    final rx = baseR;
+    final ry = baseR;
+
+    final blobPts = <Offset>[];
+    final rrPts = <Offset>[];
+
+    for (int i = 0; i < _kPoints; i++) {
+      final theta = 2 * math.pi * i / _kPoints;
+      final rotatedTheta = theta + rotation;
+
+      // Sum all sine harmonics for this angle.
+      // Use sin(2π·morphTime) so morphTime 0→1 maps to a full sin cycle
+      // — no jump when the controller resets or reverses.
+      double distortion = 0;
+      for (final w in _kWaves) {
+        distortion +=
+            w.amp *
+            math.sin(
+              w.n * rotatedTheta +
+                  w.speed * 2 * math.pi * math.sin(2 * math.pi * morphTime),
+            );
+      }
+
+      final r = 1.0 + distortion;
+      blobPts.add(
+        Offset(cx + rx * r * math.cos(theta), cy + ry * r * math.sin(theta)),
+      );
+
+      // Corresponding rounded-rect point for lerping on expand
+      if (ep > 0) {
+        final cosT = math.cos(theta);
+        final sinT = math.sin(theta);
+        // Ray-cast to axis-aligned rounded-rect
+        const cr = 32.0;
+        final hw = size.width / 2;
+        final hh = size.height / 2;
+        final tx = cosT.abs() > 1e-9 ? (hw - cr) / cosT.abs() : double.infinity;
+        final ty = sinT.abs() > 1e-9 ? (hh - cr) / sinT.abs() : double.infinity;
+        final tSide = math.min(tx.abs(), ty.abs());
+        rrPts.add(
+          Offset(
+            (cx + cosT * tSide).clamp(cr, size.width - cr),
+            (cy + sinT * tSide).clamp(cr, size.height - cr),
+          ),
+        );
+      }
+    }
+
+    // Lerp blob → rounded-rect as expand progresses
+    final List<Offset> pts;
+    if (ep > 0) {
+      pts = List.generate(
+        _kPoints,
+        (i) => Offset.lerp(blobPts[i], rrPts[i], ep)!,
+      );
+    } else {
+      pts = blobPts;
+    }
+
+    return _catmullRom(pts);
+  }
+
+  /// Closed Catmull-Rom spline through all points → butter-smooth outline.
+  static Path _catmullRom(List<Offset> pts) {
+    final n = pts.length;
+    final path = Path();
+
+    for (int i = 0; i < n; i++) {
+      final p0 = pts[(i - 1 + n) % n];
+      final p1 = pts[i];
+      final p2 = pts[(i + 1) % n];
+      final p3 = pts[(i + 2) % n];
+
+      final cp1 = Offset(
+        p1.dx + (p2.dx - p0.dx) / 6,
+        p1.dy + (p2.dy - p0.dy) / 6,
+      );
+      final cp2 = Offset(
+        p2.dx - (p3.dx - p1.dx) / 6,
+        p2.dy - (p3.dy - p1.dy) / 6,
+      );
+
+      if (i == 0) path.moveTo(p1.dx, p1.dy);
+      path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+    }
+    path.close();
+    return path;
   }
 
   @override
   bool shouldReclip(BlobClipper old) =>
-      old.blobValue != blobValue || old.expandProgress != expandProgress;
-
-  // ── Path builder ──────────────────────────────────────────────────────────
-  //  Smooth superellipse-style path. Every corner uses a cubic bezier with
-  //  the standard 90° arc constant (k ≈ 0.5523) so curves are always round.
-  // ─────────────────────────────────────────────────────────────────────────
-  static Path _buildPath(Size size, _BlobKeyframe shape, double roundedCorner) {
-    final w = size.width;
-    final h = size.height;
-    const kB = 0.5523; // bezier constant for perfect 90° arc
-
-    // Round-rect baseline (32 px corners) as fractions
-    final rrx = (32.0 / w).clamp(0.0, 0.5);
-    final rry = (32.0 / h).clamp(0.0, 0.5);
-
-    final ep = roundedCorner.clamp(0.0, 1.0);
-
-    // Lerp from blob shape → round-rect
-    double lr(double blobR, double rrR) => blobR + (rrR - blobR) * ep;
-
-    final tlrx = lr(shape.rx[0], rrx) * w;
-    final tlry = lr(shape.ry[0], rry) * h;
-    final trrx = lr(shape.rx[1], rrx) * w;
-    final trry = lr(shape.ry[1], rry) * h;
-    final brrx = lr(shape.rx[2], rrx) * w;
-    final brry = lr(shape.ry[2], rry) * h;
-    final blrx = lr(shape.rx[3], rrx) * w;
-    final blry = lr(shape.ry[3], rry) * h;
-
-    final path = Path();
-
-    // Start at TL corner end-point on the top edge
-    path.moveTo(tlrx, 0);
-
-    // ── top edge → TR corner ──
-    path.lineTo(w - trrx, 0);
-    path.cubicTo(w - trrx * (1 - kB), 0, w, trry * (1 - kB), w, trry);
-
-    // ── right edge → BR corner ──
-    path.lineTo(w, h - brry);
-    path.cubicTo(w, h - brry * (1 - kB), w - brrx * (1 - kB), h, w - brrx, h);
-
-    // ── bottom edge → BL corner ──
-    path.lineTo(blrx, h);
-    path.cubicTo(blrx * (1 - kB), h, 0, h - blry * (1 - kB), 0, h - blry);
-
-    // ── left edge → TL corner ──
-    path.lineTo(0, tlry);
-    path.cubicTo(0, tlry * (1 - kB), tlrx * (1 - kB), 0, tlrx, 0);
-
-    path.close();
-    return path;
-  }
+      old.morphTime != morphTime ||
+      old.rotation != rotation ||
+      old.scale != scale ||
+      old.expandProgress != expandProgress;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  AnimatedBlobClip
 //
-//  Слои:
-//    [background] — градиент/фото. Клипуется blob-формой — визуальная клякса.
-//    [child]      — контент. Клипуется обычным ClipRRect(32) — NEVER blob-клипом.
+//  Three independent animation channels for organic liquid motion:
+//    _morphCtrl  — 6 s, repeat, linear → continuous shape morphing
+//    _rotCtrl    — 10 s, repeat, linear → 1 full rotation every ~10 s
+//    _breathCtrl — 5 s, repeat+reverse, ease-in-out → gentle scale pulse
 //
-//  Так Days/Months/Time и стрелка всегда полностью видны.
+//  Background: clipped by the blob path.
+//  Content:    always ClipRRect(32) — never deformed.
 // ─────────────────────────────────────────────────────────────────────────────
 class AnimatedBlobClip extends StatefulWidget {
-  /// Фоновый слой — клипуется blob-формой (градиент + опционально фото).
   final Widget background;
-
-  /// Контент — клипуется только по ClipRRect(32), никогда blob-клипом.
   final Widget child;
-
   final bool enabled;
-
-  /// 0.0 = свёрнута (клякса), 1.0 = развёрнута (обычный раундед рект)
   final Animation<double> expandAnim;
 
   const AnimatedBlobClip({
@@ -154,39 +202,66 @@ class AnimatedBlobClip extends StatefulWidget {
 }
 
 class _AnimatedBlobClipState extends State<AnimatedBlobClip>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _blobCtrl;
-  late Animation<double> _blobAnim;
-
-  static const _blobCount = 5;
-  static const _cycleDuration = Duration(seconds: 18);
+    with TickerProviderStateMixin {
+  late AnimationController _morphCtrl;
+  late AnimationController _rotCtrl;
+  late AnimationController _breathCtrl;
 
   @override
   void initState() {
     super.initState();
-    _blobCtrl = AnimationController(vsync: this, duration: _cycleDuration);
-    _blobAnim = Tween<double>(
-      begin: 0.0,
-      end: (_blobCount - 1).toDouble(),
-    ).animate(CurvedAnimation(parent: _blobCtrl, curve: Curves.easeInOut));
-    if (widget.enabled) _blobCtrl.repeat(reverse: true);
+
+    // Morph: seamless phase via sin(2π·t) inside clipper (14 seconds)
+    _morphCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 14000),
+    );
+
+    // Rotation: seamless sway via sin(2π·t) in builder (20 seconds)
+    _rotCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 20000),
+    );
+
+    // Breathing: seamless scale via sin(2π·t) in builder (10 seconds)
+    _breathCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 10000),
+    );
+
+    if (widget.enabled) _startAll();
+  }
+
+  void _startAll() {
+    _morphCtrl.repeat(); // sin(2π·t) in clipper = seamless loop
+    _rotCtrl.repeat(); // sin(2π·t) in builder = smooth sway
+    _breathCtrl.repeat(); // sin(2π·t) in builder = smooth breathing
+  }
+
+  void _stopAll() {
+    _morphCtrl
+      ..stop()
+      ..value = 0;
+    _rotCtrl
+      ..stop()
+      ..value = 0;
+    _breathCtrl
+      ..stop()
+      ..value = 0;
   }
 
   @override
   void didUpdateWidget(AnimatedBlobClip old) {
     super.didUpdateWidget(old);
     if (widget.enabled == old.enabled) return;
-    if (widget.enabled) {
-      _blobCtrl.repeat(reverse: true);
-    } else {
-      _blobCtrl.stop();
-      _blobCtrl.value = 0;
-    }
+    widget.enabled ? _startAll() : _stopAll();
   }
 
   @override
   void dispose() {
-    _blobCtrl.dispose();
+    _morphCtrl.dispose();
+    _rotCtrl.dispose();
+    _breathCtrl.dispose();
     super.dispose();
   }
 
@@ -206,25 +281,34 @@ class _AnimatedBlobClipState extends State<AnimatedBlobClip>
     }
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_blobAnim, widget.expandAnim]),
+      animation: Listenable.merge([
+        _morphCtrl,
+        _rotCtrl,
+        _breathCtrl,
+        widget.expandAnim,
+      ]),
       builder: (context, _) {
-        final ep = Curves.easeIn.transform(
+        final ep = Curves.easeInOut.transform(
           widget.expandAnim.value.clamp(0.0, 1.0),
         );
         return Stack(
           fit: StackFit.passthrough,
           children: [
-            // Слой 1: blob-форма — клипует только градиент/фото
+            // Layer 1: blob-clipped background (gradient / photo)
             Positioned.fill(
               child: ClipPath(
                 clipper: BlobClipper(
-                  blobValue: _blobAnim.value,
+                  morphTime: _morphCtrl.value,
+                  // sin(2π·t) → smooth ±0.25 rad (~14°) sway, seamless
+                  rotation: math.sin(2 * math.pi * _rotCtrl.value) * 0.25,
+                  // sin(2π·t) → scale 0.97…1.03, seamless
+                  scale: 1.0 + 0.03 * math.sin(2 * math.pi * _breathCtrl.value),
                   expandProgress: ep,
                 ),
                 child: widget.background,
               ),
             ),
-            // Слой 2: контент — никогда не обрезается blob'om
+            // Layer 2: content — stable, never deformed
             ClipRRect(
               borderRadius: BorderRadius.circular(32),
               child: RepaintBoundary(child: widget.child),

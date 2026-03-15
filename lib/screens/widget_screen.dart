@@ -97,7 +97,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
     // Some launchers return false even though pinning works — show button anyway.
     try {
       final supported = await HomeWidget.isRequestPinWidgetSupported();
-      if (mounted) setState(() => _canPinWidgets = (supported ?? false) || true);
+      if (mounted)
+        setState(() => _canPinWidgets = (supported ?? false) || true);
     } catch (e) {
       // Fallback: show button on Android regardless
       if (mounted) setState(() => _canPinWidgets = true);
@@ -147,9 +148,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         final startLabel = start != null
             ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
             : '';
-        final names = _pair.partnerName.isNotEmpty
-            ? '${_pair.partnerName}'
-            : '';
+        final names = _pair.partnerName.isNotEmpty ? _pair.partnerName : '';
         await hws.syncDaysCounter(
           daysCount: days,
           coupleNames: names,
@@ -179,8 +178,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
           final partnerEntries = partnerUid.isNotEmpty
               ? _moodService.partnerEntriesForDay(partnerUid, today)
               : <MoodEntry>[];
-          final partnerEntry =
-              partnerEntries.isNotEmpty ? partnerEntries.first : null;
+          final partnerEntry = partnerEntries.isNotEmpty
+              ? partnerEntries.first
+              : null;
           await hws.syncMood(
             moodEmojiAssetPath: myEntry?.imagePath ?? '',
             moodLabel: myEntry?.label ?? '',
@@ -1157,13 +1157,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
 
     // Настроение партнёра из Mood Calendar за сегодня
-    final partnerUid =
-        _pair.partners.isNotEmpty ? _pair.partners.first.uid : '';
+    final partnerUid = _pair.partners.isNotEmpty
+        ? _pair.partners.first.uid
+        : '';
     final partnerEntries = partnerUid.isNotEmpty
         ? _moodService.partnerEntriesForDay(partnerUid, today)
         : <MoodEntry>[];
-    final partnerEntry =
-        partnerEntries.isNotEmpty ? partnerEntries.first : null;
+    final partnerEntry = partnerEntries.isNotEmpty
+        ? partnerEntries.first
+        : null;
 
     final myName = _ws.myData?.displayName.isNotEmpty == true
         ? _ws.myData!.displayName
@@ -1232,8 +1234,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required bool isRu,
   }) {
     return Column(
-      crossAxisAlignment:
-          isLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      crossAxisAlignment: isLeft
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.end,
       children: [
         Text(
           name,

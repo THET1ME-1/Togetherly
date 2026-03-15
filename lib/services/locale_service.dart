@@ -290,6 +290,7 @@ abstract class AppStrings {
   String uploadError(String e);
   String get language;
   String get selectLanguage;
+  String get blobAnimation;
 
   // ── Mood Calendar Screen ──
   String get moodCalendarTitle;
@@ -343,6 +344,18 @@ abstract class AppStrings {
   String get location;
   String get audio;
   List<String> get reflectionQuestions;
+
+  // ── Draw Gallery / Canvas ──
+  String get palmTool;
+  String get drawingMode;
+  String get newCanvas;
+  String get myDrawings;
+  String get untitledCanvas;
+  String get renameCanvas;
+  String get deleteCanvas;
+  String get deleteCanvasConfirm;
+  String get canvasNameLabel;
+  String get noDrawingsYet;
 
   // ── Connect Partner Screen ──
   String get newGroup;
@@ -865,6 +878,8 @@ class _RuStrings extends AppStrings {
   String get language => 'Язык';
   @override
   String get selectLanguage => 'Выберите язык';
+  @override
+  String get blobAnimation => 'Blob-анимация';
 
   // ── Mood Calendar ──
   @override
@@ -989,6 +1004,29 @@ class _RuStrings extends AppStrings {
     'Какой комплимент вы хотите сделать партнёру сегодня?',
     'Какая привычка партнёра вам втайне нравится?',
   ];
+
+  // ── Draw Gallery / Canvas ──
+  @override
+  String get palmTool => 'Ладонь';
+  @override
+  String get drawingMode => 'Режим рисования';
+  @override
+  String get newCanvas => 'Новый холст';
+  @override
+  String get myDrawings => 'Мои рисунки';
+  @override
+  String get untitledCanvas => 'Холст';
+  @override
+  String get renameCanvas => 'Переименовать';
+  @override
+  String get deleteCanvas => 'Удалить холст';
+  @override
+  String get deleteCanvasConfirm =>
+      'Удалить этот холст? Это действие необратимо.';
+  @override
+  String get canvasNameLabel => 'Название холста';
+  @override
+  String get noDrawingsYet => 'Рисунков пока нет';
 
   // ── Connect Partner ──
   @override
@@ -1603,6 +1641,8 @@ class _EnStrings extends AppStrings {
   String get language => 'Language';
   @override
   String get selectLanguage => 'Select Language';
+  @override
+  String get blobAnimation => 'Blob Animation';
 
   // ── Mood Calendar ──
   @override
@@ -1727,6 +1767,29 @@ class _EnStrings extends AppStrings {
     'What compliment do you want to give your partner today?',
     'What is one habit of your partner you secretly adore?',
   ];
+
+  // ── Draw Gallery / Canvas ──
+  @override
+  String get palmTool => 'Palm';
+  @override
+  String get drawingMode => 'Drawing Mode';
+  @override
+  String get newCanvas => 'New Canvas';
+  @override
+  String get myDrawings => 'My Drawings';
+  @override
+  String get untitledCanvas => 'Canvas';
+  @override
+  String get renameCanvas => 'Rename';
+  @override
+  String get deleteCanvas => 'Delete Canvas';
+  @override
+  String get deleteCanvasConfirm =>
+      'Delete this canvas? This action cannot be undone.';
+  @override
+  String get canvasNameLabel => 'Canvas name';
+  @override
+  String get noDrawingsYet => 'No drawings yet';
 
   // ── Connect Partner ──
   @override

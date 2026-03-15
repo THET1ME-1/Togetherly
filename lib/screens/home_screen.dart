@@ -1309,11 +1309,11 @@ class _HomeScreenState extends State<HomeScreen> {
         : '';
 
     // Формат заголовка: «Сегодня» или «Пн, 18 фев»
-    final _s = LocaleService.current;
-    final months = _s.shortMonths;
-    final weekdays = _s.shortWeekdays;
+    final s = LocaleService.current;
+    final months = s.shortMonths;
+    final weekdays = s.shortWeekdays;
     final dateLabel = isToday
-        ? _s.todayDate
+        ? s.todayDate
         : '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
 
     showModalBottomSheet(
@@ -1344,7 +1344,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                _s.moodDateLabel(dateLabel),
+                s.moodDateLabel(dateLabel),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1353,7 +1353,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                isToday ? _s.partnerWillSeeMood : _s.indicateMoodForDay,
+                isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
@@ -1443,7 +1443,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                   },
                   child: Text(
-                    _s.removeMood,
+                    s.removeMood,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -2529,11 +2529,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (mounted) {
                       setState(() => _reflectionJustSaved = true);
                       await Future.delayed(const Duration(seconds: 1));
-                      if (mounted)
+                      if (mounted) {
                         setState(() {
                           _reflectionJustSaved = false;
                           _showReflection = false;
                         });
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
