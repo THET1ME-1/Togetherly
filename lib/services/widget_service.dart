@@ -443,14 +443,17 @@ class WidgetService extends ChangeNotifier {
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
 
-      // ── Синхронизируем виджет настроения ──
-      if (my != null && my.moodEmoji.isNotEmpty) {
-        HomeWidgetService.instance.syncMood(
-          moodEmojiAssetPath: my.moodEmoji,
-          moodLabel: my.moodLabel,
-          userName: my.displayName.isNotEmpty ? my.displayName : 'Я',
-        );
-      }
+      // ── Синхронизируем виджет настроения (мой + партнёра) ──
+      HomeWidgetService.instance.syncMood(
+        moodEmojiAssetPath: my?.moodEmoji ?? '',
+        moodLabel: my?.moodLabel ?? '',
+        userName: my?.displayName.isNotEmpty == true ? my!.displayName : 'Я',
+        partnerMoodEmojiAssetPath: partner?.moodEmoji ?? '',
+        partnerMoodLabel: partner?.moodLabel ?? '',
+        partnerUserName: partner?.displayName.isNotEmpty == true
+            ? partner!.displayName
+            : 'Партнёр',
+      );
 
       // Скачиваем фото локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);

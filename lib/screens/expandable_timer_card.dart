@@ -7,6 +7,7 @@ import '../models/timer_item.dart';
 import '../services/locale_service.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
+import 'blob_painter.dart';
 
 /// Расширяемая карточка таймера.
 ///
@@ -19,6 +20,7 @@ class ExpandableTimerCard extends StatefulWidget {
   final String partnerAvatarUrl;
   final String myAvatarUrl;
   final bool isPaired;
+  final bool blobEnabled;
 
   /// Callback, уведомляющий родителя о состоянии раскрытия
   /// (чтобы скрывать bottom nav).
@@ -31,6 +33,7 @@ class ExpandableTimerCard extends StatefulWidget {
     required this.partnerAvatarUrl,
     required this.myAvatarUrl,
     required this.isPaired,
+    this.blobEnabled = true,
     this.onExpandChanged,
   });
 
@@ -63,6 +66,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   BoxDecoration get _cardDecoration => BoxDecoration(
     borderRadius: _cardBorderRadius,
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: _t.heroGradient,
+    ),
+  );
+
+  /// Градиент без borderRadius — для blob-слоя (ClipPath уже задаёт форму)
+  BoxDecoration get _blobGradientDecoration => BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -250,17 +262,32 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: _cardBorderRadius,
-              child: DecoratedBox(
-                decoration: _cardDecoration,
-                child: _buildCardStack(
-                  bgImage,
-                  compactContent,
-                  t,
-                  bottomPadding,
-                  collapsedHeight,
-                ),
+            child: AnimatedBlobClip(
+              enabled: widget.blobEnabled,
+              expandAnim: _expandAnim,
+              // Фон: градиент + опциональное фото — клипуется blob-формой
+              background: bgImage != null
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: _blobGradientDecoration,
+                          child: const SizedBox.expand(),
+                        ),
+                        Positioned.fill(child: bgImage),
+                      ],
+                    )
+                  : DecoratedBox(
+                      decoration: _blobGradientDecoration,
+                      child: const SizedBox.expand(),
+                    ),
+              // Контент: текст + тоггл — ClipRRect(32), никогда blob-клипом
+              child: _buildCardStack(
+                null,
+                compactContent,
+                t,
+                bottomPadding,
+                collapsedHeight,
               ),
             ),
           ),

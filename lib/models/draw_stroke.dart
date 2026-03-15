@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Tools available in the drawing canvas.
-enum DrawTool { brush, eraser, fill, image, line, rect, circle, hand }
+enum DrawTool { brush, eraser, fill, image, line, rect, circle, palm }
 
 /// Geometric shape types for shape-drawing tools.
 enum DrawShapeType { line, rect, circle }
@@ -37,7 +37,6 @@ class DrawStroke {
   final double strokeWidth;
   final List<DrawPoint> points;
   final bool isEraser;
-  final bool isFill;
 
   /// Non-null when this stroke was drawn with a shape tool (line/rect/circle).
   final DrawShapeType? shapeType;
@@ -62,7 +61,6 @@ class DrawStroke {
     required this.strokeWidth,
     required this.points,
     this.isEraser = false,
-    this.isFill = false,
     this.shapeType,
     required this.orderIndex,
     this.imageUrl,
@@ -85,7 +83,6 @@ class DrawStroke {
     'strokeWidth': strokeWidth,
     'points': points.map((p) => p.toMap()).toList(),
     'isEraser': isEraser,
-    'isFill': isFill,
     'orderIndex': orderIndex,
     'createdAt': DateTime.now().millisecondsSinceEpoch,
     if (shapeType != null) 'shapeType': shapeType!.name,
@@ -107,7 +104,6 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
-      isFill: (data['isFill'] as bool?) ?? false,
       shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: (data['orderIndex'] as num?)?.toInt() ?? 0,
       imageUrl: data['imageUrl'] as String?,
@@ -124,7 +120,6 @@ class DrawStroke {
     'colorValue': colorValue,
     'strokeWidth': strokeWidth,
     'isEraser': isEraser,
-    'isFill': isFill,
     'points': points.map((p) => p.toMap()).toList(),
     if (shapeType != null) 'shapeType': shapeType!.name,
     'ts': DateTime.now().millisecondsSinceEpoch,
@@ -141,7 +136,6 @@ class DrawStroke {
           .map((p) => DrawPoint.fromMap(Map<String, dynamic>.from(p as Map)))
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
-      isFill: (data['isFill'] as bool?) ?? false,
       shapeType: _parseShapeType(data['shapeType'] as String?),
       orderIndex: -1,
     );

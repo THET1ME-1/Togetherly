@@ -31,6 +31,7 @@ class UserData extends ChangeNotifier {
 
   // ── Тема оформления ──────────────────────────────────────────────────────
   int _themeId = -1; // -1 → используется тема по умолчанию (pink)
+  bool _blobAnimationEnabled = true;
 
   int get themeId {
     if (_themeId >= 0 && _themeId < AppThemes.all.length) return _themeId;
@@ -45,6 +46,9 @@ class UserData extends ChangeNotifier {
   Color get themeAccent => theme.primary;
   Color get themeAccentLight => theme.primaryLight;
   String get themeName => theme.name;
+
+  /// Whether the timer card shows a morphing blob shape (true by default)
+  bool get blobAnimationEnabled => _blobAnimationEnabled;
 
   String get initials {
     if (_displayName.isEmpty) return '?';
@@ -69,6 +73,7 @@ class UserData extends ChangeNotifier {
       if (genderStr == 'male') _gender = Gender.male;
       if (genderStr == 'female') _gender = Gender.female;
       _themeId = prefs.getInt('themeId') ?? -1;
+      _blobAnimationEnabled = prefs.getBool('blobAnimationEnabled') ?? true;
 
       // Если авторизован → подтягиваем из облака
       if (_fb.isLoggedIn && _isRegistered) {
@@ -116,6 +121,7 @@ class UserData extends ChangeNotifier {
             : '',
       );
       await prefs.setInt('themeId', _themeId);
+      await prefs.setBool('blobAnimationEnabled', _blobAnimationEnabled);
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
     }
@@ -202,6 +208,12 @@ class UserData extends ChangeNotifier {
   Future<void> setThemeId(int id) async {
     if (id < 0 || id >= AppThemes.all.length) return;
     _themeId = id;
+    await _saveLocal();
+    notifyListeners();
+  }
+
+  Future<void> setBlobAnimationEnabled(bool value) async {
+    _blobAnimationEnabled = value;
     await _saveLocal();
     notifyListeners();
   }

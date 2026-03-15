@@ -23,9 +23,11 @@ import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
+import '../services/canvas_storage_service.dart';
 import 'widget_screen.dart';
 import 'miss_you_button.dart';
 import 'draw_screen.dart';
+import 'draw_gallery_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -64,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
+  final CanvasStorageService _storage = CanvasStorageService.instance;
   List<Memory> _recentMemories = [];
   StreamSubscription? _memorySub;
 
@@ -221,6 +224,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _widgetService.bindToGroup(_pairData.pairId);
         for (final p in _pairData.partners) {
           _widgetService.listenToPartner(p.uid);
+          // Subscribe to partner moods so MoodWidgetProvider stays updated
+          _moodService.listenToPartner(p.uid);
         }
 
         // Create system timer if it doesn't exist yet
@@ -257,6 +262,40 @@ class _HomeScreenState extends State<HomeScreen> {
       activeStartDate: _pairData.startDate,
       coupleNames: '$myName & $partnerName',
       emoji: _pairData.relationshipEmoji,
+    );
+
+    // Sync the mood widget from today's Mood Calendar entries
+    await _syncMoodWidget();
+  }
+
+  /// Синхронизирует виджет настроения (MoodWidgetProvider) с записями
+  /// Mood Calendar за сегодняшний день — и моими, и партнёра.
+  Future<void> _syncMoodWidget() async {
+    if (!_pairData.isPaired) return;
+    final today = DateTime.now();
+
+    // Моё настроение сегодня
+    final myEntries = _moodService.myEntriesForDay(today);
+    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+
+    // Настроение партнёра сегодня
+    final partnerUid = _pairData.partners.isNotEmpty
+        ? _pairData.partners.first.uid
+        : '';
+    final partnerEntries = partnerUid.isNotEmpty
+        ? _moodService.partnerEntriesForDay(partnerUid, today)
+        : <MoodEntry>[];
+    final partnerEntry = partnerEntries.isNotEmpty
+        ? partnerEntries.first
+        : null;
+
+    await HomeWidgetService.instance.syncMood(
+      moodEmojiAssetPath: myEntry?.imagePath ?? '',
+      moodLabel: myEntry?.label ?? '',
+      userName: widget.userData.displayName,
+      partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
+      partnerMoodLabel: partnerEntry?.label ?? '',
+      partnerUserName: _pairData.partnerName,
     );
   }
 
@@ -308,7 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Слушаем MoodService — при любом изменении настроения за сегодня
-  /// синхронизируем его в pairData (аватарка, видимость партнёру).
+  /// синхронизируем его в pairData (аватарка, видимость партнёру)
+  /// и обновляем виджет настроения на рабочем столе.
   void _onMoodServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     final today = DateTime.now();
@@ -324,6 +364,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _pairData.clearMood();
       }
     }
+    // Синхронизируем виджет настроения рабочего стола с новыми данными
+    _syncMoodWidget();
     if (mounted) setState(() {});
   }
 
@@ -499,6 +541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   myAvatarUrl: widget.userData.avatarUrl,
                   partnerAvatarUrl: _pairData.partnerAvatarUrl,
                   isPaired: _pairData.isPaired,
+                  blobEnabled: widget.userData.blobAnimationEnabled,
                   onExpandChanged: (expanded) {
                     setState(() => _timerCardExpanded = expanded);
                   },
@@ -1132,15 +1175,105 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
 
   void _openDraw() {
-    Navigator.push(
+    final s = LocaleService.current;
+    final t = _t;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                s.drawingMode,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _DrawModeOption(
+                icon: Icons.add_circle_outline_rounded,
+                color: t.primary,
+                title: s.newCanvas,
+                subtitle: LocaleService.instance.isRussian
+                    ? 'Начать с чистого листа'
+                    : 'Start with a blank canvas',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openNewCanvas();
+                },
+              ),
+              const SizedBox(height: 10),
+              _DrawModeOption(
+                icon: Icons.collections_rounded,
+                color: const Color(0xFF8B5CF6),
+                title: s.myDrawings,
+                subtitle: LocaleService.instance.isRussian
+                    ? 'Открыть сохранённый рисунок'
+                    : 'Open a saved drawing',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openDrawGallery();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNewCanvas() async {
+    final s = LocaleService.current;
+    final canvases = await _storage.getCanvases(widget.userData.uid);
+    final meta = await _storage.createCanvas(
+      widget.userData.uid,
+      name: '${s.untitledCanvas} ${canvases.length + 1}',
+      groupId: _pairData.pairId,
+    );
+    if (!mounted) return;
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DrawScreen(
           userData: widget.userData,
           pairData: _pairData,
           theme: _t,
+          canvasId: meta.id,
+          canvasName: meta.name,
         ),
         fullscreenDialog: true,
+      ),
+    );
+  }
+
+  void _openDrawGallery() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DrawGalleryScreen(
+          userData: widget.userData,
+          pairData: _pairData,
+          theme: _t,
+        ),
       ),
     );
   }
@@ -3136,3 +3269,84 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 enum _MoodBadgePosition { topLeft, bottomRight }
+
+// ── Draw Mode Option tile used in the bottom sheet ────────────────────────
+class _DrawModeOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _DrawModeOption({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withValues(alpha: 0.18),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

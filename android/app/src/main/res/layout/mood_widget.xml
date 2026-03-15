@@ -3,53 +3,161 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_rounded"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="12dp">
+    android:background="@drawable/mood_widget_bg"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
-    <!-- Крупная картинка эмодзи настроения -->
-    <ImageView
-        android:id="@+id/mood_emoji_image"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:scaleType="fitCenter"
-        android:visibility="gone" />
+    <!-- ══ Левая половина: МОЁ настроение ══ -->
+    <LinearLayout
+        android:id="@+id/mood_my_section"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
 
-    <!-- Заглушка если нет настроения -->
-    <TextView
-        android:id="@+id/mood_placeholder"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="😶"
-        android:textSize="60sp"
-        android:visibility="visible" />
+        <!-- Имя: сверху -->
+        <TextView
+            android:id="@+id/mood_user_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Я"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#AA9E8C"
+            android:letterSpacing="0.04"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center" />
 
-    <!-- Название настроения -->
-    <TextView
-        android:id="@+id/mood_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="#FF6B8A"
-        android:layout_marginTop="6dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:visibility="gone" />
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="5dp" />
 
-    <!-- Имя пользователя -->
-    <TextView
-        android:id="@+id/mood_user_name"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textSize="11sp"
-        android:textColor="#888888"
-        android:layout_marginTop="2dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:visibility="gone" />
+        <!-- Контейнер эмодзи: картинка или заглушка -->
+        <FrameLayout
+            android:layout_width="52dp"
+            android:layout_height="52dp">
+
+            <ImageView
+                android:id="@+id/mood_emoji_image"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/mood_placeholder"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:text="😶"
+                android:textSize="36sp"
+                android:gravity="center"
+                android:visibility="visible" />
+
+        </FrameLayout>
+
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="5dp" />
+
+        <!-- Название настроения: снизу -->
+        <TextView
+            android:id="@+id/mood_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="—"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#FF6B8A"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- ══ Разделитель ══ -->
+    <View
+        android:id="@+id/mood_divider"
+        android:layout_width="1dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center_vertical"
+        android:layout_marginLeft="10dp"
+        android:layout_marginRight="10dp"
+        android:alpha="0.35"
+        android:background="#C8A882" />
+
+    <!-- ══ Правая половина: настроение ПАРТНЁРА ══ -->
+    <LinearLayout
+        android:id="@+id/mood_partner_section"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <!-- Имя партнёра: сверху -->
+        <TextView
+            android:id="@+id/mood_partner_user_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Партнёр"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#AA9E8C"
+            android:letterSpacing="0.04"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center" />
+
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="5dp" />
+
+        <!-- Контейнер эмодзи партнёра -->
+        <FrameLayout
+            android:layout_width="52dp"
+            android:layout_height="52dp">
+
+            <ImageView
+                android:id="@+id/mood_partner_emoji_image"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/mood_partner_placeholder"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:text="😶"
+                android:textSize="36sp"
+                android:gravity="center"
+                android:visibility="visible" />
+
+        </FrameLayout>
+
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="5dp" />
+
+        <!-- Название настроения партнёра: снизу -->
+        <TextView
+            android:id="@+id/mood_partner_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="—"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#FF6B8A"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center" />
+
+    </LinearLayout>
 
 </LinearLayout>

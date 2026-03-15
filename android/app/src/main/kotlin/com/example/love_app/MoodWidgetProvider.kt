@@ -12,8 +12,9 @@ import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
 /**
- * Виджет «Настроение» — крупный виджет с картинкой
- * эмодзи текущего настроения и подписью.
+ * Виджет «Настроение» — горизонтальный виджет:
+ * слева — моё настроение (имя + эмодзи + метка),
+ * справа — настроение партнёра (имя + эмодзи + метка).
  */
 class MoodWidgetProvider : HomeWidgetProvider() {
 
@@ -26,6 +27,7 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.mood_widget).apply {
 
+                // Клик по виджету открывает экран настроения
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
                     MainActivity::class.java,
@@ -33,18 +35,21 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                 )
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
-                // ── Данные ──
-                val emojiPath = widgetData.getString("mood_emoji_path", null)
+                // ── Моё настроение ──
+                val myEmojiPath = widgetData.getString("mood_emoji_path", null)
                     .takeIf { !it.isNullOrEmpty() }
-                val label = widgetData.getString("mood_label", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-                val userName = widgetData.getString("mood_user_name", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
+                val myLabel = widgetData.getString("mood_label", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "—"
+                val myUserName = widgetData.getString("mood_user_name", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "Я"
 
-                // ── Картинка эмодзи ──
-                val bitmap = loadBitmap(emojiPath)
-                if (bitmap != null) {
-                    setImageViewBitmap(R.id.mood_emoji_image, bitmap)
+                // Имя — всегда показываем
+                setTextViewText(R.id.mood_user_name, myUserName)
+
+                // Эмодзи
+                val myBitmap = loadBitmap(myEmojiPath)
+                if (myBitmap != null) {
+                    setImageViewBitmap(R.id.mood_emoji_image, myBitmap)
                     setViewVisibility(R.id.mood_emoji_image, View.VISIBLE)
                     setViewVisibility(R.id.mood_placeholder, View.GONE)
                 } else {
@@ -52,17 +57,33 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                     setViewVisibility(R.id.mood_placeholder, View.VISIBLE)
                 }
 
-                // ── Текст ──
-                setTextViewText(R.id.mood_label, label)
-                setViewVisibility(
-                    R.id.mood_label,
-                    if (label.isNotEmpty()) View.VISIBLE else View.GONE
-                )
-                setTextViewText(R.id.mood_user_name, userName)
-                setViewVisibility(
-                    R.id.mood_user_name,
-                    if (userName.isNotEmpty()) View.VISIBLE else View.GONE
-                )
+                // Метка — всегда показываем (— если нет настроения)
+                setTextViewText(R.id.mood_label, myLabel)
+
+                // ── Настроение партнёра ──
+                val partnerEmojiPath = widgetData.getString("partner_mood_emoji_path", null)
+                    .takeIf { !it.isNullOrEmpty() }
+                val partnerLabel = widgetData.getString("partner_mood_label", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "—"
+                val partnerUserName = widgetData.getString("partner_mood_user_name", null)
+                    .takeIf { !it.isNullOrEmpty() } ?: "Партнёр"
+
+                // Имя партнёра — всегда показываем
+                setTextViewText(R.id.mood_partner_user_name, partnerUserName)
+
+                // Эмодзи партнёра
+                val partnerBitmap = loadBitmap(partnerEmojiPath)
+                if (partnerBitmap != null) {
+                    setImageViewBitmap(R.id.mood_partner_emoji_image, partnerBitmap)
+                    setViewVisibility(R.id.mood_partner_emoji_image, View.VISIBLE)
+                    setViewVisibility(R.id.mood_partner_placeholder, View.GONE)
+                } else {
+                    setViewVisibility(R.id.mood_partner_emoji_image, View.GONE)
+                    setViewVisibility(R.id.mood_partner_placeholder, View.VISIBLE)
+                }
+
+                // Метка партнёра — всегда показываем
+                setTextViewText(R.id.mood_partner_label, partnerLabel)
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)
@@ -85,3 +106,5 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         }
     }
 }
+
+
