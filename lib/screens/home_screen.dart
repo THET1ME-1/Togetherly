@@ -515,9 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   Widget _buildHomeTab() {
     return SingleChildScrollView(
-      physics: _timerCardExpanded
-          ? const NeverScrollableScrollPhysics()
-          : const BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).padding.bottom + 100,
       ),
