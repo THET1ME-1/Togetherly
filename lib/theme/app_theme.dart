@@ -105,7 +105,7 @@ abstract final class AppThemes {
     name: 'Розовая',
     primary: Color(0xFFEE2B6C),
     primaryLight: Color(0xFFFEEAF1),
-    bgGradient: [Color(0xFFF7F3F0), Color(0xFFFFFFFF)],
+    bgGradient: [Color(0xFFFFE8DC), Color(0xFFFFE8DC), Color(0xFFFFF0EA)],
     heroGradient: [Color(0xFFFFB4B0), Color(0xFFFF8E9E)],
     heroShadowBase: Color(0x26FF7E8B), // rgba(255,126,139, 0.15)
     heroShadowExpanded: Color(0x40FF7E8B), // rgba(255,126,139, 0.25)

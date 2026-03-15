@@ -474,21 +474,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
-              child: AspectRatio(
-                aspectRatio: 16 / 10,
-                child: Image.network(
-                  memory.imageUrl!,
-                  fit: BoxFit.cover,
-                  cacheWidth: 800,
-                  cacheHeight: 500,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade200,
-                    child: Center(
-                      child: Icon(
-                        Icons.broken_image_rounded,
-                        color: Colors.grey.shade400,
-                        size: 40,
-                      ),
+              child: Image.network(
+                memory.imageUrl!,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                cacheWidth: 800,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 200,
+                  color: Colors.grey.shade200,
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.grey.shade400,
+                      size: 40,
                     ),
                   ),
                 ),
@@ -1081,7 +1079,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           child: Image.network(
                             memory.imageUrl!,
                             width: double.infinity,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.fitWidth,
                             errorBuilder: (_, __, ___) => Container(
                               height: 200,
                               color: Colors.grey.shade200,
@@ -2885,8 +2883,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
       expand: false,
       initialChildSize:
           memory.type == MemoryType.photo || memory.type == MemoryType.video
-              ? 0.85
-              : 0.7,
+          ? 0.85
+          : 0.7,
       maxChildSize: 0.95,
       builder: (_, sc) => SingleChildScrollView(
         controller: sc,
@@ -2906,8 +2904,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
             ),
             const SizedBox(height: 20),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: widget.typeColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -2915,8 +2912,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(memory.typeEmoji,
-                      style: const TextStyle(fontSize: 14)),
+                  Text(memory.typeEmoji, style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 4),
                   Text(
                     memory.typeLabel,
@@ -2938,7 +2934,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                       ? Image.network(
                           memory.imageUrl!,
                           width: double.infinity,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.fitWidth,
                           errorBuilder: (_, __, ___) => _noImgBox(200),
                         )
                       : _noImgBox(200),
@@ -2957,15 +2953,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                           height: 220,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                              height: 220,
-                              color: Colors.grey.shade900),
+                            height: 220,
+                            color: Colors.grey.shade900,
+                          ),
                         )
                       else
-                        Container(
-                            height: 220, color: Colors.grey.shade900),
+                        Container(height: 220, color: Colors.grey.shade900),
                       Container(
-                          height: 220,
-                          color: Colors.black.withOpacity(0.4)),
+                        height: 220,
+                        color: Colors.black.withOpacity(0.4),
+                      ),
                       SizedBox(
                         height: 220,
                         width: double.infinity,
@@ -2974,8 +2971,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                             onTap: () {
                               final url = memory.videoUrl;
                               if (url != null && url.isNotEmpty) {
-                                launchUrl(Uri.parse(url),
-                                    mode: LaunchMode.externalApplication);
+                                launchUrl(
+                                  Uri.parse(url),
+                                  mode: LaunchMode.externalApplication,
+                                );
                               }
                             },
                             child: Container(
@@ -2984,9 +2983,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                                 color: Colors.white.withOpacity(0.9),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.play_arrow_rounded,
-                                  size: 40,
-                                  color: Color(0xFFEC4899)),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 40,
+                                color: Color(0xFFEC4899),
+                              ),
                             ),
                           ),
                         ),
@@ -3013,8 +3014,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                             color: const Color(0xFF22C55E).withOpacity(0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.location_on_rounded,
-                              color: Color(0xFF22C55E), size: 24),
+                          child: const Icon(
+                            Icons.location_on_rounded,
+                            color: Color(0xFF22C55E),
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -3034,8 +3038,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                                   '${memory.latitude!.toStringAsFixed(5)}, '
                                   '${memory.longitude?.toStringAsFixed(5) ?? ""}',
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500),
+                                    fontSize: 12,
+                                    color: Colors.grey.shade500,
+                                  ),
                                 ),
                             ],
                           ),
@@ -3051,15 +3056,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                           onPressed: () {
                             final url =
                                 'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
-                            launchUrl(Uri.parse(url),
-                                mode: LaunchMode.externalApplication);
+                            launchUrl(
+                              Uri.parse(url),
+                              mode: LaunchMode.externalApplication,
+                            );
                           },
                           icon: const Icon(Icons.map_rounded, size: 18),
                           label: const Text('Open in Google Maps'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFF22C55E),
-                            side: const BorderSide(
-                                color: Color(0xFF22C55E)),
+                            side: const BorderSide(color: Color(0xFF22C55E)),
                           ),
                         ),
                       ),
@@ -3087,9 +3093,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                 child: Text(
                   memory.caption ?? '',
                   style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade800,
-                      height: 1.6),
+                    fontSize: 16,
+                    color: Colors.grey.shade800,
+                    height: 1.6,
+                  ),
                 ),
               ),
             if (memory.type != MemoryType.text &&
@@ -3099,9 +3106,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
               Text(
                 memory.caption!,
                 style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade800,
-                    height: 1.5),
+                  fontSize: 16,
+                  color: Colors.grey.shade800,
+                  height: 1.5,
+                ),
               ),
             ],
             const SizedBox(height: 20),
@@ -3112,20 +3120,19 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                     radius: 14,
                     backgroundImage: NetworkImage(memory.authorAvatar),
                   ),
-                if (memory.authorAvatar.isNotEmpty)
-                  const SizedBox(width: 8),
+                if (memory.authorAvatar.isNotEmpty) const SizedBox(width: 8),
                 Text(
                   memory.authorName,
                   style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   _fmtDate(memory.createdAt),
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
               ],
             ),
@@ -3146,16 +3153,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                               : Icons.push_pin_outlined,
                           size: 16,
                         ),
-                        label:
-                            Text(memory.isPinned ? 'Unpin' : 'Pin'),
+                        label: Text(memory.isPinned ? 'Unpin' : 'Pin'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: widget.primary,
                           side: BorderSide(
-                              color:
-                                  widget.primary.withOpacity(0.3)),
+                            color: widget.primary.withOpacity(0.3),
+                          ),
                           shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
@@ -3167,16 +3173,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                             Navigator.pop(context);
                             widget.onDownload();
                           },
-                          icon: const Icon(Icons.download_rounded,
-                              size: 16),
+                          icon: const Icon(Icons.download_rounded, size: 16),
                           label: const Text('Save'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.blue.shade600,
-                            side: BorderSide(
-                                color: Colors.blue.shade200),
+                            side: BorderSide(color: Colors.blue.shade200),
                             shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -3197,11 +3201,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                           label: const Text('Edit'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.grey.shade700,
-                            side:
-                                BorderSide(color: Colors.grey.shade300),
+                            side: BorderSide(color: Colors.grey.shade300),
                             shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -3213,16 +3216,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                             widget.onDelete();
                           },
                           icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 16),
+                            Icons.delete_outline_rounded,
+                            size: 16,
+                          ),
                           label: const Text('Delete'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.red.shade400,
-                            side: BorderSide(
-                                color: Colors.red.shade200),
+                            side: BorderSide(color: Colors.red.shade200),
                             shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -3248,16 +3251,19 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
   }
 
   Widget _noImgBox(double h) => Container(
-        height: h,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(
-          child: Icon(Icons.image_not_supported_rounded,
-              color: Colors.grey.shade400, size: 48),
-        ),
-      );
+    height: h,
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Center(
+      child: Icon(
+        Icons.image_not_supported_rounded,
+        color: Colors.grey.shade400,
+        size: 48,
+      ),
+    ),
+  );
 
   static String _fmtDate(DateTime dt) {
     const months = [
@@ -3581,9 +3587,10 @@ class _KeyboardPaddingBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.viewInsetsOf(context).bottom
-        + MediaQuery.paddingOf(context).bottom
-        + 24;
+    final bottom =
+        MediaQuery.viewInsetsOf(context).bottom +
+        MediaQuery.paddingOf(context).bottom +
+        24;
     return SizedBox(height: bottom);
   }
 }

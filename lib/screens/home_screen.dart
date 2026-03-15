@@ -2775,16 +2775,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
         else
-          SizedBox(
-            height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: _recentMemories.length,
-              addAutomaticKeepAlives: false,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (_, i) => _memoryPreviewCard(_recentMemories[i]),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                for (int i = 0; i < _recentMemories.length && i < 3; i++) ...[
+                  _memoryPreviewCard(_recentMemories[i]),
+                  if (i < (_recentMemories.length - 1).clamp(0, 2))
+                    const SizedBox(height: 12),
+                ],
+              ],
             ),
           ),
       ],
@@ -2802,8 +2802,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Container(
-        width: 160,
-        height: 200,
+        width: double.infinity,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           color: Colors.white,
@@ -2829,72 +2828,71 @@ class _HomeScreenState extends State<HomeScreen> {
       case MemoryType.photo:
         return _photoPreview(memory);
       case MemoryType.video:
-        return _videoPreview(memory);
+        return SizedBox(height: 200, child: _videoPreview(memory));
       case MemoryType.location:
-        return _locationPreview(memory);
+        return SizedBox(height: 200, child: _locationPreview(memory));
       case MemoryType.music:
-        return _musicPreview(memory);
+        return SizedBox(height: 200, child: _musicPreview(memory));
       case MemoryType.text:
-        return _textPreview(memory);
+        return SizedBox(height: 200, child: _textPreview(memory));
     }
   }
 
   Widget _photoPreview(Memory memory) {
     final hasImage = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (hasImage)
-          Image.network(
-            memory.imageUrl!,
-            fit: BoxFit.cover,
-            cacheWidth: 480,
-            cacheHeight: 600,
-            errorBuilder: (_, __, ___) =>
-                Container(color: Colors.grey.shade200),
-          )
-        else
-          Container(
-            color: const Color(0xFFF3E8FF),
-            child: Icon(
-              Icons.image_rounded,
-              size: 48,
-              color: Colors.grey.shade300,
+        Stack(
+          children: [
+            if (hasImage)
+              Image.network(
+                memory.imageUrl!,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                cacheWidth: 480,
+                errorBuilder: (_, __, ___) =>
+                    Container(height: 140, color: Colors.grey.shade200),
+              )
+            else
+              Container(
+                height: 140,
+                color: const Color(0xFFF3E8FF),
+                child: Center(
+                  child: Icon(
+                    Icons.image_rounded,
+                    size: 48,
+                    color: Colors.grey.shade300,
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('📸', style: TextStyle(fontSize: 14)),
+              ),
             ),
-          ),
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
-            ),
-          ),
+          ],
         ),
-        Positioned(
-          top: 10,
-          left: 10,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text('📸', style: TextStyle(fontSize: 14)),
-          ),
-        ),
-        Positioned(
-          bottom: 12,
-          left: 12,
-          right: 12,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
           child: Text(
-            memory.caption ?? LocaleService.current.photo,
+            memory.caption?.isNotEmpty == true
+                ? memory.caption!
+                : LocaleService.current.photo,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: Colors.grey.shade800,
             ),
           ),
         ),
