@@ -478,9 +478,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // -- Bottom Nav (hidden when timer card is expanded) --
           Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 12,
-            left: 24,
-            right: 24,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: AnimatedOpacity(
               opacity: _timerCardExpanded ? 0.0 : 1.0,
               duration: const Duration(milliseconds: 300),
@@ -3176,90 +3176,243 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   Widget _buildBottomNav() {
     return Positioned(
-      bottom: MediaQuery.of(context).padding.bottom + 12,
-      left: 24,
-      right: 24,
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: _buildBottomNavContent(),
     );
   }
 
   Widget _buildBottomNavContent() {
+    final s = LocaleService.current;
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        color: const Color(0xFFFFF1EB),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 32,
-            offset: const Offset(0, 8),
+            color: _t.primary.withValues(alpha: 0.10),
+            blurRadius: 24,
+            spreadRadius: 0,
+            offset: const Offset(0, -6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, -1),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: const Color(0xC7FFFFFF),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: const Color(0x99FFFFFF)),
-          ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navItem(Icons.home_rounded, 0),
-              _navItem(Icons.widgets_rounded, 1),
-              Container(width: 1, height: 24, color: Colors.grey.shade200),
-              _navItem(
-                _pairData.isPaired
-                    ? Icons.chat_bubble_outline_rounded
-                    : Icons.person_add_alt_1_rounded,
-                2,
-                showBadge: !_pairData.isPaired,
+              _NavBarItem(
+                icon: Icons.home_rounded,
+                index: 0,
+                label: s.home,
+                isActive: _selectedNavIndex == 0,
+                activeColor: _t.navActiveIcon,
+                activeBg: _t.navActiveBg,
+                badgeColor: primary,
+                onTap: () => setState(() => _selectedNavIndex = 0),
               ),
-              _navItem(Icons.person_outline_rounded, 3),
+              _NavBarItem(
+                icon: Icons.widgets_rounded,
+                index: 1,
+                label: s.widgets,
+                isActive: _selectedNavIndex == 1,
+                activeColor: _t.navActiveIcon,
+                activeBg: _t.navActiveBg,
+                badgeColor: primary,
+                onTap: () => setState(() => _selectedNavIndex = 1),
+              ),
+              _NavBarItem(
+                icon: _pairData.isPaired
+                    ? Icons.favorite_rounded
+                    : Icons.person_add_alt_1_rounded,
+                index: 2,
+                label: s.connect,
+                isActive: _selectedNavIndex == 2,
+                activeColor: _t.navActiveIcon,
+                activeBg: _t.navActiveBg,
+                badgeColor: primary,
+                showBadge: !_pairData.isPaired,
+                onTap: () => setState(() => _selectedNavIndex = 2),
+              ),
+              _NavBarItem(
+                icon: Icons.person_rounded,
+                index: 3,
+                label: s.profile,
+                isActive: _selectedNavIndex == 3,
+                activeColor: _t.navActiveIcon,
+                activeBg: _t.navActiveBg,
+                badgeColor: primary,
+                onTap: () => setState(() => _selectedNavIndex = 3),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _navItem(IconData icon, int index, {bool showBadge = false}) {
-    final isActive = _selectedNavIndex == index;
+// ── Animated navigation bar item ──────────────────────────────────────────
+class _NavBarItem extends StatefulWidget {
+  final IconData icon;
+  final int index;
+  final String label;
+  final bool isActive;
+  final bool showBadge;
+  final Color activeColor;
+  final Color activeBg;
+  final Color badgeColor;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.icon,
+    required this.index,
+    required this.label,
+    required this.isActive,
+    required this.activeColor,
+    required this.activeBg,
+    required this.badgeColor,
+    required this.onTap,
+    this.showBadge = false,
+  });
+
+  @override
+  State<_NavBarItem> createState() => _NavBarItemState();
+}
+
+class _NavBarItemState extends State<_NavBarItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.22,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.22,
+          end: 0.90,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.90,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 35,
+      ),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => setState(() => _selectedNavIndex = index),
+      onTap: _handleTap,
       behavior: HitTestBehavior.opaque,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isActive ? _t.navActiveBg : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: isActive ? _t.navActiveIcon : Colors.grey.shade400,
-              size: 26,
-            ),
+      child: ScaleTransition(
+        scale: _scale,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.isActive ? 18 : 12,
+            vertical: 8,
           ),
-          if (showBadge)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: primary,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
-                ),
+          decoration: BoxDecoration(
+            color: widget.isActive ? widget.activeBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    transitionBuilder: (child, anim) => ScaleTransition(
+                      scale: CurvedAnimation(
+                        parent: anim,
+                        curve: Curves.easeOutBack,
+                      ),
+                      child: FadeTransition(opacity: anim, child: child),
+                    ),
+                    child: Icon(
+                      widget.icon,
+                      key: ValueKey('${widget.index}_${widget.isActive}'),
+                      color: widget.isActive
+                          ? widget.activeColor
+                          : Colors.grey.shade400,
+                      size: widget.isActive ? 26 : 23,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 260),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: widget.isActive
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: widget.isActive
+                          ? widget.activeColor
+                          : Colors.grey.shade400,
+                    ),
+                    child: Text(widget.label, maxLines: 1),
+                  ),
+                ],
               ),
-            ),
-        ],
+              if (widget.showBadge)
+                Positioned(
+                  top: -2,
+                  right: -4,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: widget.badgeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
