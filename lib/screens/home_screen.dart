@@ -2574,7 +2574,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   Widget _buildActionButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _actionButton(
           icon: Icons.brush_rounded,
@@ -2613,92 +2612,72 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String label,
     required Color iconColor,
-    bool isPrimary = false,
     bool enabled = true,
     VoidCallback? onTap,
-    String? badge,
     String? moodImagePath,
   }) {
-    final opacity = enabled ? 1.0 : 0.4;
+    final opacity = enabled ? 1.0 : 0.38;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
-    return Opacity(
-      opacity: opacity,
-      child: Column(
-        children: [
-          GestureDetector(
-            onTap: enabled ? (onTap ?? () {}) : null,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: isPrimary ? primary : Colors.white,
-                    shape: BoxShape.circle,
-                    border: isPrimary
-                        ? null
-                        : Border.all(color: Colors.grey.shade100),
-                    boxShadow: isPrimary
-                        ? [
-                            BoxShadow(
-                              color: primary.withOpacity(0.25),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                            ),
-                          ],
-                  ),
-                  child: hasMoodImage
-                      ? Center(
-                          child: Image.asset(
-                            moodImagePath,
-                            width: 38,
-                            height: 38,
-                            errorBuilder: (_, __, ___) =>
-                                Icon(icon, color: iconColor, size: 28),
-                          ),
-                        )
-                      : Icon(icon, color: iconColor, size: 28),
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Text(badge, style: const TextStyle(fontSize: 14)),
+
+    return Expanded(
+      child: Opacity(
+        opacity: opacity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? (onTap ?? () {}) : null,
+              borderRadius: BorderRadius.circular(18),
+              splashColor: iconColor.withOpacity(0.12),
+              highlightColor: iconColor.withOpacity(0.06),
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: _t.cardSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
                   ),
-              ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      hasMoodImage
+                          ? Image.asset(
+                              moodImagePath,
+                              width: 32,
+                              height: 32,
+                              errorBuilder: (_, __, ___) =>
+                                  Icon(icon, color: iconColor, size: 26),
+                            )
+                          : Icon(icon, color: iconColor, size: 26),
+                      const SizedBox(height: 8),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade500,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
