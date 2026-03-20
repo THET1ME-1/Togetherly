@@ -74,6 +74,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _todayReflection;
   StreamSubscription? _reflectionSub;
   bool _reflectionJustSaved = false;
+  bool _reflectionManuallyDismissed = false;
+
+  bool get _hasPartnerAnswer {
+    final myUid = widget.userData.uid;
+    final answers = _todayReflection?['answers'] as Map<String, dynamic>?;
+    if (answers == null || answers.isEmpty) return false;
+    return answers.keys.any((k) => k != myUid);
+  }
 
   static const _reflectionQuestions = <String>[]; // replaced by locale
 
@@ -544,7 +552,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     setState(() => _timerCardExpanded = expanded);
                   },
                 ),
-                if (_pairData.isPaired && _showReflection) ...[
+                if (_pairData.isPaired &&
+                    !_reflectionManuallyDismissed &&
+                    (_showReflection || _hasPartnerAnswer)) ...[
                   const SizedBox(height: 32),
                   _buildDailyReflection(),
                 ],
@@ -2359,7 +2369,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: () {
-                  setState(() => _showReflection = false);
+                  setState(() {
+                    _showReflection = false;
+                    _reflectionManuallyDismissed = true;
+                  });
                   _markReflectionAnsweredToday();
                 },
                 child: Container(

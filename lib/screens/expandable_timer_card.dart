@@ -437,13 +437,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                     FadeTransition(opacity: anim, child: child),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  key: ValueKey(
-                    '$_selectedTimeUnit-${timer != null ? _counterValue(timer) : "0"}',
-                  ),
+                  key: ValueKey('$_selectedTimeUnit-${timer?.id ?? "none"}'),
                   child: Text(
                     timer != null ? _counterValue(timer) : '0',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 64,
+                      fontSize: _selectedTimeUnit == 2 ? 30 : 64,
                       fontWeight: FontWeight.w800,
                       color: timer != null
                           ? Colors.white
@@ -636,6 +634,22 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
+                // Emoji
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      timer.emoji,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
                 // Info
                 Expanded(
                   child: Column(

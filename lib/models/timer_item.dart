@@ -63,12 +63,10 @@ class TimerItem {
   String get formattedTime {
     final diff = timeElapsed;
     final d = diff.inDays.abs();
-    final h = diff.inHours.abs() % 24;
-    final m = diff.inMinutes.abs() % 60;
-    final s = diff.inSeconds.abs() % 60;
-    if (d > 0) return '${d}d ${h}h ${m}m';
-    if (h > 0) return '${h}h ${m}m ${s}s';
-    return '${m}m ${s}s';
+    final h = (diff.inHours.abs() % 24).toString().padLeft(2, '0');
+    final m = (diff.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    final s = (diff.inSeconds.abs() % 60).toString().padLeft(2, '0');
+    return '$d:$h:$m:$s';
   }
 
   String get formattedStartDate {
