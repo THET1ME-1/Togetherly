@@ -223,34 +223,41 @@ class _WidgetScreenState extends State<WidgetScreen> {
   Widget build(BuildContext context) {
     if (!_pair.isPaired) return _buildNotPaired();
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: _t.bgGradient,
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-                child: Column(
-                  children: [
-                    // ── Галерея виджетов рабочего стола ──
-                    _buildWidgetGallery(),
-                  ],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _t.bgImageAsset != null
+            ? Image.asset(_t.bgImageAsset!, fit: BoxFit.cover)
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _t.bgGradient,
+                  ),
                 ),
               ),
-            ),
-          ],
+        SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+                  child: Column(
+                    children: [
+                      // ── Галерея виджетов рабочего стола ──
+                      _buildWidgetGallery(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -2041,56 +2048,63 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildNotPaired() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: _t.bgGradient,
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _t.bgImageAsset != null
+            ? Image.asset(_t.bgImageAsset!, fit: BoxFit.cover)
+            : DecoratedBox(
                 decoration: BoxDecoration(
-                  color: _t.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Icon(
-                  Icons.widgets_rounded,
-                  size: 36,
-                  color: _t.primary.withOpacity(0.5),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _t.bgGradient,
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Text(
-                _s.widgetsTitle,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade800,
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: _t.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Icon(
+                    Icons.widgets_rounded,
+                    size: 36,
+                    color: _t.primary.withOpacity(0.5),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _s.connectPartnerForWidgets,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: Colors.grey.shade500,
-                  height: 1.5,
+                const SizedBox(height: 20),
+                Text(
+                  _s.widgetsTitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade800,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  _s.connectPartnerForWidgets,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 

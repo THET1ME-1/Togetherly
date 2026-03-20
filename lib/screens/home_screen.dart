@@ -463,15 +463,17 @@ class _HomeScreenState extends State<HomeScreen> {
           // -- Background --
           Positioned.fill(
             child: RepaintBoundary(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: _t.bgGradient,
-                  ),
-                ),
-              ),
+              child: _t.bgImageAsset != null
+                  ? Image.asset(_t.bgImageAsset!, fit: BoxFit.cover)
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: _t.bgGradient,
+                        ),
+                      ),
+                    ),
             ),
           ),
           // -- Main content --
@@ -2625,7 +2627,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Material(
-            color: Colors.transparent,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            elevation: 1,
+            shadowColor: Colors.black.withOpacity(0.08),
             child: InkWell(
               onTap: enabled ? (onTap ?? () {}) : null,
               borderRadius: BorderRadius.circular(18),
@@ -2633,15 +2638,8 @@ class _HomeScreenState extends State<HomeScreen> {
               highlightColor: iconColor.withOpacity(0.06),
               child: Ink(
                 decoration: BoxDecoration(
-                  color: _t.cardSurface,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -3179,7 +3177,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final s = LocaleService.current;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF1EB),
+        color: _t.navActiveBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         boxShadow: [
           BoxShadow(
@@ -3384,7 +3382,7 @@ class _NavBarItemState extends State<_NavBarItem>
                           ? widget.activeColor
                           : Colors.grey.shade400,
                     ),
-                    child: Text(widget.label, maxLines: 1),
+                    child: const SizedBox.shrink(),
                   ),
                 ],
               ),

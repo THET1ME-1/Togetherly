@@ -24,6 +24,9 @@ class AppTheme {
   /// Цвета градиента фона [сверху, снизу]
   final List<Color> bgGradient;
 
+  /// Путь к asset-изображению для фона (если задан — используется вместо градиента)
+  final String? bgImageAsset;
+
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
   /// Цвета градиента карточки [начало, конец]
@@ -76,6 +79,7 @@ class AppTheme {
     required this.primary,
     required this.primaryLight,
     required this.bgGradient,
+    this.bgImageAsset,
     required this.heroGradient,
     required this.heroShadowBase,
     required this.heroShadowExpanded,
@@ -121,6 +125,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFF9E4E2),
     navActiveIcon: Color(0xFFFF7E8B),
     promptButtonColor: Color(0xFFFF7E8B),
+    bgImageAsset: 'assets/images/wallpaper/pink-background.png',
   );
 
   // ── 1: Фиолетовая (Lavender) ──────────────────────────────────────────────
@@ -148,6 +153,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFEDE7F6),
     navActiveIcon: Color(0xFF9B86BD),
     promptButtonColor: Color(0xFF9B86BD),
+    bgImageAsset: 'assets/images/wallpaper/purple-background.png',
   );
 
   // ── 2: Голубая (Dusty Sky) ────────────────────────────────────────────────
@@ -157,6 +163,7 @@ abstract final class AppThemes {
     primary: Color(0xFF7898BF), // пыльно-голубой с тёплым оттенком
     primaryLight: Color(0xFFEAF2FA),
     bgGradient: [Color(0xFFEBF2F9), Color(0xFFF5F9FE)],
+    bgImageAsset: 'assets/images/wallpaper/blue-background.png',
     heroGradient: [Color(0xFFA8C6DE), Color(0xFF7898BF)],
     heroShadowBase: Color(0x267898BF),
     heroShadowExpanded: Color(0x407898BF),
@@ -196,6 +203,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFFDF2EB),
     navActiveIcon: Color(0xFFCF7E5E),
     promptButtonColor: Color(0xFFCF7E5E),
+    bgImageAsset: 'assets/images/wallpaper/persic-background.png',
   );
 
   // ── 4: Шалфейная (Warm Sage) ─────────────────────────────────────────────
@@ -220,6 +228,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFE5F3E1),
     navActiveIcon: Color(0xFF7EA876),
     promptButtonColor: Color(0xFF7EA876),
+    bgImageAsset: 'assets/images/wallpaper/green-background.png',
   );
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────

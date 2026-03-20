@@ -1049,7 +1049,7 @@ class FirebaseService {
                   onData(null);
                 });
           }
-        });
+        }, onError: (e) => debugPrint('listenToPair error: $e'));
   }
 
   /// Remove me from a group (or delete if ≤2 members)
@@ -1162,7 +1162,7 @@ class FirebaseService {
       } else {
         onData(null);
       }
-    });
+    }, onError: (e) => debugPrint('listenToUserDoc error: $e'));
   }
 
   // ══════════════════════════════════════════════
@@ -1425,7 +1425,7 @@ class FirebaseService {
               .map((d) => Memory.fromFirestore(d.id, d.data()))
               .toList();
           onData(memories);
-        });
+        }, onError: (e) => debugPrint('listenToMemories error: $e'));
   }
 
   // ══════════════════════════════════════════════
@@ -1705,7 +1705,7 @@ class FirebaseService {
       } else {
         onData([]);
       }
-    });
+    }, onError: (e) => debugPrint('listenToTimers error: $e'));
   }
 
   // ══════════════════════════════════════════════
@@ -1772,7 +1772,7 @@ class FirebaseService {
         .listen((snap) {
           final entries = snap.docs.map((d) => d.data()).toList();
           onData(entries);
-        });
+        }, onError: (e) => debugPrint('listenToMoodEntries error: $e'));
   }
 
   // ══════════════════════════════════════════════
@@ -1822,7 +1822,10 @@ class FirebaseService {
         .collection('reflections')
         .doc(dayKey)
         .snapshots()
-        .listen((snap) => onData(snap.exists ? snap.data() : null));
+        .listen(
+          (snap) => onData(snap.exists ? snap.data() : null),
+          onError: (e) => debugPrint('listenToReflection error: $e'),
+        );
   }
 
   static String _reflectionDayKey(DateTime d) =>
@@ -1875,7 +1878,7 @@ class FirebaseService {
       final data = snap.data();
       final count = (data?['missYouCount'] as int?) ?? 0;
       onData(count);
-    });
+    }, onError: (e) => debugPrint('listenToMissYouCount error: $e'));
   }
 
   // ══════════════════════════════════════════════

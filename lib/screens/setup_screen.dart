@@ -35,30 +35,20 @@ class _SetupScreenState extends State<SetupScreen>
 
   // Colors based on gender
   Color get _accent {
-    if (_selectedGender == Gender.male) return const Color(0xFF4A90D9);
-    if (_selectedGender == Gender.female) return const Color(0xFFEE2B6C);
-    return const Color(0xFFEE2B6C);
+    if (_selectedGender == Gender.male) return const Color(0xFF7898BF);
+    return const Color(0xFFFF7E8B);
   }
 
   Color get _accentLight {
-    if (_selectedGender == Gender.male) return const Color(0xFFE3F0FF);
-    if (_selectedGender == Gender.female) return const Color(0xFFFEEAF1);
+    if (_selectedGender == Gender.male) return const Color(0xFFEAF2FA);
     return const Color(0xFFFEEAF1);
   }
 
-  List<Color> get _bgGradient {
+  String get _bgImageAsset {
     if (_selectedGender == Gender.male) {
-      return [
-        const Color(0xFFE8F0FE),
-        const Color(0xFFEDF3FB),
-        const Color(0xFFF2F6FA),
-      ];
+      return 'assets/images/wallpaper/blue-background.png';
     }
-    return [
-      const Color(0xFFF2EDE8),
-      const Color(0xFFF5F0EC),
-      const Color(0xFFF8F5F2),
-    ];
+    return 'assets/images/wallpaper/pink-background.png';
   }
 
   @override
@@ -113,6 +103,7 @@ class _SetupScreenState extends State<SetupScreen>
             email: email,
             gender: gender,
             avatarUrl: avatarUrl,
+            isReturningUser: true, // не обнулять данные пары
           );
 
           if (!mounted) return;
@@ -348,23 +339,26 @@ class _SetupScreenState extends State<SetupScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 500),
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: _bgGradient,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 500),
+            child: Image.asset(
+              _bgImageAsset,
+              key: ValueKey(_bgImageAsset),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: _step == 0 ? _buildGenderStep() : _buildRegistrationStep(),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: _step == 0 ? _buildGenderStep() : _buildRegistrationStep(),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -457,8 +451,8 @@ class _SetupScreenState extends State<SetupScreen>
   Widget _genderCard(Gender gender) {
     final isSelected = _selectedGender == gender;
     final isMale = gender == Gender.male;
-    final color = isMale ? const Color(0xFF4A90D9) : const Color(0xFFEE2B6C);
-    final bgColor = isMale ? const Color(0xFFE3F0FF) : const Color(0xFFFEEAF1);
+    final color = isMale ? const Color(0xFF7898BF) : const Color(0xFFFF7E8B);
+    final bgColor = isMale ? const Color(0xFFEAF2FA) : const Color(0xFFFEEAF1);
     final icon = isMale ? Icons.male_rounded : Icons.female_rounded;
     final label = isMale
         ? LocaleService.current.boy
