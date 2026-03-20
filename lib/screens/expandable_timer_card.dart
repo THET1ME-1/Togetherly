@@ -477,10 +477,6 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 6),
-            // Emoji
-            if (timer != null)
-              Text(timer.emoji, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 24),
             // Toggle
             _buildBottomBar(),
@@ -640,22 +636,6 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                // Emoji
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      timer.emoji,
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
                 // Info
                 Expanded(
                   child: Column(
