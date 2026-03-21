@@ -2649,15 +2649,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      hasMoodImage
-                          ? Image.asset(
-                              moodImagePath,
-                              width: 32,
-                              height: 32,
-                              errorBuilder: (_, __, ___) =>
-                                  Icon(icon, color: iconColor, size: 26),
-                            )
-                          : Icon(icon, color: iconColor, size: 26),
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: hasMoodImage
+                            ? Image.asset(
+                                moodImagePath,
+                                width: 32,
+                                height: 32,
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: Icon(icon, color: iconColor, size: 26),
+                                ),
+                              )
+                            : Center(
+                                child: Icon(icon, color: iconColor, size: 26),
+                              ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         label,
