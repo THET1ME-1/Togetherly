@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
@@ -207,9 +208,15 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            'assets/images/wallpaper/pink-background.png',
+          CachedNetworkImage(
+            imageUrl:
+                'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
             fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            placeholder: (_, __) => const ColoredBox(color: Color(0xFFFFF0EA)),
+            errorWidget: (_, __, ___) =>
+                const ColoredBox(color: Color(0xFFFFF0EA)),
           ),
           SafeArea(
             child: SingleChildScrollView(

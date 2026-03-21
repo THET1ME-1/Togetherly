@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user_data.dart';
@@ -45,11 +46,11 @@ class _SetupScreenState extends State<SetupScreen>
     return const Color(0xFFFEEAF1);
   }
 
-  String get _bgImageAsset {
+  String get _bgImageUrl {
     if (_selectedGender == Gender.male) {
-      return 'assets/images/wallpaper/blue-background.png';
+      return 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fblue-background.webp?alt=media';
     }
-    return 'assets/images/wallpaper/pink-background.png';
+    return 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media';
   }
 
   @override
@@ -345,12 +346,16 @@ class _SetupScreenState extends State<SetupScreen>
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 500),
-            child: Image.asset(
-              _bgImageAsset,
-              key: ValueKey(_bgImageAsset),
+            child: CachedNetworkImage(
+              key: ValueKey(_bgImageUrl),
+              imageUrl: _bgImageUrl,
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
+              placeholder: (_, __) =>
+                  const ColoredBox(color: Color(0xFFFFF0EA)),
+              errorWidget: (_, __, ___) =>
+                  const ColoredBox(color: Color(0xFFFFF0EA)),
             ),
           ),
           SafeArea(

@@ -24,8 +24,8 @@ class AppTheme {
   /// Цвета градиента фона [сверху, снизу]
   final List<Color> bgGradient;
 
-  /// Путь к asset-изображению для фона (если задан — используется вместо градиента)
-  final String? bgImageAsset;
+  /// URL изображения фона из Firebase Storage (если задан — используется вместо градиента)
+  final String? bgImageUrl;
 
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
@@ -79,7 +79,7 @@ class AppTheme {
     required this.primary,
     required this.primaryLight,
     required this.bgGradient,
-    this.bgImageAsset,
+    this.bgImageUrl,
     required this.heroGradient,
     required this.heroShadowBase,
     required this.heroShadowExpanded,
@@ -125,7 +125,8 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFF9E4E2),
     navActiveIcon: Color(0xFFFF7E8B),
     promptButtonColor: Color(0xFFFF7E8B),
-    bgImageAsset: 'assets/images/wallpaper/pink-background.png',
+    bgImageUrl:
+        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
   );
 
   // ── 1: Фиолетовая (Lavender) ──────────────────────────────────────────────
@@ -153,7 +154,8 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFEDE7F6),
     navActiveIcon: Color(0xFF9B86BD),
     promptButtonColor: Color(0xFF9B86BD),
-    bgImageAsset: 'assets/images/wallpaper/purple-background.png',
+    bgImageUrl:
+        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpurple-background.webp?alt=media',
   );
 
   // ── 2: Голубая (Dusty Sky) ────────────────────────────────────────────────
@@ -163,7 +165,8 @@ abstract final class AppThemes {
     primary: Color(0xFF7898BF), // пыльно-голубой с тёплым оттенком
     primaryLight: Color(0xFFEAF2FA),
     bgGradient: [Color(0xFFEBF2F9), Color(0xFFF5F9FE)],
-    bgImageAsset: 'assets/images/wallpaper/blue-background.png',
+    bgImageUrl:
+        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fblue-background.webp?alt=media',
     heroGradient: [Color(0xFFA8C6DE), Color(0xFF7898BF)],
     heroShadowBase: Color(0x267898BF),
     heroShadowExpanded: Color(0x407898BF),
@@ -203,7 +206,8 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFFDF2EB),
     navActiveIcon: Color(0xFFCF7E5E),
     promptButtonColor: Color(0xFFCF7E5E),
-    bgImageAsset: 'assets/images/wallpaper/persic-background.png',
+    bgImageUrl:
+        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpersic-background.webp?alt=media',
   );
 
   // ── 4: Шалфейная (Warm Sage) ─────────────────────────────────────────────
@@ -228,7 +232,8 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFE5F3E1),
     navActiveIcon: Color(0xFF7EA876),
     promptButtonColor: Color(0xFF7EA876),
-    bgImageAsset: 'assets/images/wallpaper/green-background.png',
+    bgImageUrl:
+        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fgreen-background.webp?alt=media',
   );
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────

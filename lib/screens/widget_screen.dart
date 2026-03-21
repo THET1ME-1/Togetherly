@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
@@ -226,8 +227,31 @@ class _WidgetScreenState extends State<WidgetScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        _t.bgImageAsset != null
-            ? Image.asset(_t.bgImageAsset!, fit: BoxFit.cover)
+        _t.bgImageUrl != null
+            ? CachedNetworkImage(
+                imageUrl: _t.bgImageUrl!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                placeholder: (_, __) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: _t.bgGradient,
+                    ),
+                  ),
+                ),
+                errorWidget: (_, __, ___) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: _t.bgGradient,
+                    ),
+                  ),
+                ),
+              )
             : DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -2051,8 +2075,31 @@ class _WidgetScreenState extends State<WidgetScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        _t.bgImageAsset != null
-            ? Image.asset(_t.bgImageAsset!, fit: BoxFit.cover)
+        _t.bgImageUrl != null
+            ? CachedNetworkImage(
+                imageUrl: _t.bgImageUrl!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                placeholder: (_, __) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: _t.bgGradient,
+                    ),
+                  ),
+                ),
+                errorWidget: (_, __, ___) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: _t.bgGradient,
+                    ),
+                  ),
+                ),
+              )
             : DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
