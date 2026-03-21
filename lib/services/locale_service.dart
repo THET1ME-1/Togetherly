@@ -411,6 +411,9 @@ abstract class AppStrings {
   String get connectionRemoved;
   String get disconnectQuestion;
   String get disconnectDesc;
+  String get renamePartner;
+  String get renamePartnerHint;
+  String get resetNickname;
   String joinMeLinkText(String link);
   String get custom;
   String membersCountBracket(int count);
@@ -1142,6 +1145,13 @@ class _RuStrings extends AppStrings {
   String get disconnectQuestion => 'Отключиться?';
   @override
   String get disconnectDesc => 'Это сбросит ваш таймер и отключит партнёра.';
+  @override
+  String get renamePartner => 'Переименовать участника';
+  @override
+  String get renamePartnerHint =>
+      'Имя видно только вам. Это не меняет имя партнёра у него.';
+  @override
+  String get resetNickname => 'Сбросить';
   @override
   String joinMeLinkText(String link) =>
       'Присоединяйся ко мне в Love App! $link';
@@ -1905,6 +1915,13 @@ class _EnStrings extends AppStrings {
   @override
   String get disconnectDesc =>
       'This will reset your timer and disconnect your partner.';
+  @override
+  String get renamePartner => 'Rename Member';
+  @override
+  String get renamePartnerHint =>
+      'Only visible to you. This does not change the partner\'s name for them.';
+  @override
+  String get resetNickname => 'Reset';
   @override
   String joinMeLinkText(String link) => 'Join me on Love App! $link';
   @override

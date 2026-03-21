@@ -241,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
           startDate: _pairData.startDate!,
           relationshipLabel: _pairData.relationshipLabel,
           relationshipEmoji: _pairData.relationshipEmoji,
-          partnerName: _pairData.partnerName,
+          partnerName: _pairData.partnerDisplayName,
         );
 
         // Виджеты рабочего стола: автосинхронизация данных текущей группы
@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final hws = HomeWidgetService.instance;
     final myName = widget.userData.displayName;
-    final partnerName = _pairData.partnerName;
+    final partnerName = _pairData.partnerDisplayName;
 
     await hws.syncAllBoundWidgets(
       activeGroupId: _pairData.pairId,
@@ -303,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
       userName: widget.userData.displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
       partnerMoodLabel: partnerEntry?.label ?? '',
-      partnerUserName: _pairData.partnerName,
+      partnerUserName: _pairData.partnerDisplayName,
     );
   }
 
@@ -2054,7 +2054,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             const SizedBox(width: 8),
                             Text(
-                              '${_pairData.partnerName} is ${_pairData.partnerMood.label}',
+                              '${_pairData.partnerDisplayName} is ${_pairData.partnerMood.label}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

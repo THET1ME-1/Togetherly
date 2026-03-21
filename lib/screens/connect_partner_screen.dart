@@ -10,6 +10,7 @@ import '../models/connection.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
+import '../services/nickname_service.dart';
 import '../theme/app_theme.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
@@ -370,7 +371,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 const SizedBox(height: 10),
                 Text(
                   partners.length == 1
-                      ? partners.first.name
+                      ? pair.displayNameOf(partners.first)
                       : LocaleService.current.groupOf(partners.length + 1),
                   style: const TextStyle(
                     fontSize: 20,
@@ -445,17 +446,45 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         _memberAvatar(m.avatar, m.name, 38),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            m.name.isNotEmpty
-                                ? m.name
-                                : LocaleService.current.member,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                pair.displayNameOf(m).isNotEmpty
+                                    ? pair.displayNameOf(m)
+                                    : LocaleService.current.member,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                              if (NicknameService.instance
+                                  .get(m.uid)
+                                  .isNotEmpty)
+                                Text(
+                                  m.name,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _showRenameDialog(m),
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: Colors.grey.shade400,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
                         _buildPresenceBadge(m.uid),
                       ],
                     ),
@@ -2214,6 +2243,80 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showRenameDialog(GroupMember member) {
+    final current = NicknameService.instance.get(member.uid);
+    final controller = TextEditingController(text: current);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          LocaleService.current.renamePartner,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              LocaleService.current.renamePartnerHint,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 30,
+              decoration: InputDecoration(
+                hintText: member.name,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: primary, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (current.isNotEmpty)
+            TextButton(
+              onPressed: () async {
+                await pair.clearNickname(member.uid);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                setState(() {});
+              },
+              child: Text(
+                LocaleService.current.resetNickname,
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(LocaleService.current.cancel),
+          ),
+          TextButton(
+            onPressed: () async {
+              await pair.setNickname(member.uid, controller.text);
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              setState(() {});
+            },
+            child: Text(
+              LocaleService.current.save,
+              style: TextStyle(color: primary, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }

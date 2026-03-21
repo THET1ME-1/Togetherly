@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'connections_manager.dart';
 import 'connection.dart';
+import '../services/nickname_service.dart';
 
 // Re-export for convenience
 export 'connection.dart' show RelationshipType, GroupMember, MemberMood;
@@ -22,6 +23,29 @@ class PairData extends ChangeNotifier {
   String get partnerName => _active?.partnerName ?? '';
   String get partnerAvatarUrl => _active?.partnerAvatarUrl ?? '';
   String get inviteCode => _active?.inviteCode ?? '';
+
+  /// UID первого партнёра (для хранения псевдонима)
+  String get partnerUid => _active?.partners.firstOrNull?.uid ?? '';
+
+  /// Отображаемое имя партнёра: псевдоним (если задан) или реальное имя
+  String get partnerDisplayName =>
+      NicknameService.instance.resolve(partnerUid, partnerName);
+
+  /// Отображаемое имя участника группы: псевдоним или реальное
+  String displayNameOf(GroupMember member) =>
+      NicknameService.instance.resolve(member.uid, member.name);
+
+  /// Сохранить локальный псевдоним для участника
+  Future<void> setNickname(String uid, String nickname) async {
+    await NicknameService.instance.set(uid, nickname);
+    notifyListeners();
+  }
+
+  /// Удалить псевдоним (вернуть настоящее имя)
+  Future<void> clearNickname(String uid) async {
+    await NicknameService.instance.clear(uid);
+    notifyListeners();
+  }
 
   String get pairId => _active?.pairId ?? '';
   bool get loading => _manager.loading;
@@ -100,6 +124,7 @@ class PairData extends ChangeNotifier {
 
   // ── Инициализация ──
   Future<void> init({required String myName}) async {
+    await NicknameService.instance.init();
     _manager.addListener(_onManagerChanged);
     await _manager.init(myName: myName);
     notifyListeners();
