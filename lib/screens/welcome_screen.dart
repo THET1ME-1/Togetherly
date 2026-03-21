@@ -27,36 +27,26 @@ class WelcomeScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const Spacer(flex: 3),
-                  // Smiley face icon
+                  // Heart icon
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFCE4EC).withOpacity(0.8),
+                      color: Colors.white.withOpacity(0.9),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _btnColor.withOpacity(0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: _primary.withOpacity(0.5),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: _primary.withOpacity(0.5),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
+                    child: const Center(
+                      child: Icon(
+                        Icons.favorite_rounded,
+                        color: _btnColor,
+                        size: 36,
                       ),
                     ),
                   ),
@@ -74,7 +64,7 @@ class WelcomeScreen extends StatelessWidget {
                         TextSpan(text: 'This space is just\nfor the '),
                         TextSpan(
                           text: 'two of you',
-                          style: TextStyle(color: _primary),
+                          style: TextStyle(color: _btnColor),
                         ),
                       ],
                     ),

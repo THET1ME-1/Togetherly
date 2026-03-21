@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
@@ -254,24 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'G',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF4285F4),
-                                ),
-                              ),
-                            ),
-                          ),
+                          const _GoogleLogo(size: 24),
                           const SizedBox(width: 12),
                           Text(
                             LocaleService.current.signInWithGoogle,
@@ -534,4 +518,63 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
     );
   }
+}
+
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo({this.size = 24});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _GoogleLogoPainter()),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final center = Offset(r, r);
+    final sw = r * 0.22;
+    final arcRect = Rect.fromCircle(center: center, radius: r - sw / 2);
+
+    double rad(double deg) => deg * math.pi / 180;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw
+      ..isAntiAlias = true;
+
+    // Green: bottom-right
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(arcRect, rad(28), rad(54), false, paint);
+
+    // Yellow: bottom-left
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(arcRect, rad(82), rad(90), false, paint);
+
+    // Red: top-left
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(arcRect, rad(172), rad(92), false, paint);
+
+    // Blue: top-right
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(arcRect, rad(264), rad(66), false, paint);
+
+    // Blue horizontal bar
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFF4285F4);
+    canvas.drawRect(
+      Rect.fromLTRB(r - sw * 0.15, r - sw / 2, r * 2 - sw * 0.5, r + sw / 2),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GoogleLogoPainter oldDelegate) => false;
 }
