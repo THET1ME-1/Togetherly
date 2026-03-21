@@ -480,9 +480,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               if (pair.canInviteMore) const SizedBox(width: 12),
               Expanded(
                 child: _actionTile(
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: LocaleService.current.scanQr,
-                  onTap: _openQRScanner,
+                  icon: Icons.qr_code_2_rounded,
+                  label: LocaleService.current.showQr,
+                  onTap: _showQRDialog,
                 ),
               ),
             ],
