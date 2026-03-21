@@ -17,7 +17,8 @@ class Memory {
   // Content fields (used depending on type)
   String? imageUrl; // photo / video thumbnail
   String? videoUrl; // video URL
-  String? caption; // text caption
+  String? title; // user-set title/name
+  String? caption; // text description
   String? locationName; // e.g. "Central Park Coffee"
   double? latitude;
   double? longitude;
@@ -39,6 +40,7 @@ class Memory {
     this.editedAt,
     this.imageUrl,
     this.videoUrl,
+    this.title,
     this.caption,
     this.locationName,
     this.latitude,
@@ -93,6 +95,7 @@ class Memory {
       if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
       if (imageUrl != null) 'imageUrl': imageUrl,
       if (videoUrl != null) 'videoUrl': videoUrl,
+      if (title != null) 'title': title,
       if (caption != null) 'caption': caption,
       if (locationName != null) 'locationName': locationName,
       if (latitude != null) 'latitude': latitude,
@@ -121,6 +124,7 @@ class Memory {
       editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
       imageUrl: data['imageUrl'],
       videoUrl: data['videoUrl'],
+      title: data['title'],
       caption: data['caption'],
       locationName: data['locationName'],
       latitude: (data['latitude'] as num?)?.toDouble(),
@@ -146,6 +150,7 @@ class Memory {
       'editedAt': editedAt?.toIso8601String(),
       'imageUrl': imageUrl,
       'videoUrl': videoUrl,
+      'title': title,
       'caption': caption,
       'locationName': locationName,
       'latitude': latitude,
@@ -175,6 +180,7 @@ class Memory {
           : null,
       imageUrl: json['imageUrl'],
       videoUrl: json['videoUrl'],
+      title: json['title'],
       caption: json['caption'],
       locationName: json['locationName'],
       latitude: (json['latitude'] as num?)?.toDouble(),

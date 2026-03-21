@@ -813,17 +813,41 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                memory.caption ?? '',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade800,
-                  height: 1.5,
+              if (memory.title != null && memory.title!.isNotEmpty) ...[
+                Text(
+                  memory.title!,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade900,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-              ),
+                if (memory.caption != null && memory.caption!.isNotEmpty)
+                  const SizedBox(height: 4),
+              ],
+              if (memory.caption != null && memory.caption!.isNotEmpty)
+                Text(
+                  memory.caption!,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
+                    height: 1.5,
+                  ),
+                  maxLines: 5,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (memory.title == null && memory.caption == null)
+                Text(
+                  'Note',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
               const SizedBox(height: 10),
               _authorTimeRow(memory),
             ],
@@ -944,17 +968,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   String _memoryTitle(Memory memory) {
+    if (memory.title != null && memory.title!.isNotEmpty) {
+      return memory.title!;
+    }
     switch (memory.type) {
       case MemoryType.photo:
-        return memory.caption?.isNotEmpty == true ? memory.caption! : 'Photo';
+        return 'Photo';
       case MemoryType.video:
-        return memory.caption?.isNotEmpty == true ? memory.caption! : 'Video';
+        return 'Video';
       case MemoryType.location:
         return memory.locationName ?? 'Location';
       case MemoryType.music:
         return memory.musicTitle ?? 'Music';
       case MemoryType.text:
-        return memory.caption ?? 'Note';
+        return memory.caption?.isNotEmpty == true ? memory.caption! : 'Note';
     }
   }
 
@@ -1744,6 +1771,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   void _editMemory(Memory memory) {
+    final titleCtrl = TextEditingController(text: memory.title ?? '');
     final captionCtrl = TextEditingController(text: memory.caption ?? '');
     final locationCtrl = TextEditingController(text: memory.locationName ?? '');
 
@@ -1786,10 +1814,29 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
             const SizedBox(height: 20),
             TextField(
+              controller: titleCtrl,
+              maxLines: 1,
+              decoration: InputDecoration(
+                hintText: 'Title (optional)',
+                prefixIcon: const Icon(Icons.title_rounded, size: 20),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.grey.shade200),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.grey.shade200),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
               controller: captionCtrl,
               maxLines: 3,
               decoration: InputDecoration(
-                hintText: 'Caption...',
+                hintText: 'Description...',
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(
@@ -1832,6 +1879,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   await _fb.updateMemory(
                     groupId: _groupId,
                     memoryId: memory.id,
+                    title: titleCtrl.text.trim().isNotEmpty
+                        ? titleCtrl.text.trim()
+                        : '',
                     caption: captionCtrl.text.trim(),
                     locationName: memory.type == MemoryType.location
                         ? locationCtrl.text.trim()
@@ -1964,6 +2014,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   void _showCreateMemoryForm(MemoryType type) {
+    final titleCtrl = TextEditingController();
     final captionCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
     final musicTitleCtrl = TextEditingController();
@@ -2115,12 +2166,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
                 // Caption (always show)
                 TextField(
+                  controller: titleCtrl,
+                  maxLines: 1,
+                  decoration: InputDecoration(
+                    hintText: type == MemoryType.text
+                        ? 'Title (optional)'
+                        : 'Title (optional)',
+                    prefixIcon: const Icon(Icons.title_rounded, size: 20),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
                   controller: captionCtrl,
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: type == MemoryType.text
                         ? 'Write your note...'
-                        : 'Add a caption...',
+                        : 'Description (optional)',
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
@@ -2366,6 +2438,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       Navigator.pop(context);
                       await _saveNewMemory(
                         type: type,
+                        title: titleCtrl.text.trim(),
                         caption: captionCtrl.text.trim(),
                         locationName: locationCtrl.text.trim(),
                         latitude: lat,
@@ -2420,6 +2493,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   Future<void> _saveNewMemory({
     required MemoryType type,
+    String title = '',
     String caption = '',
     String locationName = '',
     double? latitude,
@@ -2509,6 +2583,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       await _fb.addMemory(
         groupId: _groupId,
         type: type,
+        title: title.isNotEmpty ? title : null,
         caption: caption.isNotEmpty ? caption : null,
         locationName: locationName.isNotEmpty ? locationName : null,
         latitude: latitude,

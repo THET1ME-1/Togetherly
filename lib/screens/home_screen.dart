@@ -2880,17 +2880,35 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          child: Text(
-            memory.caption?.isNotEmpty == true
-                ? memory.caption!
-                : LocaleService.current.photo,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade800,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                memory.title?.isNotEmpty == true
+                    ? memory.title!
+                    : memory.caption?.isNotEmpty == true
+                    ? memory.caption!
+                    : LocaleService.current.photo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              if (memory.title?.isNotEmpty == true &&
+                  memory.caption?.isNotEmpty == true) ...[
+                const SizedBox(height: 2),
+                Text(
+                  memory.caption!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -2950,15 +2968,36 @@ class _HomeScreenState extends State<HomeScreen> {
           bottom: 12,
           left: 12,
           right: 12,
-          child: Text(
-            memory.caption ?? LocaleService.current.videoLabel,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                memory.title?.isNotEmpty == true
+                    ? memory.title!
+                    : memory.caption ?? LocaleService.current.videoLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              if (memory.title?.isNotEmpty == true &&
+                  memory.caption?.isNotEmpty == true) ...[
+                const SizedBox(height: 2),
+                Text(
+                  memory.caption!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withOpacity(0.75),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -2987,7 +3026,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Spacer(),
           Text(
             memory.locationName ?? LocaleService.current.location,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
@@ -2995,6 +3034,19 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.grey.shade800,
             ),
           ),
+          if (memory.title != null && memory.title!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              memory.title!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
           if (memory.latitude != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -3089,8 +3141,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Spacer(),
           Text(
-            memory.musicTitle ?? LocaleService.current.audio,
-            maxLines: 2,
+            memory.title?.isNotEmpty == true
+                ? memory.title!
+                : memory.musicTitle ?? LocaleService.current.audio,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
@@ -3098,7 +3152,15 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.grey.shade800,
             ),
           ),
-          if (memory.musicArtist != null)
+          if (memory.title?.isNotEmpty == true &&
+              memory.musicTitle?.isNotEmpty == true)
+            Text(
+              memory.musicTitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            )
+          else if (memory.musicArtist != null)
             Text(
               memory.musicArtist!,
               maxLines: 1,
@@ -3147,17 +3209,37 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const Text('📝', style: TextStyle(fontSize: 22)),
           const Spacer(),
-          Text(
-            memory.caption ?? '',
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade800,
-              height: 1.4,
+          if (memory.title != null && memory.title!.isNotEmpty) ...[
+            Text(
+              memory.title!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+              ),
             ),
-          ),
+            if (memory.caption?.isNotEmpty == true) const SizedBox(height: 2),
+          ],
+          if (memory.caption?.isNotEmpty == true)
+            Text(
+              memory.caption!,
+              maxLines: memory.title?.isNotEmpty == true ? 2 : 4,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade800,
+                height: 1.4,
+              ),
+            )
+          else if (memory.title == null || memory.title!.isEmpty)
+            Text(
+              '',
+              maxLines: 4,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            ),
           const Spacer(),
           Text(
             memory.authorName,

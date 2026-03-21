@@ -1259,6 +1259,7 @@ class FirebaseService {
     required MemoryType type,
     String? imageUrl,
     String? videoUrl,
+    String? title,
     String? caption,
     String? locationName,
     double? latitude,
@@ -1291,6 +1292,7 @@ class FirebaseService {
         createdAt: DateTime.now(),
         imageUrl: imageUrl,
         videoUrl: videoUrl,
+        title: title,
         caption: caption,
         locationName: locationName,
         latitude: latitude,
@@ -1312,6 +1314,7 @@ class FirebaseService {
   Future<void> updateMemory({
     required String groupId,
     required String memoryId,
+    String? title,
     String? caption,
     String? locationName,
     String? musicTitle,
@@ -1321,6 +1324,7 @@ class FirebaseService {
   }) async {
     try {
       final updates = <String, dynamic>{'editedAt': Timestamp.now()};
+      if (title != null) updates['title'] = title;
       if (caption != null) updates['caption'] = caption;
       if (locationName != null) updates['locationName'] = locationName;
       if (musicTitle != null) updates['musicTitle'] = musicTitle;
