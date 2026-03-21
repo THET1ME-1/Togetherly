@@ -1735,15 +1735,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
+              final userData = widget.userData;
               Navigator.of(ctx).pop();
-              await widget.userData.logout();
+
+              // Navigate first to avoid race condition with notifyListeners
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (_) => WelcomeScreen(userData: widget.userData),
+                    builder: (_) => WelcomeScreen(userData: userData),
                   ),
                   (_) => false,
                 );
+              }
+
+              // Logout after navigation so dispose() runs cleanly first
+              try {
+                await userData.logout();
+              } catch (e) {
+                debugPrint('Logout error: $e');
               }
             },
             child: Text(

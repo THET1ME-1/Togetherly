@@ -29,6 +29,7 @@ class _SetupScreenState extends State<SetupScreen>
   String _avatarUrl = '';
   XFile? _selectedAvatarFile; // Локальный файл для загрузки после регистрации
   bool _obscurePassword = true;
+  bool _agreeToTerms = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -533,9 +534,11 @@ class _SetupScreenState extends State<SetupScreen>
   //  STEP 2: REGISTRATION
   // ═══════════════════════════════════════════════════
   Widget _buildRegistrationStep() {
+    final _s = LocaleService.current;
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Column(
         children: [
           const SizedBox(height: 20),
@@ -559,203 +562,175 @@ class _SetupScreenState extends State<SetupScreen>
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          // Avatar
-          GestureDetector(
-            onTap: _pickAvatar,
-            child: Stack(
-              children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _accentLight,
-                    border: Border.all(
-                      color: _accent.withOpacity(0.2),
-                      width: 3,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _accent.withOpacity(0.15),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: _selectedAvatarFile != null
-                      ? ClipOval(
-                          child: Image.file(
-                            File(_selectedAvatarFile!.path),
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : _avatarUrl.isNotEmpty
-                      ? ClipOval(
-                          child: Image.network(
-                            _avatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.person_rounded,
-                              color: _accent.withOpacity(0.5),
-                              size: 40,
-                            ),
-                          ),
-                        )
-                      : Icon(
-                          Icons.person_rounded,
-                          color: _accent.withOpacity(0.5),
-                          size: 40,
-                        ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: _accent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt_rounded,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 36),
+          // Title
           Text(
-            LocaleService.current.createProfile,
+            _s.createAccountBtn,
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
               color: Colors.grey.shade900,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            LocaleService.current.signInGoogleOrManual,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 32),
-          // Google Sign In button
-          SizedBox(
+          const SizedBox(height: 28),
+          // ═══ Form Card ═══
+          Container(
             width: double.infinity,
-            height: 54,
-            child: OutlinedButton(
-              onPressed: _isLoading ? null : _signInWithGoogle,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey.shade800,
-                side: BorderSide(color: Colors.grey.shade200),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
-                backgroundColor: Colors.white,
-              ),
-              child: _isLoading
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: _accent,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar (centered)
+                Center(
+                  child: GestureDetector(
+                    onTap: _pickAvatar,
+                    child: Stack(
                       children: [
-                        // Google "G" icon using text
                         Container(
-                          width: 24,
-                          height: 24,
+                          width: 80,
+                          height: 80,
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'G',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF4285F4),
-                              ),
+                            shape: BoxShape.circle,
+                            color: _accentLight,
+                            border: Border.all(
+                              color: _accent.withOpacity(0.2),
+                              width: 3,
                             ),
                           ),
+                          child: _selectedAvatarFile != null
+                              ? ClipOval(
+                                  child: Image.file(
+                                    File(_selectedAvatarFile!.path),
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : _avatarUrl.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    _avatarUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.person_rounded,
+                                      color: _accent.withOpacity(0.5),
+                                      size: 36,
+                                    ),
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.person_rounded,
+                                  color: _accent.withOpacity(0.5),
+                                  size: 36,
+                                ),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          LocaleService.current.signInWithGoogle,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: _accent,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
                           ),
                         ),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Full Name
+                _buildFormLabel(_s.fullName),
+                const SizedBox(height: 8),
+                _buildFormField(controller: _nameController, hint: _s.yourName),
+                const SizedBox(height: 18),
+                // Email
+                _buildFormLabel(_s.email),
+                const SizedBox(height: 8),
+                _buildFormField(
+                  controller: _emailController,
+                  hint: 'your@email.com',
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 18),
+                // Password
+                _buildFormLabel(_s.password),
+                const SizedBox(height: 8),
+                _buildFormPasswordField(),
+                const SizedBox(height: 18),
+                // Terms checkbox
+                GestureDetector(
+                  onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: _agreeToTerms ? _accent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: _agreeToTerms
+                                ? _accent
+                                : Colors.grey.shade400,
+                            width: 2,
+                          ),
+                        ),
+                        child: _agreeToTerms
+                            ? const Icon(
+                                Icons.check_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _s.agreeToTerms,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
-          // Divider
-          Row(
-            children: [
-              Expanded(child: Divider(color: Colors.grey.shade200)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  LocaleService.current.orManually,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade400,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              Expanded(child: Divider(color: Colors.grey.shade200)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Name field
-          _buildTextField(
-            controller: _nameController,
-            label: LocaleService.current.name,
-            hint: LocaleService.current.yourName,
-            icon: Icons.person_outline_rounded,
-          ),
-          const SizedBox(height: 16),
-          // Email field
-          _buildTextField(
-            controller: _emailController,
-            label: LocaleService.current.email,
-            hint: 'your@email.com',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 16),
-          // Password field
-          _buildPasswordField(),
-          const SizedBox(height: 36),
-          // Complete button
+          // Create Account button
           SizedBox(
             width: double.infinity,
             height: 58,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _completeSetup,
+              onPressed: (_isLoading || !_agreeToTerms) ? null : _completeSetup,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: _accent.withOpacity(0.6),
+                disabledBackgroundColor: _accent.withOpacity(0.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(32),
                 ),
@@ -772,7 +747,7 @@ class _SetupScreenState extends State<SetupScreen>
                       ),
                     )
                   : Text(
-                      LocaleService.current.start,
+                      _s.createAccountBtn,
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -781,12 +756,38 @@ class _SetupScreenState extends State<SetupScreen>
             ),
           ),
           const SizedBox(height: 20),
-          // Login link
+          // Divider
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade200)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  _s.or,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade400,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.grey.shade200)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Google Sign In button
+          _buildSocialButton(
+            onPressed: _isLoading ? null : _signInWithGoogle,
+            icon: const _GoogleLogoSmall(),
+            label: _s.continueWithGoogle,
+          ),
+          const SizedBox(height: 28),
+          // Already have account?
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                LocaleService.current.alreadyHaveAccountQuestion,
+                '${_s.alreadyHaveAccountLogin} ',
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
               GestureDetector(
@@ -802,7 +803,7 @@ class _SetupScreenState extends State<SetupScreen>
                   );
                 },
                 child: Text(
-                  LocaleService.current.login,
+                  _s.login,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -812,154 +813,171 @@ class _SetupScreenState extends State<SetupScreen>
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'PRIVATE & SECURE',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade400,
-              letterSpacing: 2.5,
-            ),
-          ),
           const SizedBox(height: 36),
         ],
       ),
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: TextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade900,
-            ),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: TextStyle(
-                color: Colors.grey.shade400,
-                fontWeight: FontWeight.w400,
-              ),
-              prefixIcon: Icon(icon, color: _accent, size: 20),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.75),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: _accent, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 16,
-              ),
-            ),
-          ),
-        ),
-      ],
+  Widget _buildFormLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade600,
+      ),
     );
   }
 
-  Widget _buildPasswordField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            LocaleService.current.password,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+  Widget _buildFormField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Colors.grey.shade900,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: _accent, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormPasswordField() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: _obscurePassword,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Colors.grey.shade900,
+      ),
+      decoration: InputDecoration(
+        hintText: LocaleService.current.minCharsPassword,
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        suffixIcon: GestureDetector(
+          onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+          child: Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.grey.shade500,
+              size: 20,
             ),
           ),
         ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: TextField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade900,
+        suffixIconConstraints: const BoxConstraints(minHeight: 0, minWidth: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: _accent, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSocialButton({
+    required VoidCallback? onPressed,
+    required Widget icon,
+    required String label,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.grey.shade800,
+          side: BorderSide(color: Colors.grey.shade200),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.white,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
-            decoration: InputDecoration(
-              hintText: LocaleService.current.minCharsPassword,
-              hintStyle: TextStyle(
-                color: Colors.grey.shade400,
-                fontWeight: FontWeight.w400,
-              ),
-              prefixIcon: Icon(
-                Icons.lock_outline_rounded,
-                color: _accent,
-                size: 20,
-              ),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.grey.shade500,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.75),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: _accent, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 16,
-              ),
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleLogoSmall extends StatelessWidget {
+  const _GoogleLogoSmall();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF4285F4),
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -143,6 +143,19 @@ abstract class AppStrings {
   String get accountExists;
   String get emailAlreadyRegistered;
   String registrationError(String e);
+  String get agreeToTerms;
+  String get forgotPassword;
+  String get showPassword;
+  String get hidePassword;
+  String get min8Chars;
+  String get oneUppercase;
+  String get oneSpecialChar;
+  String get fullName;
+  String get createAccountBtn;
+  String get continueWithGoogle;
+  String get continueWithApple;
+  String get alreadyHaveAccountLogin;
+  String get passwordRequirements;
 
   // ── Home Screen ──
   String get home;
@@ -588,6 +601,32 @@ class _RuStrings extends AppStrings {
       'Этот email уже зарегистрирован. Хотите войти в существующий аккаунт?';
   @override
   String registrationError(String e) => 'Ошибка регистрации: $e';
+  @override
+  String get agreeToTerms => 'Я принимаю условия использования';
+  @override
+  String get forgotPassword => 'Забыли пароль?';
+  @override
+  String get showPassword => 'Показать';
+  @override
+  String get hidePassword => 'Скрыть';
+  @override
+  String get min8Chars => 'Минимум 8 символов';
+  @override
+  String get oneUppercase => '1 заглавная буква';
+  @override
+  String get oneSpecialChar => '1 спец. символ';
+  @override
+  String get fullName => 'Полное имя';
+  @override
+  String get createAccountBtn => 'Создать аккаунт';
+  @override
+  String get continueWithGoogle => 'Продолжить через Google';
+  @override
+  String get continueWithApple => 'Продолжить через Apple';
+  @override
+  String get alreadyHaveAccountLogin => 'Уже есть аккаунт?';
+  @override
+  String get passwordRequirements => 'Требования к паролю';
 
   // ── Home ──
   @override
@@ -1360,6 +1399,32 @@ class _EnStrings extends AppStrings {
       'This email is already registered. Would you like to sign in?';
   @override
   String registrationError(String e) => 'Registration error: $e';
+  @override
+  String get agreeToTerms => 'I agree to the terms & conditions';
+  @override
+  String get forgotPassword => 'Forgot password?';
+  @override
+  String get showPassword => 'Show';
+  @override
+  String get hidePassword => 'Hide';
+  @override
+  String get min8Chars => 'Minimum 8 characters';
+  @override
+  String get oneUppercase => '1 uppercase';
+  @override
+  String get oneSpecialChar => 'At least 1 special character';
+  @override
+  String get fullName => 'Full Name';
+  @override
+  String get createAccountBtn => 'Create Account';
+  @override
+  String get continueWithGoogle => 'Continue with Google';
+  @override
+  String get continueWithApple => 'Continue with Apple';
+  @override
+  String get alreadyHaveAccountLogin => 'Already have an account?';
+  @override
+  String get passwordRequirements => 'Password requirements';
 
   // ── Home ──
   @override

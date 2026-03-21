@@ -16,7 +16,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   static const Color _accent = Color(0xFFFF7E8B);
-  static const Color _accentLight = Color(0xFFFEEAF1);
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -198,6 +197,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final _s = LocaleService.current;
+    final pwd = _passwordController.text;
+    final hasMin8 = pwd.length >= 8;
+    final hasUpper = pwd.contains(RegExp(r'[A-Z]'));
+    final hasSpecial = pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -211,95 +216,80 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
                 children: [
-                  const SizedBox(height: 60),
-                  // Icon
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: _accentLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.login_rounded, color: _accent, size: 32),
-                  ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 56),
                   // Title
                   Text(
-                    LocaleService.current.welcomeBack,
+                    _s.welcomeBack,
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: Colors.grey.shade900,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
-                    LocaleService.current.loginToAccount,
-                    style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                    _s.loginToAccount,
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
-                  const SizedBox(height: 40),
-                  // Google button
-                  SizedBox(
+                  const SizedBox(height: 32),
+                  // ═══ Form Card ═══
+                  Container(
                     width: double.infinity,
-                    height: 54,
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : _signInWithGoogle,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade800,
-                        side: BorderSide(color: Colors.grey.shade200),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                    padding: const EdgeInsets.fromLTRB(22, 28, 22, 24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
                         ),
-                        backgroundColor: Colors.white,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const _GoogleLogo(size: 24),
-                          const SizedBox(width: 12),
-                          Text(
-                            LocaleService.current.signInWithGoogle,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Email field
+                        _buildLabel(_s.email),
+                        const SizedBox(height: 8),
+                        _buildField(
+                          controller: _emailController,
+                          hint: _s.yourEmail,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 20),
+                        // Password field
+                        _buildLabel(_s.password),
+                        const SizedBox(height: 8),
+                        _buildPasswordFieldInCard(),
+                        const SizedBox(height: 14),
+                        // Password validation indicators
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 6,
+                          children: [
+                            _PasswordCheck(
+                              label: _s.min8Chars,
+                              passed: hasMin8,
+                              accent: _accent,
                             ),
-                          ),
-                        ],
-                      ),
+                            _PasswordCheck(
+                              label: _s.oneUppercase,
+                              passed: hasUpper,
+                              accent: _accent,
+                            ),
+                            _PasswordCheck(
+                              label: _s.oneSpecialChar,
+                              passed: hasSpecial,
+                              accent: _accent,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Divider
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey.shade200)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          LocaleService.current.or,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade400,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey.shade200)),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Email field
-                  _buildTextField(
-                    controller: _emailController,
-                    label: LocaleService.current.email,
-                    hint: LocaleService.current.yourEmail,
-                    icon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 16),
-                  // Password field
-                  _buildPasswordField(),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 28),
                   // Login button
                   SizedBox(
                     width: double.infinity,
@@ -326,7 +316,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             )
                           : Text(
-                              LocaleService.current.login,
+                              _s.login,
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
@@ -334,13 +324,49 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  // Forgot password
+                  Text(
+                    _s.forgotPassword,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
                   const SizedBox(height: 24),
+                  // Divider
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          _s.or,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade400,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Google button
+                  _SocialButton(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: const _GoogleLogo(size: 22),
+                    label: _s.continueWithGoogle,
+                  ),
+                  const SizedBox(height: 28),
                   // Register link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '${LocaleService.current.noAccount} ',
+                        '${_s.noAccount} ',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade600,
@@ -364,7 +390,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                         child: Text(
-                          LocaleService.current.create,
+                          _s.create,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -384,138 +410,185 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade600,
+      ),
+    );
+  }
+
+  Widget _buildField({
     required TextEditingController controller,
-    required String label,
     required String hint,
-    required IconData icon,
     TextInputType keyboardType = TextInputType.text,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Colors.grey.shade900,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _accent, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordFieldInCard() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: _obscurePassword,
+      onChanged: (_) => setState(() {}),
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Colors.grey.shade900,
+      ),
+      decoration: InputDecoration(
+        hintText: LocaleService.current.yourPassword,
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontWeight: FontWeight.w400,
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        suffixIcon: GestureDetector(
+          onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+          child: Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: Text(
+              _obscurePassword
+                  ? LocaleService.current.showPassword
+                  : LocaleService.current.hidePassword,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _accent,
+              ),
             ),
           ),
         ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: TextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade900,
-            ),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: TextStyle(
-                color: Colors.grey.shade400,
-                fontWeight: FontWeight.w400,
-              ),
-              prefixIcon: Icon(icon, color: _accent, size: 20),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.75),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _accent, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 16,
-              ),
-            ),
+        suffixIconConstraints: const BoxConstraints(minHeight: 0, minWidth: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: _accent.withOpacity(0.5)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _accent, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordCheck extends StatelessWidget {
+  final String label;
+  final bool passed;
+  final Color accent;
+  const _PasswordCheck({
+    required this.label,
+    required this.passed,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          passed ? Icons.check_circle_rounded : Icons.circle_outlined,
+          size: 16,
+          color: passed ? const Color(0xFF4CAF50) : Colors.grey.shade400,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: passed ? const Color(0xFF4CAF50) : Colors.grey.shade400,
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildPasswordField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            LocaleService.current.password,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
+class _SocialButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final Widget icon;
+  final String label;
+  const _SocialButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.grey.shade800,
+          side: BorderSide(color: Colors.grey.shade200),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+          backgroundColor: Colors.white,
         ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: TextField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade900,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            icon,
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
-            decoration: InputDecoration(
-              hintText: LocaleService.current.yourPassword,
-              hintStyle: TextStyle(
-                color: Colors.grey.shade400,
-                fontWeight: FontWeight.w400,
-              ),
-              prefixIcon: const Icon(
-                Icons.lock_outline_rounded,
-                color: _accent,
-                size: 20,
-              ),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.grey.shade500,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.75),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _accent, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 16,
-              ),
-            ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
