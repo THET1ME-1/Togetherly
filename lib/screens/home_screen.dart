@@ -1,4 +1,4 @@
-п»їimport 'dart:async';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -107,13 +107,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _initPairData();
     _loadReflectionState();
 
-    // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЃС‚Р°С‚СѓСЃ "РѕРЅР»Р°Р№РЅ" РїСЂРё РѕС‚РєСЂС‹С‚РёРё РіР»Р°РІРЅРѕРіРѕ СЌРєСЂР°РЅР°
+    // Устанавливаем статус "онлайн" при открытии главного экрана
     _fb.setOnlineStatus(true);
 
     // Dynamic timer - only start when needed (Time mode)
     _startTimerIfNeeded();
 
-    // Check if launched from homescreen widget в†’ open Widgets tab
+    // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();
     HomeWidget.widgetClicked.listen(_onWidgetClicked);
 
@@ -146,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _pairLoading = false);
   }
 
-  /// РџСЂРѕРІРµСЂСЏРµРј, РѕС‚РєСЂС‹С‚Рѕ Р»Рё РїСЂРёР»РѕР¶РµРЅРёРµ РїРѕ РєР»РёРєСѓ РЅР° РІРёРґР¶РµС‚
+  /// Проверяем, открыто ли приложение по клику на виджет
   Future<void> _checkWidgetLaunch() async {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// РћР±СЂР°Р±РѕС‚РєР° РєР»РёРєР° РїРѕ РІРёРґР¶РµС‚Сѓ РїРѕРєР° РїСЂРёР»РѕР¶РµРЅРёРµ СЂР°Р±РѕС‚Р°РµС‚
+  /// Обработка клика по виджету пока приложение работает
   void _onWidgetClicked(Uri? uri) {
     if (uri != null) {
       _handleWidgetUri(uri);
@@ -166,19 +166,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleWidgetUri(Uri uri) {
-    // loveapp://widgets в†’ РїРµСЂРµРєР»СЋС‡Р°РµРјСЃСЏ РЅР° РІРєР»Р°РґРєСѓ РІРёРґР¶РµС‚РѕРІ (index 1)
+    // loveapp://widgets > переключаемся на вкладку виджетов (index 1)
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
       if (mounted) {
         setState(() => _selectedNavIndex = 1);
       }
     }
-    // loveapp://home в†’ РіР»Р°РІРЅР°СЏ РІРєР»Р°РґРєР° (index 0)
+    // loveapp://home > главная вкладка (index 0)
     else if (uri.host == 'home') {
       if (mounted) {
         setState(() => _selectedNavIndex = 0);
       }
     }
-    // loveapp://memory_lane в†’ РѕС‚РєСЂС‹РІР°РµРј Memory Lane
+    // loveapp://memory_lane > открываем Memory Lane
     else if (uri.host == 'memory_lane') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-    // loveapp://mood в†’ РѕС‚РєСЂС‹РІР°РµРј СЌРєСЂР°РЅ РЅР°СЃС‚СЂРѕРµРЅРёСЏ (mood calendar)
+    // loveapp://mood > открываем экран настроения (mood calendar)
     else if (uri.host == 'mood') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -245,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
           partnerName: _pairData.partnerDisplayName,
         );
 
-        // Р’РёРґР¶РµС‚С‹ СЂР°Р±РѕС‡РµРіРѕ СЃС‚РѕР»Р°: Р°РІС‚РѕСЃРёРЅС…СЂРѕРЅРёР·Р°С†РёСЏ РґР°РЅРЅС‹С… С‚РµРєСѓС‰РµР№ РіСЂСѓРїРїС‹
+        // Виджеты рабочего стола: автосинхронизация данных текущей группы
         _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
@@ -255,8 +255,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// РђРІС‚РѕСЃРёРЅС…СЂРѕРЅРёР·Р°С†РёСЏ РІРёРґР¶РµС‚РѕРІ СЂР°Р±РѕС‡РµРіРѕ СЃС‚РѕР»Р°.
-  /// РљР°Р¶РґС‹Р№ РІРёРґР¶РµС‚ РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ РґР°РЅРЅС‹РјРё СЃРІРѕРµР№ РїСЂРёРІСЏР·Р°РЅРЅРѕР№ РіСЂСѓРїРїС‹.
+  /// Автосинхронизация виджетов рабочего стола.
+  /// Каждый виджет обновляется данными своей привязанной группы.
   Future<void> _syncHomeWidgets() async {
     if (!_pairData.isPaired) return;
 
@@ -277,17 +277,17 @@ class _HomeScreenState extends State<HomeScreen> {
     await _syncMoodWidget();
   }
 
-  /// РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµС‚ РІРёРґР¶РµС‚ РЅР°СЃС‚СЂРѕРµРЅРёСЏ (MoodWidgetProvider) СЃ Р·Р°РїРёСЃСЏРјРё
-  /// Mood Calendar Р·Р° СЃРµРіРѕРґРЅСЏС€РЅРёР№ РґРµРЅСЊ вЂ” Рё РјРѕРёРјРё, Рё РїР°СЂС‚РЅС‘СЂР°.
+  /// Синхронизирует виджет настроения (MoodWidgetProvider) с записями
+  /// Mood Calendar за сегодняшний день — и моими, и партнёра.
   Future<void> _syncMoodWidget() async {
     if (!_pairData.isPaired) return;
     final today = DateTime.now();
 
-    // РњРѕС‘ РЅР°СЃС‚СЂРѕРµРЅРёРµ СЃРµРіРѕРґРЅСЏ
+    // Моё настроение сегодня
     final myEntries = _moodService.myEntriesForDay(today);
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
 
-    // РќР°СЃС‚СЂРѕРµРЅРёРµ РїР°СЂС‚РЅС‘СЂР° СЃРµРіРѕРґРЅСЏ
+    // Настроение партнёра сегодня
     final partnerUid = _pairData.partners.isNotEmpty
         ? _pairData.partners.first.uid
         : '';
@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
             (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
             false;
         if (alreadyAnswered) {
-          // РЎРѕС…СЂР°РЅСЏРµРј РІ prefs, С‡С‚РѕР±С‹ РїРѕСЃР»Рµ РїРµСЂРµР·Р°РїСѓСЃРєР° РЅРµ РїРѕРєР°Р·С‹РІР°С‚СЊ
+          // Сохраняем в prefs, чтобы после перезапуска не показывать
           _markReflectionAnsweredToday();
         }
         setState(() {
@@ -355,9 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// РЎР»СѓС€Р°РµРј MoodService вЂ” РїСЂРё Р»СЋР±РѕРј РёР·РјРµРЅРµРЅРёРё РЅР°СЃС‚СЂРѕРµРЅРёСЏ Р·Р° СЃРµРіРѕРґРЅСЏ
-  /// СЃРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј РµРіРѕ РІ pairData (Р°РІР°С‚Р°СЂРєР°, РІРёРґРёРјРѕСЃС‚СЊ РїР°СЂС‚РЅС‘СЂСѓ)
-  /// Рё РѕР±РЅРѕРІР»СЏРµРј РІРёРґР¶РµС‚ РЅР°СЃС‚СЂРѕРµРЅРёСЏ РЅР° СЂР°Р±РѕС‡РµРј СЃС‚РѕР»Рµ.
+  /// Слушаем MoodService — при любом изменении настроения за сегодня
+  /// синхронизируем его в pairData (аватарка, видимость партнёру)
+  /// и обновляем виджет настроения на рабочем столе.
   void _onMoodServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     final today = DateTime.now();
@@ -373,12 +373,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _pairData.clearMood();
       }
     }
-    // РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј РІРёРґР¶РµС‚ РЅР°СЃС‚СЂРѕРµРЅРёСЏ СЂР°Р±РѕС‡РµРіРѕ СЃС‚РѕР»Р° СЃ РЅРѕРІС‹РјРё РґР°РЅРЅС‹РјРё
+    // Синхронизируем виджет настроения рабочего стола с новыми данными
     _syncMoodWidget();
     if (mounted) setState(() {});
   }
 
-  /// РљР»СЋС‡ РґР»СЏ SharedPreferences: СѓРЅРёРєР°Р»РµРЅ РґР»СЏ РєР°Р¶РґРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ + РґРЅСЏ
+  /// Ключ для SharedPreferences: уникален для каждого пользователя + дня
   String get _reflectionPrefKey {
     final today = DateTime.now();
     final dateStr =
@@ -386,14 +386,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'reflection_answered_${widget.userData.uid}_$dateStr';
   }
 
-  /// Р—Р°РіСЂСѓР¶Р°РµС‚ РёР· SharedPreferences вЂ” РѕС‚РІРµС‡Р°Р» Р»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃРµРіРѕРґРЅСЏ
+  /// Загружает из SharedPreferences — отвечал ли пользователь сегодня
   Future<void> _loadReflectionState() async {
     final prefs = await SharedPreferences.getInstance();
     final answeredToday = prefs.getBool(_reflectionPrefKey) ?? false;
     if (mounted) setState(() => _showReflection = !answeredToday);
   }
 
-  /// РЎРѕС…СЂР°РЅСЏРµС‚ РІ SharedPreferences, С‡С‚Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РѕС‚РІРµС‚РёР» СЃРµРіРѕРґРЅСЏ
+  /// Сохраняет в SharedPreferences, что пользователь ответил сегодня
   Future<void> _markReflectionAnsweredToday() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_reflectionPrefKey, true);
@@ -672,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           const SizedBox(width: 8),
-          // Badge вЂ” tappable to change relationship type
+          // Badge — tappable to change relationship type
           GestureDetector(
             onTap: _pairData.isPaired ? _showRelationshipTypeDialog : null,
             child: Container(
@@ -881,28 +881,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 24),
                       _buildRelationshipOption(
                         type: RelationshipType.couple,
-                        icon: 'вќ¤пёЏ',
+                        icon: '??',
                         title: LocaleService.current.inLoveStatus,
                         subtitle: LocaleService.current.perfectForCouples,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.married,
-                        icon: 'рџ’Ќ',
+                        icon: '??',
                         title: LocaleService.current.married,
                         subtitle: LocaleService.current.forMarriedPartners,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.friends,
-                        icon: 'рџ¤ќ',
+                        icon: '??',
                         title: LocaleService.current.friends,
                         subtitle: LocaleService.current.connectWithBestFriend,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.buddies,
-                        icon: 'рџ‘Ї',
+                        icon: '??',
                         title: LocaleService.current.bestBuddies,
                         subtitle:
                             LocaleService.current.forInseparableCompanions,
@@ -922,7 +922,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               _pairData.setRelationshipType(
                                 RelationshipType.custom,
                                 label: entry['label'] ?? '',
-                                emoji: entry['emoji'] ?? 'вњЁ',
+                                emoji: entry['emoji'] ?? '?',
                               );
                               Navigator.of(ctx).pop();
                               setState(() {});
@@ -1051,7 +1051,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            Text(entry['emoji'] ?? 'вњЁ', style: const TextStyle(fontSize: 28)),
+            Text(entry['emoji'] ?? '?', style: const TextStyle(fontSize: 28)),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -1100,7 +1100,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: emojiCtrl,
               decoration: InputDecoration(
                 labelText: LocaleService.current.emoji,
-                hintText: 'рџ’•',
+                hintText: '??',
               ),
               maxLength: 2,
             ),
@@ -1128,7 +1128,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (label.isNotEmpty) {
                 await _pairData.addCustomRelationshipType(
                   label,
-                  emoji.isNotEmpty ? emoji : 'вњЁ',
+                  emoji.isNotEmpty ? emoji : '?',
                 );
                 if (mounted) {
                   Navigator.pop(ctx);
@@ -1159,7 +1159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: emojiCtrl,
               decoration: InputDecoration(
                 labelText: LocaleService.current.emoji,
-                hintText: 'рџ’•',
+                hintText: '??',
               ),
               maxLength: 2,
             ),
@@ -1188,7 +1188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 await _pairData.updateCustomRelationshipType(
                   entry['id'] ?? '',
                   label,
-                  emoji.isNotEmpty ? emoji : 'вњЁ',
+                  emoji.isNotEmpty ? emoji : '?',
                 );
                 if (mounted) {
                   Navigator.pop(ctx);
@@ -1248,7 +1248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: t.primary,
                 title: s.newCanvas,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'РќР°С‡Р°С‚СЊ СЃ С‡РёСЃС‚РѕРіРѕ Р»РёСЃС‚Р°'
+                    ? 'Начать с чистого листа'
                     : 'Start with a blank canvas',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1261,7 +1261,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'РћС‚РєСЂС‹С‚СЊ СЃРѕС…СЂР°РЅС‘РЅРЅС‹Р№ СЂРёСЃСѓРЅРѕРє'
+                    ? 'Открыть сохранённый рисунок'
                     : 'Open a saved drawing',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1325,24 +1325,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// РћС‚РєСЂС‹С‚СЊ РІС‹Р±РѕСЂ РЅР°СЃС‚СЂРѕРµРЅРёСЏ РґР»СЏ РєРѕРЅРєСЂРµС‚РЅРѕР№ РґР°С‚С‹.
+  /// Открыть выбор настроения для конкретной даты.
   void _showMoodPickerForDate(DateTime date) {
     final today = DateTime.now();
     final todayNorm = DateTime(today.year, today.month, today.day);
-    // Р—Р°РїСЂРµС‚ РІС‹Р±РѕСЂР° РЅР°СЃС‚СЂРѕРµРЅРёСЏ РЅР° Р±СѓРґСѓС‰РёРµ РґР°С‚С‹
+    // Запрет выбора настроения на будущие даты
     if (date.isAfter(todayNorm)) return;
     final isToday =
         date.year == today.year &&
         date.month == today.month &&
         date.day == today.day;
 
-    // РќР°Р№С‚Рё СѓР¶Рµ РІС‹Р±СЂР°РЅРЅРѕРµ РЅР°СЃС‚СЂРѕРµРЅРёРµ РЅР° СЌС‚Сѓ РґР°С‚Сѓ
+    // Найти уже выбранное настроение на эту дату
     final existingEntries = _moodService.myEntriesForDay(date);
     final existingPath = existingEntries.isNotEmpty
         ? existingEntries.first.imagePath
         : '';
 
-    // Р¤РѕСЂРјР°С‚ Р·Р°РіРѕР»РѕРІРєР°: В«РЎРµРіРѕРґРЅСЏВ» РёР»Рё В«РџРЅ, 18 С„РµРІВ»
+    // Формат заголовка: «Сегодня» или «Пн, 18 фев»
     final s = LocaleService.current;
     final months = s.shortMonths;
     final weekdays = s.shortWeekdays;
@@ -1467,7 +1467,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    // РЈРґР°Р»СЏРµРј Р·Р°РїРёСЃСЊ Р·Р° СЌС‚РѕС‚ РґРµРЅСЊ
+                    // Удаляем запись за этот день
                     for (final e in _moodService.myEntriesForDay(date)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
@@ -1494,7 +1494,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMoodPicker() {
-    // Р•РґРёРЅС‹Р№ РёСЃС‚РѕС‡РЅРёРє РёСЃС‚РёРЅС‹ вЂ” MoodService (СЃРµРіРѕРґРЅСЏС€РЅСЏСЏ Р·Р°РїРёСЃСЊ)
+    // Единый источник истины — MoodService (сегодняшняя запись)
     final today = DateTime.now();
     final todayEntries = _moodService.myEntriesForDay(today);
     final currentEmoji = todayEntries.isNotEmpty
@@ -1541,7 +1541,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
-              // Mood grid вЂ” scrollable
+              // Mood grid — scrollable
               Expanded(
                 child: GridView.builder(
                   controller: scrollController,
@@ -1558,8 +1558,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     return GestureDetector(
                       onTap: () {
                         Navigator.pop(ctx2);
-                        // РЎРЅР°С‡Р°Р»Р° СѓРґР°Р»СЏРµРј РїСЂРµРґС‹РґСѓС‰РёРµ Р·Р°РїРёСЃРё Р·Р° СЃРµРіРѕРґРЅСЏ,
-                        // С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ РґСѓР±Р»РµР№ РІ moodService
+                        // Сначала удаляем предыдущие записи за сегодня,
+                        // чтобы не было дублей в moodService
                         for (final e in _moodService.myEntriesForDay(today)) {
                           _moodService.deleteMoodEntry(e.id);
                         }
@@ -1571,7 +1571,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                         _widgetService.updateMood(mood.imagePath, mood.label);
                       },
-                      // _onMoodServiceChanged РїРѕРґС…РІР°С‚РёС‚ РёР·РјРµРЅРµРЅРёРµ Рё РѕР±РЅРѕРІРёС‚ pairData
+                      // _onMoodServiceChanged подхватит изменение и обновит pairData
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
@@ -1622,7 +1622,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    // РЈРґР°Р»СЏРµРј РёР· РІСЃРµС… С…СЂР°РЅРёР»РёС‰
+                    // Удаляем из всех хранилищ
                     for (final e in _moodService.myEntriesForDay(today)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
@@ -1647,7 +1647,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =============================================
-  // POST PHOTO (camera в†’ upload в†’ Memory Lane)
+  // POST PHOTO (camera > upload > Memory Lane)
   // =============================================
   Future<void> _postPhoto() async {
     if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
@@ -2024,7 +2024,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         key: ValueKey('$_selectedTimeUnit-$_counterValue'),
                         child: Text(
                           _counterValue,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.rubik(
                             fontSize: _selectedTimeUnit == 2 ? 42 : 64,
                             fontWeight: FontWeight.w800,
                             color: _pairData.isPaired
@@ -2222,7 +2222,7 @@ class _HomeScreenState extends State<HomeScreen> {
         (answers[myUid] as Map<String, dynamic>?)?['text'] as String?;
     final btnColor = _t.promptButtonColor;
 
-    // в”Ђв”Ђ Success state в”Ђв”Ђ
+    // -- Success state --
     if (_reflectionJustSaved) {
       return Container(
         padding: const EdgeInsets.all(24),
@@ -2256,7 +2256,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // РЎРѕР±РёСЂР°РµРј С‡СѓР¶РёРµ РѕС‚РІРµС‚С‹ (РїР°СЂС‚РЅС‘СЂС‹)
+    // Собираем чужие ответы (партнёры)
     final partnerAnswers = answers.entries
         .where((e) => e.key != myUid)
         .toList();
@@ -2561,7 +2561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       answer: text,
                       authorName: widget.userData.displayName,
                     );
-                    // РЎРѕС…СЂР°РЅСЏРµРј С„Р°РєС‚ РѕС‚РІРµС‚Р° Р»РѕРєР°Р»СЊРЅРѕ вЂ” С‡С‚РѕР±С‹ РЅРµ РїРѕРєР°Р·С‹РІР°С‚СЊ Р·Р°РІС‚СЂР°
+                    // Сохраняем факт ответа локально — чтобы не показывать завтра
                     await _markReflectionAnsweredToday();
                     if (mounted) {
                       setState(() => _reflectionJustSaved = true);
@@ -2897,7 +2897,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.black.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text('рџ“ё', style: TextStyle(fontSize: 14)),
+                child: const Text('??', style: TextStyle(fontSize: 14)),
               ),
             ),
           ],
@@ -3231,7 +3231,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('рџ“ќ', style: TextStyle(fontSize: 22)),
+          const Text('??', style: TextStyle(fontSize: 22)),
           const Spacer(),
           if (memory.title != null && memory.title!.isNotEmpty) ...[
             Text(
@@ -3364,7 +3364,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// в”Ђв”Ђ Animated navigation bar item в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+// -- Animated navigation bar item ------------------------------------------
 class _NavBarItem extends StatefulWidget {
   final IconData icon;
   final int index;
@@ -3523,7 +3523,7 @@ class _NavBarItemState extends State<_NavBarItem>
 
 enum _MoodBadgePosition { topLeft, bottomRight }
 
-// в”Ђв”Ђ Draw Mode Option tile used in the bottom sheet в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+// -- Draw Mode Option tile used in the bottom sheet ------------------------
 class _DrawModeOption extends StatelessWidget {
   final IconData icon;
   final Color color;

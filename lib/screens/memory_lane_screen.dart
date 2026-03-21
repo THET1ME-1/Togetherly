@@ -217,7 +217,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       ),
       title: Text(
         'Memory Lane',
-        style: GoogleFonts.plusJakartaSans(
+        style: GoogleFonts.rubik(
           fontSize: 20,
           fontWeight: FontWeight.w800,
           color: Colors.grey.shade900,
@@ -430,7 +430,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               const SizedBox(width: 10),
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.rubik(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: Colors.grey.shade700,

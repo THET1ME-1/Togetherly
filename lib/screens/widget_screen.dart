@@ -305,7 +305,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(width: 12),
           Text(
             _s.widgetsTitle,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 24,
               fontWeight: FontWeight.w800,
               color: Colors.grey.shade900,
@@ -336,7 +336,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     const SizedBox(width: 4),
                     Text(
                       _s.resetBtn,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.rubik(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Colors.red.shade400,
@@ -374,7 +374,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               const SizedBox(width: 6),
               Text(
                 _s.desktopPreview,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.rubik(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey.shade500,
@@ -469,7 +469,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         // Имя
         Text(
           label,
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.rubik(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: Colors.white.withOpacity(0.7),
@@ -487,7 +487,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Flexible(
                 child: Text(
                   data.moodLabel,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 10,
                     color: Colors.white.withOpacity(0.9),
                   ),
@@ -509,7 +509,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         // Статус
         Text(
           data.hasStatus ? data.status : _s.noStatus,
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.rubik(
             fontSize: 10,
             fontWeight: data.hasStatus ? FontWeight.w600 : FontWeight.w400,
             color: Colors.white.withOpacity(data.hasStatus ? 0.95 : 0.35),
@@ -522,7 +522,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         if (data.hasMessage)
           Text(
             '«${data.message}»',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 9,
               fontStyle: FontStyle.italic,
               color: Colors.white.withOpacity(0.75),
@@ -546,7 +546,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 Flexible(
                   child: Text(
                     '${data.musicTitle}',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 9,
                       color: Colors.white.withOpacity(0.65),
                     ),
@@ -583,7 +583,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               const SizedBox(width: 6),
               Text(
                 isRu ? 'Виджеты рабочего стола' : 'Home Screen Widgets',
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Colors.grey.shade600,
@@ -713,7 +713,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: Colors.grey.shade900,
@@ -721,7 +721,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       ),
                       Text(
                         subtitle,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.rubik(
                           fontSize: 11,
                           color: Colors.grey.shade500,
                         ),
@@ -757,7 +757,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 icon: const Icon(Icons.add_to_home_screen_rounded, size: 18),
                 label: Text(
                   isRu ? 'Добавить на рабочий стол' : 'Add to Home Screen',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -833,7 +833,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(height: 4),
           Text(
             '$days',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 48,
               fontWeight: FontWeight.w900,
               color: const Color(0xFFFF6B8A),
@@ -842,7 +842,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
           Text(
             isRu ? 'дней вместе' : 'days together',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 14,
               color: Colors.grey.shade500,
             ),
@@ -851,7 +851,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             const SizedBox(height: 6),
             Text(
               displayTitle,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 12,
                 color: Colors.grey.shade600,
               ),
@@ -861,7 +861,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             const SizedBox(height: 2),
             Text(
               isRu ? 'с $startLabel' : 'since $startLabel',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 10,
                 color: Colors.grey.shade400,
               ),
@@ -898,7 +898,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             const SizedBox(height: 8),
             Text(
               isRu ? 'Нет таймеров' : 'No timers',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 13,
                 color: Colors.grey.shade500,
               ),
@@ -908,7 +908,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               isRu
                   ? 'Добавьте таймер в разделе «Таймеры»'
                   : 'Add a timer in the Timers section',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 11,
                 color: Colors.grey.shade400,
               ),
@@ -950,7 +950,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Flexible(
                 child: Text(
                   title,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 12,
                     color: Colors.grey.shade600,
                   ),
@@ -963,7 +963,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(height: 6),
           Text(
             '$days',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 44,
               fontWeight: FontWeight.w900,
               color: const Color(0xFF8B5CF6),
@@ -972,7 +972,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
           Text(
             daysLabel,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 14,
               color: Colors.grey.shade500,
             ),
@@ -981,7 +981,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             const SizedBox(height: 4),
             Text(
               date,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 10,
                 color: Colors.grey.shade400,
               ),
@@ -1007,7 +1007,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           isRu
               ? 'Нет таймеров. Добавьте таймер в разделе «Таймеры».'
               : 'No timers. Add a timer in the Timers section.',
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.rubik(
             fontSize: 12,
             color: Colors.grey.shade500,
           ),
@@ -1020,7 +1020,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       children: [
         Text(
           isRu ? 'Выберите таймер для виджета:' : 'Select timer for widget:',
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.rubik(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: Colors.grey.shade600,
@@ -1057,7 +1057,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       children: [
                         Text(
                           timer.title,
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.rubik(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: isSelected
@@ -1070,7 +1070,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                         Text(
                           '${timer.daysElapsed.abs()} '
                           '${timer.isCountdown ? (isRu ? 'дн. осталось' : 'd. left') : (isRu ? 'дн. прошло' : 'd. elapsed')} • ${timer.formattedStartDate}',
-                          style: GoogleFonts.plusJakartaSans(
+                          style: GoogleFonts.rubik(
                             fontSize: 11,
                             color: Colors.grey.shade500,
                           ),
@@ -1118,7 +1118,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 const SizedBox(height: 6),
                 Text(
                   isRu ? 'Фото дня' : 'Photo of the Day',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade500,
@@ -1129,7 +1129,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   isRu
                       ? 'Случайное фото из воспоминаний'
                       : 'Random photo from memories',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade400,
                   ),
@@ -1160,7 +1160,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   const SizedBox(width: 4),
                   Text(
                     isRu ? 'Фото дня' : 'Photo of the Day',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -1271,7 +1271,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       children: [
         Text(
           name,
-          style: GoogleFonts.plusJakartaSans(
+          style: GoogleFonts.rubik(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: Colors.grey.shade500,
@@ -1292,7 +1292,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(height: 4),
           Text(
             entry.label,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: const Color(0xFFFF6B8A),
@@ -1305,7 +1305,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(height: 4),
           Text(
             isRu ? 'Нет' : 'None',
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 12,
               color: Colors.grey.shade400,
             ),
@@ -1367,7 +1367,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 children: [
                   Text(
                     _s.myWidget,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: Colors.grey.shade900,
@@ -1375,7 +1375,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   ),
                   Text(
                     _s.tapToEdit,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 11,
                       color: Colors.grey.shade500,
                     ),
@@ -1558,7 +1558,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 children: [
                   Text(
                     _s.widgetOfPartner(partnerName),
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: Colors.grey.shade900,
@@ -1566,7 +1566,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   ),
                   Text(
                     partner.isEmpty ? _s.emptyYet : _s.updated,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 11,
                       color: Colors.grey.shade500,
                     ),
@@ -1598,7 +1598,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       const SizedBox(width: 4),
                       Text(
                         'Live',
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.rubik(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Colors.green.shade600,
@@ -1722,7 +1722,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               const SizedBox(width: 6),
               Text(
                 _s.widgetSettings,
-                style: GoogleFonts.plusJakartaSans(
+                style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Colors.grey.shade600,
@@ -1814,7 +1814,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 children: [
                   Text(
                     label,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade500,
@@ -1825,7 +1825,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     const SizedBox(height: 2),
                     Text(
                       value,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.rubik(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.grey.shade800,
@@ -1874,7 +1874,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     const SizedBox(width: 2),
                     Text(
                       _s.addBtn,
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.rubik(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: _t.primary,
@@ -1919,7 +1919,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade500,
@@ -1930,7 +1930,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey.shade800,
@@ -1981,7 +1981,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade800,
@@ -1989,7 +1989,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 ),
                 Text(
                   subtitle,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade500,
                   ),
@@ -2050,7 +2050,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(width: 4),
           Text(
             _s.editBtn,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: _t.primary,
@@ -2131,7 +2131,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 const SizedBox(height: 20),
                 Text(
                   _s.widgetsTitle,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: Colors.grey.shade800,
@@ -2141,7 +2141,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 Text(
                   _s.connectPartnerForWidgets,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 14,
                     color: Colors.grey.shade500,
                     height: 1.5,
@@ -2244,7 +2244,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 const SizedBox(height: 16),
                 Text(
                   _s.uploadingPhoto,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                  style: GoogleFonts.rubik(fontSize: 14),
                 ),
               ],
             ),
@@ -2282,11 +2282,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           _s.resetWidget,
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          style: GoogleFonts.rubik(fontWeight: FontWeight.w700),
         ),
         content: Text(
           _s.resetWidgetConfirm,
-          style: GoogleFonts.plusJakartaSans(),
+          style: GoogleFonts.rubik(),
         ),
         actions: [
           TextButton(
@@ -2344,7 +2344,7 @@ class _MoodPickerSheet extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             LocaleService.current.chooseMood,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Colors.grey.shade900,
@@ -2381,7 +2381,7 @@ class _MoodPickerSheet extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Text(
                             mood.label,
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.rubik(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: mood.color,
@@ -2470,7 +2470,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
             const SizedBox(height: 20),
             Text(
               widget.title,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: Colors.grey.shade900,
@@ -2482,10 +2482,10 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               autofocus: true,
               maxLength: widget.maxLength,
               maxLines: widget.maxLength > 100 ? 3 : 1,
-              style: GoogleFonts.plusJakartaSans(fontSize: 16),
+              style: GoogleFonts.rubik(fontSize: 16),
               decoration: InputDecoration(
                 hintText: widget.hint,
-                hintStyle: GoogleFonts.plusJakartaSans(
+                hintStyle: GoogleFonts.rubik(
                   color: Colors.grey.shade400,
                 ),
                 filled: true,
@@ -2523,7 +2523,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
                 ),
                 child: Text(
                   LocaleService.current.save,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2568,7 +2568,7 @@ class _PhotoSourceSheet extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             LocaleService.current.chooseSource,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Colors.grey.shade900,
@@ -2622,7 +2622,7 @@ class _PhotoSourceSheet extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: theme.primary,
@@ -2710,7 +2710,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
             const SizedBox(height: 20),
             Text(
               LocaleService.current.music,
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: Colors.grey.shade900,
@@ -2760,7 +2760,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                 ),
                 child: Text(
                   LocaleService.current.save,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.rubik(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2776,10 +2776,10 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   Widget _buildField(TextEditingController ctrl, String hint, IconData icon) {
     return TextField(
       controller: ctrl,
-      style: GoogleFonts.plusJakartaSans(fontSize: 15),
+      style: GoogleFonts.rubik(fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey.shade400),
+        hintStyle: GoogleFonts.rubik(color: Colors.grey.shade400),
         prefixIcon: Icon(icon, color: widget.theme.primary, size: 20),
         filled: true,
         fillColor: Colors.grey.shade50,

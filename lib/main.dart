@@ -48,7 +48,7 @@ class _LoveAppState extends State<LoveApp> {
 
   // Cache theme to avoid recreating on every build
   static final ThemeData _cachedTheme = ThemeData(
-    textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+    textTheme: GoogleFonts.rubikTextTheme(),
     scaffoldBackgroundColor: const Color(0xFFF7F3F0),
     useMaterial3: true,
   );
@@ -104,7 +104,7 @@ class _LoveAppState extends State<LoveApp> {
     return ListenableBuilder(
       listenable: LocaleService.instance,
       builder: (context, _) => MaterialApp(
-        title: 'Love App',
+        title: 'Togetherly',
         debugShowCheckedModeBanner: false,
         theme: _cachedTheme,
         home: _loading

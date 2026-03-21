@@ -216,7 +216,6 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   /// Используется только в режиме Time для подписи под таймером.
   String? _yearsMonthsLabel(TimerItem timer) {
     final total = timer.monthsElapsed.abs();
-    if (total < 1) return null;
     final years = total ~/ 12;
     final months = total % 12;
     if (years == 0) {
@@ -463,7 +462,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                   key: ValueKey('$_selectedTimeUnit-${timer?.id ?? "none"}'),
                   child: Text(
                     timer != null ? _counterValue(timer) : '0',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.rubik(
                       fontSize: _selectedTimeUnit == 2 ? 30 : 64,
                       fontWeight: FontWeight.w800,
                       color: timer != null

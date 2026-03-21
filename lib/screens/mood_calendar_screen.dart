@@ -112,7 +112,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             ),
             title: Text(
               'Mood Calendar',
-              style: GoogleFonts.plusJakartaSans(
+              style: GoogleFonts.rubik(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: Colors.grey.shade900,
