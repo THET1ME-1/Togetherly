@@ -212,6 +212,29 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     }
   }
 
+  /// Возвращает строку вида «2 года 5 месяцев» / «11 месяцев» / null
+  /// Используется только в режиме Time для подписи под таймером.
+  String? _yearsMonthsLabel(TimerItem timer) {
+    final total = timer.monthsElapsed.abs();
+    if (total < 1) return null;
+    final years = total ~/ 12;
+    final months = total % 12;
+    if (years == 0) {
+      return '$months ${_pluralRu(months, 'месяц', 'месяца', 'месяцев')}';
+    }
+    final yearStr = '$years ${_pluralRu(years, 'год', 'года', 'лет')}';
+    if (months == 0) return yearStr;
+    return '$yearStr $months ${_pluralRu(months, 'месяц', 'месяца', 'месяцев')}';
+  }
+
+  String _pluralRu(int n, String one, String few, String many) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod10 == 1 && mod100 != 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+    return many;
+  }
+
   // =============================================
   // BUILD
   // =============================================
@@ -452,7 +475,37 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 ),
               ),
             ),
-            const SizedBox(height: 6),
+            // Годы / месяцы — только в режиме Time
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOut,
+              child: _selectedTimeUnit == 2 && timer != null
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 2),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, anim) =>
+                            FadeTransition(opacity: anim, child: child),
+                        child: () {
+                          final ym = _yearsMonthsLabel(timer);
+                          return ym != null
+                              ? Text(
+                                  ym,
+                                  key: ValueKey('ym-$ym'),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white.withOpacity(0.82),
+                                    letterSpacing: 0.3,
+                                  ),
+                                )
+                              : const SizedBox.shrink(key: ValueKey('ym-none'));
+                        }(),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 4),
             // Label
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
