@@ -64,14 +64,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   BorderRadius get _cardBorderRadius =>
       const BorderRadius.all(Radius.circular(_cardRadius));
 
-  BoxDecoration get _cardDecoration => BoxDecoration(
-    borderRadius: _cardBorderRadius,
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: _t.heroGradient,
-    ),
-  );
+
 
   /// Градиент без borderRadius — для blob-слоя (ClipPath уже задаёт форму)
   BoxDecoration get _blobGradientDecoration => BoxDecoration(
@@ -411,34 +404,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     );
   }
 
-  /// Фоновые фото — кешированный список, не зависит от анимации
-  List<Widget>? _buildBackgroundPhotos() {
-    if (!widget.isPaired || _displayTimer?.backgroundImagePath != null) {
-      return null;
-    }
-    return [
-      Positioned(
-        top: -8,
-        left: -16,
-        child: _photoFragment(widget.myAvatarUrl, 80, 80, -0.2),
-      ),
-      Positioned(
-        top: 48,
-        right: 8,
-        child: _photoFragment(widget.partnerAvatarUrl, 64, 64, 0.1),
-      ),
-      Positioned(
-        bottom: -24,
-        left: 60,
-        child: _photoFragment(widget.myAvatarUrl, 96, 96, -0.05),
-      ),
-      Positioned(
-        bottom: 16,
-        right: -8,
-        child: _photoFragment(widget.partnerAvatarUrl, 56, 56, 0.2),
-      ),
-    ];
-  }
+
 
   // ── Compact content (shown always) ──
   Widget _buildCompactContent() {
@@ -990,35 +956,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     );
   }
 
-  // ── Photo fragment (background decoration) ──
-  Widget _photoFragment(String url, double w, double h, double angle) {
-    return RepaintBoundary(
-      child: Transform.rotate(
-        angle: angle,
-        child: Opacity(
-          opacity: 0.12,
-          child: ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              Colors.grey,
-              BlendMode.saturation,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                url,
-                width: w,
-                height: h,
-                fit: BoxFit.cover,
-                cacheWidth: (w * 2).toInt(),
-                cacheHeight: (h * 2).toInt(),
-                errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   // =============================================
   // DIALOGS

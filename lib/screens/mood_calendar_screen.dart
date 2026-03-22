@@ -622,7 +622,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
     return Column(
       children: List.generate(12, (month) {
-        final monthStart = DateTime(year, month + 1, 1);
         final daysInMonth = DateTime(year, month + 2, 0).day;
         final months = [
           'Jan',

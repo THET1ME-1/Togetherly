@@ -42,7 +42,6 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     }
 
     final currentStatus = connection.currentStatus;
-    final allStatuses = connection.allStatuses;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6F6),
@@ -118,7 +117,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
-import '../models/timer_item.dart';
+
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Pair data --
   final PairData _pairData = PairData();
-  bool _pairLoading = true;
+
 
   // -- Timer service --
   final TimerService _timerService = TimerService();
@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return answers.keys.any((k) => k != myUid);
   }
 
-  static const _reflectionQuestions = <String>[]; // replaced by locale
+
 
   List<String> get _localizedQuestions =>
       LocaleService.current.reflectionQuestions;
@@ -107,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initPairData();
     _loadReflectionState();
 
-    // Устанавливаем статус "онлайн" при открытии главного экрана
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     _fb.setOnlineStatus(true);
 
     // Dynamic timer - only start when needed (Time mode)
@@ -143,10 +143,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initPairData() async {
     await _pairData.init(myName: widget.userData.displayName);
-    if (mounted) setState(() => _pairLoading = false);
+    if (mounted) setState(() {});
   }
 
-  /// Проверяем, открыто ли приложение по клику на виджет
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _checkWidgetLaunch() async {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Обработка клика по виджету пока приложение работает
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   void _onWidgetClicked(Uri? uri) {
     if (uri != null) {
       _handleWidgetUri(uri);
@@ -166,19 +166,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleWidgetUri(Uri uri) {
-    // loveapp://widgets > переключаемся на вкладку виджетов (index 1)
+    // loveapp://widgets > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (index 1)
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
       if (mounted) {
         setState(() => _selectedNavIndex = 1);
       }
     }
-    // loveapp://home > главная вкладка (index 0)
+    // loveapp://home > пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (index 0)
     else if (uri.host == 'home') {
       if (mounted) {
         setState(() => _selectedNavIndex = 0);
       }
     }
-    // loveapp://memory_lane > открываем Memory Lane
+    // loveapp://memory_lane > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ Memory Lane
     else if (uri.host == 'memory_lane') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-    // loveapp://mood > открываем экран настроения (mood calendar)
+    // loveapp://mood > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (mood calendar)
     else if (uri.host == 'mood') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -245,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
           partnerName: _pairData.partnerDisplayName,
         );
 
-        // Виджеты рабочего стола: автосинхронизация данных текущей группы
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
@@ -255,8 +255,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Автосинхронизация виджетов рабочего стола.
-  /// Каждый виджет обновляется данными своей привязанной группы.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.
   Future<void> _syncHomeWidgets() async {
     if (!_pairData.isPaired) return;
 
@@ -277,17 +277,17 @@ class _HomeScreenState extends State<HomeScreen> {
     await _syncMoodWidget();
   }
 
-  /// Синхронизирует виджет настроения (MoodWidgetProvider) с записями
-  /// Mood Calendar за сегодняшний день — и моими, и партнёра.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (MoodWidgetProvider) пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  /// Mood Calendar пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
   Future<void> _syncMoodWidget() async {
     if (!_pairData.isPaired) return;
     final today = DateTime.now();
 
-    // Моё настроение сегодня
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     final myEntries = _moodService.myEntriesForDay(today);
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
 
-    // Настроение партнёра сегодня
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     final partnerUid = _pairData.partners.isNotEmpty
         ? _pairData.partners.first.uid
         : '';
@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
             (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
             false;
         if (alreadyAnswered) {
-          // Сохраняем в prefs, чтобы после перезапуска не показывать
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ prefs, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
           _markReflectionAnsweredToday();
         }
         setState(() {
@@ -355,9 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// Слушаем MoodService — при любом изменении настроения за сегодня
-  /// синхронизируем его в pairData (аватарка, видимость партнёру)
-  /// и обновляем виджет настроения на рабочем столе.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ MoodService пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ pairData (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+  /// пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
   void _onMoodServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     final today = DateTime.now();
@@ -373,12 +373,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _pairData.clearMood();
       }
     }
-    // Синхронизируем виджет настроения рабочего стола с новыми данными
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     _syncMoodWidget();
     if (mounted) setState(() {});
   }
 
-  /// Ключ для SharedPreferences: уникален для каждого пользователя + дня
+  /// пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ SharedPreferences: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ + пїЅпїЅпїЅ
   String get _reflectionPrefKey {
     final today = DateTime.now();
     final dateStr =
@@ -386,62 +386,20 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'reflection_answered_${widget.userData.uid}_$dateStr';
   }
 
-  /// Загружает из SharedPreferences — отвечал ли пользователь сегодня
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ SharedPreferences пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _loadReflectionState() async {
     final prefs = await SharedPreferences.getInstance();
     final answeredToday = prefs.getBool(_reflectionPrefKey) ?? false;
     if (mounted) setState(() => _showReflection = !answeredToday);
   }
 
-  /// Сохраняет в SharedPreferences, что пользователь ответил сегодня
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ SharedPreferences, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _markReflectionAnsweredToday() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_reflectionPrefKey, true);
   }
 
-  // -- Computed Values --
-  String get _counterValue {
-    if (!_pairData.isPaired) return '0';
-    final start = _pairData.startDate!;
-    final now = DateTime.now();
-    switch (_selectedTimeUnit) {
-      case 0:
-        return now.difference(start).inDays.toString();
-      case 1:
-        int months = (now.year - start.year) * 12 + now.month - start.month;
-        if (now.day < start.day) months--;
-        return months.toString();
-      case 2:
-        final diff = now.difference(start);
-        final d = diff.inDays;
-        final h = diff.inHours % 24;
-        final m = diff.inMinutes % 60;
-        final s = diff.inSeconds % 60;
-        if (d > 0) return '${d}d ${h}h ${m}m';
-        if (h > 0) return '${h}h ${m}m ${s}s';
-        return '${m}m ${s}s';
-      default:
-        return '0';
-    }
-  }
 
-  String get _counterLabel {
-    final s = LocaleService.current;
-    if (!_pairData.isPaired) return s.waitingForConnection;
-    final suffix = _pairData.relationshipType == RelationshipType.couple
-        ? s.inLove
-        : s.together;
-    switch (_selectedTimeUnit) {
-      case 0:
-        return s.daysLabel(suffix);
-      case 1:
-        return s.monthsLabel(suffix);
-      case 2:
-        return s.timeLabel(suffix);
-      default:
-        return s.daysLabel(suffix);
-    }
-  }
 
   String get _statusBadgeText {
     if (!_pairData.isPaired) return LocaleService.current.solo;
@@ -672,7 +630,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           const SizedBox(width: 8),
-          // Badge — tappable to change relationship type
+          // Badge пїЅ tappable to change relationship type
           GestureDetector(
             onTap: _pairData.isPaired ? _showRelationshipTypeDialog : null,
             child: Container(
@@ -1248,7 +1206,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: t.primary,
                 title: s.newCanvas,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'Начать с чистого листа'
+                    ? 'пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ'
                     : 'Start with a blank canvas',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1261,7 +1219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'Открыть сохранённый рисунок'
+                    ? 'пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ'
                     : 'Open a saved drawing',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1325,24 +1283,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Открыть выбор настроения для конкретной даты.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ.
   void _showMoodPickerForDate(DateTime date) {
     final today = DateTime.now();
     final todayNorm = DateTime(today.year, today.month, today.day);
-    // Запрет выбора настроения на будущие даты
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     if (date.isAfter(todayNorm)) return;
     final isToday =
         date.year == today.year &&
         date.month == today.month &&
         date.day == today.day;
 
-    // Найти уже выбранное настроение на эту дату
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     final existingEntries = _moodService.myEntriesForDay(date);
     final existingPath = existingEntries.isNotEmpty
         ? existingEntries.first.imagePath
         : '';
 
-    // Формат заголовка: «Сегодня» или «Пн, 18 фев»
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ, 18 пїЅпїЅпїЅ
     final s = LocaleService.current;
     final months = s.shortMonths;
     final weekdays = s.shortWeekdays;
@@ -1467,7 +1425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    // Удаляем запись за этот день
+                    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
                     for (final e in _moodService.myEntriesForDay(date)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
@@ -1494,7 +1452,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMoodPicker() {
-    // Единый источник истины — MoodService (сегодняшняя запись)
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ MoodService (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
     final today = DateTime.now();
     final todayEntries = _moodService.myEntriesForDay(today);
     final currentEmoji = todayEntries.isNotEmpty
@@ -1541,7 +1499,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
-              // Mood grid — scrollable
+              // Mood grid пїЅ scrollable
               Expanded(
                 child: GridView.builder(
                   controller: scrollController,
@@ -1558,8 +1516,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     return GestureDetector(
                       onTap: () {
                         Navigator.pop(ctx2);
-                        // Сначала удаляем предыдущие записи за сегодня,
-                        // чтобы не было дублей в moodService
+                        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ,
+                        // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ moodService
                         for (final e in _moodService.myEntriesForDay(today)) {
                           _moodService.deleteMoodEntry(e.id);
                         }
@@ -1571,7 +1529,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                         _widgetService.updateMood(mood.imagePath, mood.label);
                       },
-                      // _onMoodServiceChanged подхватит изменение и обновит pairData
+                      // _onMoodServiceChanged пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ pairData
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
@@ -1622,7 +1580,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    // Удаляем из всех хранилищ
+                    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                     for (final e in _moodService.myEntriesForDay(today)) {
                       await _moodService.deleteMoodEntry(e.id);
                     }
@@ -1964,256 +1922,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // =============================================
-  // COUNTER CARD (Glass morphism)
-  // =============================================
-  Widget _buildCounterCard() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 32,
-            spreadRadius: 0,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 260),
-        decoration: BoxDecoration(
-          color: const Color(0x99FFFFFF),
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: const Color(0x4DFFFFFF)),
-        ),
-        child: Stack(
-          children: [
-            // -- Gradient overlay --
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.white.withOpacity(0.15),
-                      Colors.white.withOpacity(0.5),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // -- Content --
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Counter number
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      transitionBuilder: (child, anim) =>
-                          FadeTransition(opacity: anim, child: child),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        key: ValueKey('$_selectedTimeUnit-$_counterValue'),
-                        child: Text(
-                          _counterValue,
-                          style: GoogleFonts.rubik(
-                            fontSize: _selectedTimeUnit == 2 ? 42 : 64,
-                            fontWeight: FontWeight.w800,
-                            color: _pairData.isPaired
-                                ? const Color(0xFF1A1A1A)
-                                : Colors.grey.shade300,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Counter label
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: Text(
-                        _counterLabel,
-                        key: ValueKey(_counterLabel),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _pairData.isPaired
-                              ? primary
-                              : Colors.grey.shade400,
-                          letterSpacing: 4,
-                        ),
-                      ),
-                    ),
-                    // Partner mood display
-                    if (_pairData.isPaired &&
-                        _pairData.partnerMood.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_pairData.partnerMood.imagePath.isNotEmpty)
-                              Image.asset(
-                                _pairData.partnerMood.imagePath,
-                                width: 28,
-                                height: 28,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox(width: 28, height: 28),
-                              ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${_pairData.partnerDisplayName} is ${_pairData.partnerMood.label}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 40),
-                    // Toggle
-                    _buildTimeToggle(),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _photoFragment(String url, double w, double h, double angle) {
-    return Transform.rotate(
-      angle: angle,
-      child: Opacity(
-        opacity: 0.12,
-        child: ColorFiltered(
-          colorFilter: const ColorFilter.mode(
-            Colors.grey,
-            BlendMode.saturation,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              url,
-              width: w,
-              height: h,
-              fit: BoxFit.cover,
-              cacheWidth: (w * 2).toInt(),
-              cacheHeight: (h * 2).toInt(),
-              errorBuilder: (_, __, ___) => SizedBox(width: w, height: h),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =============================================
-  // TIME TOGGLE
-  // =============================================
-  Widget _buildTimeToggle() {
-    const labels = <String>[]; // replaced by locale
-    final localLabels = [
-      LocaleService.current.days,
-      LocaleService.current.months,
-      LocaleService.current.time,
-    ];
-    return Container(
-      height: 40,
-      constraints: const BoxConstraints(maxWidth: 240),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / 3;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                left: _selectedTimeUnit * itemWidth,
-                top: 0,
-                bottom: 0,
-                width: itemWidth,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Row(
-                children: List.generate(3, (i) {
-                  final selected = _selectedTimeUnit == i;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedTimeUnit = i);
-                        _startTimerIfNeeded();
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: Center(
-                        child: Text(
-                          localLabels[i],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: selected
-                                ? Colors.grey.shade900
-                                : Colors.grey.shade400,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // =============================================
   // DAILY REFLECTION
   // =============================================
   Widget _buildDailyReflection() {
     final myUid = widget.userData.uid;
-    final myName = widget.userData.displayName;
+
     final question =
         (_todayReflection?['question'] as String?) ?? _todayQuestion;
     final answers =
@@ -2256,7 +1969,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Собираем чужие ответы (партнёры)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     final partnerAnswers = answers.entries
         .where((e) => e.key != myUid)
         .toList();
@@ -2561,7 +2274,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       answer: text,
                       authorName: widget.userData.displayName,
                     );
-                    // Сохраняем факт ответа локально — чтобы не показывать завтра
+                    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
                     await _markReflectionAnsweredToday();
                     if (mounted) {
                       setState(() => _reflectionJustSaved = true);
@@ -3274,17 +2987,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // =============================================
-  // BOTTOM NAVIGATION
-  // =============================================
-  Widget _buildBottomNav() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: _buildBottomNavContent(),
-    );
-  }
+
 
   Widget _buildBottomNavContent() {
     final s = LocaleService.current;

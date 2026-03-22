@@ -9,7 +9,7 @@ class WelcomeScreen extends StatelessWidget {
   final UserData userData;
   const WelcomeScreen({super.key, required this.userData});
 
-  static const Color _primary = Color(0xFFEE2B6C);
+
   static const Color _btnColor = Color(0xFFFF7E8B);
 
   @override

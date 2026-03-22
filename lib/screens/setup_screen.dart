@@ -1,4 +1,4 @@
-import 'dart:math';
+
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -255,13 +255,7 @@ class _SetupScreenState extends State<SetupScreen>
     }
   }
 
-  /// Генерирует случайный пароль для автоматической регистрации
-  String _generateRandomPassword() {
-    const chars =
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#\$%^&*()';
-    final random = Random();
-    return List.generate(20, (_) => chars[random.nextInt(chars.length)]).join();
-  }
+
 
   void _showEmailExistsDialog() {
     showDialog(

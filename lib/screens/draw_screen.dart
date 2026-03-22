@@ -255,9 +255,9 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  /// Сбрасываем все состояния жестов при уходе приложения в фон.
-  /// Это предотвращает «залипание» после того, как система
-  /// пропустила PointerUp-событие (шторка уведомлений, звонок и т.д.).
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ.
+  /// пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ PointerUp-пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅ.пїЅ.).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -656,9 +656,9 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    // Если перед новым касанием в Set нет активных пальцев, но
-    // флаги жеста остались — это признак пропущенного PointerUp
-    // (уведомление, звонок). Очищаем «зависший» стейт.
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ Set пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ PointerUp
+    // (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ). пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
     if (_activePointers.isEmpty) {
       _isZooming = false;
       if (_isDrawing) _cancelCurrentGesture();
@@ -667,15 +667,15 @@ class _DrawScreenState extends State<DrawScreen>
     _activePointers.add(event.pointer);
 
     if (_activePointers.length >= 2) {
-      _isZooming = false; // будет перехвачено onScaleStart
+      _isZooming = false; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ onScaleStart
       _cancelCurrentGesture();
       return;
     }
 
-    // Один палец — принудительно сбрасываем zoom, если он завис
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ zoom, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     _isZooming = false;
 
-    // Palm tool: начинаем пан холста одним пальцем
+    // Palm tool: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (_activeTool == DrawTool.palm) {
       _palmPanStart = event.localPosition;
       _palmBaseOffset = _canvasOffset;
@@ -688,7 +688,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onPointerMove(PointerMoveEvent event) {
     if (_isZooming || _activePointers.length != 1) return;
-    // Palm tool: панорамируем холст
+    // Palm tool: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     if (_activeTool == DrawTool.palm) {
       final delta = event.localPosition - _palmPanStart;
       setState(() => _canvasOffset = _palmBaseOffset + delta);
@@ -706,8 +706,8 @@ class _DrawScreenState extends State<DrawScreen>
       _finishStroke();
     }
 
-    // Когда все пальцы подняты — сбрасываем ВСЕ состояния,
-    // чтобы зависший стейт не накапливался между жестами.
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ,
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
       _isZooming = false;
@@ -733,12 +733,12 @@ class _DrawScreenState extends State<DrawScreen>
       _kMaxScale,
     );
     final nextRotation = _baseRotation + details.rotation;
-    // Фокальная точка в координатах холста (вычисляется один раз из базового состояния)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     final focalCanvas = _rotateOffset(
       (_baseFocalPoint - _baseOffset) / _baseScale,
       -_baseRotation,
     );
-    // Новый offset: фокальная точка холста должна оказаться под пальцами
+    // пїЅпїЅпїЅпїЅпїЅ offset: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     final nextOffset =
         details.localFocalPoint -
         _rotateOffset(focalCanvas * nextScale, nextRotation);
@@ -751,8 +751,8 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isZooming = false;
-    // После pinch-zoom все пальцы подняты — убедимся, что
-    // рисование не осталось в «подвешенном» состоянии.
+    // пїЅпїЅпїЅпїЅпїЅ pinch-zoom пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
       if (_isDrawing) _cancelCurrentGesture();
@@ -1424,8 +1424,8 @@ class _DrawScreenState extends State<DrawScreen>
           (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity),
           (available.height - _kCanvasPad * 2).clamp(1.0, double.infinity),
         );
-        // Обновляем размер холста напрямую во время build-фазы.
-        // addPostFrameCallback здесь лишний и создавал лишние перерисовки.
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ build-пїЅпїЅпїЅпїЅ.
+        // addPostFrameCallback пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
         if (!nextSize.isEmpty && nextSize != _canvasSize) {
           _canvasSize = nextSize;
         }
@@ -1599,7 +1599,7 @@ class _DrawScreenState extends State<DrawScreen>
   Widget _buildScaleIndicator() {
     final pct = (_scale * 100).round();
     final deg = (_canvasRotation * 180 / math.pi).round();
-    final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$deg°' : '$pct%';
+    final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$degпїЅ' : '$pct%';
     return GestureDetector(
       onTap: _resetZoom,
       child: Container(
@@ -1880,7 +1880,7 @@ class _DrawScreenState extends State<DrawScreen>
               ),
             ),
             const SizedBox(width: 4),
-            // Palm (hand) tool — pan & rotate canvas without drawing
+            // Palm (hand) tool пїЅ pan & rotate canvas without drawing
             _toolBtn(Icons.pan_tool_rounded, DrawTool.palm, s.palmTool, t),
             // Brush tool
             _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),
