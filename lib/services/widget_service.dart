@@ -433,6 +433,17 @@ class WidgetService extends ChangeNotifier {
         partner?.photoUrl ?? '',
       );
 
+      // ── Аватарки для 2-человечного виджета (LoveWidget) ──
+      // LoveWidget всё ещё использует старые ключи для 2 людей
+      await HomeWidget.saveWidgetData<String>(
+        'my_avatar_url',
+        my?.avatarUrl ?? '',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'partner_avatar_url',
+        partner?.avatarUrl ?? '',
+      );
+
       // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
@@ -442,27 +453,31 @@ class WidgetService extends ChangeNotifier {
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
 
-      // ── Синхронизируем виджет настроения (мой + партнёра) ──
-      HomeWidgetService.instance.syncMood(
-        moodEmojiAssetPath: my?.moodEmoji ?? '',
-        moodLabel: my?.moodLabel ?? '',
-        userName: my?.displayName.isNotEmpty == true ? my!.displayName : 'Я',
-        partnerMoodEmojiAssetPath: partner?.moodEmoji ?? '',
-        partnerMoodLabel: partner?.moodLabel ?? '',
-        partnerUserName: partner?.displayName.isNotEmpty == true
-            ? partner!.displayName
-            : 'Партнёр',
-      );
+      // ── Синхронизируем виджет настроения для группы (до 4 человек) ──
+      final membersForWidget = <WidgetData>[];
+      if (my != null) membersForWidget.add(my);
+      membersForWidget.addAll(_partnerData.values);
+      final limitedMembers = membersForWidget.take(4).toList();
 
-      // Скачиваем фото локально в фоне и обновляем виджет повторно
+      final membersData = limitedMembers.map((m) => {
+        'name': m.displayName.isNotEmpty ? m.displayName : 'Участник',
+        'emojiPath': m.moodEmoji,
+      }).toList();
+      await HomeWidgetService.instance.syncGroupMood(membersData);
+
+      for (int i = 0; i < limitedMembers.length; i++) {
+        await HomeWidget.saveWidgetData<String>('user_${i}_avatar_url', limitedMembers[i].avatarUrl);
+      }
+
+      // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
+      _cacheGroupAvatarsForWidget(limitedMembers);
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
     }
   }
 
-  /// Скачивает фото в локальный кэш и обновляет нативный виджет.
-  /// Вызывается fire-and-forget, не блокирует основной поток.
+  /// Скачивает фото в локальный кэш и обновляет нативный виджет (LoveWidget).
   void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
     Future.wait([
       _downloadPhoto(myUrl, 'my_photo_path'),
@@ -475,6 +490,24 @@ class WidgetService extends ChangeNotifier {
         );
       } catch (e) {
         debugPrint('WidgetService._cachePhotosForWidget update failed: $e');
+      }
+    });
+  }
+
+  /// Скачивает аватарки группы в локальный кэш и обновляет MoodWidget.
+  void _cacheGroupAvatarsForWidget(List<WidgetData> members) {
+    final futures = <Future<void>>[];
+    for (int i = 0; i < members.length; i++) {
+      futures.add(_downloadPhoto(members[i].avatarUrl, 'user_${i}_avatar_path'));
+    }
+    Future.wait(futures).then((_) async {
+      try {
+        await HomeWidget.updateWidget(
+          name: 'MoodWidgetProvider',
+          qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+        );
+      } catch (e) {
+        debugPrint('WidgetService._cacheGroupAvatarsForWidget update failed: $e');
       }
     });
   }

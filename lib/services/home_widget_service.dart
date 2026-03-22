@@ -231,6 +231,33 @@ class HomeWidgetService {
     }
   }
 
+  /// Синхронизирует данные настроения для MoodWidgetProvider (групповой формат до 4 человек).
+  ///
+  /// [members] — список мап, где ключи 'name' и 'emojiPath'.
+  Future<void> syncGroupMood(List<Map<String, String>> members) async {
+    try {
+      await HomeWidget.saveWidgetData<int>('user_count', members.length);
+      for (int i = 0; i < members.length; i++) {
+        final member = members[i];
+        final emojiAsset = member['emojiPath'] ?? '';
+        String localPath = '';
+        if (emojiAsset.isNotEmpty) {
+          localPath = await _copyAssetToLocal(emojiAsset);
+        }
+        await HomeWidget.saveWidgetData<String>('user_${i}_emoji_path', localPath);
+        await HomeWidget.saveWidgetData<String>('user_${i}_name', member['name'] ?? '');
+      }
+
+      await HomeWidget.updateWidget(
+        name: 'MoodWidgetProvider',
+        qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+      );
+      debugPrint('HomeWidgetService: group mood synced for ${members.length} users');
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncGroupMood failed: $e');
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  АВТОСИНХРОНИЗАЦИЯ ВСЕХ ВИДЖЕТОВ ПО ПРИВЯЗАННЫМ ГРУППАМ
   // ════════════════════════════════════════════════════════════════════════

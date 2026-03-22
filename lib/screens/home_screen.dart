@@ -839,28 +839,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 24),
                       _buildRelationshipOption(
                         type: RelationshipType.couple,
-                        icon: '??',
+                        icon: '💕',
                         title: LocaleService.current.inLoveStatus,
                         subtitle: LocaleService.current.perfectForCouples,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.married,
-                        icon: '??',
+                        icon: '💍',
                         title: LocaleService.current.married,
                         subtitle: LocaleService.current.forMarriedPartners,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.friends,
-                        icon: '??',
+                        icon: '🤝',
                         title: LocaleService.current.friends,
                         subtitle: LocaleService.current.connectWithBestFriend,
                       ),
                       const SizedBox(height: 12),
                       _buildRelationshipOption(
                         type: RelationshipType.buddies,
-                        icon: '??',
+                        icon: '👯',
                         title: LocaleService.current.bestBuddies,
                         subtitle:
                             LocaleService.current.forInseparableCompanions,
@@ -1206,7 +1206,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: t.primary,
                 title: s.newCanvas,
                 subtitle: LocaleService.instance.isRussian
-                    ? '������ � ������� �����'
+                    ? 'Начать с чистого холста'
                     : 'Start with a blank canvas',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1219,7 +1219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
                 subtitle: LocaleService.instance.isRussian
-                    ? '������� ����������� �������'
+                    ? 'Открыть сохранённый рисунок'
                     : 'Open a saved drawing',
                 onTap: () {
                   Navigator.pop(ctx);

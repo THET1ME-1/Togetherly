@@ -335,6 +335,8 @@ abstract class AppStrings {
   String get drawLine;
   String get drawRect;
   String get drawCircle;
+  String get drawTriangle;
+  String get fillShapes;
   String get insertPhoto;
   String get photoRequiresPartner;
   String get photoFromGallery;
@@ -978,6 +980,10 @@ class _RuStrings extends AppStrings {
   String get drawRect => 'Прямоугольник';
   @override
   String get drawCircle => 'Круг';
+  @override
+  String get drawTriangle => 'Треугольник';
+  @override
+  String get fillShapes => 'Заливка фигур';
   @override
   String get insertPhoto => 'Вставить фото';
   @override
@@ -1774,6 +1780,10 @@ class _EnStrings extends AppStrings {
   String get drawRect => 'Rectangle';
   @override
   String get drawCircle => 'Circle';
+  @override
+  String get drawTriangle => 'Triangle';
+  @override
+  String get fillShapes => 'Fill Shapes';
   @override
   String get insertPhoto => 'Insert Photo';
   @override

@@ -109,8 +109,10 @@ class _DrawScreenState extends State<DrawScreen>
   int _currentColorValue = 0xFF000000;
   double _currentStrokeWidth = 5.0;
   bool _currentIsEraser = false;
+  bool _currentIsFilledShape = false;
   DrawShapeType? _currentShapeType;
   bool _isDrawing = false;
+  bool _fillShapes = false;
 
   // Hint / onboarding
   bool _showHint = true;
@@ -157,7 +159,8 @@ class _DrawScreenState extends State<DrawScreen>
   bool get _isShapeTool =>
       _activeTool == DrawTool.line ||
       _activeTool == DrawTool.rect ||
-      _activeTool == DrawTool.circle;
+      _activeTool == DrawTool.circle ||
+      _activeTool == DrawTool.triangle;
 
   DrawShapeType? get _activeShapeType {
     switch (_activeTool) {
@@ -167,6 +170,8 @@ class _DrawScreenState extends State<DrawScreen>
         return DrawShapeType.rect;
       case DrawTool.circle:
         return DrawShapeType.circle;
+      case DrawTool.triangle:
+        return DrawShapeType.triangle;
       default:
         return null;
     }
@@ -548,7 +553,7 @@ class _DrawScreenState extends State<DrawScreen>
     if (_canvasSize.isEmpty) return;
 
     if (_activeTool == DrawTool.fill) {
-      _applyFill();
+      _applyFill(localPoint);
       return;
     }
 
@@ -566,6 +571,7 @@ class _DrawScreenState extends State<DrawScreen>
       _currentColorValue = _activeColor.toARGB32();
       _currentStrokeWidth = _strokeWidth;
       _currentIsEraser = false;
+      _currentIsFilledShape = _fillShapes;
       _isDrawing = true;
       _repaintNotifier.value++;
       return;
@@ -629,6 +635,7 @@ class _DrawScreenState extends State<DrawScreen>
       strokeWidth: _currentStrokeWidth,
       points: List<DrawPoint>.unmodifiable(_currentPoints),
       isEraser: _currentIsEraser,
+      isFilledShape: _currentIsFilledShape,
       shapeType: _currentShapeType,
       orderIndex: -1,
     );
@@ -801,6 +808,7 @@ class _DrawScreenState extends State<DrawScreen>
       strokeWidth: _currentStrokeWidth,
       points: List<DrawPoint>.unmodifiable(_currentPoints),
       isEraser: _currentIsEraser,
+      isFilledShape: _currentIsFilledShape,
       shapeType: shapeType,
       orderIndex: _orderCounter,
     );
@@ -918,15 +926,87 @@ class _DrawScreenState extends State<DrawScreen>
 
   //  Fill / Clear
 
-  void _applyFill() {
+  void _applyFill(Offset localPoint) {
     _cancelCurrentGesture();
-    final next = _activeColor;
-    setState(() => _bgColor = next);
+
+    // 1. Convert local point to canvas coordinates (0..1)
+    final canvasPt = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+
+    // 2. Search for a shape that contains this point (from top to bottom)
+    DrawStroke? hitShape;
+    for (final s in _visibleStrokes.reversed) {
+      if (s.shapeType == null || s.points.length < 2) continue;
+      
+      final first = s.points.first;
+      final last = s.points.last;
+
+      if (s.shapeType == DrawShapeType.rect) {
+        final minX = math.min(first.x, last.x);
+        final maxX = math.max(first.x, last.x);
+        final minY = math.min(first.y, last.y);
+        final maxY = math.max(first.y, last.y);
+        if (canvasPt.x >= minX && canvasPt.x <= maxX && canvasPt.y >= minY && canvasPt.y <= maxY) {
+          hitShape = s;
+          break;
+        }
+      } else if (s.shapeType == DrawShapeType.circle) {
+        final cx = (first.x + last.x) / 2;
+        final cy = (first.y + last.y) / 2;
+        final dx = last.x - first.x;
+        final dy = last.y - first.y;
+        final radius = math.sqrt(dx * dx + dy * dy) / 2;
+        final dist = math.sqrt(math.pow(canvasPt.x - cx, 2) + math.pow(canvasPt.y - cy, 2));
+        if (dist <= radius) {
+          hitShape = s;
+          break;
+        }
+      } else if (s.shapeType == DrawShapeType.triangle) {
+        final v1 = DrawPoint((first.x + last.x) / 2, first.y);
+        final v2 = DrawPoint(first.x, last.y);
+        final v3 = DrawPoint(last.x, last.y);
+
+        bool sameSide(DrawPoint p1, DrawPoint p2, DrawPoint a, DrawPoint b) {
+          final cp1 = (b.x - a.x) * (p1.y - a.y) - (b.y - a.y) * (p1.x - a.x);
+          final cp2 = (b.x - a.x) * (p2.y - a.y) - (b.y - a.y) * (p2.x - a.x);
+          return (cp1 * cp2) >= 0;
+        }
+
+        if (sameSide(canvasPt, v1, v2, v3) &&
+            sameSide(canvasPt, v2, v1, v3) &&
+            sameSide(canvasPt, v3, v1, v2)) {
+          hitShape = s;
+          break;
+        }
+      }
+    }
+
+    final nextColor = _activeColor;
+
+    if (hitShape != null) {
+      // Create a filled duplicate of the hit shape
+      final newStroke = DrawStroke(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+        userId: _myUid,
+        colorValue: nextColor.toARGB32(),
+        strokeWidth: hitShape.strokeWidth,
+        points: List<DrawPoint>.from(hitShape.points),
+        isEraser: false,
+        isFilledShape: true,
+        shapeType: hitShape.shapeType,
+        orderIndex: _orderCounter,
+      );
+      _orderCounter++;
+      _submitStroke(newStroke);
+      return;
+    }
+
+    // Fallback: fill the entire background
+    setState(() => _bgColor = nextColor);
     if (_hasSharedCanvas) {
       _fb
           .setCanvasBgColor(
             groupId: _groupId,
-            colorValue: next.toARGB32(),
+            colorValue: nextColor.toARGB32(),
             canvasId: _canvasId,
           )
           .catchError((e) => debugPrint('[Draw] fill error: $e'));
@@ -1470,6 +1550,7 @@ class _DrawScreenState extends State<DrawScreen>
                         currentColorValue: _currentColorValue,
                         currentStrokeWidth: _currentStrokeWidth,
                         currentIsEraser: _currentIsEraser,
+                        currentIsFilledShape: _currentIsFilledShape,
                         currentShapeType: _currentShapeType,
                         partnerNotifier: _partnerNotifier,
                         canvasSize: _canvasSize,
@@ -1782,6 +1863,24 @@ class _DrawScreenState extends State<DrawScreen>
             s.drawCircle,
             t,
             compact: true,
+          ),
+          _toolBtn(
+            Icons.change_history_rounded,
+            DrawTool.triangle,
+            s.drawTriangle,
+            t,
+            compact: true,
+          ),
+          const SizedBox(width: 4),
+          Container(width: 1, height: 24, color: Colors.grey.shade300),
+          const SizedBox(width: 4),
+          _actionBtn(
+            _fillShapes
+                ? Icons.check_box_rounded
+                : Icons.check_box_outline_blank_rounded,
+            () => setState(() => _fillShapes = !_fillShapes),
+            tooltip: s.fillShapes,
+            color: _fillShapes ? t.primary : Colors.grey.shade500,
           ),
           _toolBtn(
             Icons.format_color_fill_rounded,
@@ -2131,6 +2230,7 @@ class _CanvasScene extends StatefulWidget {
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
+  final bool currentIsFilledShape;
   final DrawShapeType? currentShapeType;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
@@ -2143,6 +2243,7 @@ class _CanvasScene extends StatefulWidget {
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
+    required this.currentIsFilledShape,
     required this.currentShapeType,
     required this.partnerNotifier,
     required this.canvasSize,
@@ -2189,6 +2290,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
             currentColorValue: widget.currentColorValue,
             currentStrokeWidth: widget.currentStrokeWidth,
             currentIsEraser: widget.currentIsEraser,
+            currentIsFilledShape: widget.currentIsFilledShape,
             currentShapeType: widget.currentShapeType,
             partnerNotifier: widget.partnerNotifier,
             canvasSize: widget.canvasSize,
@@ -2208,6 +2310,7 @@ class _DrawingPainter extends CustomPainter {
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
+  final bool currentIsFilledShape;
   final DrawShapeType? currentShapeType;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
@@ -2218,6 +2321,7 @@ class _DrawingPainter extends CustomPainter {
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
+    required this.currentIsFilledShape,
     required this.currentShapeType,
     required this.partnerNotifier,
     required this.canvasSize,
@@ -2238,6 +2342,7 @@ class _DrawingPainter extends CustomPainter {
           s.strokeWidth,
           s.shapeType!,
           size,
+          isFilledShape: s.isFilledShape,
         );
       } else {
         _drawStroke(
@@ -2260,6 +2365,7 @@ class _DrawingPainter extends CustomPainter {
           currentStrokeWidth,
           currentShapeType!,
           size,
+          isFilledShape: currentIsFilledShape,
         );
       } else {
         _drawStroke(
@@ -2283,6 +2389,7 @@ class _DrawingPainter extends CustomPainter {
           s.shapeType!,
           size,
           alpha: 0.85,
+          isFilledShape: s.isFilledShape,
         );
       } else if (s.shapeType == null) {
         _drawStroke(
@@ -2308,6 +2415,7 @@ class _DrawingPainter extends CustomPainter {
     DrawShapeType shapeType,
     Size size, {
     double alpha = 1.0,
+    required bool isFilledShape,
   }) {
     if (points.length < 2) return;
     final c = Color(colorValue);
@@ -2315,7 +2423,7 @@ class _DrawingPainter extends CustomPainter {
       ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
+      ..style = isFilledShape ? PaintingStyle.fill : PaintingStyle.stroke;
 
     final s = points.first.toOffset(size);
     final e = points.last.toOffset(size);
@@ -2331,6 +2439,13 @@ class _DrawingPainter extends CustomPainter {
         final radius = math.sqrt(dx * dx + dy * dy) / 2;
         final center = Offset((s.dx + e.dx) / 2, (s.dy + e.dy) / 2);
         canvas.drawCircle(center, radius, paint);
+      case DrawShapeType.triangle:
+        final path = Path();
+        path.moveTo((s.dx + e.dx) / 2, s.dy); // Top center
+        path.lineTo(s.dx, e.dy); // Bottom left
+        path.lineTo(e.dx, e.dy); // Bottom right
+        path.close();
+        canvas.drawPath(path, paint);
     }
   }
 
