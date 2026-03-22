@@ -577,7 +577,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // PROFILE TAB
   // =============================================
   Widget _buildProfileTab() {
-    return ProfileScreen(userData: widget.userData, pairData: _pairData);
+    return ProfileScreen(
+      userData: widget.userData,
+      pairData: _pairData,
+      timerService: _timerService,
+    );
   }
 
   // =============================================

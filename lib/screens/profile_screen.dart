@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firebase_service.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
-import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
@@ -22,10 +24,12 @@ class _PartnerEntry {
 class ProfileScreen extends StatefulWidget {
   final UserData userData;
   final PairData pairData;
+  final TimerService timerService;
   const ProfileScreen({
     super.key,
     required this.userData,
     required this.pairData,
+    required this.timerService,
   });
 
   @override
@@ -45,6 +49,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Timer to refresh day counter every hour
   Timer? _dayTimer;
+  
+  /// Toggle for Relationship Stats
+  bool _showStats = false;
+  
+  int? _memoriesCount;
+  int? _missYouCount;
+  int? _drawingsCount;
+  StreamSubscription? _missYouSub;
+
+  int _calculateDaysTogether(DateTime? fallbackDate) {
+    final timerDate = widget.timerService.systemTimer?.startDate;
+    final date = timerDate ?? fallbackDate;
+    if (date == null) return 0;
+    return DateTime.now().difference(date).inDays;
+  }
 
   @override
   void initState() {
@@ -54,10 +73,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _dayTimer = Timer.periodic(const Duration(hours: 1), (_) {
       if (mounted) setState(() {});
     });
+    _loadStats();
+  }
+
+  void _loadStats() {
+    final groupId = widget.pairData.pairId;
+    if (groupId.isEmpty) return;
+    
+    // Load memories count
+    FirebaseFirestore.instance
+      .collection('groups')
+      .doc(groupId)
+      .collection('memories')
+      .count()
+      .get()
+      .then((snap) {
+        if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
+      })
+      .catchError((_) {});
+
+    // Load drawings count
+    FirebaseFirestore.instance
+      .collection('groups')
+      .doc(groupId)
+      .collection('canvases')
+      .count()
+      .get()
+      .then((snap) {
+        if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
+      })
+      .catchError((_) {});
+
+    // Listen to Miss You count
+    _missYouSub = FirebaseService().listenToMissYouCount(
+      groupId: groupId,
+      onData: (count) {
+        if (mounted) setState(() => _missYouCount = count);
+      },
+    );
   }
 
   @override
   void dispose() {
+    _missYouSub?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
     _dayTimer?.cancel();
     super.dispose();
@@ -88,6 +146,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
           // ═══ Relationship Status Card ═══
           _buildRelationshipCard(context),
+          const SizedBox(height: 20),
+          // ═══ Relationship Stats Card ═══
+          _buildStatsCard(context),
           const SizedBox(height: 20),
           // ═══ Settings List ═══
           _buildSettingsCard(context),
@@ -627,6 +688,156 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ═══════════════════════════════════════════════════
+  //  RELATIONSHIP STATS (WRAPPED)
+  // ═══════════════════════════════════════════════════
+  Widget _buildStatsCard(BuildContext context) {
+    final daysNum = _calculateDaysTogether(widget.pairData.startDate);
+    final daysString = '$daysNum';
+
+    return _glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _showStats = !_showStats),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'RELATIONSHIP STATS (WRAPPED)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade400,
+                    letterSpacing: 3,
+                  ),
+                ),
+                Icon(
+                  _showStats ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+            child: !_showStats
+                ? const SizedBox.shrink()
+                : Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statBox(
+                              title: 'Days Together',
+                              value: daysString,
+                              icon: Icons.calendar_today_rounded,
+                              color: const Color(0xFFE91E8C),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _statBox(
+                              title: 'Memories',
+                              value: _memoriesCount?.toString() ?? '...',
+                              icon: Icons.photo_library_rounded,
+                              color: const Color(0xFF3498DB),
+                            ),
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statBox(
+                              title: 'Drawings',
+                              value: _drawingsCount?.toString() ?? '...',
+                              icon: Icons.brush_rounded,
+                              color: const Color(0xFFF39C12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _statBox(
+                              title: 'Miss Yous',
+                              value: _missYouCount?.toString() ?? '...',
+                              icon: Icons.favorite_rounded,
+                              color: const Color(0xFF9B59B6),
+                            ),
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.1),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statBox({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.grey.shade900,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
   //  RELATIONSHIP CARD
   // ═══════════════════════════════════════════════════
   Widget _buildRelationshipCard(BuildContext context) {
@@ -665,9 +876,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // ── Days together — ALWAYS from system clock (DateTime.now) ──
     final startDate = selectedPartner?.connection.startDate;
-    final daysString = startDate != null
-        ? _s.daysTogetherLabel('${DateTime.now().difference(startDate).inDays}')
-        : '—';
+    final daysString =
+        _s.daysTogetherLabel('${_calculateDaysTogether(startDate)}');
 
     final hasPaired = allPartners.isNotEmpty;
 

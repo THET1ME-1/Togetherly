@@ -7,6 +7,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/timer_item.dart';
@@ -1208,7 +1210,26 @@ class FirebaseService {
           ? SettableMetadata(contentType: contentType)
           : null;
 
-      final uploadTask = ref.putFile(file, metadata);
+      File fileToUpload = file;
+      if (['jpg', 'jpeg', 'png'].contains(ext)) {
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final targetPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.$ext';
+          final xFile = await FlutterImageCompress.compressAndGetFile(
+            path,
+            targetPath,
+            quality: 70,
+          );
+          if (xFile != null) {
+            fileToUpload = File(xFile.path);
+            debugPrint('uploadFile: Compressed image from ${await file.length()} to ${await fileToUpload.length()}');
+          }
+        } catch (e) {
+          debugPrint('uploadFile: Compression failed: $e');
+        }
+      }
+
+      final uploadTask = ref.putFile(fileToUpload, metadata);
 
       // Monitor upload progress
       uploadTask.snapshotEvents.listen((event) {
@@ -1331,6 +1352,16 @@ class FirebaseService {
       if (musicArtist != null) updates['musicArtist'] = musicArtist;
       if (imageUrl != null) updates['imageUrl'] = imageUrl;
       if (isPinned != null) updates['isPinned'] = isPinned;
+
+      // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
+      // This prevents data loss if both partners edit the caption offline simultaneously.
+      if (caption != null && uid != null) {
+        updates['captionHistory'] = FieldValue.arrayUnion([{
+          'caption': caption,
+          'uid': uid,
+          'timestamp': Timestamp.now(),
+        }]);
+      }
 
       await _db
           .collection('groups')
