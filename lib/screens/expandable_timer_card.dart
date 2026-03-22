@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -379,21 +380,23 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       fit: StackFit.passthrough,
       children: [
         Positioned.fill(
-          child: Image.network(
-            path,
+          child: CachedNetworkImage(
+            imageUrl: path,
             fit: BoxFit.cover,
             alignment: Alignment.topCenter,
-            cacheWidth: 720,
-            loadingBuilder: (_, child, progress) {
-              if (progress == null) return child;
+            memCacheWidth: 720,
+            progressIndicatorBuilder: (context, url, downloadProgress) {
               return Container(
                 color: Colors.black26,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white70),
+                child: Center(
+                  child: CircularProgressIndicator(
+                      color: Colors.white70, 
+                      value: downloadProgress.progress
+                  ),
                 ),
               );
             },
-            errorBuilder: (_, error, __) {
+            errorWidget: (context, url, error) {
               debugPrint('ExpandableTimerCard: ошибка загрузки фона: $error');
               return const SizedBox.shrink();
             },

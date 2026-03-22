@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
@@ -14,6 +15,12 @@ void main() async {
 
   // Firebase — инициализация
   await Firebase.initializeApp();
+
+  // Включаем офлайн-кеш Firestore
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
 
   // Deep links — инициализация
   DeepLinkService().init();

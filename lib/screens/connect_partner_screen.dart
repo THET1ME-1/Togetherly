@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -320,10 +321,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             ),
                             child: ClipOval(
                               child: partners[i].avatar.isNotEmpty
-                                  ? Image.network(
-                                      partners[i].avatar,
+                                  ? CachedNetworkImage(
+                                      imageUrl: partners[i].avatar,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
+                                      errorWidget: (context, url, error) =>
                                           _avatarFallback(partners[i].name, 48),
                                     )
                                   : _avatarFallback(partners[i].name, 48),
@@ -919,10 +920,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       ),
       child: ClipOval(
         child: url.isNotEmpty
-            ? Image.network(
-                url,
+            ? CachedNetworkImage(
+                imageUrl: url,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorWidget: (context, url, error) => Container(
                   color: primary.withOpacity(0.15),
                   child: Center(
                     child: Text(

@@ -1448,13 +1448,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
             trailing: data.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      data.photoUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: data.photoUrl!,
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      loadingBuilder: (_, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
+                      progressIndicatorBuilder: (context, url, downloadProgress) {
                         return Container(
                           width: 36,
                           height: 36,
@@ -1469,17 +1468,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: _t.primary,
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
+                                value: downloadProgress.progress,
                               ),
                             ),
                           ),
                         );
                       },
-                      errorBuilder: (_, __, ___) => Container(
+                      errorWidget: (context, url, error) => Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
@@ -1644,13 +1639,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
             trailing: partner.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      partner.photoUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: partner.photoUrl!,
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      loadingBuilder: (_, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
+                      progressIndicatorBuilder: (context, url, downloadProgress) {
                         return Container(
                           width: 36,
                           height: 36,
@@ -1665,17 +1659,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: _t.primary,
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
+                                value: downloadProgress.progress,
                               ),
                             ),
                           ),
                         );
                       },
-                      errorBuilder: (_, __, ___) => Container(
+                      errorWidget: (context, url, error) => Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(

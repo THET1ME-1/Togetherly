@@ -713,12 +713,12 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: ClipOval(
         child: url.isNotEmpty
-            ? Image.network(
-                url,
+            ? CachedNetworkImage(
+                imageUrl: url,
                 fit: BoxFit.cover,
-                cacheWidth: 120,
-                cacheHeight: 120,
-                errorBuilder: (_, __, ___) => _avatarPlaceholder(name),
+                memCacheWidth: 120,
+                memCacheHeight: 120,
+                errorWidget: (context, url, error) => _avatarPlaceholder(name),
               )
             : _avatarPlaceholder(name),
       ),
@@ -2581,12 +2581,12 @@ class _HomeScreenState extends State<HomeScreen> {
         Stack(
           children: [
             if (hasImage)
-              Image.network(
-                memory.imageUrl!,
+              CachedNetworkImage(
+                imageUrl: memory.imageUrl!,
                 width: double.infinity,
                 fit: BoxFit.fitWidth,
-                cacheWidth: 480,
-                errorBuilder: (_, __, ___) =>
+                memCacheWidth: 480,
+                errorWidget: (context, url, error) =>
                     Container(height: 140, color: Colors.grey.shade200),
               )
             else
@@ -2658,10 +2658,10 @@ class _HomeScreenState extends State<HomeScreen> {
       fit: StackFit.expand,
       children: [
         if (hasThumb)
-          Image.network(
-            memory.imageUrl!,
+          CachedNetworkImage(
+            imageUrl: memory.imageUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
+            errorWidget: (context, url, error) =>
                 Container(color: Colors.grey.shade900),
           )
         else
@@ -2823,12 +2823,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   memory.musicCoverUrl!.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    memory.musicCoverUrl!,
+                  child: CachedNetworkImage(
+                    imageUrl: memory.musicCoverUrl!,
                     width: 36,
                     height: 36,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorWidget: (context, url, error) => Container(
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(

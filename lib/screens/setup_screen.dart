@@ -616,10 +616,10 @@ class _SetupScreenState extends State<SetupScreen>
                                 )
                               : _avatarUrl.isNotEmpty
                               ? ClipOval(
-                                  child: Image.network(
-                                    _avatarUrl,
+                                  child: CachedNetworkImage(
+                                    imageUrl: _avatarUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Icon(
+                                    errorWidget: (context, url, error) => Icon(
                                       Icons.person_rounded,
                                       color: _accent.withOpacity(0.5),
                                       size: 36,

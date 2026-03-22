@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -474,12 +475,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
-              child: Image.network(
-                memory.imageUrl!,
+              child: CachedNetworkImage(
+                imageUrl: memory.imageUrl!,
                 width: double.infinity,
                 fit: BoxFit.fitWidth,
-                cacheWidth: 800,
-                errorBuilder: (_, __, ___) => Container(
+                memCacheWidth: 800,
+                errorWidget: (context, url, error) => Container(
                   height: 200,
                   color: Colors.grey.shade200,
                   child: Center(
@@ -518,12 +519,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 fit: StackFit.expand,
                 children: [
                   if (hasThumb)
-                    Image.network(
-                      memory.imageUrl!,
+                    CachedNetworkImage(
+                      imageUrl: memory.imageUrl!,
                       fit: BoxFit.cover,
-                      cacheWidth: 800,
-                      cacheHeight: 500,
-                      errorBuilder: (_, __, ___) =>
+                      memCacheWidth: 800,
+                      memCacheHeight: 500,
+                      errorWidget: (context, url, error) =>
                           Container(color: Colors.grey.shade300),
                     )
                   else
@@ -687,12 +688,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             memory.musicCoverUrl!.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              memory.musicCoverUrl!,
+                            child: CachedNetworkImage(
+                              imageUrl: memory.musicCoverUrl!,
                               fit: BoxFit.cover,
-                              cacheWidth: 96,
-                              cacheHeight: 96,
-                              errorBuilder: (_, __, ___) => const Icon(
+                              memCacheWidth: 96,
+                              memCacheHeight: 96,
+                              errorWidget: (context, url, error) => const Icon(
                                 Icons.music_note_rounded,
                                 color: Color(0xFF8B5CF6),
                               ),
@@ -940,12 +941,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             height: 16,
             decoration: const BoxDecoration(shape: BoxShape.circle),
             child: ClipOval(
-              child: Image.network(
-                memory.authorAvatar,
+              child: CachedNetworkImage(
+                imageUrl: memory.authorAvatar,
                 fit: BoxFit.cover,
-                cacheWidth: 48,
-                cacheHeight: 48,
-                errorBuilder: (_, __, ___) => const SizedBox(),
+                memCacheWidth: 48,
+                memCacheHeight: 48,
+                errorWidget: (context, url, error) => const SizedBox(),
               ),
             ),
           ),
@@ -1103,11 +1104,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           memory.imageUrl!.isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            memory.imageUrl!,
+                          child: CachedNetworkImage(
+                            imageUrl: memory.imageUrl!,
                             width: double.infinity,
                             fit: BoxFit.fitWidth,
-                            errorBuilder: (_, __, ___) => Container(
+                            errorWidget: (context, url, error) => Container(
                               height: 200,
                               color: Colors.grey.shade200,
                               child: Center(
@@ -1155,12 +1156,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           children: [
                             if (memory.imageUrl != null &&
                                 memory.imageUrl!.isNotEmpty)
-                              Image.network(
-                                memory.imageUrl!,
+                              CachedNetworkImage(
+                                imageUrl: memory.imageUrl!,
                                 width: double.infinity,
                                 height: 220,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                errorWidget: (context, url, error) => Container(
                                   height: 220,
                                   color: Colors.grey.shade900,
                                 ),
@@ -2734,12 +2735,12 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                 child:
                     memory.musicCoverUrl != null &&
                         memory.musicCoverUrl!.isNotEmpty
-                    ? Image.network(
-                        memory.musicCoverUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: memory.musicCoverUrl!,
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _defaultMusicCover(),
+                        errorWidget: (context, url, error) => _defaultMusicCover(),
                       )
                     : _defaultMusicCover(),
               ),
@@ -3006,11 +3007,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: memory.imageUrl?.isNotEmpty == true
-                      ? Image.network(
-                          memory.imageUrl!,
+                      ? CachedNetworkImage(
+                          imageUrl: memory.imageUrl!,
                           width: double.infinity,
                           fit: BoxFit.fitWidth,
-                          errorBuilder: (_, __, ___) => _noImgBox(200),
+                          errorWidget: (context, url, error) => _noImgBox(200),
                         )
                       : _noImgBox(200),
                 ),
@@ -3022,12 +3023,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                   child: Stack(
                     children: [
                       if (memory.imageUrl?.isNotEmpty == true)
-                        Image.network(
-                          memory.imageUrl!,
+                        CachedNetworkImage(
+                          imageUrl: memory.imageUrl!,
                           width: double.infinity,
                           height: 220,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorWidget: (context, url, error) => Container(
                             height: 220,
                             color: Colors.grey.shade900,
                           ),
