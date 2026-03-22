@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
@@ -461,6 +462,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
         // Stats bar
         if (stats.isNotEmpty) _buildStatsBar(stats),
+
+        const SizedBox(height: 16),
+        
+        // Analytics (trend & average)
+        if (entries.isNotEmpty) _buildAnalytics(entries),
       ],
     );
   }
@@ -773,6 +779,203 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  //  ANALYTICS (TREND & AVERAGE)
+  // ═══════════════════════════════════════════
+
+  Widget _buildAnalytics(List<MoodEntry> entries) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    // 1. Group by day and calculate average score per day
+    final byDay = <DateTime, List<MoodEntry>>{};
+    for (final e in entries) {
+      final d = DateTime(e.timestamp.year, e.timestamp.month, e.timestamp.day);
+      byDay.putIfAbsent(d, () => []).add(e);
+    }
+
+    final sortedDays = byDay.keys.toList()..sort();
+    
+    // Overall average
+    double totalScore = 0;
+    for (final e in entries) {
+      totalScore += e.score;
+    }
+    final avgScore = (totalScore / entries.length).toStringAsFixed(1);
+
+    // Chart data
+    final spots = <FlSpot>[];
+    for (int i = 0; i < sortedDays.length; i++) {
+        final day = sortedDays[i];
+        final dayEntries = byDay[day]!;
+        final dayAvg = dayEntries.map((e) => e.score).reduce((a, b) => a + b) / dayEntries.length;
+        spots.add(FlSpot(i.toDouble(), dayAvg));
+    }
+
+    // Determine the text equivalent for the average score
+    String avgText = '';
+    final numAvg = totalScore / entries.length;
+    if (numAvg >= 4.5) avgText = 'Great';
+    else if (numAvg >= 3.5) avgText = 'Good';
+    else if (numAvg >= 2.5) avgText = 'Okay';
+    else if (numAvg >= 1.5) avgText = 'Bad';
+    else avgText = 'Awful';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Average Mood',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$avgScore ($avgText)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 120,
+            child: sortedDays.length > 1
+                ? LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: 1,
+                        getDrawingHorizontalLine: (value) {
+                          return FlLine(
+                            color: Colors.grey.shade200,
+                            strokeWidth: 1,
+                            dashArray: [5, 5],
+                          );
+                        },
+                      ),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 24,
+                            interval: 1,
+                            getTitlesWidget: (value, meta) {
+                              if (value == 1 || value == 3 || value == 5) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade400,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 22,
+                            interval: 1,
+                            getTitlesWidget: (value, meta) {
+                              if (value.toInt() >= 0 && value.toInt() < sortedDays.length) {
+                                final date = sortedDays[value.toInt()];
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    '${date.day}/${date.month}',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      minX: 0,
+                      maxX: (sortedDays.length - 1).toDouble(),
+                      minY: 1,
+                      maxY: 5,
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          color: primary,
+                          barWidth: 3,
+                          isStrokeCapRound: true,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, barData, index) =>
+                                FlDotCirclePainter(
+                              radius: 4,
+                              color: Colors.white,
+                              strokeWidth: 2,
+                              strokeColor: primary,
+                            ),
+                          ),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: primary.withOpacity(0.1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      'Not enough data for chart',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

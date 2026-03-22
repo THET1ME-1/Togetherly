@@ -139,7 +139,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         itemCount: connections.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           if (index == connections.length) {
             return _buildAddGroupChip();
@@ -859,7 +859,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-
   /// Бейдж онлайн/офлайн статуса для партнёра
   Widget _buildPresenceBadge(String uid) {
     final isOnline = _partnerOnlineStatus[uid] ?? false;
@@ -1331,7 +1330,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       ),
     );
   }
-
 
   // ═══════════════════════════════════════════════════
   //  THEMED HELPERS

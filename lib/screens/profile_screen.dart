@@ -9,6 +9,8 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
+import '../services/export_service.dart';
+import '../services/timer_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1248,6 +1250,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           _divider(),
           _settingsTile(
+            icon: Icons.archive_outlined,
+            label: LocaleService.instance.language == AppLanguage.ru ? 'Экспорт воспоминаний' : 'Export Memories',
+            onTap: () => _handleExportConfig(context),
+          ),
+          _divider(),
+          _settingsTile(
             icon: Icons.info_outline_rounded,
             label: _s.aboutApp,
             onTap: () {},
@@ -1386,6 +1394,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  EXPORT MEMORIES
+  // ═══════════════════════════════════════════════════
+  Future<void> _handleExportConfig(BuildContext context) async {
+    final groupId = widget.pairData.pairId;
+    if (groupId.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.instance.language == AppLanguage.ru ? 'Нет активной группы для экспорта' : 'No active group for export'),
+          backgroundColor: _accent,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: _accent),
+                const SizedBox(height: 16),
+                Text(
+                  LocaleService.instance.language == AppLanguage.ru
+                      ? 'Создаём архив...\nЭто займет немного времени.'
+                      : 'Creating archive...\nThis will take a moment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final timerService = TimerService();
+      await timerService.init();
+      
+      final exportService = ExportService();
+      await exportService.exportMemories(
+        groupId: groupId,
+        timers: timerService.timers,
+        userData: widget.userData,
+      );
+
+      if (context.mounted) {
+        Navigator.pop(context); // close dialog
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // close dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+             content: Text(LocaleService.instance.language == AppLanguage.ru ? 'Ошибка при экспорте: \$e' : 'Error during export: \$e'),
+             backgroundColor: Colors.red.shade400,
+          ),
+        );
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════

@@ -61,6 +61,8 @@ dependencies:
   home_widget: ^0.7.0             # Настоящий виджет рабочего стола
   firebase_messaging: ^15.2.4     # Push-уведомления (FCM)
   cached_network_image: ^3.4.1    # Загрузка и кеширование сетевых изображений
+  fl_chart: ^1.2.0
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:

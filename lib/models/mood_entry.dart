@@ -15,6 +15,23 @@ class MoodOption {
     required this.color,
   });
 
+  int get score {
+    switch (id) {
+      case 'happy': case 'starstruck': case 'yummy': case 'laughing': case 'grin': case 'kiss': case 'love': case 'blessed': case 'laughing_hard':
+        return 5;
+      case 'winking': case 'flush': case 'smirking': case 'cool': case 'blush':
+        return 4;
+      case 'no_expression': case 'secret': case 'mute': case 'sleepy': case 'surprised': case 'shy':
+        return 3;
+      case 'sad': case 'liar': case 'greed': case 'disappointment': case 'disappointed': case 'sick': case 'tired': case 'sweating': case 'confused': case 'grimacing': case 'rolling_eyes': case 'unamused': case 'cold': case 'annoyed': case 'astonished':
+        return 2;
+      case 'crying': case 'crying_hard': case 'angry': case 'dead': case 'crazy': case 'angry_rage': case 'disappointed_bad': case 'devil': case 'dizzy': case 'drooling': case 'scared': case 'angry_furious': case 'sick_fever': case 'vomiting': case 'surprised_shock':
+        return 1;
+      default:
+        return 3;
+    }
+  }
+
   static const List<MoodOption> all = [
     MoodOption(
       id: 'sad',
@@ -344,6 +361,7 @@ class MoodEntry {
   });
 
   Color get color => MoodOption.byId(moodId)?.color ?? const Color(0xFF9CA3AF);
+  int get score => MoodOption.byId(moodId)?.score ?? 3;
 
   Map<String, dynamic> toJson() => {
     'id': id,
