@@ -14,6 +14,9 @@ import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/animations.dart';
+import 'home/widgets/mood_picker_dialog.dart';
+import 'home/widgets/relationship_type_dialog.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
@@ -514,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                _AnimatedSlideIn(
+                AnimatedSlideIn(
                   delay: const Duration(milliseconds: 100),
                   child: MiniMoodCalendar(
                     moodService: _moodService,
@@ -523,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _AnimatedSlideIn(
+                AnimatedSlideIn(
                   delay: const Duration(milliseconds: 200),
                   child: ExpandableTimerCard(
                     theme: _t,
@@ -541,20 +544,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     !_reflectionManuallyDismissed &&
                     (_showReflection || _hasPartnerAnswer)) ...[
                   const SizedBox(height: 32),
-                  _AnimatedSlideIn(
+                  AnimatedSlideIn(
                     delay: const Duration(milliseconds: 300),
                     child: _buildDailyReflection(),
                   ),
                 ],
                 if (!_pairData.isPaired) ...[
                   const SizedBox(height: 32),
-                  _AnimatedSlideIn(
+                  AnimatedSlideIn(
                     delay: const Duration(milliseconds: 300),
                     child: _buildConnectPrompt(),
                   ),
                 ],
                 const SizedBox(height: 32),
-                _AnimatedSlideIn(
+                AnimatedSlideIn(
                   delay: const Duration(milliseconds: 400),
                   child: _buildActionButtons(),
                 ),
@@ -563,12 +566,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           if (_pairData.isPaired)
-            _AnimatedSlideIn(
+            AnimatedSlideIn(
               delay: const Duration(milliseconds: 500),
               child: _buildMemoryLaneSection(),
             ),
           if (!_pairData.isPaired)
-            _AnimatedSlideIn(
+            AnimatedSlideIn(
               delay: const Duration(milliseconds: 500),
               child: _buildEmptyMemoryLane(),
             ),
@@ -626,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       widget.userData.avatarUrl,
                       name: widget.userData.displayName,
                       mood: _pairData.myMood,
-                      moodPosition: _MoodBadgePosition.topLeft,
+                      moodPosition: MoodBadgePosition.topLeft,
                     ),
                   ),
                   ...List.generate(
@@ -638,7 +641,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _pairData.partners[i].avatar,
                         name: _pairData.partners[i].name,
                         mood: _pairData.moodOf(_pairData.partners[i].uid),
-                        moodPosition: _MoodBadgePosition.bottomRight,
+                        moodPosition: MoodBadgePosition.bottomRight,
                       ),
                     ),
                   ),
@@ -770,7 +773,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String url, {
     String? name,
     required MemberMood mood,
-    _MoodBadgePosition moodPosition = _MoodBadgePosition.bottomRight,
+    MoodBadgePosition moodPosition = MoodBadgePosition.bottomRight,
   }) {
     return SizedBox(
       width: 48,
@@ -781,12 +784,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Positioned(left: 4, top: 4, child: _avatarCircle(url, name: name)),
           if (mood.isNotEmpty)
             Positioned(
-              top: moodPosition == _MoodBadgePosition.topLeft ? -4 : null,
-              bottom: moodPosition == _MoodBadgePosition.bottomRight
-                  ? -4
-                  : null,
-              left: moodPosition == _MoodBadgePosition.topLeft ? -4 : null,
-              right: moodPosition == _MoodBadgePosition.bottomRight ? -4 : null,
+              top: moodPosition == MoodBadgePosition.topLeft ? -4 : null,
+              bottom: moodPosition == MoodBadgePosition.bottomRight ? -4 : null,
+              left: moodPosition == MoodBadgePosition.topLeft ? -4 : null,
+              right: moodPosition == MoodBadgePosition.bottomRight ? -4 : null,
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
@@ -822,365 +823,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // RELATIONSHIP TYPE DIALOG
   // =============================================
   void _showRelationshipTypeDialog() {
-    showDialog(
+    showRelationshipTypeDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final customTypes = _pairData.customRelationshipTypes;
-          return Dialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        LocaleService.current.relationshipStatus,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        LocaleService.current.chooseHowToConnect,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildRelationshipOption(
-                        type: RelationshipType.couple,
-                        icon: '💕',
-                        title: LocaleService.current.inLoveStatus,
-                        subtitle: LocaleService.current.perfectForCouples,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildRelationshipOption(
-                        type: RelationshipType.married,
-                        icon: '💍',
-                        title: LocaleService.current.married,
-                        subtitle: LocaleService.current.forMarriedPartners,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildRelationshipOption(
-                        type: RelationshipType.friends,
-                        icon: '🤝',
-                        title: LocaleService.current.friends,
-                        subtitle: LocaleService.current.connectWithBestFriend,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildRelationshipOption(
-                        type: RelationshipType.buddies,
-                        icon: '👯',
-                        title: LocaleService.current.bestBuddies,
-                        subtitle:
-                            LocaleService.current.forInseparableCompanions,
-                      ),
-                      // Custom relationship types
-                      ...customTypes.map((entry) {
-                        final isSelected =
-                            _pairData.relationshipType ==
-                                RelationshipType.custom &&
-                            _pairData.relationshipLabel == entry['label'];
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: _buildCustomRelTypeOption(
-                            entry: entry,
-                            isSelected: isSelected,
-                            onSelect: () {
-                              _pairData.setRelationshipType(
-                                RelationshipType.custom,
-                                label: entry['label'] ?? '',
-                                emoji: entry['emoji'] ?? '?',
-                              );
-                              Navigator.of(ctx).pop();
-                              setState(() {});
-                            },
-                            onEdit: () {
-                              Navigator.of(ctx).pop();
-                              _showEditCustomRelTypeDialog(entry);
-                            },
-                            onDelete: () async {
-                              await _pairData.deleteCustomRelationshipType(
-                                entry['id'] ?? '',
-                              );
-                              setDialogState(() {});
-                              setState(() {});
-                            },
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 16),
-                      // Add custom type button
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          _showAddCustomRelTypeDialog();
-                        },
-                        icon: const Icon(Icons.add, size: 18),
-                        label: Text(LocaleService.current.addCustomStatus),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 20,
-                          ),
-                          side: BorderSide(
-                            color: Colors.grey.shade300,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildRelationshipOption({
-    required RelationshipType type,
-    required String icon,
-    required String title,
-    required String subtitle,
-  }) {
-    final isSelected = _pairData.relationshipType == type;
-    return GestureDetector(
-      onTap: () {
-        _pairData.setRelationshipType(type);
-        Navigator.of(context).pop();
-        setState(() {});
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? primary : Colors.grey.shade200,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected ? primary : Colors.grey.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Icon(Icons.check_circle_rounded, color: primary, size: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCustomRelTypeOption({
-    required Map<String, String> entry,
-    required bool isSelected,
-    required VoidCallback onSelect,
-    required VoidCallback onEdit,
-    required VoidCallback onDelete,
-  }) {
-    return GestureDetector(
-      onTap: onSelect,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? primary : Colors.grey.shade200,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(entry['emoji'] ?? '?', style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                entry['label'] ?? 'Custom',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? primary : Colors.grey.shade800,
-                ),
-              ),
-            ),
-            if (isSelected)
-              Icon(Icons.check_circle_rounded, color: primary, size: 24),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: onEdit,
-              child: Icon(Icons.edit, size: 18, color: Colors.blue.shade400),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onDelete,
-              child: Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: Colors.red.shade400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddCustomRelTypeDialog() {
-    final labelCtrl = TextEditingController();
-    final emojiCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.addCustomStatus),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emojiCtrl,
-              decoration: InputDecoration(
-                labelText: LocaleService.current.emoji,
-                hintText: '??',
-              ),
-              maxLength: 2,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: labelCtrl,
-              decoration: InputDecoration(
-                labelText: LocaleService.current.label,
-                hintText: LocaleService.current.egSoulmates,
-              ),
-              maxLength: 30,
-              textCapitalization: TextCapitalization.words,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(LocaleService.current.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final label = labelCtrl.text.trim();
-              final emoji = emojiCtrl.text.trim();
-              if (label.isNotEmpty) {
-                await _pairData.addCustomRelationshipType(
-                  label,
-                  emoji.isNotEmpty ? emoji : '?',
-                );
-                if (mounted) {
-                  Navigator.pop(ctx);
-                  setState(() {});
-                  _showRelationshipTypeDialog();
-                }
-              }
-            },
-            child: Text(LocaleService.current.add),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditCustomRelTypeDialog(Map<String, String> entry) {
-    final labelCtrl = TextEditingController(text: entry['label'] ?? '');
-    final emojiCtrl = TextEditingController(text: entry['emoji'] ?? '');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.editCustomStatus),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emojiCtrl,
-              decoration: InputDecoration(
-                labelText: LocaleService.current.emoji,
-                hintText: '??',
-              ),
-              maxLength: 2,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: labelCtrl,
-              decoration: InputDecoration(
-                labelText: LocaleService.current.label,
-                hintText: LocaleService.current.egSoulmates,
-              ),
-              maxLength: 30,
-              textCapitalization: TextCapitalization.words,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(LocaleService.current.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final label = labelCtrl.text.trim();
-              final emoji = emojiCtrl.text.trim();
-              if (label.isNotEmpty) {
-                await _pairData.updateCustomRelationshipType(
-                  entry['id'] ?? '',
-                  label,
-                  emoji.isNotEmpty ? emoji : '?',
-                );
-                if (mounted) {
-                  Navigator.pop(ctx);
-                  setState(() {});
-                  _showRelationshipTypeDialog();
-                }
-              }
-            },
-            child: Text(LocaleService.current.save),
-          ),
-        ],
-      ),
+      pairData: _pairData,
+      primary: primary,
+      onStateChanged: () => setState(() {}),
     );
   }
 
@@ -1223,7 +870,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              _DrawModeOption(
+              DrawModeOption(
                 icon: Icons.add_circle_outline_rounded,
                 color: t.primary,
                 title: s.newCanvas,
@@ -1236,7 +883,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(height: 10),
-              _DrawModeOption(
+              DrawModeOption(
                 icon: Icons.collections_rounded,
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
@@ -1307,322 +954,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// ������� ����� ���������� ��� ���������� ����.
   void _showMoodPickerForDate(DateTime date) {
-    final today = DateTime.now();
-    final todayNorm = DateTime(today.year, today.month, today.day);
-    // ������ ������ ���������� �� ������� ����
-    if (date.isAfter(todayNorm)) return;
-    final isToday =
-        date.year == today.year &&
-        date.month == today.month &&
-        date.day == today.day;
-
-    // ����� ��� ��������� ���������� �� ��� ����
-    final existingEntries = _moodService.myEntriesForDay(date);
-    final existingPath = existingEntries.isNotEmpty
-        ? existingEntries.first.imagePath
-        : '';
-
-    // ������ ���������: ��������� ��� ���, 18 ���
-    final s = LocaleService.current;
-    final months = s.shortMonths;
-    final weekdays = s.shortWeekdays;
-    final dateLabel = isToday
-        ? s.todayDate
-        : '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
-
-    showModalBottomSheet(
+    showMoodPickerForDate(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                s.moodDateLabel(dateLabel),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: GridView.builder(
-                  controller: scrollController,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.75,
-                  ),
-                  itemCount: MoodOption.all.length,
-                  itemBuilder: (ctx2, i) {
-                    final mood = MoodOption.all[i];
-                    final isSelected = existingPath == mood.imagePath;
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx2);
-                        if (isToday) {
-                          _pairData.setMood(mood.imagePath, mood.label);
-                          _widgetService.updateMood(mood.imagePath, mood.label);
-                        }
-                        _moodService.addMood(
-                          moodId: mood.id,
-                          imagePath: mood.imagePath,
-                          label: mood.label,
-                          date: date,
-                        );
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? primary.withOpacity(0.12)
-                              : Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected ? primary : Colors.grey.shade200,
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (mood.imagePath.isNotEmpty)
-                              Image.asset(
-                                mood.imagePath,
-                                width: 44,
-                                height: 44,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox(width: 44, height: 44),
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              mood.label,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? primary
-                                    : Colors.grey.shade600,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (existingPath.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    // ������� ������ �� ���� ����
-                    for (final e in _moodService.myEntriesForDay(date)) {
-                      await _moodService.deleteMoodEntry(e.id);
-                    }
-                    if (isToday) {
-                      _pairData.clearMood();
-                      _widgetService.clearMood();
-                    }
-                  },
-                  child: Text(
-                    s.removeMood,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+      date: date,
+      pairData: _pairData,
+      moodService: _moodService,
+      widgetService: _widgetService,
+      primary: primary,
     );
   }
 
   void _showMoodPicker() {
-    // ������ �������� ������ � MoodService (����������� ������)
-    final today = DateTime.now();
-    final todayEntries = _moodService.myEntriesForDay(today);
-    final currentEmoji = todayEntries.isNotEmpty
-        ? todayEntries.first.imagePath
-        : _pairData.myMood.imagePath;
-    showModalBottomSheet(
+    showMoodPicker(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                LocaleService.current.howAreYouFeeling,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                LocaleService.current.partnerWillSeeMood,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 24),
-              // Mood grid � scrollable
-              Expanded(
-                child: GridView.builder(
-                  controller: scrollController,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.75,
-                  ),
-                  itemCount: MoodOption.all.length,
-                  itemBuilder: (ctx2, i) {
-                    final mood = MoodOption.all[i];
-                    final isSelected = currentEmoji == mood.imagePath;
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx2);
-                        // ������� ������� ���������� ������ �� �������,
-                        // ����� �� ���� ������ � moodService
-                        for (final e in _moodService.myEntriesForDay(today)) {
-                          _moodService.deleteMoodEntry(e.id);
-                        }
-                        _pairData.setMood(mood.imagePath, mood.label);
-                        _moodService.addMood(
-                          moodId: mood.id,
-                          imagePath: mood.imagePath,
-                          label: mood.label,
-                        );
-                        _widgetService.updateMood(mood.imagePath, mood.label);
-                      },
-                      // _onMoodServiceChanged ��������� ��������� � ������� pairData
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? primary.withOpacity(0.12)
-                              : Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected ? primary : Colors.grey.shade200,
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (mood.imagePath.isNotEmpty)
-                              Image.asset(
-                                mood.imagePath,
-                                width: 44,
-                                height: 44,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox(width: 44, height: 44),
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              mood.label,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? primary
-                                    : Colors.grey.shade600,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              // Clear mood button
-              if (currentEmoji.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    // ������� �� ���� ��������
-                    for (final e in _moodService.myEntriesForDay(today)) {
-                      await _moodService.deleteMoodEntry(e.id);
-                    }
-                    _pairData.clearMood();
-                    _widgetService.clearMood();
-                  },
-                  child: Text(
-                    LocaleService.current.clearMood,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+      pairData: _pairData,
+      moodService: _moodService,
+      widgetService: _widgetService,
+      primary: primary,
     );
   }
 
@@ -2548,7 +1896,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _memoryPreviewCard(Memory memory) {
-    return _TapScale(
+    return TapScale(
       onTap: () {
         Navigator.push(
           context,
@@ -3036,7 +2384,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavBarItem(
+              NavBarItem(
                 icon: Icons.home_rounded,
                 index: 0,
                 label: s.home,
@@ -3046,7 +2394,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 badgeColor: primary,
                 onTap: () => setState(() => _selectedNavIndex = 0),
               ),
-              _NavBarItem(
+              NavBarItem(
                 icon: Icons.widgets_rounded,
                 index: 1,
                 label: s.widgets,
@@ -3056,7 +2404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 badgeColor: primary,
                 onTap: () => setState(() => _selectedNavIndex = 1),
               ),
-              _NavBarItem(
+              NavBarItem(
                 icon: _pairData.isPaired
                     ? Icons.favorite_rounded
                     : Icons.person_add_alt_1_rounded,
@@ -3069,7 +2417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 showBadge: !_pairData.isPaired,
                 onTap: () => setState(() => _selectedNavIndex = 2),
               ),
-              _NavBarItem(
+              NavBarItem(
                 icon: Icons.person_rounded,
                 index: 3,
                 label: s.profile,
@@ -3078,355 +2426,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 activeBg: _t.navActiveBg,
                 badgeColor: primary,
                 onTap: () => setState(() => _selectedNavIndex = 3),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// -- Animated Slide-In wrapper for entrance animations ----------------------
-class _AnimatedSlideIn extends StatefulWidget {
-  final Widget child;
-  final Duration delay;
-  final Duration duration;
-  final Offset beginOffset;
-
-  const _AnimatedSlideIn({
-    required this.child,
-    this.delay = Duration.zero,
-    this.duration = const Duration(milliseconds: 500),
-    this.beginOffset = const Offset(0, 30),
-  });
-
-  @override
-  State<_AnimatedSlideIn> createState() => _AnimatedSlideInState();
-}
-
-class _AnimatedSlideInState extends State<_AnimatedSlideIn>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _offset;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: widget.duration);
-    _opacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _offset = Tween<Offset>(
-      begin: widget.beginOffset,
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    Future.delayed(widget.delay, () {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(position: _offset, child: widget.child),
-    );
-  }
-}
-
-// -- Tap Scale wrapper for press animations --------------------------------
-class _TapScale extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double scale;
-  final Duration duration;
-
-  const _TapScale({
-    required this.child,
-    this.onTap,
-    this.scale = 0.95,
-    this.duration = const Duration(milliseconds: 150),
-  });
-
-  @override
-  State<_TapScale> createState() => _TapScaleState();
-}
-
-class _TapScaleState extends State<_TapScale>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: widget.duration);
-    _scale = Tween<double>(
-      begin: 1.0,
-      end: widget.scale,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _ctrl.forward(),
-      onTapUp: (_) {
-        _ctrl.reverse();
-        widget.onTap?.call();
-      },
-      onTapCancel: () => _ctrl.reverse(),
-      child: ScaleTransition(scale: _scale, child: widget.child),
-    );
-  }
-}
-
-// -- Animated navigation bar item ------------------------------------------
-class _NavBarItem extends StatefulWidget {
-  final IconData icon;
-  final int index;
-  final String label;
-  final bool isActive;
-  final bool showBadge;
-  final Color activeColor;
-  final Color activeBg;
-  final Color badgeColor;
-  final VoidCallback onTap;
-
-  const _NavBarItem({
-    required this.icon,
-    required this.index,
-    required this.label,
-    required this.isActive,
-    required this.activeColor,
-    required this.activeBg,
-    required this.badgeColor,
-    required this.onTap,
-    this.showBadge = false,
-  });
-
-  @override
-  State<_NavBarItem> createState() => _NavBarItemState();
-}
-
-class _NavBarItemState extends State<_NavBarItem>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    );
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.0,
-          end: 1.22,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 35,
-      ),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 1.22,
-          end: 0.90,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 0.90,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
-        weight: 35,
-      ),
-    ]).animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    _ctrl.forward(from: 0);
-    widget.onTap();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _handleTap,
-      behavior: HitTestBehavior.opaque,
-      child: ScaleTransition(
-        scale: _scale,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.isActive ? 18 : 12,
-            vertical: 8,
-          ),
-          decoration: BoxDecoration(
-            color: widget.isActive ? widget.activeBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    transitionBuilder: (child, anim) => ScaleTransition(
-                      scale: CurvedAnimation(
-                        parent: anim,
-                        curve: Curves.easeOutBack,
-                      ),
-                      child: FadeTransition(opacity: anim, child: child),
-                    ),
-                    child: Icon(
-                      widget.icon,
-                      key: ValueKey('${widget.index}_${widget.isActive}'),
-                      color: widget.isActive
-                          ? widget.activeColor
-                          : Colors.grey.shade400,
-                      size: widget.isActive ? 26 : 23,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 260),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: widget.isActive
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: widget.isActive
-                          ? widget.activeColor
-                          : Colors.grey.shade400,
-                    ),
-                    child: const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-              if (widget.showBadge)
-                Positioned(
-                  top: -2,
-                  right: -4,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: widget.badgeColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-enum _MoodBadgePosition { topLeft, bottomRight }
-
-// -- Draw Mode Option tile used in the bottom sheet ------------------------
-class _DrawModeOption extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _DrawModeOption({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.18),
-              width: 1.2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: Colors.grey.shade400,
               ),
             ],
           ),
