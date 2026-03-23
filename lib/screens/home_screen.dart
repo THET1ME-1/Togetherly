@@ -54,7 +54,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- Pair data --
   final PairData _pairData = PairData();
 
-
   // -- Timer service --
   final TimerService _timerService = TimerService();
   bool _timerCardExpanded = false;
@@ -83,8 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (answers == null || answers.isEmpty) return false;
     return answers.keys.any((k) => k != myUid);
   }
-
-
 
   List<String> get _localizedQuestions =>
       LocaleService.current.reflectionQuestions;
@@ -399,8 +396,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setBool(_reflectionPrefKey, true);
   }
 
-
-
   String get _statusBadgeText {
     if (!_pairData.isPaired) return LocaleService.current.solo;
     return _pairData.relationshipLabel;
@@ -519,41 +514,64 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                MiniMoodCalendar(
-                  moodService: _moodService,
-                  theme: _t,
-                  onDayTap: _showMoodPickerForDate,
+                _AnimatedSlideIn(
+                  delay: const Duration(milliseconds: 100),
+                  child: MiniMoodCalendar(
+                    moodService: _moodService,
+                    theme: _t,
+                    onDayTap: _showMoodPickerForDate,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                ExpandableTimerCard(
-                  theme: _t,
-                  timerService: _timerService,
-                  myAvatarUrl: widget.userData.avatarUrl,
-                  partnerAvatarUrl: _pairData.partnerAvatarUrl,
-                  isPaired: _pairData.isPaired,
-                  blobEnabled: widget.userData.blobAnimationEnabled,
-                  onExpandChanged: (expanded) {
-                    setState(() => _timerCardExpanded = expanded);
-                  },
+                _AnimatedSlideIn(
+                  delay: const Duration(milliseconds: 200),
+                  child: ExpandableTimerCard(
+                    theme: _t,
+                    timerService: _timerService,
+                    myAvatarUrl: widget.userData.avatarUrl,
+                    partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                    isPaired: _pairData.isPaired,
+                    blobEnabled: widget.userData.blobAnimationEnabled,
+                    onExpandChanged: (expanded) {
+                      setState(() => _timerCardExpanded = expanded);
+                    },
+                  ),
                 ),
                 if (_pairData.isPaired &&
                     !_reflectionManuallyDismissed &&
                     (_showReflection || _hasPartnerAnswer)) ...[
                   const SizedBox(height: 32),
-                  _buildDailyReflection(),
+                  _AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 300),
+                    child: _buildDailyReflection(),
+                  ),
                 ],
                 if (!_pairData.isPaired) ...[
                   const SizedBox(height: 32),
-                  _buildConnectPrompt(),
+                  _AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 300),
+                    child: _buildConnectPrompt(),
+                  ),
                 ],
                 const SizedBox(height: 32),
-                _buildActionButtons(),
+                _AnimatedSlideIn(
+                  delay: const Duration(milliseconds: 400),
+                  child: _buildActionButtons(),
+                ),
                 const SizedBox(height: 40),
               ],
             ),
           ),
-          if (_pairData.isPaired) _buildMemoryLaneSection(),
-          if (!_pairData.isPaired) _buildEmptyMemoryLane(),
+          if (_pairData.isPaired)
+            _AnimatedSlideIn(
+              delay: const Duration(milliseconds: 500),
+              child: _buildMemoryLaneSection(),
+            ),
+          if (!_pairData.isPaired)
+            _AnimatedSlideIn(
+              delay: const Duration(milliseconds: 500),
+              child: _buildEmptyMemoryLane(),
+            ),
           const SizedBox(height: 40),
         ],
       ),
@@ -2530,7 +2548,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _memoryPreviewCard(Memory memory) {
-    return GestureDetector(
+    return _TapScale(
       onTap: () {
         Navigator.push(
           context,
@@ -2991,8 +3009,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
-
   Widget _buildBottomNavContent() {
     final s = LocaleService.current;
     return Container(
@@ -3067,6 +3083,115 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// -- Animated Slide-In wrapper for entrance animations ----------------------
+class _AnimatedSlideIn extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+  final Offset beginOffset;
+
+  const _AnimatedSlideIn({
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = const Duration(milliseconds: 500),
+    this.beginOffset = const Offset(0, 30),
+  });
+
+  @override
+  State<_AnimatedSlideIn> createState() => _AnimatedSlideInState();
+}
+
+class _AnimatedSlideInState extends State<_AnimatedSlideIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _opacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _offset = Tween<Offset>(
+      begin: widget.beginOffset,
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    Future.delayed(widget.delay, () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _offset, child: widget.child),
+    );
+  }
+}
+
+// -- Tap Scale wrapper for press animations --------------------------------
+class _TapScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scale;
+  final Duration duration;
+
+  const _TapScale({
+    required this.child,
+    this.onTap,
+    this.scale = 0.95,
+    this.duration = const Duration(milliseconds: 150),
+  });
+
+  @override
+  State<_TapScale> createState() => _TapScaleState();
+}
+
+class _TapScaleState extends State<_TapScale>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: widget.scale,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap?.call();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(scale: _scale, child: widget.child),
     );
   }
 }
