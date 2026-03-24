@@ -39,7 +39,7 @@
                 <ImageView android:id="@+id/emoji_2_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
                 <TextView android:id="@+id/placeholder_2_1" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="44sp" android:gravity="center" android:visibility="visible" />
             </FrameLayout>
-            <ImageView android:id="@+id/avatar_2_1" android:layout_width="24dp" android:layout_height="24dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="8dp" android:layout_marginStart="8dp" android:scaleType="fitCenter" android:visibility="gone" />
+            <ImageView android:id="@+id/avatar_2_1" android:layout_width="24dp" android:layout_height="24dp" android:layout_alignParentBottom="true" android:layout_alignParentEnd="true" android:layout_marginBottom="8dp" android:layout_marginEnd="8dp" android:scaleType="fitCenter" android:visibility="gone" />
         </RelativeLayout>
     </LinearLayout>
 
