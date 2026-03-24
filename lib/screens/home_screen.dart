@@ -2115,130 +2115,90 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasCoordinates = memory.latitude != null && memory.longitude != null;
 
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0FAF4),
-        borderRadius: BorderRadius.circular(0),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Map background if coordinates available
-          if (hasCoordinates)
-            ClipRRect(
-              child: CachedNetworkImage(
-                imageUrl:
-                    'https://staticmap.openstreetmap.de/staticmap.php'
-                    '?center=${memory.latitude},${memory.longitude}'
-                    '&zoom=15&size=400x200'
-                    '&markers=${memory.latitude},${memory.longitude},lightblue1',
-                fit: BoxFit.cover,
-                errorWidget: (context, url, error) =>
-                    Container(color: const Color(0xFFF0FAF4)),
-              ),
-            ),
-          // Gradient overlay for text readability
-          if (hasCoordinates)
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
-                ),
-              ),
-            ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: const BoxDecoration(color: Color(0xFFF0FAF4)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: hasCoordinates
-                        ? Colors.white.withOpacity(0.9)
-                        : const Color(0xFFE6F7ED),
+                    color: const Color(0xFFE6F7ED),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.location_on_rounded,
-                    color: hasCoordinates
-                        ? const Color(0xFFEC4899)
-                        : const Color(0xFF22C55E),
+                    color: Color(0xFF22C55E),
                     size: 22,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  memory.locationName ?? LocaleService.current.location,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: hasCoordinates ? Colors.white : Colors.grey.shade800,
-                    shadows: hasCoordinates
-                        ? [
-                            Shadow(
-                              offset: const Offset(0, 1),
-                              blurRadius: 3,
-                              color: Colors.black.withOpacity(0.5),
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
-                if (memory.title != null && memory.title!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    memory.title!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: hasCoordinates
-                          ? Colors.white70
-                          : Colors.grey.shade700,
-                    ),
-                  ),
-                ],
                 if (hasCoordinates) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${memory.latitude!.toStringAsFixed(3)}, ${memory.longitude?.toStringAsFixed(3) ?? ""}',
-                    style: TextStyle(fontSize: 10, color: Colors.white60),
-                  ),
-                ],
-                if (memory.caption != null && memory.caption!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    memory.caption!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: hasCoordinates
-                          ? Colors.white70
-                          : Colors.grey.shade600,
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.map_rounded,
+                      color: Color(0xFF22C55E),
+                      size: 18,
                     ),
                   ),
                 ],
-                const SizedBox(height: 6),
-                Text(
-                  memory.authorName,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: hasCoordinates
-                        ? Colors.white60
-                        : Colors.grey.shade400,
-                  ),
-                ),
               ],
             ),
-          ),
-        ],
+            const Spacer(),
+            Text(
+              memory.locationName ?? LocaleService.current.location,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            if (memory.title != null && memory.title!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                memory.title!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+            if (hasCoordinates) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${memory.latitude!.toStringAsFixed(3)}, ${memory.longitude?.toStringAsFixed(3) ?? ""}',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              ),
+            ],
+            if (memory.caption != null && memory.caption!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                memory.caption!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              memory.authorName,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+            ),
+          ],
+        ),
       ),
     );
   }
