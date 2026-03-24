@@ -65,6 +65,8 @@ class HomeWidgetService {
     required String coupleNames,
     String emoji = '❤️',
     String startDate = '',
+    String myGender = '',
+    String partnerGender = '',
   }) async {
     try {
       await HomeWidget.saveWidgetData<String>(
@@ -74,6 +76,8 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('start_date_label', startDate);
+      await HomeWidget.saveWidgetData<String>('my_gender', myGender);
+      await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender);
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',
@@ -279,6 +283,8 @@ class HomeWidgetService {
     DateTime? activeStartDate,
     required String coupleNames,
     required String emoji,
+    String myGender = '',
+    String partnerGender = '',
   }) async {
     try {
       debugPrint(
@@ -294,6 +300,8 @@ class HomeWidgetService {
           activeStartDate: activeStartDate,
           coupleNames: coupleNames,
           emoji: emoji,
+          myGender: myGender,
+          partnerGender: partnerGender,
         );
       } else {
         debugPrint(
@@ -337,6 +345,8 @@ class HomeWidgetService {
     DateTime? activeStartDate,
     required String coupleNames,
     required String emoji,
+    String myGender = '',
+    String partnerGender = '',
   }) async {
     if (activeSysTimer != null) {
       final start = activeSysTimer.startDate;
@@ -345,6 +355,8 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: activeSysTimer.emoji,
         startDate: _formatDate(start),
+        myGender: myGender,
+        partnerGender: partnerGender,
       );
     } else if (activeStartDate != null) {
       await syncDaysCounter(
@@ -352,6 +364,8 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: emoji,
         startDate: _formatDate(activeStartDate),
+        myGender: myGender,
+        partnerGender: partnerGender,
       );
     }
   }

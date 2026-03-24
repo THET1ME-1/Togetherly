@@ -63,11 +63,16 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// Sync all home widgets with current data
-  Future<void> syncHomeWidgets({required String displayName}) async {
+  Future<void> syncHomeWidgets({
+    required String displayName,
+    String myGender = '',
+  }) async {
     if (!pairData.isPaired) return;
 
     final myName = displayName;
     final partnerName = pairData.partnerDisplayName;
+
+    final partnerGender = widgetService.firstPartnerData?.gender ?? '';
 
     await homeWidgetService.syncAllBoundWidgets(
       activeGroupId: pairData.pairId,
@@ -76,6 +81,8 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
       activeStartDate: pairData.startDate,
       coupleNames: '$myName & $partnerName',
       emoji: pairData.relationshipEmoji,
+      myGender: myGender,
+      partnerGender: partnerGender,
     );
 
     // Sync the mood widget from today's Mood Calendar entries

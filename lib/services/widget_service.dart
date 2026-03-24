@@ -277,6 +277,7 @@ class WidgetService extends ChangeNotifier {
           userDoc.data()?['displayName'] ?? _fb.currentUser?.displayName ?? '';
       final avatar =
           userDoc.data()?['avatarUrl'] ?? _fb.currentUser?.photoURL ?? '';
+      final gender = userDoc.data()?['gender'] ?? '';
 
       final ref = _db
           .collection('groups')
@@ -288,6 +289,7 @@ class WidgetService extends ChangeNotifier {
         'uid': uid,
         'displayName': name,
         'avatarUrl': avatar,
+        'gender': gender,
         'updatedAt': FieldValue.serverTimestamp(),
         ...fields,
       }, SetOptions(merge: true));

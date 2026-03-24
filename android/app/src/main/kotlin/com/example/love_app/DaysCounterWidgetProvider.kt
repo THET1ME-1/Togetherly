@@ -33,23 +33,44 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 // ── Данные ──
                 val daysStr = widgetData.getString("days_count", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "0"
-                val daysCount = daysStr.toIntOrNull() ?: 0
+                val totalDays = daysStr.toIntOrNull() ?: 0
 
-                val coupleNames = widgetData.getString("couple_names", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-                val emoji = widgetData.getString("relationship_emoji", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: "❤️"
                 val startDate = widgetData.getString("start_date_label", null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""
 
-                setTextViewText(R.id.days_number, daysCount.toString())
-                setTextViewText(R.id.days_label, "дней вместе")
-                setTextViewText(R.id.couple_names, coupleNames)
-                setTextViewText(R.id.love_emoji, emoji)
-                setTextViewText(
-                    R.id.start_date,
-                    if (startDate.isNotEmpty()) "с $startDate" else ""
-                )
+                // ── Гендер и выбор картинки пары ──
+                val myGender = widgetData.getString("my_gender", "male") ?: "male"
+                val partnerGender = widgetData.getString("partner_gender", "female") ?: "female"
+
+                val coupleResName = when {
+                    myGender == "female" && partnerGender == "female" -> "widget_couple_ff"
+                    myGender == "male" && partnerGender == "male" -> "widget_couple_mm"
+                    else -> "widget_couple_mf"
+                }
+
+                val coupleResId = context.resources.getIdentifier(coupleResName, "drawable", context.packageName)
+                if (coupleResId != 0) {
+                    setImageViewResource(R.id.couple_image, coupleResId)
+                }
+
+                // ── Расчёт лет ──
+                val years = totalDays / 365
+                val yearsText = when {
+                    years % 10 == 1 && years % 100 != 11 -> "$years год уже ❤️"
+                    years % 10 in 2..4 && (years % 100 < 10 || years % 100 >= 20) -> "$years года уже ❤️"
+                    else -> "$years лет уже ❤️"
+                }
+                setTextViewText(R.id.years_label, yearsText)
+
+                // ── Дни и дата ──
+                setTextViewText(R.id.days_number, totalDays.toString())
+                setTextViewText(R.id.days_label_text, "дней") // Или "Days" как в фото
+                setTextViewText(R.id.start_date, startDate)
+
+                // ── Совместимость (скрытые поля) ──
+                setTextViewText(R.id.days_label, "")
+                setTextViewText(R.id.couple_names, "")
+                setTextViewText(R.id.love_emoji, "")
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)

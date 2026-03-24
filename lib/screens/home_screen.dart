@@ -264,6 +264,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final myName = widget.userData.displayName;
     final partnerName = _pairData.partnerDisplayName;
 
+    final myGender = widget.userData.gender?.name ?? '';
+    final partnerGender = _widgetService.firstPartnerData?.gender ?? '';
+
     await hws.syncAllBoundWidgets(
       activeGroupId: _pairData.pairId,
       activeTimers: _timerService.timers,
@@ -271,6 +274,8 @@ class _HomeScreenState extends State<HomeScreen> {
       activeStartDate: _pairData.startDate,
       coupleNames: '$myName & $partnerName',
       emoji: _pairData.relationshipEmoji,
+      myGender: myGender,
+      partnerGender: partnerGender,
     );
 
     // Sync the mood widget from today's Mood Calendar entries

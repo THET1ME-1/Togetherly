@@ -18,6 +18,7 @@ class WidgetData {
   String? musicArtist; // исполнитель
   String? musicUrl; // ссылка на трек
   String? musicCoverUrl; // обложка альбома
+  String gender; // 'male' or 'female'
   DateTime? updatedAt;
 
   WidgetData({
@@ -33,6 +34,7 @@ class WidgetData {
     this.musicArtist,
     this.musicUrl,
     this.musicCoverUrl,
+    this.gender = '',
     this.updatedAt,
   });
 
@@ -65,6 +67,7 @@ class WidgetData {
     'musicArtist': musicArtist,
     'musicUrl': musicUrl,
     'musicCoverUrl': musicCoverUrl,
+    'gender': gender,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -82,6 +85,7 @@ class WidgetData {
       musicArtist: data['musicArtist'],
       musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
+      gender: data['gender'] ?? '',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -99,6 +103,7 @@ class WidgetData {
     String? musicArtist,
     String? musicUrl,
     String? musicCoverUrl,
+    String? gender,
     DateTime? updatedAt,
   }) {
     return WidgetData(
@@ -114,6 +119,7 @@ class WidgetData {
       musicArtist: musicArtist ?? this.musicArtist,
       musicUrl: musicUrl ?? this.musicUrl,
       musicCoverUrl: musicCoverUrl ?? this.musicCoverUrl,
+      gender: gender ?? this.gender,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
