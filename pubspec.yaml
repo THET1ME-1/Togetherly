@@ -65,6 +65,8 @@ dependencies:
   archive: ^4.0.9
   flutter_image_compress: ^2.3.0
   flutter_animate: ^4.5.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

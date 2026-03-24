@@ -16,6 +16,7 @@ import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
+import 'map_picker_screen.dart';
 
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
@@ -2228,105 +2229,156 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: isLoadingLocation
-                          ? null
-                          : () async {
-                              setState(() => isLoadingLocation = true);
-                              try {
-                                bool serviceEnabled =
-                                    await Geolocator.isLocationServiceEnabled();
-                                if (!serviceEnabled) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Location services are disabled',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: isLoadingLocation
+                              ? null
+                              : () async {
+                                  setState(() => isLoadingLocation = true);
+                                  try {
+                                    bool serviceEnabled =
+                                        await Geolocator.isLocationServiceEnabled();
+                                    if (!serviceEnabled) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Location services are disabled',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      setState(() => isLoadingLocation = false);
+                                      return;
+                                    }
+
+                                    LocationPermission permission =
+                                        await Geolocator.checkPermission();
+                                    if (permission ==
+                                        LocationPermission.denied) {
+                                      permission =
+                                          await Geolocator.requestPermission();
+                                    }
+                                    if (permission ==
+                                            LocationPermission.denied ||
+                                        permission ==
+                                            LocationPermission.deniedForever) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Location permission denied',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      setState(() => isLoadingLocation = false);
+                                      return;
+                                    }
+
+                                    final position =
+                                        await Geolocator.getCurrentPosition();
+                                    lat = position.latitude;
+                                    lng = position.longitude;
+
+                                    // Try to get address
+                                    try {
+                                      final placemarks =
+                                          await placemarkFromCoordinates(
+                                            lat!,
+                                            lng!,
+                                          );
+                                      if (placemarks.isNotEmpty) {
+                                        final place = placemarks.first;
+                                        final name =
+                                            place.name ??
+                                            place.subLocality ??
+                                            '';
+                                        final locality = place.locality ?? '';
+                                        locationCtrl.text = name.isNotEmpty
+                                            ? '$name, $locality'
+                                            : locality;
+                                      }
+                                    } catch (e) {
+                                      debugPrint('Geocoding failed: $e');
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Get location failed: $e');
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to get location',
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  }
-                                  setState(() => isLoadingLocation = false);
-                                  return;
-                                }
-
-                                LocationPermission permission =
-                                    await Geolocator.checkPermission();
-                                if (permission == LocationPermission.denied) {
-                                  permission =
-                                      await Geolocator.requestPermission();
-                                }
-                                if (permission == LocationPermission.denied ||
-                                    permission ==
-                                        LocationPermission.deniedForever) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Location permission denied',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  setState(() => isLoadingLocation = false);
-                                  return;
-                                }
-
-                                final position =
-                                    await Geolocator.getCurrentPosition();
-                                lat = position.latitude;
-                                lng = position.longitude;
-
-                                // Try to get address
-                                try {
-                                  final placemarks =
-                                      await placemarkFromCoordinates(
-                                        lat!,
-                                        lng!,
                                       );
-                                  if (placemarks.isNotEmpty) {
-                                    final place = placemarks.first;
-                                    final name =
-                                        place.name ?? place.subLocality ?? '';
-                                    final locality = place.locality ?? '';
-                                    locationCtrl.text = name.isNotEmpty
-                                        ? '$name, $locality'
-                                        : locality;
+                                    }
                                   }
-                                } catch (e) {
-                                  debugPrint('Geocoding failed: $e');
-                                }
-                              } catch (e) {
-                                debugPrint('Get location failed: $e');
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Failed to get location'),
-                                    ),
-                                  );
-                                }
-                              }
-                              setState(() => isLoadingLocation = false);
-                            },
-                      icon: isLoadingLocation
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location_rounded),
-                      label: Text(
-                        lat != null && lng != null
-                            ? 'Location set ✓'
-                            : 'Use Current Location',
+                                  setState(() => isLoadingLocation = false);
+                                },
+                          icon: isLoadingLocation
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded),
+                          label: Text(
+                            lat != null && lng != null
+                                ? 'Location set ✓'
+                                : 'Use Current',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primary,
+                            side: BorderSide(color: primary),
+                          ),
+                        ),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: primary,
-                        side: BorderSide(color: primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MapPickerScreen(
+                                  initialLatitude: lat,
+                                  initialLongitude: lng,
+                                ),
+                              ),
+                            );
+
+                            if (result != null && mounted) {
+                              setState(() {
+                                lat = result['latitude'];
+                                lng = result['longitude'];
+                                locationCtrl.text = result['address'] ?? '';
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.map_rounded),
+                          label: const Text(
+                            'Pick on Map',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF22C55E),
+                            side: const BorderSide(color: Color(0xFF22C55E)),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
 
@@ -2740,7 +2792,8 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => _defaultMusicCover(),
+                        errorWidget: (context, url, error) =>
+                            _defaultMusicCover(),
                       )
                     : _defaultMusicCover(),
               ),
