@@ -455,9 +455,13 @@ class WidgetService extends ChangeNotifier {
       );
 
       // ── Синхронизируем виджет настроения для группы (до 4 человек) ──
+      // Фильтруем текущего пользователя из partnerData, чтобы не было дублирования аватарок
+      final myUid = _fb.currentUser?.uid ?? '';
       final membersForWidget = <WidgetData>[];
       if (my != null) membersForWidget.add(my);
-      membersForWidget.addAll(_partnerData.values);
+      membersForWidget.addAll(
+        _partnerData.values.where((d) => d.uid != myUid),
+      );
       final limitedMembers = membersForWidget.take(4).toList();
 
       final membersData = limitedMembers.map((m) => {
@@ -487,6 +491,7 @@ class WidgetService extends ChangeNotifier {
 
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
+      _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
@@ -506,6 +511,23 @@ class WidgetService extends ChangeNotifier {
         );
       } catch (e) {
         debugPrint('WidgetService._cachePhotosForWidget update failed: $e');
+      }
+    });
+  }
+
+  /// Скачивает аватарки для парного виджета (LoveWidget) в локальный кэш.
+  void _cacheAvatarsForLoveWidget(String? myUrl, String? partnerUrl) {
+    Future.wait([
+      _downloadPhoto(myUrl, 'my_avatar_path'),
+      _downloadPhoto(partnerUrl, 'partner_avatar_path'),
+    ]).then((_) async {
+      try {
+        await HomeWidget.updateWidget(
+          name: 'LoveWidgetProvider',
+          qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+        );
+      } catch (e) {
+        debugPrint('WidgetService._cacheAvatarsForLoveWidget update failed: $e');
       }
     });
   }

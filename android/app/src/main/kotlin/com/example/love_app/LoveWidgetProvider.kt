@@ -5,7 +5,13 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
 import android.util.Log
 import android.view.View
@@ -43,8 +49,6 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
             // ═══════════ Моя сторона ═══════════
-            val myName = widgetData.getString("my_name", null)
-                .takeIf { !it.isNullOrEmpty() } ?: "Я"
             val myStatus = widgetData.getString("my_status", null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
             val myMessage = widgetData.getString("my_message", null)
@@ -54,7 +58,6 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             val myMusicArtist = widgetData.getString("my_music_artist", null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
 
-            setTextViewText(R.id.my_name, myName)
             setTextViewText(R.id.my_status, myStatus)
             setTextViewText(R.id.my_message, myMessage)
             setTextViewText(
@@ -82,7 +85,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 if (myMoodLabel.isNotEmpty()) setTextViewText(R.id.my_mood_text, myMoodLabel)
             }
 
-            // ── Фото как фон ──
+            // ── Фото как фон + лёгкое затемнение ──
             val myPhotoPath = widgetData.getString("my_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
             val myBgBitmap = loadScaledBitmap(myPhotoPath, 280)
@@ -90,22 +93,29 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setImageViewBitmap(R.id.my_bg_photo, myBgBitmap)
                 setViewVisibility(R.id.my_bg_photo, View.VISIBLE)
                 setViewVisibility(R.id.my_overlay, View.VISIBLE)
-                setTextColor(R.id.my_name, Color.WHITE)
                 setTextColor(R.id.my_status, Color.WHITE)
                 setTextColor(R.id.my_message, Color.argb(220, 255, 255, 255))
                 setTextColor(R.id.my_music, Color.argb(180, 255, 255, 255))
             } else {
                 setViewVisibility(R.id.my_bg_photo, View.GONE)
                 setViewVisibility(R.id.my_overlay, View.GONE)
-                setTextColor(R.id.my_name, Color.argb(204, 0, 0, 0))
                 setTextColor(R.id.my_status, Color.argb(204, 0, 0, 0))
                 setTextColor(R.id.my_message, Color.argb(153, 0, 0, 0))
                 setTextColor(R.id.my_music, Color.argb(136, 0, 0, 0))
             }
 
+            // ── Круглая аватарка ──
+            val myAvatarPath = widgetData.getString("my_avatar_path", null)
+                .takeIf { !it.isNullOrEmpty() }
+            val myAvatarBitmap = loadScaledBitmap(myAvatarPath, 120)
+            if (myAvatarBitmap != null) {
+                setImageViewBitmap(R.id.my_avatar, getCircularBitmap(myAvatarBitmap))
+                setViewVisibility(R.id.my_avatar, View.VISIBLE)
+            } else {
+                setViewVisibility(R.id.my_avatar, View.GONE)
+            }
+
             // ═══════════ Сторона партнёра ═══════════
-            val partnerName = widgetData.getString("partner_name", null)
-                .takeIf { !it.isNullOrEmpty() } ?: "Партнёр"
             val partnerStatus = widgetData.getString("partner_status", null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
             val partnerMessage = widgetData.getString("partner_message", null)
@@ -115,7 +125,6 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             val partnerMusicArtist = widgetData.getString("partner_music_artist", null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
 
-            setTextViewText(R.id.partner_name, partnerName)
             setTextViewText(R.id.partner_status, partnerStatus)
             setTextViewText(R.id.partner_message, partnerMessage)
             setTextViewText(
@@ -143,7 +152,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 if (partnerMoodLabel.isNotEmpty()) setTextViewText(R.id.partner_mood_text, partnerMoodLabel)
             }
 
-            // ── Фото партнёра как фон ──
+            // ── Фото партнёра как фон + лёгкое затемнение ──
             val partnerPhotoPath = widgetData.getString("partner_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
             val partnerBgBitmap = loadScaledBitmap(partnerPhotoPath, 280)
@@ -151,19 +160,54 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setImageViewBitmap(R.id.partner_bg_photo, partnerBgBitmap)
                 setViewVisibility(R.id.partner_bg_photo, View.VISIBLE)
                 setViewVisibility(R.id.partner_overlay, View.VISIBLE)
-                setTextColor(R.id.partner_name, Color.WHITE)
                 setTextColor(R.id.partner_status, Color.WHITE)
                 setTextColor(R.id.partner_message, Color.argb(220, 255, 255, 255))
                 setTextColor(R.id.partner_music, Color.argb(180, 255, 255, 255))
             } else {
                 setViewVisibility(R.id.partner_bg_photo, View.GONE)
                 setViewVisibility(R.id.partner_overlay, View.GONE)
-                setTextColor(R.id.partner_name, Color.argb(204, 0, 0, 0))
                 setTextColor(R.id.partner_status, Color.argb(204, 0, 0, 0))
                 setTextColor(R.id.partner_message, Color.argb(153, 0, 0, 0))
                 setTextColor(R.id.partner_music, Color.argb(136, 0, 0, 0))
             }
+
+            // ── Круглая аватарка партнёра ──
+            val partnerAvatarPath = widgetData.getString("partner_avatar_path", null)
+                .takeIf { !it.isNullOrEmpty() }
+            val partnerAvatarBitmap = loadScaledBitmap(partnerAvatarPath, 120)
+            if (partnerAvatarBitmap != null) {
+                setImageViewBitmap(R.id.partner_avatar, getCircularBitmap(partnerAvatarBitmap))
+                setViewVisibility(R.id.partner_avatar, View.VISIBLE)
+            } else {
+                setViewVisibility(R.id.partner_avatar, View.GONE)
+            }
         }
+    }
+
+    private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
+        val size = minOf(bitmap.width, bitmap.height)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint().apply { isAntiAlias = true }
+        val srcRect = Rect(
+            (bitmap.width - size) / 2,
+            (bitmap.height - size) / 2,
+            (bitmap.width + size) / 2,
+            (bitmap.height + size) / 2
+        )
+        val dstRectF = RectF(0f, 0f, size.toFloat(), size.toFloat())
+        val radius = size / 2f
+
+        canvas.drawARGB(0, 0, 0, 0)
+        canvas.drawRoundRect(dstRectF, radius, radius, paint)
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(bitmap, srcRect, dstRectF, paint)
+        paint.xfermode = null
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.WHITE
+        paint.strokeWidth = size * 0.05f
+        canvas.drawCircle(radius, radius, radius - paint.strokeWidth / 2f, paint)
+        return output
     }
 
     private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
@@ -179,19 +223,14 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         var w = opts.outWidth
         var h = opts.outHeight
         while (w / 2 >= maxSizePx || h / 2 >= maxSizePx) {
-            sampleSize *= 2
-            w /= 2
-            h /= 2
+            sampleSize *= 2; w /= 2; h /= 2
         }
 
-        val decodeOpts = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.RGB_565
-        }
         return try {
-            BitmapFactory.decodeFile(path, decodeOpts)
-        } catch (e: OutOfMemoryError) {
-            null
-        }
+            BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            })
+        } catch (e: OutOfMemoryError) { null }
     }
 }
