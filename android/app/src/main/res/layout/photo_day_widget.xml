@@ -47,48 +47,5 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- Нижний оверлей с текстом -->
-    <LinearLayout
-        android:id="@+id/photo_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="vertical"
-        android:padding="10dp"
-        android:background="#80000000"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/photo_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📸 Фото дня"
-            android:textSize="11sp"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/photo_caption"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="10sp"
-            android:textColor="#DDDDDD"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:layout_marginTop="2dp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/photo_author"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="9sp"
-            android:textColor="#BBBBBB"
-            android:maxLines="1"
-            android:layout_marginTop="1dp"
-            android:visibility="gone" />
-    </LinearLayout>
 
 </FrameLayout>

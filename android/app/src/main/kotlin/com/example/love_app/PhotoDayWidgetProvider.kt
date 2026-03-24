@@ -42,39 +42,19 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
                 )
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
-                // ── Данные ──
+                // ── Фото ──
                 val photoPath = widgetData.getString("photo_day_path", null)
                     .takeIf { !it.isNullOrEmpty() }
-                val caption = widgetData.getString("photo_day_caption", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-                val author = widgetData.getString("photo_day_author", null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
 
-                // ── Фото ──
                 val bitmap = loadScaledBitmap(photoPath, 400)
                 if (bitmap != null) {
                     setImageViewBitmap(R.id.photo_image, bitmap)
                     setViewVisibility(R.id.photo_image, View.VISIBLE)
                     setViewVisibility(R.id.photo_placeholder, View.GONE)
-                    setViewVisibility(R.id.photo_overlay, View.VISIBLE)
                 } else {
                     setViewVisibility(R.id.photo_image, View.GONE)
                     setViewVisibility(R.id.photo_placeholder, View.VISIBLE)
-                    setViewVisibility(R.id.photo_overlay, View.GONE)
                 }
-
-                // ── Подписи ──
-                setTextViewText(R.id.photo_caption, caption)
-                setViewVisibility(
-                    R.id.photo_caption,
-                    if (caption.isNotEmpty()) View.VISIBLE else View.GONE
-                )
-                setTextViewText(R.id.photo_author, author)
-                setViewVisibility(
-                    R.id.photo_author,
-                    if (author.isNotEmpty()) View.VISIBLE else View.GONE
-                )
-                setTextViewText(R.id.photo_label, "📸 Фото дня")
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)

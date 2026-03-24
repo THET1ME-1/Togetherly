@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -147,7 +146,7 @@ class HomeWidgetService {
     }
   }
 
-  /// Выбирает случайное фото из Memory Lane и синхронизирует виджет.
+  /// Выбирает последнее фото из Memory Lane и синхронизирует виджет.
   ///
   /// Вызывается при запуске приложения и периодически.
   Future<void> refreshPhotoOfDay(String groupId) async {
@@ -158,6 +157,8 @@ class HomeWidgetService {
           .doc(groupId)
           .collection('memories')
           .where('type', isEqualTo: 'photo')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
           .get();
 
       if (snap.docs.isEmpty) {
@@ -165,8 +166,7 @@ class HomeWidgetService {
         return;
       }
 
-      final random = Random();
-      final doc = snap.docs[random.nextInt(snap.docs.length)];
+      final doc = snap.docs.first;
       final memory = Memory.fromFirestore(doc.id, doc.data());
 
       if (memory.imageUrl != null && memory.imageUrl!.isNotEmpty) {

@@ -647,8 +647,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _buildGalleryItem(
           title: isRu ? 'Фото дня' : 'Photo of the Day',
           subtitle: isRu
-              ? 'Случайное фото из ленты воспоминаний'
-              : 'Random photo from Memory Lane',
+              ? 'Последнее фото из ленты воспоминаний'
+              : 'Latest photo from Memory Lane',
           icon: Icons.photo_camera_rounded,
           iconColor: const Color(0xFFEC4899),
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
@@ -1127,8 +1127,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 const SizedBox(height: 2),
                 Text(
                   isRu
-                      ? 'Случайное фото из воспоминаний'
-                      : 'Random photo from memories',
+                      ? 'Последнее фото из воспоминаний'
+                      : 'Latest photo from memories',
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade400,
