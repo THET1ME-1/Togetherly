@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -469,6 +470,21 @@ class WidgetService extends ChangeNotifier {
         await HomeWidget.saveWidgetData<String>('user_${i}_avatar_url', limitedMembers[i].avatarUrl);
       }
 
+      // Кэшируем эмодзи из assets → локальные файлы для нативного виджета (фоново)
+      Future.wait([
+        _cacheEmojiForWidget(my?.moodEmoji, 'my_mood_emoji_path'),
+        _cacheEmojiForWidget(partner?.moodEmoji, 'partner_mood_emoji_path'),
+      ]).then((_) async {
+        try {
+          await HomeWidget.updateWidget(
+            name: 'LoveWidgetProvider',
+            qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+          );
+        } catch (e) {
+          debugPrint('WidgetService emoji update failed: $e');
+        }
+      });
+
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
@@ -510,6 +526,39 @@ class WidgetService extends ChangeNotifier {
         debugPrint('WidgetService._cacheGroupAvatarsForWidget update failed: $e');
       }
     });
+  }
+
+  /// Копирует Flutter asset с эмодзи в файловый кэш и сохраняет путь
+  /// под ключом [key] в SharedPreferences нативного виджета.
+  Future<void> _cacheEmojiForWidget(String? assetPath, String key) async {
+    if (assetPath == null || assetPath.isEmpty) {
+      await HomeWidget.saveWidgetData<String>(key, '');
+      return;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
+      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+
+      if (cachedAsset == assetPath &&
+          cachedPath.isNotEmpty &&
+          File(cachedPath).existsSync()) {
+        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        return;
+      }
+
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/$key.png');
+      final byteData = await rootBundle.load(assetPath);
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await HomeWidget.saveWidgetData<String>(key, file.path);
+      await prefs.setString('${key}_cached_asset', assetPath);
+      await prefs.setString('${key}_cached_path', file.path);
+      debugPrint('_cacheEmojiForWidget: $key cached at ${file.path}');
+    } catch (e) {
+      debugPrint('_cacheEmojiForWidget($key) failed: $e');
+      await HomeWidget.saveWidgetData<String>(key, '');
+    }
   }
 
   /// Скачивает изображение по [url] в файловый кэш и сохраняет путь
