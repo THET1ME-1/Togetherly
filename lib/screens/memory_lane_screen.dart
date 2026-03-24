@@ -1776,6 +1776,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final titleCtrl = TextEditingController(text: memory.title ?? '');
     final captionCtrl = TextEditingController(text: memory.caption ?? '');
     final locationCtrl = TextEditingController(text: memory.locationName ?? '');
+    double? editLat = memory.latitude;
+    double? editLng = memory.longitude;
 
     showModalBottomSheet(
       context: context,
@@ -1784,127 +1786,169 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: Colors.white,
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          24,
-          24,
-          24,
-          MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              24,
+              24,
+              MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Edit Memory',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: titleCtrl,
-              maxLines: 1,
-              decoration: InputDecoration(
-                hintText: 'Title (optional)',
-                prefixIcon: const Icon(Icons.title_rounded, size: 20),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: captionCtrl,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Description...',
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-              ),
-            ),
-            if (memory.type == MemoryType.location) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: locationCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Location name...',
-                  prefixIcon: const Icon(Icons.location_on_rounded),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await _fb.updateMemory(
-                    groupId: _groupId,
-                    memoryId: memory.id,
-                    title: titleCtrl.text.trim().isNotEmpty
-                        ? titleCtrl.text.trim()
-                        : '',
-                    caption: captionCtrl.text.trim(),
-                    locationName: memory.type == MemoryType.location
-                        ? locationCtrl.text.trim()
-                        : null,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                const SizedBox(height: 20),
+                Text(
+                  'Edit Memory',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.grey.shade900,
                   ),
                 ),
-                child: const Text(
-                  'Save Changes',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: titleCtrl,
+                  maxLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Title (optional)',
+                    prefixIcon: const Icon(Icons.title_rounded, size: 20),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: captionCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Description...',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                ),
+                if (memory.type == MemoryType.location) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: locationCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Location name...',
+                      prefixIcon: const Icon(Icons.location_on_rounded),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MapPickerScreen(
+                              initialLatitude: editLat,
+                              initialLongitude: editLng,
+                            ),
+                          ),
+                        );
+
+                        if (result != null && mounted) {
+                          setState(() {
+                            editLat = result['latitude'];
+                            editLng = result['longitude'];
+                            locationCtrl.text = result['address'] ?? '';
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.map_rounded),
+                      label: Text(
+                        editLat != null && editLng != null
+                            ? 'Change Location on Map'
+                            : 'Pick Location on Map',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF22C55E),
+                        side: const BorderSide(color: Color(0xFF22C55E)),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _fb.updateMemory(
+                        groupId: _groupId,
+                        memoryId: memory.id,
+                        title: titleCtrl.text.trim().isNotEmpty
+                            ? titleCtrl.text.trim()
+                            : '',
+                        caption: captionCtrl.text.trim(),
+                        locationName: memory.type == MemoryType.location
+                            ? locationCtrl.text.trim()
+                            : null,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Changes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
