@@ -1738,12 +1738,13 @@ class _HomeScreenState extends State<HomeScreen> {
         opacity: opacity,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            elevation: 1,
-            shadowColor: Colors.black.withOpacity(0.08),
-            child: InkWell(
+          child: TapScale(
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              elevation: 1,
+              shadowColor: Colors.black.withOpacity(0.08),
+              child: InkWell(
               onTap: enabled ? (onTap ?? () {}) : null,
               borderRadius: BorderRadius.circular(18),
               splashColor: iconColor.withOpacity(0.12),
@@ -1795,6 +1796,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
