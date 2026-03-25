@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../models/mood_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
@@ -76,6 +77,7 @@ void showMoodPicker({
                   final isSelected = currentEmoji == mood.imagePath;
                   return GestureDetector(
                     onTap: () {
+                      HapticFeedback.lightImpact();
                       Navigator.pop(ctx2);
                       // Delete existing entries for today first
                       for (final e in moodService.myEntriesForDay(today)) {
@@ -252,6 +254,7 @@ void showMoodPickerForDate({
                   final isSelected = existingPath == mood.imagePath;
                   return GestureDetector(
                     onTap: () {
+                      HapticFeedback.lightImpact();
                       Navigator.pop(ctx2);
                       if (isToday) {
                         pairData.setMood(mood.imagePath, mood.label);

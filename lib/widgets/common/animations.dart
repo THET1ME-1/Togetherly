@@ -272,6 +272,231 @@ class _NavBarItemState extends State<NavBarItem>
 /// Enum for mood badge position
 enum MoodBadgePosition { topLeft, bottomRight }
 
+/// Enhanced bounce button with spring animation
+class BounceButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scale;
+  final Duration duration;
+
+  const BounceButton({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.scale = 0.9,
+    this.duration = const Duration(milliseconds: 300),
+  });
+
+  @override
+  State<BounceButton> createState() => _BounceButtonState();
+}
+
+class _BounceButtonState extends State<BounceButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: widget.scale,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: widget.scale,
+          end: 1.05,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.05,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 30,
+      ),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: ScaleTransition(scale: _scale, child: widget.child),
+    );
+  }
+}
+
+/// Rotating icon that spins on tap
+class RotatingIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final Color? color;
+  final VoidCallback? onTap;
+  final Duration duration;
+
+  const RotatingIcon({
+    super.key,
+    required this.icon,
+    this.size = 24,
+    this.color,
+    this.onTap,
+    this.duration = const Duration(milliseconds: 600),
+  });
+
+  @override
+  State<RotatingIcon> createState() => _RotatingIconState();
+}
+
+class _RotatingIconState extends State<RotatingIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _rotation;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _rotation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutBack));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: RotationTransition(
+        turns: _rotation,
+        child: Icon(widget.icon, size: widget.size, color: widget.color),
+      ),
+    );
+  }
+}
+
+/// Heart/Like animation with particles
+class HeartAnimation extends StatefulWidget {
+  final bool isLiked;
+  final VoidCallback? onTap;
+  final double size;
+
+  const HeartAnimation({
+    super.key,
+    required this.isLiked,
+    this.onTap,
+    this.size = 24,
+  });
+
+  @override
+  State<HeartAnimation> createState() => _HeartAnimationState();
+}
+
+class _HeartAnimationState extends State<HeartAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.4,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.4,
+          end: 0.9,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.9,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 40,
+      ),
+    ]).animate(_ctrl);
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scale.value,
+            child: Icon(
+              widget.isLiked ? Icons.favorite : Icons.favorite_border,
+              size: widget.size,
+              color: widget.isLiked ? Colors.red : Colors.grey.shade400,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Draw Mode Option tile used in bottom sheets
 class DrawModeOption extends StatelessWidget {
   final IconData icon;
