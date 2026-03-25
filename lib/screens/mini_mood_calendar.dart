@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/mood_entry.dart';
 import '../services/mood_service.dart';
 import '../theme/app_theme.dart';
@@ -39,6 +40,8 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
 
   bool _showBackToToday = false;
   double _todayScrollOffset = _kCenter * _kItemStride;
+  int _lastDaysScrolled = 0;
+  int _lastDayIndex = 0;
 
   @override
   void initState() {
@@ -65,6 +68,13 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
     final shouldShow = diff > 0.8;
     if (shouldShow != _showBackToToday) {
       setState(() => _showBackToToday = shouldShow);
+    }
+
+    // Вибрация при пролистывании за экран каждого дня
+    final daysScrolled = diff.floor();
+    if (daysScrolled != _lastDaysScrolled) {
+      _lastDaysScrolled = daysScrolled;
+      HapticFeedback.selectionClick();
     }
   }
 
