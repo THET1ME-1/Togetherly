@@ -1739,64 +1739,61 @@ class _HomeScreenState extends State<HomeScreen> {
         opacity: opacity,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: TapScale(
-            child: Material(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              elevation: 1,
-              shadowColor: Colors.black.withOpacity(0.08),
-              child: InkWell(
-              onTap: enabled ? (onTap ?? () {}) : null,
-              borderRadius: BorderRadius.circular(18),
-              splashColor: iconColor.withOpacity(0.12),
-              highlightColor: iconColor.withOpacity(0.06),
-              child: Ink(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 12,
+          child: BounceButton(
+            onTap: enabled ? (onTap ?? () {}) : null,
+            scale: 0.96,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: hasMoodImage
-                            ? Image.asset(
-                                moodImagePath,
-                                width: 32,
-                                height: 32,
-                                errorBuilder: (_, __, ___) => Center(
-                                  child: Icon(icon, color: iconColor, size: 26),
-                                ),
-                              )
-                            : Center(
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: hasMoodImage
+                          ? Image.asset(
+                              moodImagePath,
+                              width: 32,
+                              height: 32,
+                              errorBuilder: (_, __, ___) => Center(
                                 child: Icon(icon, color: iconColor, size: 26),
                               ),
+                            )
+                          : Center(
+                              child: Icon(icon, color: iconColor, size: 26),
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        ),
       ),
       ),
     );

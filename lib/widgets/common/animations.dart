@@ -106,6 +106,7 @@ class _TapScaleState extends State<TapScale>
         widget.onTap?.call();
       },
       onTapCancel: () => _ctrl.reverse(),
+      behavior: HitTestBehavior.translucent,
       child: ScaleTransition(scale: _scale, child: widget.child),
     );
   }
