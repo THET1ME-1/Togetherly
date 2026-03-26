@@ -238,7 +238,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
     // Высота карточки в свёрнутом виде
-    const collapsedHeight = 340.0;
+    final collapsedHeight = widget.blobEnabled ? 340.0 : 248.0;
     const headerHeight = 64.0;
     const cardTopOffset = 16.0;
     const bottomNavHeight = 64.0;
@@ -413,7 +413,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   Widget _buildCompactContent() {
     final timer = _displayTimer;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 36, 20, 12),
+      padding: EdgeInsets.fromLTRB(20, 36, 20, widget.blobEnabled ? 12 : 36),
       child: SizedBox(
         width: double.infinity,
         child: Column(
@@ -429,49 +429,39 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   key: ValueKey('$_selectedTimeUnit-${timer?.id ?? "none"}'),
-                  child: Text(
-                    timer != null ? _counterValue(timer) : '0',
-                    style: GoogleFonts.rubik(
-                      fontSize: _selectedTimeUnit == 2 ? 30 : 64,
-                      fontWeight: FontWeight.w800,
-                      color: timer != null
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.5),
-                      height: 1.1,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        timer != null ? _counterValue(timer) : '0',
+                        style: GoogleFonts.rubik(
+                          fontSize: _selectedTimeUnit == 2 ? 30 : 64,
+                          fontWeight: FontWeight.w800,
+                          color: timer != null
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.5),
+                          height: 1.1,
+                        ),
+                      ),
+                      if (_selectedTimeUnit == 2 && timer != null) ...[
+                        () {
+                          final ym = _yearsMonthsLabel(timer);
+                          if (ym == null) return const SizedBox.shrink();
+                          return Text(
+                            ym,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.82),
+                              letterSpacing: 0.3,
+                            ),
+                          );
+                        }(),
+                      ],
+                    ],
                   ),
                 ),
               ),
-            ),
-            // Годы / месяцы — только в режиме Time
-            AnimatedSize(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOut,
-              child: _selectedTimeUnit == 2 && timer != null
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 4, bottom: 2),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (child, anim) =>
-                            FadeTransition(opacity: anim, child: child),
-                        child: () {
-                          final ym = _yearsMonthsLabel(timer);
-                          return ym != null
-                              ? Text(
-                                  ym,
-                                  key: ValueKey('ym-$ym'),
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white.withOpacity(0.82),
-                                    letterSpacing: 0.3,
-                                  ),
-                                )
-                              : const SizedBox.shrink(key: ValueKey('ym-none'));
-                        }(),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
             ),
             const SizedBox(height: 4),
             // Label
