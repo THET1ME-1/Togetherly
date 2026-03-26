@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
@@ -54,6 +55,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _timerWidgetExpanded = false;
   String? _widgetTimerId;
 
+  int? _memoriesCount;
+  int? _drawingsCount;
+  int? _missYouCount;
+
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
   // Геттер: выбранный таймер для виджета (non-system)
@@ -76,10 +81,49 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _moodService.addListener(_onDataChanged);
     _checkPinSupport();
     _loadWidgetTimerId();
+    _loadStats();
     // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
     }
+  }
+
+  void _loadStats() {
+    final groupId = _pair.pairId;
+    if (groupId.isEmpty) return;
+
+    // Load memories count
+    FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('memories')
+        .count()
+        .get()
+        .then((snap) {
+      if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
+    }).catchError((_) {});
+
+    // Load drawings count
+    FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('canvases')
+        .count()
+        .get()
+        .then((snap) {
+      if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
+    }).catchError((_) {});
+
+    // Miss you (from group doc)
+    FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .listen((snap) {
+      if (snap.exists && mounted) {
+        setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
+      }
+    });
   }
 
   Future<void> _loadWidgetTimerId() async {
@@ -111,7 +155,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
     try {
-      await HomeWidget.requestPinWidget(qualifiedAndroidName: qualifiedName);
+      final className = qualifiedName.split('.').last;
+      await HomeWidget.requestPinWidget(
+        name: className,
+        androidName: className,
+        qualifiedAndroidName: qualifiedName,
+      );
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
       if (widgetType != null && _pair.pairId.isNotEmpty) {
         await HomeWidgetService.instance.bindWidgetToGroup(
@@ -194,6 +243,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
             partnerUserName: _pair.partnerName,
           );
         }
+        break;
+      case 'relationship_stats':
+        final sysTimer = _timerService.systemTimer;
+        final start = sysTimer?.startDate ?? _pair.startDate;
+        final isRu = LocaleService.instance.isRussian;
+        await hws.syncRelationshipStats(
+          daysTogether: start != null ? DateTime.now().difference(start).inDays : 0,
+          memoriesCount: _memoriesCount ?? 0,
+          drawingsCount: _drawingsCount ?? 0,
+          missYouCount: _missYouCount ?? 0,
+          daysLabel: isRu ? 'Дней вместе' : 'Days Together',
+          memoriesLabel: isRu ? 'Воспоминаний' : 'Memories',
+          drawingsLabel: isRu ? 'Рисунков' : 'Drawings',
+          missYouLabel: isRu ? 'Скучаю' : 'Miss Yous',
+        );
         break;
     }
   }
@@ -671,6 +735,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
           qualifiedName: 'com.example.love_app.MoodWidgetProvider',
           preview: _buildMoodPreview(),
           widgetType: 'mood',
+        ),
+        const SizedBox(height: 16),
+
+        // ── 6. Статистика отношений ──
+        _buildGalleryItem(
+          title: isRu ? 'Статистика отношений' : 'Relationship Stats',
+          subtitle: isRu
+              ? 'Важные цифры: дни, фото, рисунки и «скучаю»'
+              : 'Important stats: days, photos, drawings & miss yous',
+          icon: Icons.analytics_rounded,
+          iconColor: const Color(0xFF6366F1),
+          qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+          preview: _buildRelationshipStatsPreview(),
+          widgetType: 'relationship_stats',
         ),
       ],
     );
@@ -1352,6 +1430,126 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Статистика отношений
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildRelationshipStatsPreview() {
+    final isRu = LocaleService.instance.isRussian;
+    final sysTimer = _timerService.systemTimer;
+    final start = sysTimer?.startDate ?? _pair.startDate;
+    final daysNum = start != null ? DateTime.now().difference(start).inDays : 0;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildSmallStatBox(
+                  icon: Icons.calendar_today_rounded,
+                  color: const Color(0xFFE91E8C),
+                  value: '$daysNum',
+                  label: isRu ? 'Дней вместе' : 'Days Together',
+                  bg: const Color(0xFFFFF0F5),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSmallStatBox(
+                  icon: Icons.photo_library_rounded,
+                  color: const Color(0xFF3498DB),
+                  value: '${_memoriesCount ?? 0}',
+                  label: isRu ? 'Воспоминаний' : 'Memories',
+                  bg: const Color(0xFFE3F2FD),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSmallStatBox(
+                  icon: Icons.brush_rounded,
+                  color: const Color(0xFFF39C12),
+                  value: '${_drawingsCount ?? 0}',
+                  label: isRu ? 'Рисунков' : 'Drawings',
+                  bg: const Color(0xFFFFF8E1),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSmallStatBox(
+                  icon: Icons.favorite_rounded,
+                  color: const Color(0xFF9B59B6),
+                  value: '${_missYouCount ?? 0}',
+                  label: isRu ? 'Скучаю' : 'Miss Yous',
+                  bg: const Color(0xFFF3E5F5),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallStatBox({
+    required IconData icon,
+    required Color color,
+    required String value,
+    required String label,
+    required Color bg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.rubik(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.grey.shade900,
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.rubik(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 

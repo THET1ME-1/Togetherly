@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
@@ -1040,6 +1041,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   children: MoodOption.all.map((m) {
                     return GestureDetector(
                       onTap: () {
+                        HapticFeedback.mediumImpact();
                         _mood.addMood(
                           moodId: m.id,
                           imagePath: m.imagePath,

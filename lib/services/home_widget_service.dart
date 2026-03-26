@@ -263,6 +263,87 @@ class HomeWidgetService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  5. RELATIONSHIP STATS
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Синхронизирует данные для виджета «Статистика отношений».
+  Future<void> syncRelationshipStats({
+    required int daysTogether,
+    required int memoriesCount,
+    required int drawingsCount,
+    required int missYouCount,
+    String? daysLabel,
+    String? memoriesLabel,
+    String? drawingsLabel,
+    String? missYouLabel,
+  }) async {
+    try {
+      await HomeWidget.saveWidgetData<String>('stats_days_together', daysTogether.toString());
+      await HomeWidget.saveWidgetData<String>('stats_memories_count', memoriesCount.toString());
+      await HomeWidget.saveWidgetData<String>('stats_drawings_count', drawingsCount.toString());
+      await HomeWidget.saveWidgetData<String>('stats_miss_you_count', missYouCount.toString());
+
+      if (daysLabel != null) await HomeWidget.saveWidgetData<String>('stats_days_label', daysLabel);
+      if (memoriesLabel != null) await HomeWidget.saveWidgetData<String>('stats_memories_label', memoriesLabel);
+      if (drawingsLabel != null) await HomeWidget.saveWidgetData<String>('stats_drawings_label', drawingsLabel);
+      if (missYouLabel != null) await HomeWidget.saveWidgetData<String>('stats_miss_you_label', missYouLabel);
+
+      await HomeWidget.updateWidget(
+        name: 'RelationshipStatsWidgetProvider',
+        qualifiedAndroidName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+      );
+      debugPrint('HomeWidgetService: relationship stats synced');
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncRelationshipStats failed: $e');
+    }
+  }
+
+  /// Загружает актуальную статистику из Firestore и синхронизирует виджет.
+  Future<void> refreshRelationshipStats(String groupId, {DateTime? startDate}) async {
+    if (groupId.isEmpty) return;
+    try {
+      // 1. Memories count
+      final memSnap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .count()
+          .get();
+      
+      // 2. Drawings count
+      final drawSnap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvases')
+          .count()
+          .get();
+
+      // 3. Miss You count (упрощенно, если нет прямого доступа к FirebaseService здесь)
+      // В идеале передать это извне или иметь централизованный доступ
+      int missYouCount = 0;
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (groupDoc.exists) {
+        missYouCount = groupDoc.data()?['missYouCount'] ?? 0;
+      }
+
+      // 4. Days together
+      int days = 0;
+      if (startDate != null) {
+        days = DateTime.now().difference(startDate).inDays;
+      }
+
+      await syncRelationshipStats(
+        daysTogether: days,
+        memoriesCount: memSnap.count ?? 0,
+        drawingsCount: drawSnap.count ?? 0,
+        missYouCount: missYouCount,
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.refreshRelationshipStats failed: $e');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  АВТОСИНХРОНИЗАЦИЯ ВСЕХ ВИДЖЕТОВ ПО ПРИВЯЗАННЫМ ГРУППАМ
   // ════════════════════════════════════════════════════════════════════════
 
@@ -329,6 +410,20 @@ class HomeWidgetService {
       } else {
         debugPrint(
           '  photo_day → SKIP (bound=$photoGroup, active=$activeGroupId)',
+        );
+      }
+
+      // ── Relationship Stats ──
+      final statsGroup = await getBoundGroup('relationship_stats');
+      if (statsGroup == null || statsGroup == activeGroupId) {
+        debugPrint('  relationship_stats → syncing (bound=$statsGroup)');
+        await refreshRelationshipStats(
+          activeGroupId,
+          startDate: activeSysTimer?.startDate ?? activeStartDate,
+        );
+      } else {
+        debugPrint(
+          '  relationship_stats → SKIP (bound=$statsGroup, active=$activeGroupId)',
         );
       }
 
@@ -418,6 +513,10 @@ class HomeWidgetService {
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+      );
+      await HomeWidget.updateWidget(
+        name: 'RelationshipStatsWidgetProvider',
+        qualifiedAndroidName: 'com.example.love_app.RelationshipStatsWidgetProvider',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.updateAllProviders failed: $e');
