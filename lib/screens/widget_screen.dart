@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../models/widget_data.dart';
+import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
@@ -19,6 +20,7 @@ import '../theme/app_theme.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
+  final UserData userData;
   final PairData pairData;
   final WidgetService widgetService;
   final MoodService moodService;
@@ -27,6 +29,7 @@ class WidgetScreen extends StatefulWidget {
 
   const WidgetScreen({
     super.key,
+    required this.userData,
     required this.pairData,
     required this.widgetService,
     required this.moodService,
@@ -803,70 +806,107 @@ class _WidgetScreenState extends State<WidgetScreen> {
     // Данные берём ИЗ системного таймера (isSystem == true)
     final sysTimer = _timerService.systemTimer;
     final start = sysTimer?.startDate ?? _pair.startDate;
-    final emoji = sysTimer?.emoji ?? _pair.relationshipEmoji;
-    final days = sysTimer != null
+    final totalDays = sysTimer != null
         ? sysTimer.daysElapsed.abs()
         : (start != null ? DateTime.now().difference(start).inDays : 0);
     final startLabel = start != null
         ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
         : '';
 
-    // Название: из системного таймера или имена пары
-    final displayTitle = sysTimer?.title.isNotEmpty == true
-        ? sysTimer!.title
-        : (_pair.partnerName.isNotEmpty ? _pair.partnerName : '');
+    final myGender = widget.userData.gender?.name ?? 'male';
+    final partnerGender = _ws.firstPartnerData?.gender.isNotEmpty == true ? _ws.firstPartnerData!.gender : 'female';
+
+    String imgName = 'widget_couple_mf';
+    if (myGender == 'female' && partnerGender == 'female') {
+      imgName = 'widget_couple_ff';
+    } else if (myGender == 'male' && partnerGender == 'male') {
+      imgName = 'widget_couple_mm';
+    }
+
+    final years = totalDays ~/ 365;
+    String yearsText;
+    if (years % 10 == 1 && years % 100 != 11) {
+      yearsText = '$years год уже ❤️';
+    } else if (years % 10 >= 2 && years % 10 <= 4 && (years % 100 < 10 || years % 100 >= 20)) {
+      yearsText = '$years года уже ❤️';
+    } else {
+      yearsText = '$years лет уже ❤️';
+    }
+    
+    if (!isRu) {
+      yearsText = '$years years already ❤️';
+    }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      height: 200,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFFFFF0F3), const Color(0xFFFFE4EC)],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFFFD1DC), width: 3),
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 4),
-          Text(
-            '$days',
-            style: GoogleFonts.rubik(
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFFFF6B8A),
-              height: 1.1,
-            ),
-          ),
-          Text(
-            isRu ? 'дней вместе' : 'days together',
-            style: GoogleFonts.rubik(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          if (displayTitle.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              displayTitle,
-              style: GoogleFonts.rubik(
-                fontSize: 12,
-                color: Colors.grey.shade600,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(21)),
+              child: Image.asset(
+                'assets/images/widget/$imgName.png',
+                fit: BoxFit.contain,
               ),
             ),
-          ],
-          if (startLabel.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              isRu ? 'с $startLabel' : 'since $startLabel',
-              style: GoogleFonts.rubik(
-                fontSize: 10,
-                color: Colors.grey.shade400,
+          ),
+          Positioned(
+            top: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                yearsText,
+                style: GoogleFonts.rubik(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF5D4037),
+                ),
               ),
             ),
-          ],
+          ),
+          Positioned.fill(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$totalDays',
+                  style: GoogleFonts.rubik(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF5D4037),
+                    height: 1.0,
+                  ),
+                ),
+                Text(
+                  isRu ? 'дней' : 'Days',
+                  style: GoogleFonts.rubik(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  startLabel,
+                  style: GoogleFonts.rubik(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF5D4037),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

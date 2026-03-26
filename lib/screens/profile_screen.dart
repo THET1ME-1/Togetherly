@@ -13,7 +13,9 @@ import '../theme/app_theme.dart';
 import 'welcome_screen.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
-
+import 'package:home_widget/home_widget.dart';
+import '../services/home_widget_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 /// Entry for a partner across all connections
 class _PartnerEntry {
   final GroupMember member;
@@ -590,12 +592,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 : '—',
           ),
           _divider(),
-          _infoRow(
-            icon: widget.userData.isMale
-                ? Icons.male_rounded
-                : Icons.female_rounded,
-            label: _s.gender,
-            value: widget.userData.isMale ? _s.male : _s.female,
+          GestureDetector(
+            onTap: () => _showGenderPicker(context),
+            behavior: HitTestBehavior.opaque,
+            child: _infoRow(
+              icon: widget.userData.isMale
+                  ? Icons.male_rounded
+                  : Icons.female_rounded,
+              label: _s.gender,
+              value: widget.userData.isMale ? _s.male : _s.female,
+              trailing: Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: Colors.grey.shade400,
+              ),
+            ),
           ),
           _divider(),
           GestureDetector(
@@ -687,6 +698,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _showGenderPicker(BuildContext context) async {
+    final currentGender = widget.userData.gender;
+    final selectedGender = await showModalBottomSheet<Gender>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _s.gender,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(Icons.male_rounded, color: currentGender == Gender.male ? _accent : Colors.grey),
+              title: Text(_s.male, style: TextStyle(fontWeight: currentGender == Gender.male ? FontWeight.w700 : FontWeight.normal)),
+              trailing: currentGender == Gender.male ? Icon(Icons.check_circle_rounded, color: _accent) : null,
+              onTap: () => Navigator.pop(context, Gender.male),
+            ),
+            ListTile(
+              leading: Icon(Icons.female_rounded, color: currentGender == Gender.female ? _accent : Colors.grey),
+              title: Text(_s.female, style: TextStyle(fontWeight: currentGender == Gender.female ? FontWeight.w700 : FontWeight.normal)),
+              trailing: currentGender == Gender.female ? Icon(Icons.check_circle_rounded, color: _accent) : null,
+              onTap: () => Navigator.pop(context, Gender.female),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+
+    if (selectedGender != null && selectedGender != currentGender) {
+      if (context.mounted) {
+        await widget.userData.updateProfile(gender: selectedGender);
+        
+        final pgData = await HomeWidget.getWidgetData<String>('partner_gender');
+        final partnerGender = (pgData != null && pgData.isNotEmpty) ? pgData : 'female';
+        final sysTimer = widget.timerService.systemTimer;
+        
+        final uid = widget.userData.uid;
+        if (uid.isNotEmpty && widget.pairData.pairId.isNotEmpty) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('groups')
+                .doc(widget.pairData.pairId)
+                .collection('widgetData')
+                .doc(uid)
+                .set({'gender': selectedGender.name}, SetOptions(merge: true));
+          } catch (e) {
+            debugPrint('Failed to update widgetData gender: $e');
+          }
+        }
+
+        
+        await HomeWidget.saveWidgetData<String>('my_gender', selectedGender.name);
+        await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender);
+        
+        await HomeWidget.updateWidget(
+          name: 'DaysCounterWidgetProvider',
+          qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',
+        );
+        
+        await HomeWidgetService.instance.syncAllBoundWidgets(
+          activeGroupId: widget.pairData.pairId,
+          activeTimers: widget.timerService.timers,
+          activeSysTimer: sysTimer,
+          activeStartDate: widget.pairData.startDate,
+          coupleNames: widget.pairData.partnerName.isNotEmpty ? widget.pairData.partnerName : '',
+          emoji: sysTimer?.emoji ?? widget.pairData.relationshipEmoji,
+          myGender: selectedGender.name,
+          partnerGender: partnerGender,
+        );
+
+        setState(() {});
+      }
+    }
+  }
+
   // ═══════════════════════════════════════════════════
   //  RELATIONSHIP STATS (WRAPPED)
   // ═══════════════════════════════════════════════════
@@ -705,7 +816,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'RELATIONSHIP STATS (WRAPPED)',
+                  'RELATIONSHIP STATS',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

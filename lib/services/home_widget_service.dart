@@ -76,8 +76,8 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('start_date_label', startDate);
-      await HomeWidget.saveWidgetData<String>('my_gender', myGender);
-      await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender);
+      await HomeWidget.saveWidgetData<String>('my_gender', myGender.isNotEmpty ? myGender : 'male');
+      await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender.isNotEmpty ? partnerGender : 'female');
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',

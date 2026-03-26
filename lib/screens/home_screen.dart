@@ -591,6 +591,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   Widget _buildWidgetsTab() {
     return WidgetScreen(
+      userData: widget.userData,
       pairData: _pairData,
       widgetService: _widgetService,
       moodService: _moodService,
