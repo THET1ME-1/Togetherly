@@ -59,6 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int? _missYouCount;
   int? _drawingsCount;
   StreamSubscription? _missYouSub;
+  String? _lastLoadedGroupId;
 
   int _calculateDaysTogether(DateTime? fallbackDate) {
     final timerDate = widget.timerService.systemTimer?.startDate;
@@ -70,6 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedPartnerUid = widget.pairData.manager.preferredPartnerUid;
     widget.pairData.addListener(_onPairDataChanged);
     // Refresh every hour so the day count updates when crossing midnight
     _dayTimer = Timer.periodic(const Duration(hours: 1), (_) {
@@ -79,38 +81,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadStats() {
-    final groupId = widget.pairData.pairId;
-    if (groupId.isEmpty) return;
+    // Determine which groupId to load stats for.
+    // If a partner is manually selected, use their connection's ID.
+    // Otherwise fall back to the global active connection.
+    String? currentGroupId;
+    if (_selectedPartnerUid != null && _selectedPartnerUid!.isNotEmpty) {
+      final allConnections = widget.pairData.manager.connections;
+      for (final conn in allConnections) {
+        if (conn.partners.any((m) => m.uid == _selectedPartnerUid)) {
+          currentGroupId = conn.pairId;
+          break;
+        }
+      }
+    }
+    currentGroupId ??= widget.pairData.pairId;
+    
+    if (currentGroupId.isEmpty) return;
+    if (_lastLoadedGroupId == currentGroupId) return;
+    
+    _lastLoadedGroupId = currentGroupId;
+    _missYouSub?.cancel();
     
     // Load memories count
     FirebaseFirestore.instance
       .collection('groups')
-      .doc(groupId)
+      .doc(currentGroupId)
       .collection('memories')
       .count()
       .get()
       .then((snap) {
-        if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
+        if (mounted && _lastLoadedGroupId == currentGroupId) {
+          setState(() => _memoriesCount = snap.count ?? 0);
+        }
       })
       .catchError((_) {});
 
     // Load drawings count
     FirebaseFirestore.instance
       .collection('groups')
-      .doc(groupId)
+      .doc(currentGroupId)
       .collection('canvases')
       .count()
       .get()
       .then((snap) {
-        if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
+        if (mounted && _lastLoadedGroupId == currentGroupId) {
+          setState(() => _drawingsCount = snap.count ?? 0);
+        }
       })
       .catchError((_) {});
 
     // Listen to Miss You count
     _missYouSub = FirebaseService().listenToMissYouCount(
-      groupId: groupId,
+      groupId: currentGroupId,
       onData: (count) {
-        if (mounted) setState(() => _missYouCount = count);
+        if (mounted && _lastLoadedGroupId == currentGroupId) {
+          setState(() => _missYouCount = count);
+        }
       },
     );
   }
@@ -124,7 +150,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onPairDataChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      _loadStats();
+      setState(() {});
+    }
   }
 
   @override
@@ -965,13 +994,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Resolve selected partner (respects manual choice or falls back to first)
     _PartnerEntry? selectedPartner;
-    if (_selectedPartnerUid != null) {
+    if (_selectedPartnerUid != null && _selectedPartnerUid!.isNotEmpty) {
       final found = allPartners.where(
         (p) => p.member.uid == _selectedPartnerUid,
       );
       selectedPartner = found.isNotEmpty ? found.first : null;
     }
-    selectedPartner ??= allPartners.isNotEmpty ? allPartners.first : null;
+    
+    // Fallback: active connection first, then any connection
+    if (selectedPartner == null && allPartners.isNotEmpty) {
+      final activePartner = allPartners.where(
+        (p) => p.connection.id == widget.pairData.manager.activeConnection?.id,
+      );
+      selectedPartner = activePartner.isNotEmpty ? activePartner.first : allPartners.first;
+    }
 
     // Relationship type: synced with selected partner's group, or local override
     final relType =
@@ -1347,7 +1383,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : '?';
                 return GestureDetector(
                   onTap: () {
-                    setState(() => _selectedPartnerUid = entry.member.uid);
+                    final uid = entry.member.uid;
+                    setState(() => _selectedPartnerUid = uid);
+                    widget.pairData.manager.setPreferredPartnerUid(uid);
+                    
+                    final idx = widget.pairData.manager.connections.indexOf(entry.connection);
+                    if (idx != -1 && idx != widget.pairData.manager.activeConnectionIndex) {
+                      widget.pairData.manager.switchToConnection(idx);
+                    }
+                    
                     Navigator.pop(ctx);
                   },
                   child: Container(

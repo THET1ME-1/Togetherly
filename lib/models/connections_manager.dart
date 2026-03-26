@@ -10,6 +10,7 @@ class ConnectionsManager extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService();
   final List<Connection> _connections = [];
   int _activeConnectionIndex = 0;
+  String _preferredPartnerUid = '';
   bool _loading = false;
   StreamSubscription? _userDocSub;
 
@@ -23,6 +24,13 @@ class ConnectionsManager extends ChangeNotifier {
   }
 
   bool get loading => _loading;
+  String get preferredPartnerUid => _preferredPartnerUid;
+
+  Future<void> setPreferredPartnerUid(String uid) async {
+    _preferredPartnerUid = uid;
+    await _saveLocal();
+    notifyListeners();
+  }
   bool get hasMultipleConnections => _connections.length > 1;
 
   // ── Initialization ──
@@ -402,6 +410,7 @@ class ConnectionsManager extends ChangeNotifier {
       final connectionsJson = _connections.map((c) => c.toJson()).toList();
       await prefs.setString('connections', jsonEncode(connectionsJson));
       await prefs.setInt('activeConnectionIndex', _activeConnectionIndex);
+      await prefs.setString('preferredPartnerUid', _preferredPartnerUid);
     } catch (e) {
       debugPrint('Failed to save connections: $e');
     }
@@ -440,6 +449,7 @@ class ConnectionsManager extends ChangeNotifier {
       }
 
       _activeConnectionIndex = prefs.getInt('activeConnectionIndex') ?? 0;
+      _preferredPartnerUid = prefs.getString('preferredPartnerUid') ?? '';
 
       // Ensure valid index
       if (_activeConnectionIndex >= _connections.length) {
@@ -456,8 +466,10 @@ class ConnectionsManager extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('connections');
       await prefs.remove('activeConnectionIndex');
+      await prefs.remove('preferredPartnerUid');
       _connections.clear();
       _activeConnectionIndex = 0;
+      _preferredPartnerUid = '';
       notifyListeners();
       debugPrint('Cleared all connection data');
     } catch (e) {

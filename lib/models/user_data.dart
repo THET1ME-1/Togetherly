@@ -236,6 +236,7 @@ class UserData extends ChangeNotifier {
     // Clear connection data as well
     await prefs.remove('connections');
     await prefs.remove('activeConnectionIndex');
+    await prefs.remove('preferredPartnerUid');
     // Clear timer data so new user doesn't see old timers
     await prefs.remove('user_timers');
     await prefs.remove('timer_selected_time_unit');
