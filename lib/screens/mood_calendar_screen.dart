@@ -1169,63 +1169,70 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               )
             else
-              ...moods.map(
-                (m) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: m.color.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: m.imagePath.isNotEmpty
-                            ? Center(
-                                child: Image.asset(
-                                  m.imagePath,
-                                  width: 34,
-                                  height: 34,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const SizedBox(width: 34, height: 34),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: moods.map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: m.color.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: m.imagePath.isNotEmpty
+                                  ? Center(
+                                      child: Image.asset(
+                                        m.imagePath,
+                                        width: 34,
+                                        height: 34,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const SizedBox(width: 34, height: 34),
+                                      ),
+                                    )
+                                  : const SizedBox(width: 34, height: 34),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                m.label,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade800,
                                 ),
-                              )
-                            : const SizedBox(width: 34, height: 34),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          m.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                          ),
+                              ),
+                            ),
+                            Text(
+                              '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                            if (!isPartner) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  _mood.deleteMoodEntry(m.id);
+                                  Navigator.pop(context);
+                                },
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      Text(
-                        '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                      if (!isPartner) ...[
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            _mood.deleteMoodEntry(m.id);
-                            Navigator.pop(context);
-                          },
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            size: 18,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                      ],
-                    ],
+                    ).toList(),
                   ),
                 ),
               ),
