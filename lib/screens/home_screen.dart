@@ -1739,9 +1739,9 @@ class _HomeScreenState extends State<HomeScreen> {
         opacity: opacity,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: BounceButton(
+          child: QuickTapScale(
             onTap: enabled ? (onTap ?? () {}) : null,
-            scale: 0.96,
+            scale: 0.95,
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,

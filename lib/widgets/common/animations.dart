@@ -112,6 +112,74 @@ class _TapScaleState extends State<TapScale>
   }
 }
 
+/// Simple Tap Scale sequence (down then up) for quick clicks
+class QuickTapScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scale;
+  final Duration duration;
+
+  const QuickTapScale({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.scale = 0.95,
+    this.duration = const Duration(milliseconds: 150),
+  });
+
+  @override
+  State<QuickTapScale> createState() => _QuickTapScaleState();
+}
+
+class _QuickTapScaleState extends State<QuickTapScale>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: widget.scale,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: widget.scale,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 50,
+      ),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _ctrl.forward(from: 0);
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      behavior: HitTestBehavior.opaque,
+      child: ScaleTransition(scale: _scale, child: widget.child),
+    );
+  }
+}
+
+
 /// Animated navigation bar item
 class NavBarItem extends StatefulWidget {
   final IconData icon;

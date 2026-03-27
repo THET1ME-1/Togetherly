@@ -6,6 +6,7 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import 'home_screen.dart';
 import 'setup_screen.dart';
+import 'welcome_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final UserData userData;
@@ -223,7 +224,39 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
                 children: [
-                  const SizedBox(height: 56),
+                  const SizedBox(height: 12),
+                  // Back button
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pushReplacement(
+                          PageRouteBuilder(
+                            pageBuilder: (_, __, ___) =>
+                                WelcomeScreen(userData: widget.userData),
+                            transitionsBuilder: (_, animation, __, child) =>
+                                FadeTransition(opacity: animation, child: child),
+                            transitionDuration:
+                                const Duration(milliseconds: 400),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.7),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.grey.shade700,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   // Title
                   Text(
                     _s.welcomeBack,
