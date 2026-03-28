@@ -73,6 +73,9 @@ class AppTheme {
   /// Цвет кнопки "Ответить на вопрос" в Daily Reflection
   final Color promptButtonColor;
 
+  /// Цвет фона лепестков таймера (PetalTimerDial)
+  final Color timerDialBackground;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -95,6 +98,7 @@ class AppTheme {
     required this.navActiveBg,
     required this.navActiveIcon,
     required this.promptButtonColor,
+    required this.timerDialBackground,
   });
 }
 
@@ -125,6 +129,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFF9E4E2),
     navActiveIcon: Color(0xFFFF7E8B),
     promptButtonColor: Color(0xFFFF7E8B),
+    timerDialBackground: Color(0xFFFE7D8B),
     bgImageUrl:
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
   );
@@ -154,6 +159,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFEDE7F6),
     navActiveIcon: Color(0xFF9B86BD),
     promptButtonColor: Color(0xFF9B86BD),
+    timerDialBackground: Color(0xFFDBCEEC),
     bgImageUrl:
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpurple-background.webp?alt=media',
   );
@@ -182,6 +188,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFE6F0FA),
     navActiveIcon: Color(0xFF7898BF),
     promptButtonColor: Color(0xFF7898BF),
+    timerDialBackground: Color(0xFFC1D6EB),
   );
 
   // ── 3: Персиковая (Soft Peach) ─────────────────────────────────────────────
@@ -206,6 +213,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFFDF2EB),
     navActiveIcon: Color(0xFFCF7E5E),
     promptButtonColor: Color(0xFFCF7E5E),
+    timerDialBackground: Color(0xFFF1CBB6),
     bgImageUrl:
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpersic-background.webp?alt=media',
   );
@@ -232,6 +240,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFE5F3E1),
     navActiveIcon: Color(0xFF7EA876),
     promptButtonColor: Color(0xFF7EA876),
+    timerDialBackground: Color(0xFFCEDDC6),
     bgImageUrl:
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fgreen-background.webp?alt=media',
   );

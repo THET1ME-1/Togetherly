@@ -5,6 +5,8 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../theme/app_theme.dart';
+
 /// Data for a single petal segment.
 class _PetalData {
   final String label;
@@ -29,11 +31,8 @@ class _PetalData {
 /// The ring can be rotated by finger drag (with physics-based inertia).
 /// Segment brightness depends on their value; size is identical for all.
 class PetalTimerDial extends StatefulWidget {
-  /// Base colours from the current theme (heroGradient).
-  final List<Color> themeGradient;
-
-  /// Primary accent colour from theme.
-  final Color primary;
+  /// Application theme for colours
+  final AppTheme theme;
 
   /// Start date for computing elapsed time.
   final DateTime startDate;
@@ -43,8 +42,7 @@ class PetalTimerDial extends StatefulWidget {
 
   const PetalTimerDial({
     super.key,
-    required this.themeGradient,
-    required this.primary,
+    required this.theme,
     required this.startDate,
     this.isCountdown = false,
   });
@@ -218,8 +216,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
                 petals: petals,
                 displayFactors: _displayFactors,
                 rotationAngle: _rotationAngle,
-                baseColors: widget.themeGradient,
-                primary: widget.primary,
+                theme: widget.theme,
                 scale: scale,
               ),
             ),
@@ -234,16 +231,14 @@ class _PetalDialPainter extends CustomPainter {
   final List<_PetalData> petals;
   final List<double> displayFactors;
   final double rotationAngle;
-  final List<Color> baseColors;
-  final Color primary;
+  final AppTheme theme;
   final double scale;
 
   _PetalDialPainter({
     required this.petals,
     required this.displayFactors,
     required this.rotationAngle,
-    required this.baseColors,
-    required this.primary,
+    required this.theme,
     required this.scale,
   });
 
@@ -285,29 +280,16 @@ class _PetalDialPainter extends CustomPainter {
       canvas.save();
       canvas.rotate(segAngle);
 
-      // Interpolate the theme color
-      final segmentThemeColor = Color.lerp(
-        baseColors.first,
-        baseColors.last,
-        i / (petals.length - 1),
-      )!;
-
       // ── 1. Draw Background Track (the placeholder for max value) ──
-      // Как просил юзер: цвет которым раньше заполнялись лепестки, теперь фон.
-      final bgColor = Color.lerp(
-        segmentThemeColor,
-        Colors.white,
-        0.3,
-      )!;
-
+      // Фон лепестков берётся из новой настройки темы
       final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h);
       
       final bgPaintFill = Paint()
-        ..color = bgColor
+        ..color = theme.timerDialBackground
         ..style = PaintingStyle.fill;
       
       final bgPaintStroke = Paint()
-        ..color = bgColor
+        ..color = theme.timerDialBackground
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = cr * 2;
@@ -324,8 +306,8 @@ class _PetalDialPainter extends CustomPainter {
         
         final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h);
 
-        // Мягкий розовый цвет, указанный пользователем (#fe7d8b)
-        const fgColor = Color(0xFFFE7D8B);
+        // Цвет заполнения как у иконок в навигации (theme.navActiveIcon)
+        final fgColor = theme.navActiveIcon;
 
         final fgPaintFill = Paint()
           ..color = fgColor
