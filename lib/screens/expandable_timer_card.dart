@@ -162,9 +162,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
     // Высота карточки в свёрнутом виде. 
-    // Поскольку стрелка теперь накладывается поверх нижней части круга (внутри Stack),
-    // высота состоит только из ширины (aspect ratio 1.0) и небольших паддингов (2+2).
-    final collapsedHeight = mq.size.width - 20.0;
+    // Поскольку AspectRatio равен 1.0, ширина равна mq.size.width - 24 (отступы),
+    // высота состоит из: 2 (padding top) + (ширина - 24) + 32 (высота стрелочки) + 2 (padding bottom).
+    // Итого: width + 12.
+    final collapsedHeight = mq.size.width + 12.0;
     const headerHeight = 64.0;
     const cardTopOffset = 16.0;
     const bottomNavHeight = 64.0;
@@ -355,9 +356,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
       child: SizedBox(
         width: double.infinity,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          clipBehavior: Clip.none,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Petal donut timer dial
             AspectRatio(
@@ -371,21 +371,18 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
               ),
             ),
             // Arrow to expand
-            Positioned(
-              bottom: -4,
-              child: GestureDetector(
-                onTap: _toggle,
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  height: 32,
-                  child: Center(
-                    child: RotationTransition(
-                      turns: _arrowRotation,
-                      child: Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white.withOpacity(0.7),
-                        size: 28,
-                      ),
+            GestureDetector(
+              onTap: _toggle,
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                height: 32,
+                child: Center(
+                  child: RotationTransition(
+                    turns: _arrowRotation,
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 28,
                     ),
                   ),
                 ),
