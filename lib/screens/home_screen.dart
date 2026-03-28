@@ -539,7 +539,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     myAvatarUrl: widget.userData.avatarUrl,
                     partnerAvatarUrl: _pairData.partnerAvatarUrl,
                     isPaired: _pairData.isPaired,
-                    blobEnabled: widget.userData.blobAnimationEnabled,
                     onExpandChanged: (expanded) {
                       setState(() => _timerCardExpanded = expanded);
                     },
@@ -548,20 +547,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_pairData.isPaired &&
                     !_reflectionManuallyDismissed &&
                     (_showReflection || _hasPartnerAnswer)) ...[
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 8),
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 300),
                     child: _buildDailyReflection(),
                   ),
                 ],
                 if (!_pairData.isPaired) ...[
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 8),
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 300),
                     child: _buildConnectPrompt(),
                   ),
                 ],
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
                 AnimatedSlideIn(
                   delay: const Duration(milliseconds: 400),
                   child: _buildActionButtons(),
