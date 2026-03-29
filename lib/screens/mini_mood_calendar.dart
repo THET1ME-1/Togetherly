@@ -30,8 +30,8 @@ class MiniMoodCalendar extends StatefulWidget {
 class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   // Виртуальный центр списка — сегодня
   static const int _kCenter = 500000;
-  static const double _kCellWidth = 66.0;
-  static const double _kSeparator = 8.0;
+  static const double _kCellWidth = 74.0;
+  static const double _kSeparator = 10.0;
   static const double _kItemStride = _kCellWidth + _kSeparator;
 
   late final ScrollController _scrollController;
@@ -104,7 +104,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 118,
+          height: 154,
           child: ListenableBuilder(
             listenable: widget.moodService,
             builder: (context, _) {
@@ -112,20 +112,49 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.zero,
+                clipBehavior: Clip.none,
                 physics: const BouncingScrollPhysics(),
                 itemCount: _kCenter * 2,
                 itemExtent: _kItemStride,
                 itemBuilder: (context, index) {
                   final date = _dateForIndex(index);
-                  return Padding(
-                    padding: const EdgeInsets.only(right: _kSeparator),
-                    child: RepaintBoundary(
-                      child: _DayCell(
-                        date: date,
-                        today: _today,
-                        moodService: widget.moodService,
-                        theme: widget.theme,
-                        onTap: widget.onDayTap,
+                  
+                  return AnimatedBuilder(
+                    animation: _scrollController,
+                    builder: (context, child) {
+                      double dy = 0.0;
+                      if (_scrollController.hasClients) {
+                        final position = _scrollController.position;
+                        final viewportWidth = position.viewportDimension;
+                        final scrollOffset = position.pixels;
+                        
+                        final viewportCenter = scrollOffset + (viewportWidth / 2);
+                        final itemCenter = (index * _kItemStride) + (_kCellWidth / 2);
+                        final distance = (itemCenter - viewportCenter).abs();
+                        
+                        // Парарабола, чтобы боковые карточки опускались: dy = a * x^2
+                        dy = (distance * distance) * 0.00075;
+                        if (dy > 45.0) dy = 45.0; // ограничиваем сдвиг
+                      }
+                      
+                      return Transform.translate(
+                        offset: Offset(0, dy),
+                        child: child,
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: _kSeparator),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: RepaintBoundary(
+                          child: _DayCell(
+                            date: date,
+                            today: _today,
+                            moodService: widget.moodService,
+                            theme: widget.theme,
+                            onTap: widget.onDayTap,
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -280,10 +309,11 @@ class _DayCellState extends State<_DayCell> {
       onTap: isFuture ? null : () => widget.onTap(widget.date),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 66,
+        width: 74,
+        height: 118,
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: isToday
                 ? widget.theme.primary.withOpacity(0.35)
