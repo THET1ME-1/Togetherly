@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 import '../models/mood_entry.dart';
 import '../services/mood_service.dart';
 import '../theme/app_theme.dart';
@@ -237,9 +238,12 @@ class _DayCell extends StatefulWidget {
   State<_DayCell> createState() => _DayCellState();
 }
 
-class _DayCellState extends State<_DayCell> {
+class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   Timer? _timer;
+  
+  double _displayFactor = 0.0;
+  Ticker? _chaseTicker;
 
   bool get isToday =>
       widget.date.year == widget.today.year &&
@@ -254,12 +258,45 @@ class _DayCellState extends State<_DayCell> {
   void initState() {
     super.initState();
     _maybeStartTimer();
+    if (isToday) {
+      _chaseTicker = createTicker(_onChaseTick)..start();
+    }
+  }
+
+  void _onChaseTick(Duration elapsed) {
+    final now = DateTime.now();
+    // Вычисляем процент прошедшего времени за сегодняшний день
+    final secToday = now.hour * 3600 + now.minute * 60 + now.second + (now.millisecond / 1000.0);
+    final target = (secToday / 86400.0).clamp(0.0, 1.0);
+    
+    final diff = target - _displayFactor;
+    bool changed = false;
+    // Плавное заполнение, как в PetalTimerDial
+    if (diff.abs() > 0.0005) {
+      _displayFactor += diff * 0.15;
+      changed = true;
+    } else if (_displayFactor != target) {
+      _displayFactor = target;
+      changed = true;
+    }
+    
+    if (changed && mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void didUpdateWidget(_DayCell old) {
     super.didUpdateWidget(old);
     _maybeStartTimer();
+    
+    if (isToday && _chaseTicker == null) {
+      _chaseTicker = createTicker(_onChaseTick)..start();
+    } else if (!isToday && _chaseTicker != null) {
+      _chaseTicker?.stop();
+      _chaseTicker?.dispose();
+      _chaseTicker = null;
+    }
   }
 
   void _maybeStartTimer() {
@@ -285,6 +322,7 @@ class _DayCellState extends State<_DayCell> {
   @override
   void dispose() {
     _timer?.cancel();
+    _chaseTicker?.dispose();
     super.dispose();
   }
 
@@ -296,14 +334,10 @@ class _DayCellState extends State<_DayCell> {
     final dayName = MiniMoodCalendar._dayNames[widget.date.weekday - 1];
 
     final Color cardBg = isToday
-        ? widget.theme.primary.withOpacity(0.13)
+        ? widget.theme.timerDialBackground
         : Colors.white.withOpacity(0.75);
-    final Color textColor = isToday
-        ? widget.theme.primary
-        : const Color(0xFF6B7280);
-    final Color numColor = isToday
-        ? widget.theme.primary
-        : const Color(0xFF1F2937);
+    final Color baseTextColor = const Color(0xFF6B7280);
+    final Color baseNumColor = const Color(0xFF1F2937);
 
     return GestureDetector(
       onTap: isFuture ? null : () => widget.onTap(widget.date),
@@ -314,67 +348,140 @@ class _DayCellState extends State<_DayCell> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: isToday
-                ? widget.theme.primary.withOpacity(0.35)
-                : Colors.transparent,
-            width: 1.5,
-          ),
           boxShadow: isToday
               ? [
                   BoxShadow(
-                    color: widget.theme.primary.withOpacity(0.12),
+                    color: widget.theme.navActiveIcon.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ]
               : [],
         ),
-        child: Opacity(
-          opacity: isFuture ? 0.35 : 1.0,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                dayName,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                  letterSpacing: 0.6,
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            // Заполнение текущего дня снизу вверх
+            if (isToday)
+              FractionallySizedBox(
+                heightFactor: _displayFactor,
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: widget.theme.navActiveIcon,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                widget.date.day.toString(),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: numColor,
-                  height: 1.1,
-                ),
+              
+            // Контент (текст и иконка)
+            Opacity(
+              opacity: isFuture ? 0.35 : 1.0,
+              child: Stack(
+                children: [
+                  // Слой 1: Обычный текст (виден на пустом фоне)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Center(
+                        child: Text(
+                          dayName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isToday ? widget.theme.primary : baseTextColor,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Center(
+                        child: Text(
+                          widget.date.day.toString(),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: isToday ? widget.theme.primary : baseNumColor,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: 30,
+                        height: 30,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          child: current != null && current.imagePath.isNotEmpty
+                              ? Image.asset(
+                                  current.imagePath,
+                                  key: ValueKey(current.id),
+                                  width: 30,
+                                  height: 30,
+                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Слой 2: Белый текст (виден только поверх заливки)
+                  if (isToday)
+                    ClipRect(
+                      clipper: _BottomHeightClipper(_displayFactor),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Center(
+                            child: Text(
+                              dayName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.9),
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Center(
+                            child: Text(
+                              widget.date.day.toString(),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                          // Иконка в инверсии не нужна, так как изображение само по себе цветное
+                          const SizedBox(height: 34), // Отступ под цифрой, чтобы пропустить иконку
+                        ],
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: 4),
-              SizedBox(
-                width: 30,
-                height: 30,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  child: current != null && current.imagePath.isNotEmpty
-                      ? Image.asset(
-                          current.imagePath,
-                          key: ValueKey(current.id),
-                          width: 30,
-                          height: 30,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _BottomHeightClipper extends CustomClipper<Rect> {
+  final double factor;
+  _BottomHeightClipper(this.factor);
+
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTRB(0, size.height * (1 - factor), size.width, size.height);
+  }
+
+  @override
+  bool shouldReclip(_BottomHeightClipper oldClipper) => oldClipper.factor != factor;
 }

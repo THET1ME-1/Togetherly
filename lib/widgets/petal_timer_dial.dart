@@ -174,7 +174,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     final exactYears = totalSec / (365.25 * 24 * 3600.0);
 
     return [
-      _PetalData(label: 'Years', value: yearsInt, maxValue: math.max(10, yearsInt.clamp(10, 100)), exactValue: exactYears),
+      _PetalData(label: 'Years', value: yearsInt, maxValue: 100, exactValue: exactYears),
       _PetalData(label: 'Months', value: monthsInt, maxValue: 12, exactValue: exactMonths),
       _PetalData(label: 'Days', value: daysInt, maxValue: 30, exactValue: exactDays),
       _PetalData(label: 'Hours', value: hoursInt, maxValue: 24, exactValue: exactHours),
