@@ -327,27 +327,33 @@ class _PetalDialPainter extends CustomPainter {
       final textR = (innerR + outerR) / 2;
       final txColor = Colors.white.withValues(alpha: 0.95);
 
+      canvas.save();
+      canvas.translate(textR, 0);
+      canvas.rotate(-(rotationAngle + segAngle));
+
       _drawText(
         canvas,
         text: '${petal.value}',
-        x: textR,
-        y: -6 * scale,
+        x: 0,
+        y: -8 * scale,
         fontSize: 18 * scale,
         fontWeight: FontWeight.w800,
         color: txColor,
-        counterRotation: -(rotationAngle + segAngle),
+        counterRotation: 0,
       );
 
       _drawText(
         canvas,
         text: petal.label,
-        x: textR,
+        x: 0,
         y: 10 * scale,
         fontSize: 9 * scale,
         fontWeight: FontWeight.w600,
         color: txColor.withValues(alpha: 0.65),
-        counterRotation: -(rotationAngle + segAngle),
+        counterRotation: 0,
       );
+
+      canvas.restore();
 
       canvas.restore();
     }
