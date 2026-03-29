@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/timer_item.dart';
 import '../services/locale_service.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
-import 'blob_painter.dart';
+import '../widgets/petal_timer_dial.dart';
+
 
 /// Расширяемая карточка таймера.
 ///
@@ -21,7 +22,6 @@ class ExpandableTimerCard extends StatefulWidget {
   final String partnerAvatarUrl;
   final String myAvatarUrl;
   final bool isPaired;
-  final bool blobEnabled;
 
   /// Callback, уведомляющий родителя о состоянии раскрытия
   /// (чтобы скрывать bottom nav).
@@ -34,7 +34,6 @@ class ExpandableTimerCard extends StatefulWidget {
     required this.partnerAvatarUrl,
     required this.myAvatarUrl,
     required this.isPaired,
-    this.blobEnabled = true,
     this.onExpandChanged,
   });
 
@@ -49,12 +48,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   late Animation<double> _arrowRotation;
 
   bool _expanded = false;
-  int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
+
   Timer? _ticker;
   String? _uploadingBackgroundId; // id таймера во время загрузки фона
 
-  // Кешированные цвета — чтобы не создавать объекты на каждый кадр
-  late Color _shadowColorBase;
   late Color _shadowColorExpanded;
 
   static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
@@ -67,8 +64,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
 
 
-  /// Градиент без borderRadius — для blob-слоя (ClipPath уже задаёт форму)
-  BoxDecoration get _blobGradientDecoration => BoxDecoration(
+  /// Градиент карточки
+  BoxDecoration get _gradientDecoration => BoxDecoration(
+    borderRadius: _cardBorderRadius,
     gradient: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -109,11 +107,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _shadowColorBase = _t.heroShadowBase;
     _shadowColorExpanded = _t.heroShadowExpanded;
 
     widget.timerService.addListener(_onTimerChanged);
-    _loadSelectedTimeUnit();
     _startTickerIfNeeded();
   }
 
@@ -129,38 +125,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     if (mounted) setState(() {});
   }
 
-  /// Загрузить сохраненное значение выбранного режима отображения
-  Future<void> _loadSelectedTimeUnit() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getInt('timer_selected_time_unit');
-      if (saved != null && saved >= 0 && saved <= 2) {
-        setState(() => _selectedTimeUnit = saved);
-        _startTickerIfNeeded();
-      }
-    } catch (e) {
-      // Игнорируем ошибки загрузки
-    }
-  }
 
-  /// Сохранить выбранный режим отображения
-  Future<void> _saveSelectedTimeUnit(int value) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('timer_selected_time_unit', value);
-    } catch (e) {
-      // Игнорируем ошибки сохранения
-    }
-  }
 
   void _startTickerIfNeeded() {
     _ticker?.cancel();
     _ticker = null;
-    if (_selectedTimeUnit == 2) {
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    }
+    // Always tick every second — the petal dial shows seconds
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _toggle() {
@@ -177,56 +150,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
 
   TimerItem? get _displayTimer => widget.timerService.defaultTimer;
 
-  String _counterValue(TimerItem timer) {
-    switch (_selectedTimeUnit) {
-      case 0:
-        final days = timer.daysElapsed;
-        return days.abs().toString();
-      case 1:
-        final months = timer.monthsElapsed;
-        return months.abs().toString();
-      case 2:
-        return timer.formattedTime;
-      default:
-        return '0';
-    }
-  }
 
-  String _counterLabel(TimerItem timer) {
-    final suffix = timer.isCountdown ? ' LEFT' : '';
-    switch (_selectedTimeUnit) {
-      case 0:
-        return 'DAYS$suffix';
-      case 1:
-        return 'MONTHS$suffix';
-      case 2:
-        return timer.isCountdown ? 'TIME LEFT' : 'TIME';
-      default:
-        return 'DAYS$suffix';
-    }
-  }
-
-  /// Возвращает строку вида «2 года 5 месяцев» / «11 месяцев» / null
-  /// Используется только в режиме Time для подписи под таймером.
-  String? _yearsMonthsLabel(TimerItem timer) {
-    final total = timer.monthsElapsed.abs();
-    final years = total ~/ 12;
-    final months = total % 12;
-    if (years == 0) {
-      return '$months ${_pluralRu(months, 'месяц', 'месяца', 'месяцев')}';
-    }
-    final yearStr = '$years ${_pluralRu(years, 'год', 'года', 'лет')}';
-    if (months == 0) return yearStr;
-    return '$yearStr $months ${_pluralRu(months, 'месяц', 'месяца', 'месяцев')}';
-  }
-
-  String _pluralRu(int n, String one, String few, String many) {
-    final mod10 = n % 10;
-    final mod100 = n % 100;
-    if (mod10 == 1 && mod100 != 11) return one;
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-    return many;
-  }
 
   // =============================================
   // BUILD
@@ -237,8 +161,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     final screenHeight = mq.size.height;
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
-    // Высота карточки в свёрнутом виде
-    final collapsedHeight = widget.blobEnabled ? 340.0 : 248.0;
+    // Высота карточки в свёрнутом виде. 
+    // Поскольку AspectRatio равен 1.0, ширина равна mq.size.width - 24 (отступы),
+    // высота состоит из: 2 (padding top) + (ширина - 24) + 32 (высота стрелочки) + 2 (padding bottom).
+    // Итого: width + 12.
+    final collapsedHeight = mq.size.width + 12.0;
     const headerHeight = 64.0;
     const cardTopOffset = 16.0;
     const bottomNavHeight = 64.0;
@@ -269,41 +196,54 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: _cardBorderRadius,
-              boxShadow: [
-                BoxShadow(
-                  color: Color.lerp(_shadowColorBase, _shadowColorExpanded, t)!,
-                  blurRadius: 32,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: t > 0
+                  ? [
+                      BoxShadow(
+                        color: Color.lerp(
+                            Colors.transparent, _shadowColorExpanded, t)!,
+                        blurRadius: 32,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
+                  : [],
             ),
-            child: AnimatedBlobClip(
-              enabled: widget.blobEnabled,
-              expandAnim: _expandAnim,
-              // Фон: градиент + опциональное фото — клипуется blob-формой
-              background: bgImage != null
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        DecoratedBox(
-                          decoration: _blobGradientDecoration,
-                          child: const SizedBox.expand(),
-                        ),
-                        Positioned.fill(child: bgImage),
-                      ],
-                    )
-                  : DecoratedBox(
-                      decoration: _blobGradientDecoration,
-                      child: const SizedBox.expand(),
+            child: ClipRRect(
+              borderRadius: _cardBorderRadius,
+              child: Stack(
+                fit: StackFit.passthrough,
+                children: [
+                  // Фон: градиент + опциональное фото, скрываем если t=0
+                  if (t > 0)
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: t,
+                        child: bgImage != null
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  DecoratedBox(
+                                    decoration: _gradientDecoration,
+                                    child: const SizedBox.expand(),
+                                  ),
+                                  Positioned.fill(child: bgImage),
+                                ],
+                              )
+                            : DecoratedBox(
+                                decoration: _gradientDecoration,
+                                child: const SizedBox.expand(),
+                              ),
+                      ),
                     ),
-              // Контент: текст + тоггл — ClipRRect(32), никогда blob-клипом
-              child: _buildCardStack(
-                null,
-                compactContent,
-                t,
-                bottomPadding,
-                collapsedHeight,
+                  // Контент
+                  _buildCardStack(
+                    null,
+                    compactContent,
+                    t,
+                    bottomPadding,
+                    collapsedHeight,
+                  ),
+                ],
               ),
             ),
           ),
@@ -413,82 +353,41 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
   Widget _buildCompactContent() {
     final timer = _displayTimer;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 36, 20, widget.blobEnabled ? 12 : 36),
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
       child: SizedBox(
         width: double.infinity,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Counter number — фиксированная высота чтобы не прыгало при смене режима
-            SizedBox(
-              height: 76,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, anim) =>
-                    FadeTransition(opacity: anim, child: child),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  key: ValueKey('$_selectedTimeUnit-${timer?.id ?? "none"}'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        timer != null ? _counterValue(timer) : '0',
-                        style: GoogleFonts.rubik(
-                          fontSize: _selectedTimeUnit == 2 ? 30 : 64,
-                          fontWeight: FontWeight.w800,
-                          color: timer != null
-                              ? Colors.white
-                              : Colors.white.withOpacity(0.5),
-                          height: 1.1,
-                        ),
-                      ),
-                      if (_selectedTimeUnit == 2 && timer != null) ...[
-                        () {
-                          final ym = _yearsMonthsLabel(timer);
-                          if (ym == null) return const SizedBox.shrink();
-                          return Text(
-                            ym,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white.withOpacity(0.82),
-                              letterSpacing: 0.3,
-                            ),
-                          );
-                        }(),
-                      ],
-                    ],
+            // Petal donut timer dial
+            AspectRatio(
+              aspectRatio: 1.0,
+              child: Center(
+                child: PetalTimerDial(
+                  theme: _t,
+                  startDate: timer?.startDate ?? DateTime.now(),
+                  isCountdown: timer?.isCountdown ?? false,
+                ),
+              ),
+            ),
+            // Arrow to expand
+            GestureDetector(
+              onTap: _toggle,
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                height: 32,
+                child: Center(
+                  child: RotationTransition(
+                    turns: _arrowRotation,
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 28,
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            // Label
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                timer != null
-                    ? '${_counterLabel(timer)} • ${timer.title}'
-                    : 'NO TIMERS YET',
-                key: ValueKey(
-                  '${timer != null ? _counterLabel(timer) : 'none'}-${timer?.title}',
-                ),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: timer != null
-                      ? Colors.white.withOpacity(0.9)
-                      : Colors.white.withOpacity(0.4),
-                  letterSpacing: 2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Toggle
-            _buildBottomBar(),
           ],
         ),
       ),
@@ -842,112 +741,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     }
   }
 
-  // ── Arrow button ──
-  Widget _buildBottomBar() {
-    const labels = ['Days', 'Months', 'Time'];
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(_t.heroGlassOpacity * 0.75),
-        borderRadius: BorderRadius.circular(28),
-        border: _t.heroToggleBorder
-            ? Border.all(color: Colors.white.withOpacity(0.3))
-            : null,
-      ),
-      padding: const EdgeInsets.all(4),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Ширина трёх вкладок занимает всё место минус кнопка стрелки
-          final arrowSlot = 44.0;
-          final toggleWidth = constraints.maxWidth - arrowSlot - 4;
-          final itemWidth = toggleWidth / 3;
-          return Row(
-            children: [
-              // ── Три вкладки с подвижным индикатором ──
-              SizedBox(
-                width: toggleWidth,
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      left: _selectedTimeUnit * itemWidth,
-                      top: 0,
-                      bottom: 0,
-                      width: itemWidth,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: List.generate(3, (i) {
-                        final selected = _selectedTimeUnit == i;
-                        return SizedBox(
-                          width: itemWidth,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() => _selectedTimeUnit = i);
-                              _saveSelectedTimeUnit(i);
-                              _startTickerIfNeeded();
-                            },
-                            behavior: HitTestBehavior.opaque,
-                            child: Center(
-                              child: Text(
-                                labels[i],
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: selected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: selected
-                                      ? _t.heroToggleSelectedColor
-                                      : Colors.white.withOpacity(
-                                          _t.heroGlassOpacity * 4,
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              // ── Кнопка-стрелка ──
-              GestureDetector(
-                onTap: _toggle,
-                child: SizedBox(
-                  width: arrowSlot,
-                  child: Center(
-                    child: RotationTransition(
-                      turns: _arrowRotation,
-                      child: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
+
 
 
 
