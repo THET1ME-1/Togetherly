@@ -336,8 +336,9 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
     final Color cardBg = isToday
         ? widget.theme.timerDialBackground
         : Colors.white.withOpacity(0.75);
-    final Color baseTextColor = const Color(0xFF6B7280);
-    final Color baseNumColor = const Color(0xFF1F2937);
+
+    final Color baseTextColor = widget.theme.navActiveIcon.withOpacity(0.8);
+    final Color baseNumColor = widget.theme.navActiveIcon;
 
     return GestureDetector(
       onTap: isFuture ? null : () => widget.onTap(widget.date),
