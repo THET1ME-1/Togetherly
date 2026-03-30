@@ -13,6 +13,7 @@ void showMoodPicker({
   required MoodService moodService,
   required WidgetService widgetService,
   required Color primary,
+  required Color navActiveIcon, // добавлено
 }) {
   final today = DateTime.now();
   final todayEntries = moodService.myEntriesForDay(today);
@@ -89,13 +90,17 @@ void showMoodPicker({
                         imagePath: mood.imagePath,
                         label: mood.label,
                       );
-                      widgetService.updateMood(mood.imagePath, mood.label, skipCalendar: true);
+                      widgetService.updateMood(
+                        mood.imagePath,
+                        mood.label,
+                        skipCalendar: true,
+                      );
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? primary.withOpacity(0.12)
+                            ? primary.withValues(alpha: 0.12)
                             : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
@@ -121,7 +126,7 @@ void showMoodPicker({
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: isSelected
-                                  ? primary
+                                  ? navActiveIcon
                                   : Colors.grey.shade600,
                             ),
                             textAlign: TextAlign.center,
@@ -173,6 +178,7 @@ void showMoodPickerForDate({
   required MoodService moodService,
   required WidgetService widgetService,
   required Color primary,
+  required Color navActiveIcon, // добавлено
 }) {
   final today = DateTime.now();
   final todayNorm = DateTime(today.year, today.month, today.day);
@@ -258,7 +264,11 @@ void showMoodPickerForDate({
                       Navigator.pop(ctx2);
                       if (isToday) {
                         pairData.setMood(mood.imagePath, mood.label);
-                        widgetService.updateMood(mood.imagePath, mood.label, skipCalendar: true);
+                        widgetService.updateMood(
+                          mood.imagePath,
+                          mood.label,
+                          skipCalendar: true,
+                        );
                       }
                       moodService.addMood(
                         moodId: mood.id,
@@ -271,7 +281,7 @@ void showMoodPickerForDate({
                       duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? primary.withOpacity(0.12)
+                            ? primary.withValues(alpha: 0.12)
                             : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
@@ -297,7 +307,7 @@ void showMoodPickerForDate({
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: isSelected
-                                  ? primary
+                                  ? navActiveIcon
                                   : Colors.grey.shade600,
                             ),
                             textAlign: TextAlign.center,

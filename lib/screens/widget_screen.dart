@@ -61,7 +61,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
-  
+
   // Фото дня
   bool _photoDayExpanded = false;
   String _photoDayMode = 'random'; // 'random' | 'custom'
@@ -72,12 +72,18 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
-  static const String _heartSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="m11.645 20.91-.007-.003-.022-.012a15.247 15.247 0 0 1-.383-.218 25.18 25.18 0 0 1-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0 1 12 5.052 5.5 5.5 0 0 1 16.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 0 1-4.244 3.17 15.247 15.247 0 0 1-.383.219l-.022.012-.007.004-.003.001a.752.752 0 0 1-.704 0l-.003-.001Z" /></svg>''';
-  static const String _calendarSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clip-rule="evenodd" /></svg>''';
-  static const String _timerSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 6a.75.75 0 0 0-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75V6Z" clip-rule="evenodd" /></svg>''';
-  static const String _photoSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z" clip-rule="evenodd" /></svg>''';
-  static const String _moodSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-2.625 6c-.54 0-.828.419-.936.634a1.96 1.96 0 0 0-.189.866c0 .298.059.605.189.866.108.215.395.634.936.634.54 0 .828-.419.936-.634.13-.26.189-.568.189-.866 0-.298-.059-.605-.189-.866-.108-.215-.395-.634-.936-.634Zm4.314.634c.108-.215.395-.634.936-.634.54 0 .828.419.936.634.13.26.189.568.189.866 0 .298-.059.605-.189.866-.108.215-.395.634-.936.634-.54 0-.828-.419-.936-.634a1.96 1.96 0 0 1-.189-.866c0-.298.059-.605.189-.866Zm-4.34 7.964a.75.75 0 0 1-1.061-1.06 5.236 5.236 0 0 1 3.73-1.538 5.236 5.236 0 0 1 3.695 1.538.75.75 0 1 1-1.061 1.06 3.736 3.736 0 0 0-2.639-1.098 3.736 3.736 0 0 0-2.664 1.098Z" clip-rule="evenodd" /></svg>''';
-  static const String _statsSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Zm4.5 7.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75Zm3.75-1.5a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0V12Zm2.25-3a.75.75 0 0 1 .75.75v6.75a.75.75 0 0 1-1.5 0V9.75A.75.75 0 0 1 13.5 9Zm3.75-1.5a.75.75 0 0 0-1.5 0v9a.75.75 0 0 0 1.5 0v-9Z" clip-rule="evenodd" /></svg>''';
+  static const String _heartSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="m11.645 20.91-.007-.003-.022-.012a15.247 15.247 0 0 1-.383-.218 25.18 25.18 0 0 1-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0 1 12 5.052 5.5 5.5 0 0 1 16.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 0 1-4.244 3.17 15.247 15.247 0 0 1-.383.219l-.022.012-.007.004-.003.001a.752.752 0 0 1-.704 0l-.003-.001Z" /></svg>''';
+  static const String _calendarSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clip-rule="evenodd" /></svg>''';
+  static const String _timerSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 6a.75.75 0 0 0-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75V6Z" clip-rule="evenodd" /></svg>''';
+  static const String _photoSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z" clip-rule="evenodd" /></svg>''';
+  static const String _moodSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-2.625 6c-.54 0-.828.419-.936.634a1.96 1.96 0 0 0-.189.866c0 .298.059.605.189.866.108.215.395.634.936.634.54 0 .828-.419.936-.634.13-.26.189-.568.189-.866 0-.298-.059-.605-.189-.866-.108-.215-.395-.634-.936-.634Zm4.314.634c.108-.215.395-.634.936-.634.54 0 .828.419.936.634.13.26.189.568.189.866 0 .298-.059.605-.189.866-.108.215-.395.634-.936.634-.54 0-.828-.419-.936-.634a1.96 1.96 0 0 1-.189-.866c0-.298.059-.605.189-.866Zm-4.34 7.964a.75.75 0 0 1-1.061-1.06 5.236 5.236 0 0 1 3.73-1.538 5.236 5.236 0 0 1 3.695 1.538.75.75 0 1 1-1.061 1.06 3.736 3.736 0 0 0-2.639-1.098 3.736 3.736 0 0 0-2.664 1.098Z" clip-rule="evenodd" /></svg>''';
+  static const String _statsSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Zm4.5 7.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75Zm3.75-1.5a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0V12Zm2.25-3a.75.75 0 0 1 .75.75v6.75a.75.75 0 0 1-1.5 0V9.75A.75.75 0 0 1 13.5 9Zm3.75-1.5a.75.75 0 0 0-1.5 0v9a.75.75 0 0 0 1.5 0v-9Z" clip-rule="evenodd" /></svg>''';
 
   // Геттер: выбранный таймер для виджета (non-system)
   TimerItem? get _widgetTimer {
@@ -119,8 +125,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         .count()
         .get()
         .then((snap) {
-      if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
-    }).catchError((_) {});
+          if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
+        })
+        .catchError((_) {});
 
     // Load drawings count
     FirebaseFirestore.instance
@@ -130,8 +137,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         .count()
         .get()
         .then((snap) {
-      if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
-    }).catchError((_) {});
+          if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
+        })
+        .catchError((_) {});
 
     // Miss you (from group doc)
     FirebaseFirestore.instance
@@ -139,10 +147,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
         .doc(groupId)
         .snapshots()
         .listen((snap) {
-      if (snap.exists && mounted) {
-        setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
-      }
-    });
+          if (snap.exists && mounted) {
+            setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
+          }
+        });
   }
 
   Future<void> _loadWidgetTimerId() async {
@@ -158,12 +166,14 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final prefs = await SharedPreferences.getInstance();
     final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
     final nativePath = await HomeWidget.getWidgetData<String>('photo_day_path');
-    
+
     if (mounted) {
       setState(() {
         _photoDayMode = mode;
         _savePhotoAsMemory = save;
-        _photoDayPath = (nativePath != null && nativePath.isNotEmpty) ? nativePath : customPath;
+        _photoDayPath = (nativePath != null && nativePath.isNotEmpty)
+            ? nativePath
+            : customPath;
         _photoDayVersion++;
       });
     }
@@ -183,14 +193,17 @@ class _WidgetScreenState extends State<WidgetScreen> {
     } else {
       final prefs = await SharedPreferences.getInstance();
       final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
-      
+
       if (customPath != null && File(customPath).existsSync()) {
         await hws.syncPhotoOfDay(photoUrl: '', localFile: File(customPath));
       } else {
         await HomeWidget.saveWidgetData<String>('photo_day_path', '');
-        await HomeWidget.updateWidget(name: 'PhotoDayWidgetProvider', androidName: 'PhotoDayWidgetProvider');
+        await HomeWidget.updateWidget(
+          name: 'PhotoDayWidgetProvider',
+          androidName: 'PhotoDayWidgetProvider',
+        );
       }
-      
+
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
       await _loadPhotoDayPrefs();
@@ -231,15 +244,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
         final fb = FirebaseService();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final destination = 'memories/${_pair.pairId}/photo_day_$timestamp.jpg';
-        
+
         final url = await fb.uploadFile(file.path, destination);
         if (url != null) {
           await fb.addMemory(
             groupId: _pair.pairId,
             type: MemoryType.photo,
             imageUrl: url,
-            caption: LocaleService.instance.isRussian 
-                ? 'Установлено как фото дня' 
+            caption: LocaleService.instance.isRussian
+                ? 'Установлено как фото дня'
                 : 'Set as Photo of the Day',
           );
           _loadStats(); // Обновить счетчик воспоминаний
@@ -272,7 +285,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
-    debugPrint('_pinWidget called: qualifiedName=$qualifiedName, widgetType=$widgetType');
+    debugPrint(
+      '_pinWidget called: qualifiedName=$qualifiedName, widgetType=$widgetType',
+    );
     try {
       final className = qualifiedName.split('.').last;
       debugPrint('_pinWidget: requesting pin for className=$className');
@@ -384,7 +399,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         final start = sysTimer?.startDate ?? _pair.startDate;
         final isRu = LocaleService.instance.isRussian;
         await hws.syncRelationshipStats(
-          daysTogether: start != null ? DateTime.now().difference(start).inDays : 0,
+          daysTogether: start != null
+              ? DateTime.now().difference(start).inDays
+              : 0,
           memoriesCount: _memoriesCount ?? 0,
           drawingsCount: _drawingsCount ?? 0,
           missYouCount: _missYouCount ?? 0,
@@ -693,7 +710,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   data.moodLabel,
                   style: GoogleFonts.rubik(
                     fontSize: 10,
-                    color: Colors.white.withOpacity(0.9),
+                    color: _t.navActiveIcon, // адаптивный цвет темы
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -848,12 +865,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _buildGalleryItem(
           title: isRu ? 'Фото дня' : 'Photo of the Day',
           subtitle: isRu
-              ? (_photoDayMode == 'random' 
-                  ? 'Случайное фото из ленты' 
-                  : 'Своё установленное фото')
-              : (_photoDayMode == 'random' 
-                  ? 'Random photo from Memory Lane' 
-                  : 'Custom set photo'),
+              ? (_photoDayMode == 'random'
+                    ? 'Случайное фото из ленты'
+                    : 'Своё установленное фото')
+              : (_photoDayMode == 'random'
+                    ? 'Random photo from Memory Lane'
+                    : 'Custom set photo'),
           svgString: _photoSvg,
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
           preview: _buildPhotoDayPreview(),
@@ -1038,7 +1055,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         : '';
 
     final myGender = widget.userData.gender?.name ?? 'male';
-    final partnerGender = _ws.firstPartnerData?.gender.isNotEmpty == true ? _ws.firstPartnerData!.gender : 'female';
+    final partnerGender = _ws.firstPartnerData?.gender.isNotEmpty == true
+        ? _ws.firstPartnerData!.gender
+        : 'female';
 
     String imgName = 'widget_couple_mf';
     if (myGender == 'female' && partnerGender == 'female') {
@@ -1051,12 +1070,14 @@ class _WidgetScreenState extends State<WidgetScreen> {
     String yearsText;
     if (years % 10 == 1 && years % 100 != 11) {
       yearsText = '$years год уже ❤️';
-    } else if (years % 10 >= 2 && years % 10 <= 4 && (years % 100 < 10 || years % 100 >= 20)) {
+    } else if (years % 10 >= 2 &&
+        years % 10 <= 4 &&
+        (years % 100 < 10 || years % 100 >= 20)) {
       yearsText = '$years года уже ❤️';
     } else {
       yearsText = '$years лет уже ❤️';
     }
-    
+
     if (!isRu) {
       yearsText = '$years years already ❤️';
     }
@@ -1076,7 +1097,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
             right: 0,
             bottom: 0,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(21)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(21),
+              ),
               child: Image.asset(
                 'assets/images/widget/$imgName.png',
                 fit: BoxFit.contain,
@@ -1200,10 +1223,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            _t.primary.withOpacity(0.06),
-            _t.primary.withOpacity(0.12),
-          ],
+          colors: [_t.primary.withOpacity(0.06), _t.primary.withOpacity(0.12)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _t.primary.withOpacity(0.1)),
@@ -1241,10 +1261,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
           Text(
             daysLabel,
-            style: GoogleFonts.rubik(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
+            style: GoogleFonts.rubik(fontSize: 14, color: Colors.grey.shade500),
           ),
           if (date.isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -1276,10 +1293,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           isRu
               ? 'Нет таймеров. Добавьте таймер в разделе «Таймеры».'
               : 'No timers. Add a timer in the Timers section.',
-          style: GoogleFonts.rubik(
-            fontSize: 12,
-            color: Colors.grey.shade500,
-          ),
+          style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade500),
         ),
       );
     }
@@ -1378,95 +1392,111 @@ class _WidgetScreenState extends State<WidgetScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _t.primary.withOpacity(0.1)),
         ),
-      child: Stack(
-        children: [
-          if (_photoDayPath != null && _photoDayPath!.isNotEmpty)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _photoDayPath!.startsWith('http')
-                    ? Image.network(_photoDayPath!, fit: BoxFit.cover, key: ValueKey('net_${_photoDayPath}_${_photoDayVersion}'))
-                    : Image.file(File(_photoDayPath!), fit: BoxFit.cover, key: ValueKey('file_${_photoDayPath}_${_photoDayVersion}')),
-              ),
-            )
-          else
-            // Заглушка
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('📷', style: TextStyle(fontSize: 40)),
-                  const SizedBox(height: 6),
-                  Text(
-                    isRu ? 'Фото дня' : 'Photo of the Day',
-                    style: GoogleFonts.rubik(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: _t.primary.withOpacity(0.6),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isRu
-                        ? 'Последнее фото из воспоминаний'
-                        : 'Latest photo from memories',
-                    style: GoogleFonts.rubik(
-                      fontSize: 11,
-                      color: _t.primary.withOpacity(0.4),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          
-          if (_isLoadingPhoto)
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
+        child: Stack(
+          children: [
+            if (_photoDayPath != null && _photoDayPath!.isNotEmpty)
+              Positioned.fill(
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
+                  child: _photoDayPath!.startsWith('http')
+                      ? Image.network(
+                          _photoDayPath!,
+                          fit: BoxFit.cover,
+                          key: ValueKey(
+                            'net_${_photoDayPath}_${_photoDayVersion}',
+                          ),
+                        )
+                      : Image.file(
+                          File(_photoDayPath!),
+                          fit: BoxFit.cover,
+                          key: ValueKey(
+                            'file_${_photoDayPath}_${_photoDayVersion}',
+                          ),
+                        ),
                 ),
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              ),
-            ),
-          // Нижний оверлей
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Text('📸', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 4),
-                  Text(
-                    isRu ? 'Фото дня' : 'Photo of the Day',
-                    style: GoogleFonts.rubik(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+              )
+            else
+              // Заглушка
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('📷', style: TextStyle(fontSize: 40)),
+                    const SizedBox(height: 6),
+                    Text(
+                      isRu ? 'Фото дня' : 'Photo of the Day',
+                      style: GoogleFonts.rubik(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _t.primary.withOpacity(0.6),
+                      ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isRu
+                          ? 'Последнее фото из воспоминаний'
+                          : 'Latest photo from memories',
+                      style: GoogleFonts.rubik(
+                        fontSize: 11,
+                        color: _t.primary.withOpacity(0.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (_isLoadingPhoto)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ],
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
+              ),
+            // Нижний оверлей
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
+                  ),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Text('📸', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 4),
+                    Text(
+                      isRu ? 'Фото дня' : 'Photo of the Day',
+                      style: GoogleFonts.rubik(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -1519,19 +1549,19 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: _photoDayPath!.startsWith('http') 
-                        ? Image.network(
-                            _photoDayPath!,
-                            height: 120,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.file(
-                            File(_photoDayPath!),
-                            height: 120,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
+                      child: _photoDayPath!.startsWith('http')
+                          ? Image.network(
+                              _photoDayPath!,
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.file(
+                              File(_photoDayPath!),
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
                     ),
                   ),
                 SizedBox(
@@ -1539,12 +1569,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _pickCustomPhoto,
                     icon: const Icon(Icons.add_a_photo_rounded, size: 18),
-                    label: Text(isRu ? 'Выбрать фото с устройства' : 'Pick from device'),
+                    label: Text(
+                      isRu ? 'Выбрать фото с устройства' : 'Pick from device',
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _t.primaryLight,
                       foregroundColor: _t.primary,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
@@ -1553,9 +1587,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        isRu ? 'Добавить в ленту воспоминаний' : 'Save to Memory Lane',
+                        isRu
+                            ? 'Добавить в ленту воспоминаний'
+                            : 'Save to Memory Lane',
                         style: GoogleFonts.rubik(
-                          fontSize: 12, 
+                          fontSize: 12,
                           color: Colors.grey.shade700,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1597,7 +1633,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? _t.primary : Colors.grey.shade400, size: 20),
+            Icon(
+              icon,
+              color: isSelected ? _t.primary : Colors.grey.shade400,
+              size: 20,
+            ),
             const SizedBox(height: 4),
             Text(
               label,
@@ -1650,10 +1690,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            _t.primary.withOpacity(0.05),
-            _t.primary.withOpacity(0.1),
-          ],
+          colors: [_t.primary.withOpacity(0.05), _t.primary.withOpacity(0.1)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _t.primary.withOpacity(0.1)),
@@ -1747,10 +1784,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const SizedBox(height: 4),
           Text(
             isRu ? 'Нет' : 'None',
-            style: GoogleFonts.rubik(
-              fontSize: 12,
-              color: Colors.grey.shade400,
-            ),
+            style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade400),
           ),
         ],
       ],
@@ -2015,27 +2049,28 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      progressIndicatorBuilder: (context, url, downloadProgress) {
-                        return Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: _t.primary,
-                                value: downloadProgress.progress,
+                      progressIndicatorBuilder:
+                          (context, url, downloadProgress) {
+                            return Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ),
-                          ),
-                        );
-                      },
+                              child: Center(
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _t.primary,
+                                    value: downloadProgress.progress,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                       errorWidget: (context, url, error) => Container(
                         width: 36,
                         height: 36,
@@ -2206,27 +2241,28 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      progressIndicatorBuilder: (context, url, downloadProgress) {
-                        return Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: _t.primary,
-                                value: downloadProgress.progress,
+                      progressIndicatorBuilder:
+                          (context, url, downloadProgress) {
+                            return Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ),
-                          ),
-                        );
-                      },
+                              child: Center(
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _t.primary,
+                                    value: downloadProgress.progress,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                       errorWidget: (context, url, error) => Container(
                         width: 36,
                         height: 36,
@@ -2794,10 +2830,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               children: [
                 CircularProgressIndicator(color: _t.primary),
                 const SizedBox(height: 16),
-                Text(
-                  _s.uploadingPhoto,
-                  style: GoogleFonts.rubik(fontSize: 14),
-                ),
+                Text(_s.uploadingPhoto, style: GoogleFonts.rubik(fontSize: 14)),
               ],
             ),
           ),
@@ -2836,10 +2869,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _s.resetWidget,
           style: GoogleFonts.rubik(fontWeight: FontWeight.w700),
         ),
-        content: Text(
-          _s.resetWidgetConfirm,
-          style: GoogleFonts.rubik(),
-        ),
+        content: Text(_s.resetWidgetConfirm, style: GoogleFonts.rubik()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -3037,9 +3067,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               style: GoogleFonts.rubik(fontSize: 16),
               decoration: InputDecoration(
                 hintText: widget.hint,
-                hintStyle: GoogleFonts.rubik(
-                  color: Colors.grey.shade400,
-                ),
+                hintStyle: GoogleFonts.rubik(color: Colors.grey.shade400),
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(
