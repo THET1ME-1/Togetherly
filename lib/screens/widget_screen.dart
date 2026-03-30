@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +69,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
   String? _photoDayPath;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
+
+  static const String _heartSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="m11.645 20.91-.007-.003-.022-.012a15.247 15.247 0 0 1-.383-.218 25.18 25.18 0 0 1-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0 1 12 5.052 5.5 5.5 0 0 1 16.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 0 1-4.244 3.17 15.247 15.247 0 0 1-.383.219l-.022.012-.007.004-.003.001a.752.752 0 0 1-.704 0l-.003-.001Z" /></svg>''';
+  static const String _calendarSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clip-rule="evenodd" /></svg>''';
+  static const String _timerSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 6a.75.75 0 0 0-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75V6Z" clip-rule="evenodd" /></svg>''';
+  static const String _photoSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z" clip-rule="evenodd" /></svg>''';
+  static const String _moodSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-2.625 6c-.54 0-.828.419-.936.634a1.96 1.96 0 0 0-.189.866c0 .298.059.605.189.866.108.215.395.634.936.634.54 0 .828-.419.936-.634.13-.26.189-.568.189-.866 0-.298-.059-.605-.189-.866-.108-.215-.395-.634-.936-.634Zm4.314.634c.108-.215.395-.634.936-.634.54 0 .828.419.936.634.13.26.189.568.189.866 0 .298-.059.605-.189.866-.108.215-.395.634-.936.634-.54 0-.828-.419-.936-.634a1.96 1.96 0 0 1-.189-.866c0-.298.059-.605.189-.866Zm-4.34 7.964a.75.75 0 0 1-1.061-1.06 5.236 5.236 0 0 1 3.73-1.538 5.236 5.236 0 0 1 3.695 1.538.75.75 0 1 1-1.061 1.06 3.736 3.736 0 0 0-2.639-1.098 3.736 3.736 0 0 0-2.664 1.098Z" clip-rule="evenodd" /></svg>''';
+  static const String _statsSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Zm4.5 7.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75Zm3.75-1.5a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0V12Zm2.25-3a.75.75 0 0 1 .75.75v6.75a.75.75 0 0 1-1.5 0V9.75A.75.75 0 0 1 13.5 9Zm3.75-1.5a.75.75 0 0 0-1.5 0v9a.75.75 0 0 0 1.5 0v-9Z" clip-rule="evenodd" /></svg>''';
 
   // Геттер: выбранный таймер для виджета (non-system)
   TimerItem? get _widgetTimer {
@@ -447,12 +455,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: _t.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
             ),
-            child: Icon(Icons.widgets_rounded, color: _t.primary, size: 22),
+            child: Icon(Icons.widgets_rounded, color: _t.primary, size: 24),
           ),
           const SizedBox(width: 12),
           Text(
@@ -751,8 +760,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           subtitle: isRu
               ? 'Настроение, статус, сообщения и фото'
               : 'Mood, status, messages & photos',
-          icon: Icons.favorite_rounded,
-          iconColor: const Color(0xFFEE2B6C),
+          svgString: _heartSvg,
           qualifiedName: 'com.example.love_app.LoveWidgetProvider',
           preview: _buildWidgetPreview(),
           widgetType: 'pair',
@@ -769,8 +777,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           subtitle: isRu
               ? 'Системный счётчик дней отношений'
               : 'Relationship day counter',
-          icon: Icons.calendar_today_rounded,
-          iconColor: const Color(0xFFFF6B8A),
+          svgString: _calendarSvg,
           qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
           preview: _buildDaysCounterPreview(),
           widgetType: 'days_counter',
@@ -783,8 +790,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           subtitle: isRu
               ? 'Выберите таймер для виджета'
               : 'Choose a timer for the widget',
-          icon: Icons.timer_rounded,
-          iconColor: const Color(0xFF8B5CF6),
+          svgString: _timerSvg,
           qualifiedName: 'com.example.love_app.TimerWidgetProvider',
           preview: _buildTimerPreview(),
           widgetType: 'timer',
@@ -805,8 +811,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               : (_photoDayMode == 'random' 
                   ? 'Random photo from Memory Lane' 
                   : 'Custom set photo'),
-          icon: Icons.photo_camera_rounded,
-          iconColor: const Color(0xFFEC4899),
+          svgString: _photoSvg,
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
           preview: _buildPhotoDayPreview(),
           widgetType: 'photo_day',
@@ -823,8 +828,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           subtitle: isRu
               ? 'Горизонтальный виджет: моё и партнёра'
               : 'Horizontal widget: mine & partner\'s',
-          icon: Icons.emoji_emotions_rounded,
-          iconColor: const Color(0xFFFBBF24),
+          svgString: _moodSvg,
           qualifiedName: 'com.example.love_app.MoodWidgetProvider',
           preview: _buildMoodPreview(),
           widgetType: 'mood',
@@ -837,8 +841,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           subtitle: isRu
               ? 'Важные цифры: дни, фото, рисунки и «скучаю»'
               : 'Important stats: days, photos, drawings & miss yous',
-          icon: Icons.analytics_rounded,
-          iconColor: const Color(0xFF6366F1),
+          svgString: _statsSvg,
           qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
           preview: _buildRelationshipStatsPreview(),
           widgetType: 'relationship_stats',
@@ -850,8 +853,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   Widget _buildGalleryItem({
     required String title,
     required String subtitle,
-    required IconData icon,
-    required Color iconColor,
+    required String svgString,
     required String qualifiedName,
     required Widget preview,
     String? widgetType,
@@ -860,6 +862,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     VoidCallback? onToggleExpand,
   }) {
     final isRu = LocaleService.instance.isRussian;
+    final iconColor = _t.primary;
 
     return _buildGlassCard(
       child: Column(
@@ -872,13 +875,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: iconColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
+                    shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 18, color: iconColor),
+                  child: Center(
+                    child: SvgPicture.string(
+                      svgString,
+                      width: 20,
+                      height: 20,
+                      colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1832,18 +1842,18 @@ class _WidgetScreenState extends State<WidgetScreen> {
           Row(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [_t.primary, _t.primary.withOpacity(0.7)],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.person_rounded,
                   color: Colors.white,
-                  size: 18,
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 10),
@@ -2012,11 +2022,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
           Row(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.circle,
                   image: _pair.partnerAvatarUrl.isNotEmpty
                       ? DecorationImage(
                           image: NetworkImage(_pair.partnerAvatarUrl),
@@ -2028,7 +2038,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     ? Icon(
                         Icons.person_rounded,
                         color: Colors.grey.shade500,
-                        size: 18,
+                        size: 22,
                       )
                     : null,
               ),
@@ -2274,13 +2284,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 17, color: iconColor),
+              child: Icon(icon, size: 22, color: iconColor),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -2379,13 +2389,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 17, color: iconColor),
+            child: Icon(icon, size: 22, color: iconColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2441,13 +2451,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
       child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(9),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 16, color: iconColor),
+            child: Icon(icon, size: 20, color: iconColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2595,7 +2605,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   height: 80,
                   decoration: BoxDecoration(
                     color: _t.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(24),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.widgets_rounded,
