@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../services/mood_service.dart';
 import '../theme/app_theme.dart';
@@ -465,7 +466,7 @@ class _DayCellState extends State<_DayCell>
                       Center(
                         child: Text(
                           widget.date.day.toString(),
-                          style: TextStyle(
+                          style: GoogleFonts.rubik(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                             color: isToday ? Colors.white : baseNumColor,
