@@ -89,7 +89,7 @@ void showMoodPicker({
                         imagePath: mood.imagePath,
                         label: mood.label,
                       );
-                      widgetService.updateMood(mood.imagePath, mood.label);
+                      widgetService.updateMood(mood.imagePath, mood.label, skipCalendar: true);
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -258,7 +258,7 @@ void showMoodPickerForDate({
                       Navigator.pop(ctx2);
                       if (isToday) {
                         pairData.setMood(mood.imagePath, mood.label);
-                        widgetService.updateMood(mood.imagePath, mood.label);
+                        widgetService.updateMood(mood.imagePath, mood.label, skipCalendar: true);
                       }
                       moodService.addMood(
                         moodId: mood.id,
