@@ -239,6 +239,37 @@ class HomeWidgetService {
     }
   }
 
+  /// Вызывается при удалении воспоминания, чтобы убрать его из виджета, если оно там отображалось
+  Future<void> handleMemoryDeleted(String groupId, String deletedMemoryId) async {
+    try {
+      final currentMemoryId = await HomeWidget.getWidgetData<String>('photo_day_memory_id');
+      if (currentMemoryId == deletedMemoryId) {
+        debugPrint('HomeWidgetService: Deleted memory was displayed in widget. Updating...');
+        
+        // Если это был кастомный режим (свое фото), переключаем обратно в random
+        final mode = await getPhotoDayMode(groupId);
+        if (mode == 'custom') {
+          await setPhotoDayMode(groupId, 'random');
+        }
+        
+        // Временно очищаем виджет (на случай если это было последнее фото)
+        await HomeWidget.saveWidgetData<String>('photo_day_path', '');
+        await HomeWidget.saveWidgetData<String>('photo_day_caption', '');
+        await HomeWidget.saveWidgetData<String>('photo_day_memory_id', '');
+        await HomeWidget.saveWidgetData<String>('photo_day_author', '');
+        await HomeWidget.updateWidget(
+          name: 'PhotoDayWidgetProvider',
+          androidName: 'PhotoDayWidgetProvider',
+        );
+
+        // Пытаемся загрузить новое случайное фото
+        await refreshPhotoOfDay(groupId);
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.handleMemoryDeleted failed: $e');
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  4. НАСТРОЕНИЕ
   // ════════════════════════════════════════════════════════════════════════

@@ -15,6 +15,7 @@ import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
+import '../services/home_widget_service.dart';
 import '../theme/app_theme.dart';
 import 'map_picker_screen.dart';
 
@@ -1764,6 +1765,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 musicUrl: memory.musicUrl,
                 musicCoverUrl: memory.musicCoverUrl,
               );
+
+              // Обновляем виджет, если удалили фото дня
+              if (memory.type == MemoryType.photo) {
+                await HomeWidgetService.instance.handleMemoryDeleted(_groupId, memory.id);
+              }
             },
             child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
           ),
