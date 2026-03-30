@@ -60,7 +60,9 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   late AnimationController _flingCtrl;
   late Ticker _chaseTicker;
   List<double> _displayFactors = List.filled(6, 0.0);
+  List<double> _presenceFactors = List.filled(6, 1.0);
   List<_PetalData> _currentPetals = [];
+  final Set<int> _hiddenIndices = {};
 
   @override
   void initState() {
@@ -87,6 +89,17 @@ class _PetalTimerDialState extends State<PetalTimerDial>
         changed = true;
       } else if (_displayFactors[i] != target) {
         _displayFactors[i] = target;
+        changed = true;
+      }
+
+      // Анимируем присутствие (ширину) лепестка
+      final targetPresence = _hiddenIndices.contains(i) ? 0.0 : 1.0;
+      final pDiff = targetPresence - _presenceFactors[i];
+      if (pDiff.abs() > 0.001) {
+        _presenceFactors[i] += pDiff * 0.2;
+        changed = true;
+      } else if (_presenceFactors[i] != targetPresence) {
+        _presenceFactors[i] = targetPresence;
         changed = true;
       }
     }
@@ -220,10 +233,61 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     ];
   }
 
+  void _handleInteraction(Offset localPos, {bool isLongPress = false}) {
+    final box = context.findRenderObject() as RenderBox;
+    final size = box.size;
+    final center = size.center(Offset.zero);
+    final offset = localPos - center;
+    final distance = offset.distance;
+
+    final outerR = math.min(center.dx, center.dy) - 2;
+    final innerR = outerR * 0.25; // Slightly larger hit area for center
+
+    if (distance < innerR) {
+      if (_hiddenIndices.isNotEmpty) {
+        setState(() {
+          _hiddenIndices.clear();
+        });
+      }
+      return;
+    }
+
+    if (!isLongPress || distance > outerR || distance < outerR * 0.15) return;
+
+    // Determine angle
+    double angle = math.atan2(offset.dy, offset.dx);
+    angle -= _rotationAngle;
+    angle += math.pi / 2;
+
+    while (angle < 0) angle += 2 * math.pi;
+    while (angle >= 2 * math.pi) angle -= 2 * math.pi;
+
+    final totalPres = _presenceFactors.reduce((a, b) => a + b);
+    if (totalPres < 0.001) return;
+
+    double normalizedTapped = angle * (totalPres / (2 * math.pi));
+    double runningPres = 0;
+    int tappedIdx = -1;
+    for (int i = 0; i < 6; i++) {
+      runningPres += _presenceFactors[i];
+      if (normalizedTapped < runningPres) {
+        tappedIdx = i;
+        break;
+      }
+    }
+
+    if (tappedIdx != -1) {
+      setState(() {
+        _hiddenIndices.add(tappedIdx);
+      });
+    }
+  }
   @override
   Widget build(BuildContext context) {
-    // _currentPetals и _displayFactors инициализируются в initState
+    _currentPetals = _computePetals();
     final petals = _currentPetals;
+    final factors = _displayFactors;
+    final presence = _presenceFactors;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -233,6 +297,9 @@ class _PetalTimerDialState extends State<PetalTimerDial>
         final scale = size / 280.0;
 
         return GestureDetector(
+          onTapUp: (details) => _handleInteraction(details.localPosition),
+          onLongPressStart: (details) =>
+              _handleInteraction(details.localPosition, isLongPress: true),
           onScaleStart: (details) => _onPanStart(
             DragStartDetails(
               localPosition: details.localFocalPoint,
@@ -254,10 +321,12 @@ class _PetalTimerDialState extends State<PetalTimerDial>
             child: CustomPaint(
               painter: _PetalDialPainter(
                 petals: petals,
-                displayFactors: _displayFactors,
+                displayFactors: factors,
+                presenceFactors: presence,
                 rotationAngle: _rotationAngle,
                 theme: widget.theme,
                 scale: scale,
+                totalPresence: presence.reduce((a, b) => a + b),
               ),
             ),
           ),
@@ -270,16 +339,20 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 class _PetalDialPainter extends CustomPainter {
   final List<_PetalData> petals;
   final List<double> displayFactors;
+  final List<double> presenceFactors;
   final double rotationAngle;
   final AppTheme theme;
   final double scale;
+  final double totalPresence;
 
   _PetalDialPainter({
     required this.petals,
     required this.displayFactors,
+    required this.presenceFactors,
     required this.rotationAngle,
     required this.theme,
     required this.scale,
+    required this.totalPresence,
   });
 
   @override
@@ -304,32 +377,62 @@ class _PetalDialPainter extends CustomPainter {
     final rigidOuter = outerR - cr;
     final h = (gapWidth / 2) + cr;
 
-    final totalAngle = 2 * math.pi / petals.length;
+    if (totalPresence < 0.001) return;
 
     canvas.save();
     canvas.translate(cx, cy);
+
+    // Draw restore hint in the center if any petals are hidden
+    if (totalPresence < 5.9) {
+      final restoreAlpha = (6.0 - totalPresence).clamp(0.0, 1.0);
+      final restorePaint = Paint()
+        ..color = theme.navActiveIcon.withValues(alpha: 0.3 * restoreAlpha)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset.zero, innerR * 0.8, restorePaint);
+      
+      _drawText(
+        canvas,
+        text: '↺',
+        x: 0,
+        y: 0,
+        fontSize: 16 * scale,
+        fontWeight: FontWeight.bold,
+        color: Colors.white.withValues(alpha: restoreAlpha),
+        counterRotation: 0,
+      );
+    }
+
     canvas.rotate(rotationAngle);
 
+    double currentStartAngle = -math.pi / 2;
+
     for (int i = 0; i < petals.length; i++) {
+      final pres = presenceFactors[i];
+      if (pres < 0.01) continue;
+
       final petal = petals[i];
+      final sweep = (2 * math.pi / totalPresence) * pres;
+      final sweepHalf = sweep / 2;
 
       // Rotate canvas per-segment so the petal is constructed along the local X-axis (angle 0).
-      // i=0 is top (-pi/2), so:
-      final segAngle = -math.pi / 2 + i * totalAngle;
+      final segAngle = currentStartAngle + sweepHalf;
 
       canvas.save();
       canvas.rotate(segAngle);
 
       // ── 1. Draw Background Track (the placeholder for max value) ──
       // Фон лепестков берётся из новой настройки темы
-      final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h);
+      final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h, sweepHalf);
+
+      // Квадратичное затухание прозрачности для более чистого исчезновения
+      final alpha = (pres * pres).clamp(0.0, 1.0);
 
       final bgPaintFill = Paint()
-        ..color = theme.timerDialBackground
+        ..color = theme.timerDialBackground.withValues(alpha: alpha)
         ..style = PaintingStyle.fill;
 
       final bgPaintStroke = Paint()
-        ..color = theme.timerDialBackground
+        ..color = theme.timerDialBackground.withValues(alpha: alpha)
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = cr * 2;
@@ -344,10 +447,10 @@ class _PetalDialPainter extends CustomPainter {
         final currentOuterR = innerR + (outerR - innerR) * factor;
         final rigidFgOuter = math.max(rigidInner + 0.1, currentOuterR - cr);
 
-        final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h);
+        final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h, sweepHalf);
 
-        // Цвет заполнения как у иконок в навигации (theme.navActiveIcon)
-        final fgColor = theme.navActiveIcon;
+        // Цвет заполнения с учетом прозрачности при анимации
+        final fgColor = theme.navActiveIcon.withValues(alpha: alpha);
 
         final fgPaintFill = Paint()
           ..color = fgColor
@@ -365,7 +468,7 @@ class _PetalDialPainter extends CustomPainter {
 
       // ── 3. Draw Text ──
       final textR = (innerR + outerR) / 2;
-      final txColor = Colors.white.withValues(alpha: 0.95);
+      final txColor = Colors.white.withValues(alpha: 0.95 * alpha);
 
       canvas.save();
       canvas.translate(textR, 0);
@@ -396,17 +499,20 @@ class _PetalDialPainter extends CustomPainter {
       canvas.restore();
 
       canvas.restore();
+      
+      currentStartAngle += sweep;
     }
 
     canvas.restore();
   }
 
-  Path _buildParallelRigidSector(double outer, double inner, double h) {
+  Path _buildParallelRigidSector(
+      double outer, double inner, double h, double sweepHalf) {
     final path = Path();
 
-    // Bounds for 6 total segments (2 * pi / 6).
-    const topA = math.pi / 6;
-    const botA = -math.pi / 6;
+    // Bounds for segments based on total count.
+    final topA = sweepHalf;
+    final botA = -sweepHalf;
 
     if (outer <= h || outer <= inner) return path;
 
@@ -436,7 +542,7 @@ class _PetalDialPainter extends CustomPainter {
         tIn * math.sin(botA) + h * math.cos(botA),
       );
     } else {
-      final xIntersect = h / math.sin(math.pi / 6);
+      final xIntersect = h / math.sin(sweepHalf);
       pInTop = Offset(xIntersect, 0);
       pInBot = Offset(xIntersect, 0);
     }
@@ -510,5 +616,7 @@ class _PetalDialPainter extends CustomPainter {
       old.rotationAngle != rotationAngle ||
       old.petals != petals ||
       old.displayFactors != displayFactors ||
-      old.scale != scale;
+      old.presenceFactors != presenceFactors ||
+      old.scale != scale ||
+      old.totalPresence != totalPresence;
 }
