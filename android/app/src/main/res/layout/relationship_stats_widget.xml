@@ -3,7 +3,7 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/stats_widget_bg"
+    android:background="@android:color/transparent"
     android:orientation="vertical"
     android:padding="8dp">
 

@@ -110,7 +110,7 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender.isNotEmpty ? partnerGender : 'female');
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',
+        androidName: 'DaysCounterWidgetProvider',
       );
       debugPrint('HomeWidgetService: days counter synced — $daysCount days');
     } catch (e) {
@@ -143,7 +143,7 @@ class HomeWidgetService {
       );
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.TimerWidgetProvider',
+        androidName: 'TimerWidgetProvider',
       );
       debugPrint(
         'HomeWidgetService: timer synced — ${timer.title}, ${timer.daysElapsed}d',
@@ -183,7 +183,7 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('photo_day_author', authorName);
       await HomeWidget.updateWidget(
         name: 'PhotoDayWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.PhotoDayWidgetProvider',
+        androidName: 'PhotoDayWidgetProvider',
       );
       debugPrint('HomeWidgetService: photo of day synced — $memoryId (path=$localPath)');
     } catch (e) {
@@ -204,7 +204,7 @@ class HomeWidgetService {
         // Но HomeWidget.updateWidget всё равно стоит дернуть, чтобы виджет перерисовался если ОС его прибила
         await HomeWidget.updateWidget(
           name: 'PhotoDayWidgetProvider',
-          qualifiedAndroidName: 'com.example.love_app.PhotoDayWidgetProvider',
+          androidName: 'PhotoDayWidgetProvider',
         );
         return;
       }
@@ -214,8 +214,6 @@ class HomeWidgetService {
           .doc(groupId)
           .collection('memories')
           .where('type', isEqualTo: 'photo')
-          .orderBy('createdAt', descending: true)
-          .limit(1)
           .get();
 
       if (snap.docs.isEmpty) {
@@ -223,7 +221,9 @@ class HomeWidgetService {
         return;
       }
 
-      final doc = snap.docs.first;
+      // Выбираем случайное фото
+      final docs = snap.docs.toList()..shuffle();
+      final doc = docs.first;
       final memory = Memory.fromFirestore(doc.id, doc.data());
 
       if (memory.imageUrl != null && memory.imageUrl!.isNotEmpty) {
@@ -280,7 +280,7 @@ class HomeWidgetService {
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+        androidName: 'MoodWidgetProvider',
       );
       debugPrint('HomeWidgetService: mood synced — me=$moodLabel, partner=$partnerMoodLabel');
     } catch (e) {
@@ -307,7 +307,7 @@ class HomeWidgetService {
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+        androidName: 'MoodWidgetProvider',
       );
       debugPrint('HomeWidgetService: group mood synced for ${members.length} users');
     } catch (e) {
@@ -343,7 +343,7 @@ class HomeWidgetService {
 
       await HomeWidget.updateWidget(
         name: 'RelationshipStatsWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+        androidName: 'RelationshipStatsWidgetProvider',
       );
       debugPrint('HomeWidgetService: relationship stats synced');
     } catch (e) {
@@ -549,27 +549,27 @@ class HomeWidgetService {
     try {
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+        androidName: 'LoveWidgetProvider',
       );
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',
+        androidName: 'DaysCounterWidgetProvider',
       );
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.TimerWidgetProvider',
+        androidName: 'TimerWidgetProvider',
       );
       await HomeWidget.updateWidget(
         name: 'PhotoDayWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.PhotoDayWidgetProvider',
+        androidName: 'PhotoDayWidgetProvider',
       );
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+        androidName: 'MoodWidgetProvider',
       );
       await HomeWidget.updateWidget(
         name: 'RelationshipStatsWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+        androidName: 'RelationshipStatsWidgetProvider',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.updateAllProviders failed: $e');

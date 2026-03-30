@@ -450,7 +450,7 @@ class WidgetService extends ChangeNotifier {
       // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
-        qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+        androidName: 'LoveWidgetProvider',
       );
       debugPrint(
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
@@ -484,7 +484,7 @@ class WidgetService extends ChangeNotifier {
         try {
           await HomeWidget.updateWidget(
             name: 'LoveWidgetProvider',
-            qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+            androidName: 'LoveWidgetProvider',
           );
         } catch (e) {
           debugPrint('WidgetService emoji update failed: $e');
@@ -509,7 +509,7 @@ class WidgetService extends ChangeNotifier {
       try {
         await HomeWidget.updateWidget(
           name: 'LoveWidgetProvider',
-          qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+          androidName: 'LoveWidgetProvider',
         );
       } catch (e) {
         debugPrint('WidgetService._cachePhotosForWidget update failed: $e');
@@ -526,7 +526,7 @@ class WidgetService extends ChangeNotifier {
       try {
         await HomeWidget.updateWidget(
           name: 'LoveWidgetProvider',
-          qualifiedAndroidName: 'com.example.love_app.LoveWidgetProvider',
+          androidName: 'LoveWidgetProvider',
         );
       } catch (e) {
         debugPrint('WidgetService._cacheAvatarsForLoveWidget update failed: $e');
@@ -544,7 +544,7 @@ class WidgetService extends ChangeNotifier {
       try {
         await HomeWidget.updateWidget(
           name: 'MoodWidgetProvider',
-          qualifiedAndroidName: 'com.example.love_app.MoodWidgetProvider',
+          androidName: 'MoodWidgetProvider',
         );
       } catch (e) {
         debugPrint('WidgetService._cacheGroupAvatarsForWidget update failed: $e');

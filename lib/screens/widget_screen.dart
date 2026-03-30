@@ -67,6 +67,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   String _photoDayMode = 'random'; // 'random' | 'custom'
   bool _savePhotoAsMemory = true;
   String? _photoDayPath;
+  int _photoDayVersion = 0;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
@@ -154,12 +155,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final mode = await hws.getPhotoDayMode(_pair.pairId);
     final save = await hws.getPhotoDaySaveMemory(_pair.pairId);
     final prefs = await SharedPreferences.getInstance();
-    final path = prefs.getString('photo_day_path_${_pair.pairId}');
+    final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
+    final nativePath = await HomeWidget.getWidgetData<String>('photo_day_path');
+    
     if (mounted) {
       setState(() {
         _photoDayMode = mode;
         _savePhotoAsMemory = save;
-        _photoDayPath = path;
+        _photoDayPath = (nativePath != null && nativePath.isNotEmpty) ? nativePath : customPath;
+        _photoDayVersion++;
       });
     }
   }
@@ -170,6 +174,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
     setState(() => _photoDayMode = mode);
     if (mode == 'random') {
       await hws.refreshPhotoOfDay(_pair.pairId);
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      _loadPhotoDayPrefs();
+    } else {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      _loadPhotoDayPrefs();
     }
   }
 
@@ -197,6 +208,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
     // 1. Сразу обновляем виджет локальным файлом (для скорости)
     await hws.syncPhotoOfDay(photoUrl: '', localFile: file);
     await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     if (mounted) setState(() => _photoDayPath = file.path);
 
     // 2. Если нужно сохранить в воспоминания
@@ -1343,44 +1356,55 @@ class _WidgetScreenState extends State<WidgetScreen> {
   Widget _buildPhotoDayPreview() {
     final isRu = LocaleService.instance.isRussian;
 
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: BoxDecoration(
-        color: _t.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _t.primary.withOpacity(0.1)),
-      ),
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: _t.primary.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _t.primary.withOpacity(0.1)),
+        ),
       child: Stack(
         children: [
-          // Заглушка
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('📷', style: TextStyle(fontSize: 40)),
-                const SizedBox(height: 6),
-                Text(
-                  isRu ? 'Фото дня' : 'Photo of the Day',
-                  style: GoogleFonts.rubik(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _t.primary.withOpacity(0.6),
+          if (_photoDayPath != null && _photoDayPath!.isNotEmpty)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _photoDayPath!.startsWith('http')
+                    ? Image.network(_photoDayPath!, fit: BoxFit.cover, key: ValueKey('net_${_photoDayPath}_${_photoDayVersion}'))
+                    : Image.file(File(_photoDayPath!), fit: BoxFit.cover, key: ValueKey('file_${_photoDayPath}_${_photoDayVersion}')),
+              ),
+            )
+          else
+            // Заглушка
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('📷', style: TextStyle(fontSize: 40)),
+                  const SizedBox(height: 6),
+                  Text(
+                    isRu ? 'Фото дня' : 'Photo of the Day',
+                    style: GoogleFonts.rubik(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _t.primary.withOpacity(0.6),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isRu
-                      ? 'Последнее фото из воспоминаний'
-                      : 'Latest photo from memories',
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: _t.primary.withOpacity(0.4),
+                  const SizedBox(height: 2),
+                  Text(
+                    isRu
+                        ? 'Последнее фото из воспоминаний'
+                        : 'Latest photo from memories',
+                    style: GoogleFonts.rubik(
+                      fontSize: 11,
+                      color: _t.primary.withOpacity(0.4),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           // Нижний оверлей
           Positioned(
             left: 0,
@@ -1416,7 +1440,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   // ════════════════════════════════════════════════════════════════════════════
