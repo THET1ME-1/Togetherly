@@ -1756,13 +1756,6 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(100),
-              boxShadow: [
-                BoxShadow(
-                  color: _t.navActiveIcon.withOpacity(0.12),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
             child: Center(
               child: SizedBox(

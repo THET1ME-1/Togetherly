@@ -383,13 +383,6 @@ class _RadialButtonState extends State<_RadialButton> {
           decoration: BoxDecoration(
             color: widget.theme.primary,
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
           ),
           child: Icon(widget.icon, color: Colors.white, size: 18),
         ),

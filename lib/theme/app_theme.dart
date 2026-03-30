@@ -111,7 +111,7 @@ abstract final class AppThemes {
   static const pink = AppTheme(
     index: 0,
     name: 'Розовая',
-    primary: Color(0xFFEE2B6C),
+    primary: Color(0xFFFF7E8B),
     primaryLight: Color(0xFFFEEAF1),
     bgGradient: [Color(0xFFFFE8DC), Color(0xFFFFE8DC), Color(0xFFFFF0EA)],
     heroGradient: [Color(0xFFFFB4B0), Color(0xFFFF8E9E)],
@@ -119,7 +119,7 @@ abstract final class AppThemes {
     heroShadowExpanded: Color(0x40FF7E8B), // rgba(255,126,139, 0.25)
     heroGlassOpacity: 0.20,
     heroToggleBorder: true,
-    heroToggleSelectedColor: Color(0xFFEE2B6C), // == primary
+    heroToggleSelectedColor: Color(0xFFFF7E8B), // == primary
     cardSurface: Color(0xFFFFFFFF),
     cardBorder: Color(0xFFE5E5E5),
     iconDraw: Color(0xFFFF7E8B),

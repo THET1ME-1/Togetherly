@@ -199,7 +199,7 @@ class MoodOption {
       id: 'kiss',
       imagePath: 'assets/images/emoji/028-kiss.png',
       label: 'Целую',
-      color: Color(0xFFEE2B6C),
+      color: Color(0xFFFF7E8B),
     ),
     MoodOption(
       id: 'secret',
@@ -229,7 +229,7 @@ class MoodOption {
       id: 'love',
       imagePath: 'assets/images/emoji/033-love.png',
       label: 'Влюблён',
-      color: Color(0xFFEE2B6C),
+      color: Color(0xFFFF7E8B),
     ),
     MoodOption(
       id: 'angry_furious',
