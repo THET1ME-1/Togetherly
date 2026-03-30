@@ -12,6 +12,8 @@ import '../models/timer_item.dart';
 import '../models/widget_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
+import '../models/memory.dart';
+import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
@@ -58,6 +60,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
+  
+  // Фото дня
+  bool _photoDayExpanded = false;
+  String _photoDayMode = 'random'; // 'random' | 'custom'
+  bool _savePhotoAsMemory = true;
+  String? _photoDayPath;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
@@ -82,6 +90,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _checkPinSupport();
     _loadWidgetTimerId();
     _loadStats();
+    _loadPhotoDayPrefs();
     // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
@@ -130,6 +139,81 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final prefs = await SharedPreferences.getInstance();
     final id = prefs.getString(_widgetTimerKey);
     if (mounted) setState(() => _widgetTimerId = id);
+  }
+
+  Future<void> _loadPhotoDayPrefs() async {
+    final hws = HomeWidgetService.instance;
+    final mode = await hws.getPhotoDayMode(_pair.pairId);
+    final save = await hws.getPhotoDaySaveMemory(_pair.pairId);
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('photo_day_path_${_pair.pairId}');
+    if (mounted) {
+      setState(() {
+        _photoDayMode = mode;
+        _savePhotoAsMemory = save;
+        _photoDayPath = path;
+      });
+    }
+  }
+
+  Future<void> _selectPhotoDayMode(String mode) async {
+    final hws = HomeWidgetService.instance;
+    await hws.setPhotoDayMode(_pair.pairId, mode);
+    setState(() => _photoDayMode = mode);
+    if (mode == 'random') {
+      await hws.refreshPhotoOfDay(_pair.pairId);
+    }
+  }
+
+  Future<void> _toggleSavePhotoAsMemory(bool value) async {
+    final hws = HomeWidgetService.instance;
+    await hws.setPhotoDaySaveMemory(_pair.pairId, value);
+    setState(() => _savePhotoAsMemory = value);
+  }
+
+  Future<void> _pickCustomPhoto() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+
+    if (pickedFile == null) return;
+
+    final file = File(pickedFile.path);
+    final hws = HomeWidgetService.instance;
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Сразу обновляем виджет локальным файлом (для скорости)
+    await hws.syncPhotoOfDay(photoUrl: '', localFile: file);
+    await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
+    if (mounted) setState(() => _photoDayPath = file.path);
+
+    // 2. Если нужно сохранить в воспоминания
+    if (_savePhotoAsMemory) {
+      try {
+        final fb = FirebaseService();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final destination = 'memories/${_pair.pairId}/photo_day_$timestamp.jpg';
+        
+        final url = await fb.uploadFile(file.path, destination);
+        if (url != null) {
+          await fb.addMemory(
+            groupId: _pair.pairId,
+            type: MemoryType.photo,
+            imageUrl: url,
+            caption: LocaleService.instance.isRussian 
+                ? 'Установлено как фото дня' 
+                : 'Set as Photo of the Day',
+          );
+          _loadStats(); // Обновить счетчик воспоминаний
+        }
+      } catch (e) {
+        debugPrint('Failed to save photo day as memory: $e');
+      }
+    }
   }
 
   Future<void> _selectWidgetTimer(TimerItem timer) async {
@@ -268,6 +352,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     if (oldWidget.pairData.pairId != widget.pairData.pairId) {
       // Сменилась группа — загружаем выбор таймера для новой группы
       _loadWidgetTimerId();
+      _loadPhotoDayPrefs();
     }
   }
 
@@ -714,13 +799,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _buildGalleryItem(
           title: isRu ? 'Фото дня' : 'Photo of the Day',
           subtitle: isRu
-              ? 'Последнее фото из ленты воспоминаний'
-              : 'Latest photo from Memory Lane',
+              ? (_photoDayMode == 'random' 
+                  ? 'Случайное фото из ленты' 
+                  : 'Своё установленное фото')
+              : (_photoDayMode == 'random' 
+                  ? 'Random photo from Memory Lane' 
+                  : 'Custom set photo'),
           icon: Icons.photo_camera_rounded,
           iconColor: const Color(0xFFEC4899),
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
           preview: _buildPhotoDayPreview(),
           widgetType: 'photo_day',
+          expandedContent: _buildPhotoDayExpandedContent(),
+          isExpanded: _photoDayExpanded,
+          onToggleExpand: () =>
+              setState(() => _photoDayExpanded = !_photoDayExpanded),
         ),
         const SizedBox(height: 16),
 
@@ -1289,6 +1382,146 @@ class _WidgetScreenState extends State<WidgetScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // НАСТРОЙКИ ФОТО ДНЯ
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPhotoDayExpandedContent() {
+    final isRu = LocaleService.instance.isRussian;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isRu ? 'Источник фото:' : 'Photo source:',
+          style: GoogleFonts.rubik(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildModeButton(
+                label: isRu ? 'Случайное' : 'Random',
+                icon: Icons.shuffle_rounded,
+                isSelected: _photoDayMode == 'random',
+                onTap: () => _selectPhotoDayMode('random'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildModeButton(
+                label: isRu ? 'Своё фото' : 'Own Photo',
+                icon: Icons.image_rounded,
+                isSelected: _photoDayMode == 'custom',
+                onTap: () => _selectPhotoDayMode('custom'),
+              ),
+            ),
+          ],
+        ),
+        if (_photoDayMode == 'custom') ...[
+          const SizedBox(height: 16),
+          _buildGlassCard(
+            child: Column(
+              children: [
+                if (_photoDayPath != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _photoDayPath!.startsWith('http') 
+                        ? Image.network(
+                            _photoDayPath!,
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.file(
+                            File(_photoDayPath!),
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _pickCustomPhoto,
+                    icon: const Icon(Icons.add_a_photo_rounded, size: 18),
+                    label: Text(isRu ? 'Выбрать фото с устройства' : 'Pick from device'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.pink.shade50,
+                      foregroundColor: Colors.pink,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isRu ? 'Добавить в ленту воспоминаний' : 'Save to Memory Lane',
+                        style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _savePhotoAsMemory,
+                      activeColor: Colors.pink,
+                      onChanged: _toggleSavePhotoAsMemory,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildModeButton({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.pink.withOpacity(0.1) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.pink : Colors.grey.shade200,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isSelected ? Colors.pink : Colors.grey.shade400, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.rubik(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.pink : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

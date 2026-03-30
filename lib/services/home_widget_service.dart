@@ -36,12 +36,42 @@ class HomeWidgetService {
   // ════════════════════════════════════════════════════════════════════════
 
   static const _boundGroupPrefix = 'widget_bound_group_';
+  static const _photoModePrefix = 'photo_day_mode_';
+  static const _photoSaveMemoryPrefix = 'photo_day_save_memory_';
 
   /// Привязать тип виджета к группе (вызывается при пине).
   Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_boundGroupPrefix$widgetType', groupId);
+    
+    // Если это фото дня и режим не задан — ставим по умолчанию random
+    if (widgetType == 'photo_day') {
+      if (prefs.getString('$_photoModePrefix$groupId') == null) {
+        await prefs.setString('$_photoModePrefix$groupId', 'random');
+      }
+    }
+    
     debugPrint('HomeWidgetService: $widgetType bound to group $groupId');
+  }
+
+  Future<String> getPhotoDayMode(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_photoModePrefix$groupId') ?? 'random';
+  }
+
+  Future<void> setPhotoDayMode(String groupId, String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_photoModePrefix$groupId', mode);
+  }
+
+  Future<bool> getPhotoDaySaveMemory(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('$_photoSaveMemoryPrefix$groupId') ?? true;
+  }
+
+  Future<void> setPhotoDaySaveMemory(String groupId, bool save) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_photoSaveMemoryPrefix$groupId', save);
   }
 
   /// Получить groupId, к которому привязан виджет. null = не привязан.
@@ -133,9 +163,20 @@ class HomeWidgetService {
     String caption = '',
     String memoryId = '',
     String authorName = '',
+    File? localFile,
   }) async {
     try {
-      final localPath = await _cachePhotoFromUrl(photoUrl, 'photo_day');
+      String localPath = '';
+      if (localFile != null) {
+        // Если передали файл напрямую (с устройства) — копируем его в кэш виджета
+        final dir = await getApplicationSupportDirectory();
+        final file = File('${dir.path}/widget_photo_day.jpg');
+        await localFile.copy(file.path);
+        localPath = file.path;
+      } else {
+        localPath = await _cachePhotoFromUrl(photoUrl, 'photo_day');
+      }
+
       await HomeWidget.saveWidgetData<String>('photo_day_path', localPath);
       await HomeWidget.saveWidgetData<String>('photo_day_caption', caption);
       await HomeWidget.saveWidgetData<String>('photo_day_memory_id', memoryId);
@@ -144,7 +185,7 @@ class HomeWidgetService {
         name: 'PhotoDayWidgetProvider',
         qualifiedAndroidName: 'com.example.love_app.PhotoDayWidgetProvider',
       );
-      debugPrint('HomeWidgetService: photo of day synced — $memoryId');
+      debugPrint('HomeWidgetService: photo of day synced — $memoryId (path=$localPath)');
     } catch (e) {
       debugPrint('HomeWidgetService.syncPhotoOfDay failed: $e');
     }
@@ -156,6 +197,18 @@ class HomeWidgetService {
   Future<void> refreshPhotoOfDay(String groupId) async {
     if (groupId.isEmpty) return;
     try {
+      final mode = await getPhotoDayMode(groupId);
+      if (mode == 'custom') {
+        debugPrint('HomeWidgetService: photo of day is in CUSTOM mode, skip refresh from auto');
+        // В кастомном режиме просто переподтягиваем то что уже лежит в SharedPreferences
+        // Но HomeWidget.updateWidget всё равно стоит дернуть, чтобы виджет перерисовался если ОС его прибила
+        await HomeWidget.updateWidget(
+          name: 'PhotoDayWidgetProvider',
+          qualifiedAndroidName: 'com.example.love_app.PhotoDayWidgetProvider',
+        );
+        return;
+      }
+
       final snap = await _db
           .collection('groups')
           .doc(groupId)
