@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1689,17 +1690,26 @@ class _HomeScreenState extends State<HomeScreen> {
   // ACTION BUTTONS
   // =============================================
   Widget _buildActionButtons() {
+    const drawSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32l8.4-8.4Z" />\n  <path d="M5.25 5.25a3 3 0 0 0-3 3v10.5a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3V13.5a.75.75 0 0 0-1.5 0v5.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V8.25a1.5 1.5 0 0 1 1.5-1.5h5.25a.75.75 0 0 0 0-1.5H5.25Z" />\n</svg>';
+    
+    const moodSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-2.625 6c-.54 0-.828.419-.936.634a1.96 1.96 0 0 0-.189.866c0 .298.059.605.189.866.108.215.395.634.936.634.54 0 .828-.419.936-.634.13-.26.189-.568.189-.866 0-.298-.059-.605-.189-.866-.108-.215-.395-.634-.936-.634Zm4.314.634c.108-.215.395-.634.936-.634.54 0 .828.419.936.634.13.26.189.568.189.866 0 .298-.059.605-.189.866-.108.215-.395.634-.936.634-.54 0-.828-.419-.936-.634a1.96 1.96 0 0 1-.189-.866c0-.298.059-.605.189-.866Zm2.023 6.828a.75.75 0 1 0-1.06-1.06 3.75 3.75 0 0 1-5.304 0 .75.75 0 0 0-1.06 1.06 5.25 5.25 0 0 0 7.424 0Z" clip-rule="evenodd" />\n</svg>';
+    
+    const calendarSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M12.75 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM7.5 15.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM8.25 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM9.75 15.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM10.5 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12 15.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM12.75 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM14.25 15.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM15 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM16.5 15.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM15 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM16.5 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />\n  <path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clip-rule="evenodd" />\n</svg>';
+    
+    const postSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z" />\n  <path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />\n</svg>';
+
+    
     return Row(
       children: [
         _actionButton(
-          icon: Icons.brush_rounded,
+          svgIcon: drawSvg,
           label: LocaleService.current.draw,
           iconColor: _t.iconDraw,
           enabled: true,
           onTap: _openDraw,
         ),
         _actionButton(
-          icon: Icons.sentiment_satisfied_alt_rounded,
+          svgIcon: moodSvg,
           label: LocaleService.current.mood,
           iconColor: _t.iconMood,
           enabled: _pairData.isPaired,
@@ -1707,14 +1717,14 @@ class _HomeScreenState extends State<HomeScreen> {
           moodImagePath: _pairData.myMood.imagePath,
         ),
         _actionButton(
-          icon: Icons.calendar_month_rounded,
+          svgIcon: calendarSvg,
           label: LocaleService.current.calendar,
           iconColor: _t.iconCalendar,
           enabled: _pairData.isPaired,
           onTap: _openMoodCalendar,
         ),
         _actionButton(
-          icon: Icons.photo_camera_rounded,
+          svgIcon: postSvg,
           label: LocaleService.current.post,
           iconColor: _t.iconPost,
           enabled: _pairData.isPaired,
@@ -1725,7 +1735,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _actionButton({
-    required IconData icon,
+    required String svgIcon,
     required String label,
     required Color iconColor,
     bool enabled = true,
@@ -1772,11 +1782,19 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: 32,
                               height: 32,
                               errorBuilder: (_, __, ___) => Center(
-                                child: Icon(icon, color: iconColor, size: 26),
+                                child: _buildSvgIcon(
+                                  svgIcon,
+                                  26,
+                                  iconColor,
+                                ),
                               ),
                             )
                           : Center(
-                              child: Icon(icon, color: iconColor, size: 26),
+                              child: _buildSvgIcon(
+                                svgIcon,
+                                26,
+                                iconColor,
+                              ),
                             ),
                     ),
                     const SizedBox(height: 8),
@@ -2405,6 +2423,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNavContent() {
     final s = LocaleService.current;
+    const homeIcon =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M11.47 3.841a.75.75 0 0 1 1.06 0l8.69 8.69a.75.75 0 1 0 1.06-1.061l-8.689-8.69a2.25 2.25 0 0 0-3.182 0l-8.69 8.69a.75.75 0 1 0 1.061 1.06l8.69-8.689Z" />\n  <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />\n</svg>';
+
+    const invitesIcon =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M4.913 2.658c2.075-.27 4.19-.408 6.337-.408 2.147 0 4.262.139 6.337.408 1.922.25 3.291 1.861 3.405 3.727a4.403 4.403 0 0 0-1.032-.211 50.89 50.89 0 0 0-8.42 0c-2.358.196-4.04 2.19-4.04 4.434v4.286a4.47 4.47 0 0 0 2.433 3.984L7.28 21.53A.75.75 0 0 1 6 21v-4.03a48.527 48.527 0 0 1-1.087-.128C2.905 16.58 1.5 14.833 1.5 12.862V6.638c0-1.97 1.405-3.718 3.413-3.979Z" />\n  <path d="M15.75 7.5c-1.376 0-2.739.057-4.086.169C10.124 7.797 9 9.103 9 10.609v4.285c0 1.507 1.128 2.814 2.67 2.94 1.243.102 2.5.157 3.768.165l2.782 2.781a.75.75 0 0 0 1.28-.53v-2.39l.33-.026c1.542-.125 2.67-1.433 2.67-2.94v-4.286c0-1.505-1.125-2.811-2.664-2.94A49.392 49.392 0 0 0 15.75 7.5Z" />\n</svg>';
+
+    const profileIcon =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />\n</svg>';
+
+    const widgetsIcon =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M5.566 4.657A4.505 4.505 0 0 1 6.75 4.5h10.5c.41 0 .806.055 1.183.157A3 3 0 0 0 15.75 3h-7.5a3 3 0 0 0-2.684 1.657ZM2.25 12a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3v-6ZM5.25 7.5c-.41 0-.806.055-1.184.157A3 3 0 0 1 6.75 6h10.5a3 3 0 0 1 2.683 1.657A4.505 4.505 0 0 0 18.75 7.5H5.25Z" />\n</svg>';
+
     return Container(
       decoration: BoxDecoration(
         color: _t.navActiveBg,
@@ -2431,7 +2461,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               NavBarItem(
-                icon: Icons.home_rounded,
+                svgIcon: homeIcon,
                 index: 0,
                 label: s.home,
                 isActive: _selectedNavIndex == 0,
@@ -2441,7 +2471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => setState(() => _selectedNavIndex = 0),
               ),
               NavBarItem(
-                icon: Icons.widgets_rounded,
+                svgIcon: widgetsIcon,
                 index: 1,
                 label: s.widgets,
                 isActive: _selectedNavIndex == 1,
@@ -2451,9 +2481,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => setState(() => _selectedNavIndex = 1),
               ),
               NavBarItem(
-                icon: _pairData.isPaired
-                    ? Icons.favorite_rounded
-                    : Icons.person_add_alt_1_rounded,
+                svgIcon: invitesIcon,
                 index: 2,
                 label: s.connect,
                 isActive: _selectedNavIndex == 2,
@@ -2464,7 +2492,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => setState(() => _selectedNavIndex = 2),
               ),
               NavBarItem(
-                icon: Icons.person_rounded,
+                svgIcon: profileIcon,
                 index: 3,
                 label: s.profile,
                 isActive: _selectedNavIndex == 3,
@@ -2477,6 +2505,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Helper method to build SVG icon from string
+  Widget _buildSvgIcon(String svgString, double size, Color color) {
+    return SvgPicture.string(
+      svgString,
+      width: size,
+      height: size,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Animated slide-in wrapper for entrance animations
 class AnimatedSlideIn extends StatefulWidget {
@@ -179,10 +180,10 @@ class _QuickTapScaleState extends State<QuickTapScale>
   }
 }
 
-
 /// Animated navigation bar item
 class NavBarItem extends StatefulWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? svgIcon;
   final int index;
   final String label;
   final bool isActive;
@@ -194,7 +195,8 @@ class NavBarItem extends StatefulWidget {
 
   const NavBarItem({
     super.key,
-    required this.icon,
+    this.icon,
+    this.svgIcon,
     required this.index,
     required this.label,
     required this.isActive,
@@ -203,7 +205,10 @@ class NavBarItem extends StatefulWidget {
     required this.badgeColor,
     required this.onTap,
     this.showBadge = false,
-  });
+  }) : assert(
+         icon != null || svgIcon != null,
+         'Either icon or svgIcon must be provided',
+       );
 
   @override
   State<NavBarItem> createState() => _NavBarItemState();
@@ -291,14 +296,22 @@ class _NavBarItemState extends State<NavBarItem>
                       ),
                       child: FadeTransition(opacity: anim, child: child),
                     ),
-                    child: Icon(
-                      widget.icon,
-                      key: ValueKey('${widget.index}_${widget.isActive}'),
-                      color: widget.isActive
-                          ? widget.activeColor
-                          : Colors.grey.shade400,
-                      size: widget.isActive ? 26 : 23,
-                    ),
+                    child: widget.svgIcon != null
+                        ? _SvgIconBuilder(
+                            svgString: widget.svgIcon!,
+                            size: widget.isActive ? 26 : 23,
+                            color: widget.isActive
+                                ? widget.activeColor
+                                : Colors.grey.shade400,
+                          )
+                        : Icon(
+                            widget.icon,
+                            key: ValueKey('${widget.index}_${widget.isActive}'),
+                            color: widget.isActive
+                                ? widget.activeColor
+                                : Colors.grey.shade400,
+                            size: widget.isActive ? 26 : 23,
+                          ),
                   ),
                   const SizedBox(height: 3),
                   AnimatedDefaultTextStyle(
@@ -333,6 +346,39 @@ class _NavBarItemState extends State<NavBarItem>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Helper widget to render SVG icon from string
+class _SvgIconBuilder extends StatelessWidget {
+  final String svgString;
+  final double size;
+  final Color color;
+
+  const _SvgIconBuilder({
+    required this.svgString,
+    required this.size,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Replace currentColor with the actual color in hex format
+    String colorHex = color.value.toRadixString(16).padLeft(8, '0');
+    colorHex = '#${colorHex.substring(2)}'; // Remove alpha, keep RGB
+
+    final modifiedSvg = svgString.replaceAll('currentColor', colorHex);
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: SvgPicture.string(
+        modifiedSvg,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
       ),
     );
   }
@@ -494,7 +540,6 @@ class _HeartAnimationState extends State<HeartAnimation>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _scale;
-  late final Animation<double> _opacity;
 
   @override
   void initState() {
@@ -526,12 +571,6 @@ class _HeartAnimationState extends State<HeartAnimation>
         weight: 40,
       ),
     ]).animate(_ctrl);
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
-      ),
-    );
   }
 
   @override

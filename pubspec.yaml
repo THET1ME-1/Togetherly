@@ -56,8 +56,9 @@ dependencies:
   path_provider: ^2.1.5           # Временные файлы
   just_audio: ^0.9.42             # Аудио плеер
   url_launcher: ^6.3.1            # Открытие ссылок
-  http: ^1.2.0                    # HTTP запросы (скачивание)\n  
+  http: ^1.2.0                    # HTTP запросы (скачивание)
   intl: ^0.19.0                   # Форматирование дат
+  flutter_svg: ^2.0.9             # SVG рендеринг
   home_widget: ^0.7.0             # Настоящий виджет рабочего стола
   firebase_messaging: ^15.2.4     # Push-уведомления (FCM)
   cached_network_image: ^3.4.1    # Загрузка и кеширование сетевых изображений
