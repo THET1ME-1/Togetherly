@@ -251,7 +251,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
       final className = qualifiedName.split('.').last;
       debugPrint('_pinWidget: requesting pin for className=$className');
       await HomeWidget.requestPinWidget(
-        qualifiedAndroidName: qualifiedName,
+        name: className,
+        androidName: className,
       );
       debugPrint('_pinWidget: requestPinWidget completed successfully');
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
