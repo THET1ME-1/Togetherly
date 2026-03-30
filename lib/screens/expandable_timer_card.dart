@@ -1,30 +1,19 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-
-import 'package:image_picker/image_picker.dart';
 
 import '../models/timer_item.dart';
-import '../services/locale_service.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/petal_timer_dial.dart';
 
-
-/// Расширяемая карточка таймера.
-///
-/// В свёрнутом виде показывает дефолтный таймер (или первый).
-/// При раскрытии — вытягивается на весь экран вниз с ease-in-out анимацией,
-/// показывая список всех таймеров с возможностью CRUD.
+/// Карусель таймеров с ИДЕАЛЬНОЙ геометрией радиального меню, адаптированной под размеры контейнера.
 class ExpandableTimerCard extends StatefulWidget {
   final AppTheme theme;
   final TimerService timerService;
   final String partnerAvatarUrl;
   final String myAvatarUrl;
   final bool isPaired;
-
-  /// Callback, уведомляющий родителя о состоянии раскрытия
-  /// (чтобы скрывать bottom nav).
   final ValueChanged<bool>? onExpandChanged;
 
   const ExpandableTimerCard({
@@ -41,81 +30,29 @@ class ExpandableTimerCard extends StatefulWidget {
   State<ExpandableTimerCard> createState() => _ExpandableTimerCardState();
 }
 
-class _ExpandableTimerCardState extends State<ExpandableTimerCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _expandAnim;
-  late Animation<double> _arrowRotation;
-
-  bool _expanded = false;
-
+class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
+  late PageController _pageController;
+  int _currentIndex = 0;
   Timer? _ticker;
-  String? _uploadingBackgroundId; // id таймера во время загрузки фона
-
-  late Color _shadowColorExpanded;
-
-  static const _darkOverlay = BoxDecoration(color: Color(0x59000000));
-  static const _cardRadius = 32.0;
 
   AppTheme get _t => widget.theme;
-
-  BorderRadius get _cardBorderRadius =>
-      const BorderRadius.all(Radius.circular(_cardRadius));
-
-
-
-  /// Градиент карточки
-  BoxDecoration get _gradientDecoration => BoxDecoration(
-    borderRadius: _cardBorderRadius,
-    gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: _t.heroGradient,
-    ),
-  );
-
-  // Emoji palette для выбора
-  static const _emojis = [
-    '❤️',
-    '💕',
-    '💖',
-    '🔥',
-    '⭐',
-    '🌙',
-    '🎂',
-    '🏠',
-    '🎓',
-    '💼',
-    '✈️',
-    '🐾',
-    '🌸',
-    '💍',
-    '👶',
-    '🎯',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-    );
-    _expandAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _arrowRotation = Tween<double>(
-      begin: 0,
-      end: 0.5,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    final timers = widget.timerService.timers;
+    final defaultT = widget.timerService.defaultTimer;
+    _currentIndex = timers.indexWhere((t) => t.id == defaultT?.id);
+    if (_currentIndex < 0) _currentIndex = 0;
 
-    _shadowColorExpanded = _t.heroShadowExpanded;
-
+    _pageController = PageController(initialPage: _currentIndex);
     widget.timerService.addListener(_onTimerChanged);
-    _startTickerIfNeeded();
+    _startTicker();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _pageController.dispose();
     _ticker?.cancel();
     widget.timerService.removeListener(_onTimerChanged);
     super.dispose();
@@ -125,690 +62,170 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     if (mounted) setState(() {});
   }
 
-
-
-  void _startTickerIfNeeded() {
+  void _startTicker() {
     _ticker?.cancel();
-    _ticker = null;
-    // Always tick every second — the petal dial shows seconds
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
 
-  void _toggle() {
-    setState(() => _expanded = !_expanded);
-    if (_expanded) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
+  void _goToPage(int page) {
+    if (page >= 0 && page < widget.timerService.timers.length) {
+      _pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOutCubic,
+      );
     }
-    widget.onExpandChanged?.call(_expanded);
   }
 
-  // ── Helpers ──
-
-  TimerItem? get _displayTimer => widget.timerService.defaultTimer;
-
-
-
-  // =============================================
-  // BUILD
-  // =============================================
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final screenHeight = mq.size.height;
-    final topPadding = mq.padding.top;
-    final bottomPadding = mq.padding.bottom;
-    // Высота карточки в свёрнутом виде. 
-    // Поскольку AspectRatio равен 1.0, ширина равна mq.size.width - 24 (отступы),
-    // высота состоит из: 2 (padding top) + (ширина - 24) + 32 (высота стрелочки) + 2 (padding bottom).
-    // Итого: width + 12.
-    final collapsedHeight = mq.size.width + 12.0;
-    const headerHeight = 64.0;
-    const cardTopOffset = 16.0;
-    const bottomNavHeight = 64.0;
-    const bottomNavMargin = 12.0;
-    const gap = 12.0;
-    final expandedHeight =
-        screenHeight -
-        topPadding -
-        headerHeight -
-        cardTopOffset -
-        bottomPadding -
-        bottomNavMargin -
-        bottomNavHeight -
-        gap;
+    final timers = widget.timerService.timers;
+    if (timers.isEmpty) {
+      return const SizedBox(height: 300, child: Center(child: Text('No timers')));
+    }
 
-    // Кешируем child-виджеты, которые НЕ зависят от анимации
-    final compactContent = _buildCompactContent();
-    final bgImage = _buildBackgroundImage();
-
-    return AnimatedBuilder(
-      animation: _expandAnim,
-      builder: (context, _) {
-        final t = _expandAnim.value;
-        final height = collapsedHeight + (expandedHeight - collapsedHeight) * t;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Получаем реальную ширину КОНТЕЙНЕРА, а не экрана
+        final actualWidth = constraints.maxWidth;
+        // Диаграмма занимает почти всю ширину, кнопки могут "парить" за пределами благодаря Clip.none
+        final dialSize = actualWidth * 0.95;
+        
+        // Уменьшаем отступ, так как Clip.none позволяет кнопкам парить выше
+        final topPadding = 45.0;
+        final containerHeight = dialSize + topPadding + 10;
+        
+        final centerX = actualWidth / 2;
+        final centerY = topPadding + (dialSize / 2);
 
         return SizedBox(
-          height: height,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: _cardBorderRadius,
-              boxShadow: t > 0
-                  ? [
-                      BoxShadow(
-                        color: Color.lerp(
-                            Colors.transparent, _shadowColorExpanded, t)!,
-                        blurRadius: 32,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 8),
-                      ),
-                    ]
-                  : [],
-            ),
-            child: ClipRRect(
-              borderRadius: _cardBorderRadius,
-              child: Stack(
-                fit: StackFit.passthrough,
-                children: [
-                  // Фон: градиент + опциональное фото, скрываем если t=0
-                  if (t > 0)
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: t,
-                        child: bgImage != null
-                            ? Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  DecoratedBox(
-                                    decoration: _gradientDecoration,
-                                    child: const SizedBox.expand(),
-                                  ),
-                                  Positioned.fill(child: bgImage),
-                                ],
-                              )
-                            : DecoratedBox(
-                                decoration: _gradientDecoration,
-                                child: const SizedBox.expand(),
-                              ),
-                      ),
-                    ),
-                  // Контент
-                  _buildCardStack(
-                    null,
-                    compactContent,
-                    t,
-                    bottomPadding,
-                    collapsedHeight,
+          height: containerHeight,
+          width: actualWidth,
+          child: Stack(
+            alignment: Alignment.topCenter,
+            clipBehavior: Clip.none,
+            children: [
+              // 1. Carousel
+              Positioned(
+                top: topPadding,
+                child: SizedBox(
+                  width: actualWidth,
+                  height: dialSize,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    onPageChanged: (idx) {
+                      setState(() => _currentIndex = idx);
+                      widget.timerService.setDefault(timers[idx].id);
+                    },
+                    itemCount: timers.length,
+                    itemBuilder: (context, index) {
+                      return Center(
+                        child: SizedBox(
+                          width: dialSize,
+                          height: dialSize,
+                          child: PetalTimerDial(
+                            theme: _t,
+                            startDate: timers[index].startDate,
+                            isCountdown: timers[index].isCountdown,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
-            ),
+
+              // 2. Arc Controls
+              _buildArcControls(dialSize / 2, centerX, centerY),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildCardStack(
-    Widget? bgImage,
-    Widget compactContent,
-    double t,
-    double bottomPadding,
-    double collapsedHeight,
-  ) {
-    // ConstrainedBox задаёт минимальную высоту компактной секции:
-    // - t=0 (закрыта): minHeight = collapsedHeight (280px) → картинка заполняет
-    //   всю карточку, включая скругления внизу.
-    // - t=1 (открыта): minHeight = 0 → Stack = высота контента → картинка
-    //   точно до белой разделительной линии.
-    final compactSection = bgImage != null
-        ? ConstrainedBox(
-            constraints: BoxConstraints(minHeight: collapsedHeight * (1.0 - t)),
-            child: Stack(
-              children: [
-                Positioned.fill(child: bgImage),
-                compactContent,
-              ],
-            ),
-          )
-        : compactContent;
+  Widget _buildArcControls(double radius, double centerX, double centerY) {
+    final timers = widget.timerService.timers;
+    final timer = timers[_currentIndex];
+    
+    final actions = [
+      _ArcAction(icon: Icons.chevron_left_rounded, onTap: () => _goToPage(_currentIndex - 1), visible: _currentIndex > 0),
+      _ArcAction(icon: Icons.edit_rounded, onTap: () => _showEditDialog(timer)),
+      _ArcAction(icon: Icons.add_rounded, onTap: _showCreateDialog),
+      _ArcAction(icon: Icons.delete_outline_rounded, onTap: () => _showDeleteConfirm(timer), visible: !timer.isSystem),
+      _ArcAction(icon: Icons.chevron_right_rounded, onTap: () => _goToPage(_currentIndex + 1), visible: _currentIndex < timers.length - 1),
+    ];
 
-    return Column(
-      children: [
-        compactSection,
-        if (t > 0.01)
-          Expanded(
-            child: FadeTransition(
-              opacity: _expandAnim,
-              child: _buildExpandedContent(),
-            ),
-          )
-        else
-          const Spacer(),
-      ],
-    );
-  }
+    final visibleActions = actions.where((a) => a.visible).toList();
 
-  /// Фоновое изображение — обычный виджет (без Positioned).
-  /// Оборачивается в Positioned.fill в _buildCardStack.
-  Widget? _buildBackgroundImage() {
-    final path = _displayTimer?.backgroundImagePath;
-    if (path == null) return null;
-
-    // Если идёт загрузка — показываем индикатор
-    if (_uploadingBackgroundId == _displayTimer!.id) {
-      return const DecoratedBox(
-        decoration: BoxDecoration(color: Color(0x33000000)),
-        child: Center(child: CircularProgressIndicator(color: Colors.white70)),
-      );
-    }
-
-    // Локальный путь (не URL) — не показываем партнёру
-    if (!path.startsWith('http')) {
-      debugPrint(
-        'ExpandableTimerCard: backgroundImagePath не является URL ($path), пропускаем',
-      );
-      return null;
-    }
-
-    debugPrint('ExpandableTimerCard: загружаю фон из сети: $path');
+    const double fixedStep = 15.0; 
+    // СМЕЩАЕМ КЛАСТЕР НА 12 ЧАСОВ (-90 градусов)
+    const double centerAngle = -90.0; 
+    final double startAngle = centerAngle - ((visibleActions.length - 1) * fixedStep / 2);
+    
+    // Сдвиг радиуса: диаграмма сама рисуется на radius-2. 
+    // Увеличено до +32 для существенного зазора.
+    final buttonRadius = radius + 32; 
 
     return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        Positioned.fill(
-          child: CachedNetworkImage(
-            imageUrl: path,
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
-            memCacheWidth: 720,
-            progressIndicatorBuilder: (context, url, downloadProgress) {
-              return Container(
-                color: Colors.black26,
-                child: Center(
-                  child: CircularProgressIndicator(
-                      color: Colors.white70, 
-                      value: downloadProgress.progress
-                  ),
-                ),
-              );
-            },
-            errorWidget: (context, url, error) {
-              debugPrint('ExpandableTimerCard: ошибка загрузки фона: $error');
-              return const SizedBox.shrink();
-            },
+      clipBehavior: Clip.none,
+      children: List.generate(visibleActions.length, (i) {
+        final angleDeg = startAngle + (fixedStep * i);
+        final angleRad = angleDeg * math.pi / 180;
+        
+        final x = buttonRadius * math.cos(angleRad);
+        final y = buttonRadius * math.sin(angleRad);
+
+        return Positioned(
+          left: centerX + x - 18, 
+          top: centerY + y - 18,
+          child: _RadialButton(
+            icon: visibleActions[i].icon,
+            onTap: visibleActions[i].onTap,
+            theme: _t,
           ),
-        ),
-        const Positioned.fill(child: DecoratedBox(decoration: _darkOverlay)),
-      ],
-    );
-  }
-
-
-
-  // ── Compact content (shown always) ──
-  Widget _buildCompactContent() {
-    final timer = _displayTimer;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Petal donut timer dial
-            AspectRatio(
-              aspectRatio: 1.0,
-              child: Center(
-                child: PetalTimerDial(
-                  theme: _t,
-                  startDate: timer?.startDate ?? DateTime.now(),
-                  isCountdown: timer?.isCountdown ?? false,
-                ),
-              ),
-            ),
-            // Arrow to expand
-            GestureDetector(
-              onTap: _toggle,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                height: 32,
-                child: Center(
-                  child: RotationTransition(
-                    turns: _arrowRotation,
-                    child: Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white.withOpacity(0.7),
-                      size: 28,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Expanded content ──
-  Widget _buildExpandedContent() {
-    final timers = widget.timerService.timers;
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        Divider(color: Colors.white.withOpacity(0.2), height: 1),
-        // Header row
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
-          child: Row(
-            children: [
-              Text(
-                'All Timers',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${timers.length}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              // Add button
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _showCreateDialog(),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.add_rounded,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'New',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // List
-        Expanded(
-          child: timers.isEmpty
-              ? _buildEmptyState()
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 60),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: timers.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _buildTimerMiniCard(timers[i]),
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.timer_outlined,
-            size: 48,
-            color: Colors.white.withOpacity(0.35),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No timers yet',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.6),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tap "New" to create your first timer',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white.withOpacity(0.45),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Mini card for each timer ──
-  Widget _buildTimerMiniCard(TimerItem timer) {
-    final isDefault = timer.isDefault;
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDefault
-              ? Colors.white.withOpacity(0.18)
-              : Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDefault
-                ? Colors.white.withOpacity(0.45)
-                : Colors.white.withOpacity(0.20),
-            width: isDefault ? 1.5 : 1,
-          ),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => _showEditDialog(timer),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                // Emoji
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      timer.emoji,
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              timer.title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isDefault) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.20),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'DEFAULT',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                          if (timer.isSystem) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'SYSTEM',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        timer.isCountdown
-                            ? '${timer.daysElapsed.abs()} days left • until ${timer.formattedStartDate}'
-                            : '${timer.daysElapsed} days • since ${timer.formattedStartDate}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.65),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Actions
-                PopupMenuButton<String>(
-                  icon: Icon(
-                    Icons.more_vert_rounded,
-                    size: 20,
-                    color: Colors.white.withOpacity(0.70),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  onSelected: (v) => _onMenuAction(v, timer),
-                  itemBuilder: (_) => [
-                    if (!isDefault)
-                      const PopupMenuItem(
-                        value: 'default',
-                        child: _PopupRow(
-                          icon: Icons.star_rounded,
-                          label: 'Set as default',
-                        ),
-                      ),
-                    const PopupMenuItem(
-                      value: 'background',
-                      child: _PopupRow(
-                        icon: Icons.image_rounded,
-                        label: 'Set background',
-                      ),
-                    ),
-                    if (timer.backgroundImagePath != null)
-                      const PopupMenuItem(
-                        value: 'remove_bg',
-                        child: _PopupRow(
-                          icon: Icons.hide_image_outlined,
-                          label: 'Remove background',
-                        ),
-                      ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: _PopupRow(icon: Icons.edit_rounded, label: 'Edit'),
-                    ),
-                    if (!timer.isSystem)
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: _PopupRow(
-                          icon: Icons.delete_outline_rounded,
-                          label: 'Delete',
-                          danger: true,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _onMenuAction(String action, TimerItem timer) {
-    switch (action) {
-      case 'default':
-        widget.timerService.setDefault(timer.id);
-        break;
-      case 'edit':
-        _showEditDialog(timer);
-        break;
-      case 'delete':
-        _showDeleteConfirm(timer);
-        break;
-      case 'background':
-        _pickBackgroundImage(timer);
-        break;
-      case 'remove_bg':
-        widget.timerService.removeTimerBackground(timer);
-        break;
-    }
-  }
-
-  Future<void> _pickBackgroundImage(TimerItem timer) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-      maxHeight: 1200,
-      imageQuality: 85,
-    );
-    if (image == null) return;
-
-    // Показываем индикатор загрузки
-    if (mounted) setState(() => _uploadingBackgroundId = timer.id);
-    try {
-      final ok = await widget.timerService.uploadTimerBackground(
-        timer,
-        image.path,
-      );
-      if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LocaleService.current.failedUploadBackground)),
         );
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingBackgroundId = null);
-    }
+      }),
+    );
   }
 
+  // ── Action Handlers ──
 
-
-
-
-  // =============================================
-  // DIALOGS
-  // =============================================
-
-  /// Показать диалог создания нового таймера.
   void _showCreateDialog() {
-    _showTimerFormDialog(
-      title: 'New Timer',
+    _showTimerSettingsDialog(
+      title: 'Create Timer',
       initialTitle: '',
       initialDate: DateTime.now(),
       initialEmoji: '❤️',
-      initialIsDefault: widget.timerService.timers.isEmpty,
+      initialIsDefault: widget.timerService.count == 0,
       initialIsCountdown: false,
-      onSave: (title, date, emoji, isDefault, isCountdown) {
-        widget.timerService.addTimer(
-          title: title,
-          startDate: date,
-          emoji: emoji,
-          isDefault: isDefault,
-          isCountdown: isCountdown,
-        );
-      },
+      onSave: (t, d, e, def, c) => widget.timerService.addTimer(title: t, startDate: d, emoji: e, isDefault: def, isCountdown: c),
     );
   }
 
-  /// Показать диалог редактирования таймера.
   void _showEditDialog(TimerItem timer) {
-    _showTimerFormDialog(
+    _showTimerSettingsDialog(
       title: 'Edit Timer',
       initialTitle: timer.title,
       initialDate: timer.startDate,
       initialEmoji: timer.emoji,
       initialIsDefault: timer.isDefault,
       initialIsCountdown: timer.isCountdown,
-      onSave: (title, date, emoji, isDefault, isCountdown) {
-        widget.timerService.updateTimer(
-          timer.copyWith(
-            title: title,
-            startDate: date,
-            emoji: emoji,
-            isDefault: isDefault,
-            isCountdown: isCountdown,
-          ),
-        );
-      },
+      onSave: (t, d, e, def, c) => widget.timerService.updateTimer(timer.copyWith(title: t, startDate: d, emoji: e, isDefault: def, isCountdown: c)),
     );
   }
 
-  /// Общий форм-диалог для создания/редактирования.
-  void _showTimerFormDialog({
+  void _showTimerSettingsDialog({
     required String title,
     required String initialTitle,
     required DateTime initialDate,
     required String initialEmoji,
     required bool initialIsDefault,
     required bool initialIsCountdown,
-    required void Function(
-      String title,
-      DateTime date,
-      String emoji,
-      bool isDefault,
-      bool isCountdown,
-    )
-    onSave,
+    required void Function(String, DateTime, String, bool, bool) onSave,
   }) {
     final titleCtrl = TextEditingController(text: initialTitle);
     final dateCtrl = TextEditingController(text: _formatDate(initialDate));
@@ -824,338 +241,66 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: EdgeInsets.fromLTRB(
-              24,
-              12,
-              24,
-              MediaQuery.of(ctx).viewInsets.bottom + 28,
-            ),
+            decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+            padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 32),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 24),
+                  Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 24),
+                  _dialogLabel('NAME'),
+                  TextField(controller: titleCtrl, decoration: _dialogInputDeco('e.g. Anniversary')),
                   const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── Title ──
-                  Text(
-                    'Name',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: titleCtrl,
-                    style: const TextStyle(fontSize: 15),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Together with Alex',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: _t.primary, width: 1.5),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── Date ──
-                  Text(
-                    isCountdown ? 'Target Date' : 'Start Date',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  _dialogLabel(isCountdown ? 'TARGET DATE' : 'START DATE'),
                   Row(
                     children: [
-                      // Manual input
-                      Expanded(
-                        child: TextField(
-                          controller: dateCtrl,
-                          style: const TextStyle(fontSize: 15),
-                          keyboardType: TextInputType.datetime,
-                          decoration: InputDecoration(
-                            hintText: 'dd.mm.yyyy',
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade200,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade200,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: _t.primary,
-                                width: 1.5,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                          ),
-                          onChanged: (v) {
-                            final parsed = _parseDate(v);
-                            if (parsed != null) {
-                              setSheetState(() => pickedDate = parsed);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Calendar picker
+                      Expanded(child: TextField(controller: dateCtrl, keyboardType: TextInputType.datetime, decoration: _dialogInputDeco('dd.mm.yyyy'))),
+                      const SizedBox(width: 12),
                       GestureDetector(
                         onTap: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: pickedDate,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                            builder: (c, child) => Theme(
-                              data: Theme.of(c).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary: _t.primary,
-                                ),
-                              ),
-                              child: child!,
-                            ),
-                          );
-                          if (d != null) {
-                            setSheetState(() {
-                              pickedDate = d;
-                              dateCtrl.text = _formatDate(d);
-                            });
-                          }
+                          final d = await showDatePicker(context: ctx, initialDate: pickedDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                          if (d != null) setSheetState(() { pickedDate = d; dateCtrl.text = _formatDate(d); });
                         },
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: _t.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            Icons.calendar_today_rounded,
-                            color: _t.primary,
-                            size: 22,
-                          ),
-                        ),
+                        child: Container(width: 54, height: 54, decoration: BoxDecoration(color: _t.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.calendar_today_rounded, color: _t.primary, size: 24)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // ── Emoji ──
-                  Text(
-                    'Icon',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                  _dialogLabel('SYMBOL'),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _emojis.map((e) {
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: ['❤️', '💕', '💖', '🔥', '⭐', '🌙', '🎂', '🏠', '🎓', '💼', '✈️', '🐾', '🌸', '💍', '👶', '🎯'].map((e) {
                       final sel = selectedEmoji == e;
                       return GestureDetector(
                         onTap: () => setSheetState(() => selectedEmoji = e),
                         child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? _t.primary.withOpacity(0.12)
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: sel
-                                ? Border.all(color: _t.primary, width: 2)
-                                : null,
-                          ),
-                          child: Center(
-                            child: Text(
-                              e,
-                              style: const TextStyle(fontSize: 20),
-                            ),
-                          ),
+                          width: 46, height: 46,
+                          decoration: BoxDecoration(color: sel ? _t.primary.withOpacity(0.15) : Colors.grey.shade100, borderRadius: BorderRadius.circular(14), border: sel ? Border.all(color: _t.primary, width: 2) : null),
+                          child: Center(child: Text(e, style: const TextStyle(fontSize: 22))),
                         ),
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 16),
-
-                  // ── Countdown toggle ──
-                  GestureDetector(
-                    onTap: () =>
-                        setSheetState(() => isCountdown = !isCountdown),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isCountdown
-                                ? _t.primary
-                                : Colors.transparent,
-                            border: Border.all(
-                              color: isCountdown
-                                  ? _t.primary
-                                  : Colors.grey.shade400,
-                              width: 2,
-                            ),
-                          ),
-                          child: isCountdown
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 14,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Countdown mode (days left until date)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Default toggle ──
-                  GestureDetector(
-                    onTap: () => setSheetState(() => isDefault = !isDefault),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDefault ? _t.primary : Colors.transparent,
-                            border: Border.all(
-                              color: isDefault
-                                  ? _t.primary
-                                  : Colors.grey.shade400,
-                              width: 2,
-                            ),
-                          ),
-                          child: isDefault
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 14,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Show by default when collapsed',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Save button ──
+                  const SizedBox(height: 32),
+                  _dialogSwitch('Countdown Mode', isCountdown, (v) => setSheetState(() => isCountdown = v)),
+                  _dialogSwitch('Set as Main', isDefault, (v) => setSheetState(() => isDefault = v)),
+                  const SizedBox(height: 32),
                   SizedBox(
-                    width: double.infinity,
-                    height: 52,
+                    width: double.infinity, height: 56,
                     child: ElevatedButton(
                       onPressed: () {
-                        final t = titleCtrl.text.trim();
-                        if (t.isEmpty) return;
-                        // Парсим дату из поля, если пользователь ввёл вручную
-                        final manualDate = _parseDate(dateCtrl.text);
-                        final finalDate = manualDate ?? pickedDate;
-                        onSave(
-                          t,
-                          finalDate,
-                          selectedEmoji,
-                          isDefault,
-                          isCountdown,
-                        );
+                        if (titleCtrl.text.isEmpty) return;
+                        final finalDate = _parseDate(dateCtrl.text) ?? pickedDate;
+                        onSave(titleCtrl.text.trim(), finalDate, selectedEmoji, isDefault, isCountdown);
                         Navigator.pop(ctx);
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _t.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: _t.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), elevation: 0),
+                      child: const Text('SAVE SETTINGS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                     ),
                   ),
                 ],
@@ -1167,154 +312,88 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard>
     );
   }
 
-  /// Диалог подтверждения удаления.
   void _showDeleteConfirm(TimerItem timer) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.red.shade400,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Delete Timer?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '"${timer.title}" will be removed permanently.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          widget.timerService.deleteTimer(timer.id);
-                          Navigator.pop(ctx);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade400,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: const Text(
-                          'Delete',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Delete Timer?', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: Text('"${timer.title}" will be gone forever.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('CANCEL', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w800))),
+          TextButton(onPressed: () { widget.timerService.deleteTimer(timer.id); Navigator.pop(ctx); }, child: const Text('DELETE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900))),
+        ],
       ),
     );
   }
 
-  // ── Helpers ──
-  String _formatDate(DateTime d) {
-    return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-  }
-
+  Widget _dialogLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.5)));
+  InputDecoration _dialogInputDeco(String hint) => InputDecoration(hintText: hint, filled: true, fillColor: Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16));
+  Widget _dialogSwitch(String label, bool val, ValueChanged<bool> onChanged) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: InkWell(onTap: () => onChanged(!val), child: Row(children: [Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: val ? _t.primary : Colors.transparent, border: Border.all(color: val ? _t.primary : Colors.grey.shade400, width: 2)), child: val ? const Icon(Icons.check, size: 16, color: Colors.white) : null), const SizedBox(width: 12), Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.grey.shade800))])),
+  );
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
   DateTime? _parseDate(String s) {
-    // Формат dd.mm.yyyy
     final parts = s.split('.');
     if (parts.length != 3) return null;
-    final day = int.tryParse(parts[0]);
-    final month = int.tryParse(parts[1]);
-    final year = int.tryParse(parts[2]);
-    if (day == null || month == null || year == null) return null;
-    if (year < 1900 || year > 2100) return null;
-    if (month < 1 || month > 12) return null;
-    if (day < 1 || day > 31) return null;
-    try {
-      return DateTime(year, month, day);
-    } catch (_) {
-      return null;
-    }
+    final d = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final y = int.tryParse(parts[2]);
+    if (d == null || m == null || y == null) return null;
+    try { return DateTime(y, m, d); } catch (_) { return null; }
   }
 }
 
-// ── Popup menu row helper ──
-class _PopupRow extends StatelessWidget {
+class _ArcAction {
   final IconData icon;
-  final String label;
-  final bool danger;
-  const _PopupRow({
-    required this.icon,
-    required this.label,
-    this.danger = false,
-  });
+  final VoidCallback onTap;
+  final bool visible;
+  _ArcAction({required this.icon, required this.onTap, this.visible = true});
+}
+
+class _RadialButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final AppTheme theme;
+
+  const _RadialButton({required this.icon, required this.onTap, required this.theme});
+
+  @override
+  State<_RadialButton> createState() => _RadialButtonState();
+}
+
+class _RadialButtonState extends State<_RadialButton> {
+  double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? Colors.red.shade400 : Colors.grey.shade700;
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: color,
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.95),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: widget.theme.primary,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
+          child: Icon(widget.icon, color: Colors.white, size: 18),
         ),
-      ],
+      ),
     );
   }
 }

@@ -60,7 +60,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Timer service --
   final TimerService _timerService = TimerService();
-  bool _timerCardExpanded = false;
 
   // -- Mood service --
   final MoodService _moodService = MoodService();
@@ -478,14 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: AnimatedOpacity(
-              opacity: _timerCardExpanded ? 0.0 : 1.0,
-              duration: const Duration(milliseconds: 300),
-              child: IgnorePointer(
-                ignoring: _timerCardExpanded,
-                child: _buildBottomNavContent(),
-              ),
-            ),
+            child: _buildBottomNavContent(),
           ),
         ],
       ),
@@ -533,28 +525,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                AnimatedSlideIn(
-                  delay: const Duration(milliseconds: 200),
-                  child: ExpandableTimerCard(
-                    theme: _t,
-                    timerService: _timerService,
-                    myAvatarUrl: widget.userData.avatarUrl,
-                    partnerAvatarUrl: _pairData.partnerAvatarUrl,
-                    isPaired: _pairData.isPaired,
-                    onExpandChanged: (expanded) {
-                      setState(() => _timerCardExpanded = expanded);
-                    },
-                  ),
-                ),
-                // Show buttons right under the arrow ONLY if card is CLOSED
-                if (!_timerCardExpanded)
-                  Transform.translate(
-                    offset: const Offset(0, -40), // Closer but balanced
-                    child: AnimatedSlideIn(
-                      delay: const Duration(milliseconds: 300),
-                      child: _buildActionButtons(),
+                // Shift dial UP closer to calendar
+                Transform.translate(
+                  offset: const Offset(0, -20),
+                  child: AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 200),
+                    child: ExpandableTimerCard(
+                      theme: _t,
+                      timerService: _timerService,
+                      myAvatarUrl: widget.userData.avatarUrl,
+                      partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                      isPaired: _pairData.isPaired,
                     ),
                   ),
+                ),
+                // Restore buttons offset to -15 for tighter layout
+                Transform.translate(
+                  offset: const Offset(0, -15),
+                  child: AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 300),
+                    child: _buildActionButtons(),
+                  ),
+                ),
                 if (_pairData.isPaired &&
                     !_reflectionManuallyDismissed &&
                     (_showReflection || _hasPartnerAnswer)) ...[
@@ -571,12 +563,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildConnectPrompt(),
                   ),
                 ],
-                // Show buttons at the bottom IF card is EXPANDED (original position)
-                if (_timerCardExpanded)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: _buildActionButtons(),
-                  ),
                 const SizedBox(height: 40),
               ],
             ),
