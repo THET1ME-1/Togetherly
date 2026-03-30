@@ -339,7 +339,10 @@ class _DrawScreenState extends State<DrawScreen>
     _bgColorSub = _fb
         .listenToCanvasBgColor(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
-        .listen(_onBgColor);
+        .listen(_onBgColor, onError: (e) => debugPrint('[Draw] stream error: $e'));
+    
+    // Safety: ensure listeners don't crash the app if rules are restrictive
+    _strokesSub?.onError((e) => debugPrint('[Draw] global strokes error: $e'));
 
     _staleTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -1275,7 +1278,10 @@ class _DrawScreenState extends State<DrawScreen>
                   final sel = c.toARGB32() == _activeColor.toARGB32();
                   return GestureDetector(
                     onTap: () {
-                      setState(() => _activeColor = c);
+                      setState(() {
+                        _activeColor = c;
+                        _currentColorValue = c.toARGB32();
+                      });
                       Navigator.pop(ctx);
                     },
                     child: AnimatedContainer(
@@ -1534,13 +1540,9 @@ class _DrawScreenState extends State<DrawScreen>
                 child: ClipRect(
                   child: Transform(
                     transform: Matrix4.identity()
-                      ..translateByDouble(
-                        _canvasOffset.dx,
-                        _canvasOffset.dy,
-                        0.0,
-                        1.0,
-                      )
-                      ..scaleByDouble(_scale, _scale, 1.0, 1.0),
+                      ..setTranslationRaw(_canvasOffset.dx, _canvasOffset.dy, 0.0)
+                      ..scale(_scale, _scale, 1.0)
+                      ..rotateZ(_canvasRotation),
                     child: RepaintBoundary(
                       key: _canvasKey,
                       child: _CanvasScene(
@@ -1942,7 +1944,10 @@ class _DrawScreenState extends State<DrawScreen>
                     final sel = c.toARGB32() == _activeColor.toARGB32();
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _activeColor = c),
+                      onTap: () => setState(() {
+                        _activeColor = c;
+                        _currentColorValue = c.toARGB32();
+                      }),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 130),
                         margin: const EdgeInsets.symmetric(
@@ -2331,7 +2336,7 @@ class _DrawingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
+    // Removed saveLayer for performance. Simplified Eraser uses bgColor ink.
 
     for (final s in strokes) {
       if (s.shapeType != null) {
@@ -2404,7 +2409,6 @@ class _DrawingPainter extends CustomPainter {
       }
     }
 
-    canvas.restore();
   }
 
   void _drawShape(
@@ -2466,9 +2470,8 @@ class _DrawingPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     if (isEraser) {
-      paint
-        ..blendMode = BlendMode.dstOut
-        ..color = const Color(0xFFFFFFFF);
+      // Drawing with bgColor is faster and more collaborative-friendly than BlendMode.dstOut
+      paint.color = Color(colorValue);
     } else {
       final c = Color(colorValue);
       paint.color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;

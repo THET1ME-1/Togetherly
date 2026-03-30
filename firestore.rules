@@ -119,6 +119,16 @@ service cloud.firestore {
         allow create, update: if isMember() && request.auth.uid == authorId;
         allow delete: if isMember() && request.auth.uid == authorId;
       }
+
+      // ── Каталог холстов ──
+      match /canvasCatalogue/{canvasId} {
+        allow read, write: if isMember();
+      }
+      
+      // Дополнительно: для счётчика в статистике
+      match /canvases/{canvasId} {
+        allow read: if isMember();
+      }
     }
 
     // Всё остальное — запрещено

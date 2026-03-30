@@ -164,12 +164,13 @@ class CanvasStorageService {
     _catalogueSub?.cancel();
     if (groupId.isEmpty) return;
 
-    _catalogueSub = _fb.listenToCanvasCatalogue(groupId: groupId).listen((
-      remoteList,
-    ) async {
-      await _mergeRemoteCanvases(uid, remoteList);
-      onRemoteChange?.call();
-    });
+    _catalogueSub = _fb.listenToCanvasCatalogue(groupId: groupId).listen(
+      (remoteList) async {
+        await _mergeRemoteCanvases(uid, remoteList);
+        onRemoteChange?.call();
+      },
+      onError: (e) => debugPrint('[Storage] catalogue error: $e'),
+    );
   }
 
   /// Stop the remote listener (e.g. when the gallery screen is disposed).
@@ -232,7 +233,7 @@ class CanvasStorageService {
 
     if (changed) {
       final merged = localById.values.toList()
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       await _save(uid, merged);
     }
   }
