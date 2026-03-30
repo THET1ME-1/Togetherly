@@ -951,7 +951,16 @@ class FirebaseService {
           )
           .toList(),
       'maxMembers': data['maxMembers'] ?? 2,
-      'memberMoods': data['memberMoods'] as Map<String, dynamic>? ?? {},
+      'memberMoods': (data['memberMoods'] as Map<String, dynamic>? ?? {}).map(
+        (uid, moodData) {
+          final moodMap = Map<String, dynamic>.from(moodData as Map);
+          final ts = moodMap['updatedAt'];
+          if (ts is Timestamp) {
+            moodMap['updatedAt'] = ts.toDate();
+          }
+          return MapEntry(uid, moodMap);
+        },
+      ),
       'currentStatus': data['currentStatus'] as Map<String, dynamic>?,
       'customStatuses': data['customStatuses'] as List<dynamic>?,
       'relationshipType': data['relationshipType'] as String?,

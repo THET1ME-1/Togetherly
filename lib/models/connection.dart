@@ -37,8 +37,16 @@ class MemberMood {
 
   const MemberMood({this.imagePath = '', this.label = '', this.updatedAt});
 
-  bool get isEmpty => imagePath.isEmpty;
-  bool get isNotEmpty => imagePath.isNotEmpty;
+  bool get isToday {
+    if (updatedAt == null) return false;
+    final now = DateTime.now();
+    return updatedAt!.year == now.year &&
+           updatedAt!.month == now.month &&
+           updatedAt!.day == now.day;
+  }
+
+  bool get isEmpty => imagePath.isEmpty || !isToday;
+  bool get isNotEmpty => imagePath.isNotEmpty && isToday;
 
   factory MemberMood.fromJson(Map<String, dynamic> json) {
     DateTime? updatedAt;
@@ -198,21 +206,26 @@ class Connection {
   /// Get my mood
   MemberMood get myMood {
     final myUid = _fb.uid ?? '';
-    return memberMoods[myUid] ?? const MemberMood();
+    final m = memberMoods[myUid];
+    if (m == null || !m.isToday) return const MemberMood();
+    return m;
   }
 
   /// Get partner's mood (first partner)
   MemberMood get partnerMood {
     final myUid = _fb.uid ?? '';
     for (final entry in memberMoods.entries) {
-      if (entry.key != myUid) return entry.value;
+      if (entry.key != myUid && entry.value.isToday) return entry.value;
     }
     return const MemberMood();
   }
 
   /// Get mood by uid
   MemberMood moodOf(String uid) {
-    return memberMoods[uid] ?? const MemberMood();
+    final m = memberMoods[uid];
+    if (m == null) return const MemberMood();
+    if (!m.isToday) return const MemberMood();
+    return m;
   }
 
   /// Set my mood
