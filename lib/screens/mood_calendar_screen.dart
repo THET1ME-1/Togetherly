@@ -9,6 +9,7 @@ import '../models/pair_data.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
+import '../theme/app_theme.dart';
 
 /// Экран «Mood Calendar»
 /// Верхняя часть — мой календарь, нижняя — календарь партнёра.
@@ -18,11 +19,14 @@ class MoodCalendarScreen extends StatefulWidget {
   final MoodService moodService;
   final WidgetService widgetService;
 
+  final AppTheme theme;
+
   const MoodCalendarScreen({
     super.key,
     required this.pairData,
     required this.moodService,
     required this.widgetService,
+    required this.theme,
   });
 
   @override
@@ -30,7 +34,6 @@ class MoodCalendarScreen extends StatefulWidget {
 }
 
 class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
-  static const Color primary = Color(0xFFEE2B6C);
 
   int _selectedPeriod = 1; // 0=Week, 1=Month, 2=Year
   late DateTime _currentMonth;
@@ -274,7 +277,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           ? FontWeight.w700
                           : FontWeight.w500,
                       color: _selectedPeriod == i
-                          ? primary
+                          ? widget.theme.primary
                           : Colors.grey.shade500,
                     ),
                   ),
@@ -524,7 +527,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                color: isToday ? primary : Colors.grey.shade600,
+                color: isToday ? widget.theme.primary : Colors.grey.shade600,
               ),
             ),
             const SizedBox(height: 4),
@@ -693,7 +696,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
-          border: isToday ? Border.all(color: primary, width: 2) : null,
+          border: isToday ? Border.all(color: widget.theme.primary, width: 2) : null,
         ),
       );
     }
@@ -702,7 +705,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       moods: moods,
       size: size,
       isToday: isToday,
-      primary: primary,
+      primary: widget.theme.primary,
     );
   }
 
@@ -854,7 +857,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: primary.withOpacity(0.1),
+                  color: widget.theme.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -862,7 +865,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: primary,
+                    color: widget.theme.primary,
                   ),
                 ),
               ),
@@ -873,6 +876,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             height: 120,
             child: sortedDays.length > 1
                 ? LineChart(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOutExpo,
                     LineChartData(
                       gridData: FlGridData(
                         show: true,
@@ -944,7 +949,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
-                          color: primary,
+                          color: widget.theme.primary,
                           barWidth: 3,
                           isStrokeCapRound: true,
                           dotData: FlDotData(
@@ -954,12 +959,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                               radius: 4,
                               color: Colors.white,
                               strokeWidth: 2,
-                              strokeColor: primary,
+                              strokeColor: widget.theme.primary,
                             ),
                           ),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: primary.withOpacity(0.1),
+                            color: widget.theme.primary.withOpacity(0.1),
                           ),
                         ),
                       ],

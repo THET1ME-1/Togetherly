@@ -22,7 +22,8 @@ class _PetalData {
   });
 
   /// Normalised 0..1 brightness factor based on exact continuous value.
-  double get factor => maxValue > 0 ? (exactValue / maxValue).clamp(0.0, 1.0) : 0.0;
+  double get factor =>
+      maxValue > 0 ? (exactValue / maxValue).clamp(0.0, 1.0) : 0.0;
 }
 
 /// A donut-like diagram with 6 rounded petal segments arranged in a ring.
@@ -66,6 +67,12 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     super.initState();
     _flingCtrl = AnimationController.unbounded(vsync: this);
     _flingCtrl.addListener(_onFlingTick);
+
+    // Инициализируем текущие значения лепестков и display factors
+    _currentPetals = _computePetals();
+    _displayFactors = _currentPetals.map((p) => p.factor).toList();
+
+    // Запускаем ticker для плавной анимации
     _chaseTicker = createTicker(_onChaseTick)..start();
   }
 
@@ -73,18 +80,18 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     _currentPetals = _computePetals();
     bool changed = false;
     for (int i = 0; i < 6; i++) {
-        final target = _currentPetals[i].factor;
-        final diff = target - _displayFactors[i];
-        if (diff.abs() > 0.0005) {
-            _displayFactors[i] += diff * 0.15;
-            changed = true;
-        } else if (_displayFactors[i] != target) {
-            _displayFactors[i] = target;
-            changed = true;
-        }
+      final target = _currentPetals[i].factor;
+      final diff = target - _displayFactors[i];
+      if (diff.abs() > 0.0005) {
+        _displayFactors[i] += diff * 0.15;
+        changed = true;
+      } else if (_displayFactors[i] != target) {
+        _displayFactors[i] = target;
+        changed = true;
+      }
     }
     if (changed && mounted) {
-        setState(() {});
+      setState(() {});
     }
   }
 
@@ -174,21 +181,48 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     final exactYears = totalSec / (365.25 * 24 * 3600.0);
 
     return [
-      _PetalData(label: 'Years', value: yearsInt, maxValue: 100, exactValue: exactYears),
-      _PetalData(label: 'Months', value: monthsInt, maxValue: 12, exactValue: exactMonths),
-      _PetalData(label: 'Days', value: daysInt, maxValue: 30, exactValue: exactDays),
-      _PetalData(label: 'Hours', value: hoursInt, maxValue: 24, exactValue: exactHours),
-      _PetalData(label: 'Min', value: minutesInt, maxValue: 60, exactValue: exactMinutes),
-      _PetalData(label: 'Sec', value: secondsInt, maxValue: 60, exactValue: exactSeconds),
+      _PetalData(
+        label: 'Years',
+        value: yearsInt,
+        maxValue: 100,
+        exactValue: exactYears,
+      ),
+      _PetalData(
+        label: 'Months',
+        value: monthsInt,
+        maxValue: 12,
+        exactValue: exactMonths,
+      ),
+      _PetalData(
+        label: 'Days',
+        value: daysInt,
+        maxValue: 30,
+        exactValue: exactDays,
+      ),
+      _PetalData(
+        label: 'Hours',
+        value: hoursInt,
+        maxValue: 24,
+        exactValue: exactHours,
+      ),
+      _PetalData(
+        label: 'Min',
+        value: minutesInt,
+        maxValue: 60,
+        exactValue: exactMinutes,
+      ),
+      _PetalData(
+        label: 'Sec',
+        value: secondsInt,
+        maxValue: 60,
+        exactValue: exactSeconds,
+      ),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_currentPetals.isEmpty) {
-      _currentPetals = _computePetals();
-      _displayFactors = _currentPetals.map((p) => p.factor).toList();
-    }
+    // _currentPetals и _displayFactors инициализируются в initState
     final petals = _currentPetals;
 
     return LayoutBuilder(
@@ -199,15 +233,21 @@ class _PetalTimerDialState extends State<PetalTimerDial>
         final scale = size / 280.0;
 
         return GestureDetector(
-          onScaleStart: (details) => _onPanStart(DragStartDetails(
-              localPosition: details.localFocalPoint, 
-              globalPosition: details.focalPoint)),
-          onScaleUpdate: (details) => _onPanUpdate(DragUpdateDetails(
-              localPosition: details.localFocalPoint, 
+          onScaleStart: (details) => _onPanStart(
+            DragStartDetails(
+              localPosition: details.localFocalPoint,
               globalPosition: details.focalPoint,
-              delta: details.focalPointDelta)),
-          onScaleEnd: (details) => _onPanEnd(DragEndDetails(
-              velocity: details.velocity)),
+            ),
+          ),
+          onScaleUpdate: (details) => _onPanUpdate(
+            DragUpdateDetails(
+              localPosition: details.localFocalPoint,
+              globalPosition: details.focalPoint,
+              delta: details.focalPointDelta,
+            ),
+          ),
+          onScaleEnd: (details) =>
+              _onPanEnd(DragEndDetails(velocity: details.velocity)),
           child: SizedBox(
             width: size,
             height: size,
@@ -246,7 +286,7 @@ class _PetalDialPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    
+
     // Outer boundary of the entire widget
     final outerR = math.min(cx, cy) - 2;
     // Tiny hole inside, matching the photo (~15%)
@@ -254,7 +294,7 @@ class _PetalDialPainter extends CustomPainter {
 
     // Corner radius of EVERY edge
     final cr = 4.0 * scale;
-    
+
     // Width of the parallel gap lines separating the petals
     final gapWidth = 6.0 * scale;
 
@@ -262,7 +302,7 @@ class _PetalDialPainter extends CustomPainter {
     // When the fill+stroke is combined, the visual gap and corner radii are exactly as requested.
     final rigidInner = innerR + cr;
     final rigidOuter = outerR - cr;
-    final h = (gapWidth / 2) + cr; 
+    final h = (gapWidth / 2) + cr;
 
     final totalAngle = 2 * math.pi / petals.length;
 
@@ -272,38 +312,38 @@ class _PetalDialPainter extends CustomPainter {
 
     for (int i = 0; i < petals.length; i++) {
       final petal = petals[i];
-      
+
       // Rotate canvas per-segment so the petal is constructed along the local X-axis (angle 0).
       // i=0 is top (-pi/2), so:
       final segAngle = -math.pi / 2 + i * totalAngle;
-      
+
       canvas.save();
       canvas.rotate(segAngle);
 
       // ── 1. Draw Background Track (the placeholder for max value) ──
       // Фон лепестков берётся из новой настройки темы
       final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h);
-      
+
       final bgPaintFill = Paint()
         ..color = theme.timerDialBackground
         ..style = PaintingStyle.fill;
-      
+
       final bgPaintStroke = Paint()
         ..color = theme.timerDialBackground
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = cr * 2;
-        
+
       canvas.drawPath(bgPath, bgPaintFill);
       canvas.drawPath(bgPath, bgPaintStroke);
 
       // ── 2. Draw Bright Value Segment ──
       final factor = displayFactors[i].clamp(0.0, 1.0);
-      
+
       if (factor > 0.01) {
         final currentOuterR = innerR + (outerR - innerR) * factor;
         final rigidFgOuter = math.max(rigidInner + 0.1, currentOuterR - cr);
-        
+
         final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h);
 
         // Цвет заполнения как у иконок в навигации (theme.navActiveIcon)
@@ -312,13 +352,13 @@ class _PetalDialPainter extends CustomPainter {
         final fgPaintFill = Paint()
           ..color = fgColor
           ..style = PaintingStyle.fill;
-        
+
         final fgPaintStroke = Paint()
           ..color = fgColor
           ..style = PaintingStyle.stroke
           ..strokeJoin = StrokeJoin.round
           ..strokeWidth = cr * 2;
-          
+
         canvas.drawPath(fgPath, fgPaintFill);
         canvas.drawPath(fgPath, fgPaintStroke);
       }
@@ -363,7 +403,7 @@ class _PetalDialPainter extends CustomPainter {
 
   Path _buildParallelRigidSector(double outer, double inner, double h) {
     final path = Path();
-    
+
     // Bounds for 6 total segments (2 * pi / 6).
     const topA = math.pi / 6;
     const botA = -math.pi / 6;
@@ -372,8 +412,14 @@ class _PetalDialPainter extends CustomPainter {
 
     // Outer intersections
     final tOut = math.sqrt(outer * outer - h * h);
-    final pOutTop = Offset(tOut * math.cos(topA) + h * math.sin(topA), tOut * math.sin(topA) - h * math.cos(topA));
-    final pOutBot = Offset(tOut * math.cos(botA) - h * math.sin(botA), tOut * math.sin(botA) + h * math.cos(botA));
+    final pOutTop = Offset(
+      tOut * math.cos(topA) + h * math.sin(topA),
+      tOut * math.sin(topA) - h * math.cos(topA),
+    );
+    final pOutBot = Offset(
+      tOut * math.cos(botA) - h * math.sin(botA),
+      tOut * math.sin(botA) + h * math.cos(botA),
+    );
 
     double tIn = 0;
     Offset pInTop = Offset.zero;
@@ -381,8 +427,14 @@ class _PetalDialPainter extends CustomPainter {
 
     if (inner > h) {
       tIn = math.sqrt(inner * inner - h * h);
-      pInTop = Offset(tIn * math.cos(topA) + h * math.sin(topA), tIn * math.sin(topA) - h * math.cos(topA));
-      pInBot = Offset(tIn * math.cos(botA) - h * math.sin(botA), tIn * math.sin(botA) + h * math.cos(botA));
+      pInTop = Offset(
+        tIn * math.cos(topA) + h * math.sin(topA),
+        tIn * math.sin(topA) - h * math.cos(topA),
+      );
+      pInBot = Offset(
+        tIn * math.cos(botA) - h * math.sin(botA),
+        tIn * math.sin(botA) + h * math.cos(botA),
+      );
     } else {
       final xIntersect = h / math.sin(math.pi / 6);
       pInTop = Offset(xIntersect, 0);
@@ -394,23 +446,31 @@ class _PetalDialPainter extends CustomPainter {
 
     path.moveTo(pInBot.dx, pInBot.dy);
     path.lineTo(pOutBot.dx, pOutBot.dy);
-    
+
     if (aOutTop > aOutBot) {
-      path.arcTo(Rect.fromCircle(center: Offset.zero, radius: outer),
-                 aOutBot, aOutTop - aOutBot, false);
+      path.arcTo(
+        Rect.fromCircle(center: Offset.zero, radius: outer),
+        aOutBot,
+        aOutTop - aOutBot,
+        false,
+      );
     }
-    
+
     path.lineTo(pInTop.dx, pInTop.dy);
-    
+
     if (inner > h) {
       final aInTop = math.atan2(pInTop.dy, pInTop.dx);
       final aInBot = math.atan2(pInBot.dy, pInBot.dx);
-      path.arcTo(Rect.fromCircle(center: Offset.zero, radius: inner),
-                 aInTop, aInBot - aInTop, false);
+      path.arcTo(
+        Rect.fromCircle(center: Offset.zero, radius: inner),
+        aInTop,
+        aInBot - aInTop,
+        false,
+      );
     } else {
       path.lineTo(pInBot.dx, pInBot.dy);
     }
-    
+
     path.close();
     return path;
   }
@@ -447,8 +507,8 @@ class _PetalDialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PetalDialPainter old) =>
-      old.rotationAngle != rotationAngle || 
-      old.petals != petals || 
+      old.rotationAngle != rotationAngle ||
+      old.petals != petals ||
       old.displayFactors != displayFactors ||
       old.scale != scale;
 }

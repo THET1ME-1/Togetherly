@@ -119,7 +119,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                 itemExtent: _kItemStride,
                 itemBuilder: (context, index) {
                   final date = _dateForIndex(index);
-                  
+
                   return AnimatedBuilder(
                     animation: _scrollController,
                     builder: (context, child) {
@@ -128,16 +128,18 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                         final position = _scrollController.position;
                         final viewportWidth = position.viewportDimension;
                         final scrollOffset = position.pixels;
-                        
-                        final viewportCenter = scrollOffset + (viewportWidth / 2);
-                        final itemCenter = (index * _kItemStride) + (_kCellWidth / 2);
+
+                        final viewportCenter =
+                            scrollOffset + (viewportWidth / 2);
+                        final itemCenter =
+                            (index * _kItemStride) + (_kCellWidth / 2);
                         final distance = (itemCenter - viewportCenter).abs();
-                        
+
                         // Парарабола, чтобы боковые карточки опускались: dy = a * x^2
                         dy = (distance * distance) * 0.00075;
                         if (dy > 45.0) dy = 45.0; // ограничиваем сдвиг
                       }
-                      
+
                       return Transform.translate(
                         offset: Offset(0, dy),
                         child: child,
@@ -238,12 +240,14 @@ class _DayCell extends StatefulWidget {
   State<_DayCell> createState() => _DayCellState();
 }
 
-class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin {
+class _DayCellState extends State<_DayCell>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   Timer? _timer;
-  
+
   double _displayFactor = 0.0;
   Ticker? _chaseTicker;
+  DateTime? _lastProcessedDate;
 
   bool get isToday =>
       widget.date.year == widget.today.year &&
@@ -258,45 +262,103 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
   void initState() {
     super.initState();
     _maybeStartTimer();
+
+    // Инициализируем _lastProcessedDate
+    _lastProcessedDate = widget.date;
+
+    // Если это сегодня, инициализируем _displayFactor текущим временем
     if (isToday) {
-      _chaseTicker = createTicker(_onChaseTick)..start();
+      final now = DateTime.now();
+      final secToday =
+          now.hour * 3600 +
+          now.minute * 60 +
+          now.second +
+          (now.millisecond / 1000.0);
+      _displayFactor = (secToday / 86400.0).clamp(0.0, 1.0);
+    } else {
+      _displayFactor = 0.0;
+    }
+
+    _updateAnimationState();
+  }
+
+  void _updateAnimationState() {
+    // Проверяем, изменилась ли дата
+    final dateChanged =
+        _lastProcessedDate != null &&
+        (_lastProcessedDate!.year != widget.date.year ||
+            _lastProcessedDate!.month != widget.date.month ||
+            _lastProcessedDate!.day != widget.date.day);
+
+    _lastProcessedDate = widget.date;
+
+    // Останавливаем старый ticker если дата больше не "сегодня"
+    if (!isToday && _chaseTicker != null) {
+      _chaseTicker?.stop();
+      _chaseTicker?.dispose();
+      _chaseTicker = null;
+      _displayFactor = 0.0;
+    }
+
+    // Запускаем новый ticker если это "сегодня" и его нет
+    if (isToday && _chaseTicker == null) {
+      try {
+        _chaseTicker = createTicker(_onChaseTick)..start();
+        debugPrint(
+          '_DayCell: Ticker started for date=${widget.date}, theme=${widget.theme.name}',
+        );
+      } catch (e) {
+        debugPrint('Error creating ticker for day cell: $e');
+      }
+    }
+
+    // Сброс анимации если дата изменилась
+    if (dateChanged && !isToday) {
+      _displayFactor = 0.0;
     }
   }
 
   void _onChaseTick(Duration elapsed) {
+    // Проверяем, что widget всё ещё существует и это "сегодня"
+    if (!mounted || !isToday) {
+      _chaseTicker?.stop();
+      return;
+    }
+
     final now = DateTime.now();
     // Вычисляем процент прошедшего времени за сегодняшний день
-    final secToday = now.hour * 3600 + now.minute * 60 + now.second + (now.millisecond / 1000.0);
+    final secToday =
+        now.hour * 3600 +
+        now.minute * 60 +
+        now.second +
+        (now.millisecond / 1000.0);
     final target = (secToday / 86400.0).clamp(0.0, 1.0);
-    
+
+    final oldDisplayFactor = _displayFactor;
     final diff = target - _displayFactor;
-    bool changed = false;
+
     // Плавное заполнение, как в PetalTimerDial
     if (diff.abs() > 0.0005) {
       _displayFactor += diff * 0.15;
-      changed = true;
-    } else if (_displayFactor != target) {
+    } else if ((_displayFactor - target).abs() > 0.00001) {
       _displayFactor = target;
-      changed = true;
     }
-    
-    if (changed && mounted) {
-      setState(() {});
+
+    // Проверяем, есть ли заметное изменение
+    if ((oldDisplayFactor - _displayFactor).abs() > 0.0001) {
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
   @override
   void didUpdateWidget(_DayCell old) {
     super.didUpdateWidget(old);
+
+    // Всегда проверяем состояние анимации при обновлении виджета
+    _updateAnimationState();
     _maybeStartTimer();
-    
-    if (isToday && _chaseTicker == null) {
-      _chaseTicker = createTicker(_onChaseTick)..start();
-    } else if (!isToday && _chaseTicker != null) {
-      _chaseTicker?.stop();
-      _chaseTicker?.dispose();
-      _chaseTicker = null;
-    }
   }
 
   void _maybeStartTimer() {
@@ -376,7 +438,7 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
                   ),
                 ),
               ),
-              
+
             // Контент (текст и иконка)
             Opacity(
               opacity: isFuture ? 0.35 : 1.0,
@@ -392,7 +454,9 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: isToday ? widget.theme.primary : baseTextColor,
+                            color: isToday
+                                ? widget.theme.primary
+                                : baseTextColor,
                             letterSpacing: 0.6,
                           ),
                         ),
@@ -404,7 +468,9 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: isToday ? widget.theme.primary : baseNumColor,
+                            color: isToday
+                                ? widget.theme.primary
+                                : baseNumColor,
                             height: 1.1,
                           ),
                         ),
@@ -421,7 +487,8 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
                                   key: ValueKey(current.id),
                                   width: 30,
                                   height: 30,
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
                                 )
                               : const SizedBox.shrink(),
                         ),
@@ -460,7 +527,9 @@ class _DayCellState extends State<_DayCell> with SingleTickerProviderStateMixin 
                             ),
                           ),
                           // Иконка в инверсии не нужна, так как изображение само по себе цветное
-                          const SizedBox(height: 34), // Отступ под цифрой, чтобы пропустить иконку
+                          const SizedBox(
+                            height: 34,
+                          ), // Отступ под цифрой, чтобы пропустить иконку
                         ],
                       ),
                     ),
@@ -480,9 +549,15 @@ class _BottomHeightClipper extends CustomClipper<Rect> {
 
   @override
   Rect getClip(Size size) {
-    return Rect.fromLTRB(0, size.height * (1 - factor), size.width, size.height);
+    return Rect.fromLTRB(
+      0,
+      size.height * (1 - factor),
+      size.width,
+      size.height,
+    );
   }
 
   @override
-  bool shouldReclip(_BottomHeightClipper oldClipper) => oldClipper.factor != factor;
+  bool shouldReclip(_BottomHeightClipper oldClipper) =>
+      oldClipper.factor != factor;
 }

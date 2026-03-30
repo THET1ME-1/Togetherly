@@ -199,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
               pairData: _pairData,
               moodService: _moodService,
               widgetService: _widgetService,
+              theme: _t,
             ),
           ),
         );
@@ -952,6 +953,7 @@ class _HomeScreenState extends State<HomeScreen> {
           pairData: _pairData,
           moodService: _moodService,
           widgetService: _widgetService,
+          theme: _t,
         ),
       ),
     );
@@ -1793,7 +1795,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-      ),
+        ),
       ),
     );
   }

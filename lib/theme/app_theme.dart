@@ -129,7 +129,7 @@ abstract final class AppThemes {
     navActiveBg: Color(0xFFF9E4E2),
     navActiveIcon: Color(0xFFFF7E8B),
     promptButtonColor: Color(0xFFFF7E8B),
-    timerDialBackground: Color(0xFFFE7D8B),
+    timerDialBackground: Color(0xFFFEDADE),
     bgImageUrl:
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
   );
