@@ -67,6 +67,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
   String _photoDayMode = 'random'; // 'random' | 'custom'
   bool _savePhotoAsMemory = true;
   String? _photoDayPath;
+  String _photoDayAuthorName = '';
+  String _photoDayAuthorUid = '';
+  String _photoDayViewerUid = '';
+  String _photoDayViewerName = '';
   int _photoDayVersion = 0;
   bool _isLoadingPhoto = false;
 
@@ -166,14 +170,34 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final prefs = await SharedPreferences.getInstance();
     final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
     final nativePath = await HomeWidget.getWidgetData<String>('photo_day_path');
+    final authorName = await HomeWidget.getWidgetData<String>(
+      'photo_day_author',
+    );
+    final authorUid = await HomeWidget.getWidgetData<String>(
+      'photo_day_author_uid',
+    );
+    final viewerUid = await HomeWidget.getWidgetData<String>(
+      'photo_day_viewer_uid',
+    );
+    final viewerName = await HomeWidget.getWidgetData<String>(
+      'photo_day_viewer_name',
+    );
 
     if (mounted) {
       setState(() {
         _photoDayMode = mode;
         _savePhotoAsMemory = save;
-        _photoDayPath = (nativePath != null && nativePath.isNotEmpty)
-            ? nativePath
-            : customPath;
+        if (_photoDayMode == 'custom') {
+          _photoDayPath = customPath ?? (nativePath ?? '');
+        } else {
+          _photoDayPath = (nativePath != null && nativePath.isNotEmpty)
+              ? nativePath
+              : customPath;
+        }
+        _photoDayAuthorName = authorName ?? '';
+        _photoDayAuthorUid = authorUid ?? '';
+        _photoDayViewerUid = viewerUid ?? '';
+        _photoDayViewerName = viewerName ?? '';
         _photoDayVersion++;
       });
     }
@@ -184,6 +208,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     await hws.setPhotoDayMode(_pair.pairId, mode);
     setState(() => _photoDayMode = mode);
     if (mode == 'random') {
+      await _ws.setPhotoDayMode('random');
       setState(() => _isLoadingPhoto = true);
       await hws.refreshPhotoOfDay(_pair.pairId);
       PaintingBinding.instance.imageCache.clear();
@@ -191,6 +216,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       await _loadPhotoDayPrefs();
       if (mounted) setState(() => _isLoadingPhoto = false);
     } else {
+      await _ws.setPhotoDayMode('custom');
       final prefs = await SharedPreferences.getInstance();
       final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
 
@@ -232,7 +258,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final prefs = await SharedPreferences.getInstance();
 
     // 1. Сразу обновляем виджет локальным файлом (для скорости)
-    await hws.syncPhotoOfDay(photoUrl: '', localFile: file);
+    await hws.syncPhotoOfDay(
+      photoUrl: '',
+      localFile: file,
+      authorName: _ws.myData?.displayName ?? widget.userData.displayName,
+      authorUid: _ws.myData?.uid ?? widget.userData.uid,
+    );
+    // 1.1 публикуем своё фото в widgetData (чтобы партнёр видел его в custom)
+    await _ws.updatePhoto(file.path);
+    await _ws.setPhotoDayMode('custom');
+
     await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
@@ -255,7 +290,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 ? 'Установлено как фото дня'
                 : 'Set as Photo of the Day',
           );
+          // Обновляем widgetData, чтобы партнёр увидел это фото через HomeWidgetService.custom
+          await _ws.updatePhotoUrl(url);
           _loadStats(); // Обновить счетчик воспоминаний
+          // После сохранения как памяти обновляем на устройстве, чтобы показать правильное (партнёрское) фото
+          await hws.refreshPhotoOfDay(_pair.pairId);
         }
       } catch (e) {
         debugPrint('Failed to save photo day as memory: $e');
@@ -1382,6 +1421,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Widget _buildPhotoDayPreview() {
     final isRu = LocaleService.instance.isRussian;
+    final isOwnPhoto =
+        _photoDayAuthorUid.isNotEmpty &&
+        _photoDayViewerUid.isNotEmpty &&
+        _photoDayAuthorUid == _photoDayViewerUid;
+
+    final authorLabel = _photoDayAuthorName.isNotEmpty
+        ? (isOwnPhoto
+              ? (isRu ? 'Ваше фото' : 'Your photo')
+              : '${isRu ? 'Фото от' : 'Photo by'} ${_photoDayAuthorName}')
+        : (isRu ? 'Фото дня' : 'Photo of the Day');
+
+    final previewLabel = _photoDayMode == 'custom'
+        ? (isRu ? 'Ваше фото' : 'Your photo')
+        : authorLabel;
 
     return AspectRatio(
       aspectRatio: 1.0,
@@ -1424,7 +1477,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     const Text('📷', style: TextStyle(fontSize: 40)),
                     const SizedBox(height: 6),
                     Text(
-                      isRu ? 'Фото дня' : 'Photo of the Day',
+                      previewLabel,
                       style: GoogleFonts.rubik(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1481,12 +1534,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   children: [
                     const Text('📸', style: TextStyle(fontSize: 12)),
                     const SizedBox(width: 4),
-                    Text(
-                      isRu ? 'Фото дня' : 'Photo of the Day',
-                      style: GoogleFonts.rubik(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    Expanded(
+                      child: Text(
+                        previewLabel,
+                        style: GoogleFonts.rubik(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

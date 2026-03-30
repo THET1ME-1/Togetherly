@@ -47,5 +47,18 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/photo_author"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="8dp"
+        android:padding="4dp"
+        android:background="#80000000"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp"
+        android:visibility="gone" />
+    </LinearLayout>
+
 
 </FrameLayout>

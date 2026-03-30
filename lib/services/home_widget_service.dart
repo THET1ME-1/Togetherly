@@ -1,4 +1,4 @@
-import 'dart:async';
+челоеimport 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'firebase_service.dart';
 import '../models/timer_item.dart';
 import '../models/memory.dart';
 
@@ -43,14 +44,14 @@ class HomeWidgetService {
   Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_boundGroupPrefix$widgetType', groupId);
-    
+
     // Если это фото дня и режим не задан — ставим по умолчанию random
     if (widgetType == 'photo_day') {
       if (prefs.getString('$_photoModePrefix$groupId') == null) {
         await prefs.setString('$_photoModePrefix$groupId', 'random');
       }
     }
-    
+
     debugPrint('HomeWidgetService: $widgetType bound to group $groupId');
   }
 
@@ -106,8 +107,14 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('start_date_label', startDate);
-      await HomeWidget.saveWidgetData<String>('my_gender', myGender.isNotEmpty ? myGender : 'male');
-      await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender.isNotEmpty ? partnerGender : 'female');
+      await HomeWidget.saveWidgetData<String>(
+        'my_gender',
+        myGender.isNotEmpty ? myGender : 'male',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'partner_gender',
+        partnerGender.isNotEmpty ? partnerGender : 'female',
+      );
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         androidName: 'DaysCounterWidgetProvider',
@@ -163,6 +170,7 @@ class HomeWidgetService {
     String caption = '',
     String memoryId = '',
     String authorName = '',
+    String authorUid = '',
     File? localFile,
   }) async {
     try {
@@ -177,15 +185,36 @@ class HomeWidgetService {
         localPath = await _cachePhotoFromUrl(photoUrl, 'photo_day');
       }
 
+      final viewerUid = FirebaseService().uid ?? '';
+      String viewerName = '';
+      if (viewerUid.isNotEmpty) {
+        final userDoc = await _db.collection('users').doc(viewerUid).get();
+        viewerName = userDoc.data()?['displayName'] ?? '';
+      }
+
       await HomeWidget.saveWidgetData<String>('photo_day_path', localPath);
       await HomeWidget.saveWidgetData<String>('photo_day_caption', caption);
       await HomeWidget.saveWidgetData<String>('photo_day_memory_id', memoryId);
       await HomeWidget.saveWidgetData<String>('photo_day_author', authorName);
+      await HomeWidget.saveWidgetData<String>(
+        'photo_day_author_uid',
+        authorUid,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'photo_day_viewer_uid',
+        viewerUid,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'photo_day_viewer_name',
+        viewerName,
+      );
       await HomeWidget.updateWidget(
         name: 'PhotoDayWidgetProvider',
         androidName: 'PhotoDayWidgetProvider',
       );
-      debugPrint('HomeWidgetService: photo of day synced — $memoryId (path=$localPath)');
+      debugPrint(
+        'HomeWidgetService: photo of day synced — $memoryId (path=$localPath)',
+      );
     } catch (e) {
       debugPrint('HomeWidgetService.syncPhotoOfDay failed: $e');
     }
@@ -198,17 +227,57 @@ class HomeWidgetService {
     if (groupId.isEmpty) return;
     try {
       final mode = await getPhotoDayMode(groupId);
-      if (mode == 'custom') {
-        debugPrint('HomeWidgetService: photo of day is in CUSTOM mode, skip refresh from auto');
-        // В кастомном режиме просто переподтягиваем то что уже лежит в SharedPreferences
-        // Но HomeWidget.updateWidget всё равно стоит дернуть, чтобы виджет перерисовался если ОС его прибила
-        await HomeWidget.updateWidget(
-          name: 'PhotoDayWidgetProvider',
-          androidName: 'PhotoDayWidgetProvider',
+
+      // Сохраняем текущий профиль (viewer) для различения моего/партнёрского фото
+      final currentUserUid = FirebaseService().uid ?? '';
+      String currentUserName = '';
+      if (currentUserUid.isNotEmpty) {
+        final userDoc = await _db.collection('users').doc(currentUserUid).get();
+        currentUserName = userDoc.data()?['displayName'] ?? '';
+      }
+      await HomeWidget.saveWidgetData<String>(
+        'photo_day_viewer_uid',
+        currentUserUid,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'photo_day_viewer_name',
+        currentUserName,
+      );
+
+      final partnerData = await _getPartnerWidgetData(groupId, currentUserUid);
+      final partnerMode = partnerData?['photoDayMode'] ?? 'random';
+
+      if (mode == 'random' && partnerMode == 'custom' && partnerData != null) {
+        // я random, партнер custom -> показываем фото партнёра
+        debugPrint(
+          'HomeWidgetService: local random, partner custom, using partner photo ${partnerData['authorName']} (${partnerData['authorUid']})',
+        );
+        await syncPhotoOfDay(
+          photoUrl: partnerData['photoUrl'] ?? '',
+          caption: 'Партнёрское фото',
+          memoryId: '',
+          authorName: partnerData['authorName'] ?? '',
+          authorUid: partnerData['authorUid'] ?? '',
         );
         return;
       }
 
+      if (mode == 'custom' && partnerMode == 'custom' && partnerData != null) {
+        // оба custom -> показываем фото партнёра
+        debugPrint(
+          'HomeWidgetService: both custom, using partner photo ${partnerData['authorName']} (${partnerData['authorUid']})',
+        );
+        await syncPhotoOfDay(
+          photoUrl: partnerData['photoUrl'] ?? '',
+          caption: 'Партнёрское фото',
+          memoryId: '',
+          authorName: partnerData['authorName'] ?? '',
+          authorUid: partnerData['authorUid'] ?? '',
+        );
+        return;
+      }
+
+      // При mode==custom и partnerMode==random (или наоборот) показываем общий random
       final snap = await _db
           .collection('groups')
           .doc(groupId)
@@ -221,37 +290,95 @@ class HomeWidgetService {
         return;
       }
 
-      // Выбираем случайное фото
-      final docs = snap.docs.toList()..shuffle();
-      final doc = docs.first;
-      final memory = Memory.fromFirestore(doc.id, doc.data());
+      final memories = snap.docs
+          .map((doc) => Memory.fromFirestore(doc.id, doc.data()))
+          .toList();
 
-      if (memory.imageUrl != null && memory.imageUrl!.isNotEmpty) {
-        await syncPhotoOfDay(
-          photoUrl: memory.imageUrl!,
-          caption: memory.caption ?? '',
-          memoryId: memory.id,
-          authorName: memory.authorName,
-        );
+      final selectedMemory = _pickDailyRandomMemory(memories, groupId);
+      if (selectedMemory == null ||
+          selectedMemory.imageUrl == null ||
+          selectedMemory.imageUrl!.isEmpty) {
+        debugPrint('HomeWidgetService: selected random memory has no image');
+        return;
       }
+
+      await syncPhotoOfDay(
+        photoUrl: selectedMemory.imageUrl!,
+        caption: selectedMemory.caption ?? '',
+        memoryId: selectedMemory.id,
+        authorName: selectedMemory.authorName,
+        authorUid: selectedMemory.authorUid,
+      );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoOfDay failed: $e');
     }
   }
 
-  /// Вызывается при удалении воспоминания, чтобы убрать его из виджета, если оно там отображалось
-  Future<void> handleMemoryDeleted(String groupId, String deletedMemoryId) async {
+  /// Ищет информацию о другом пользователе из widgetData
+  Future<Map<String, String>?> _getPartnerWidgetData(
+    String groupId,
+    String currentUserUid,
+  ) async {
     try {
-      final currentMemoryId = await HomeWidget.getWidgetData<String>('photo_day_memory_id');
+      final snap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('widgetData')
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final uid = data['uid'] as String? ?? '';
+        if (uid.isEmpty || uid == currentUserUid) continue;
+
+        final photoUrl = data['photoUrl'] as String? ?? '';
+        final mode = data['photoDayMode'] as String? ?? 'random';
+
+        if (photoUrl.isNotEmpty) {
+          return {
+            'authorUid': uid,
+            'authorName': data['displayName'] as String? ?? '',
+            'photoUrl': photoUrl,
+            'photoDayMode': mode,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService._getPartnerWidgetData failed: $e');
+    }
+    return null;
+  }
+
+  Memory? _pickDailyRandomMemory(List<Memory> memories, String groupId) {
+    if (memories.isEmpty) return null;
+    final sorted = List<Memory>.from(memories)
+      ..sort((a, b) => a.id.compareTo(b.id));
+    final dayIndex = DateTime.now().difference(DateTime(2000)).inDays;
+    final hash = groupId.hashCode ^ dayIndex;
+    final index = hash.abs() % sorted.length;
+    return sorted[index];
+  }
+
+  /// Вызывается при удалении воспоминания, чтобы убрать его из виджете, если оно там отображалось
+  Future<void> handleMemoryDeleted(
+    String groupId,
+    String deletedMemoryId,
+  ) async {
+    try {
+      final currentMemoryId = await HomeWidget.getWidgetData<String>(
+        'photo_day_memory_id',
+      );
       if (currentMemoryId == deletedMemoryId) {
-        debugPrint('HomeWidgetService: Deleted memory was displayed in widget. Updating...');
-        
+        debugPrint(
+          'HomeWidgetService: Deleted memory was displayed in widget. Updating...',
+        );
+
         // Если это был кастомный режим (свое фото), переключаем обратно в random
         final mode = await getPhotoDayMode(groupId);
         if (mode == 'custom') {
           await setPhotoDayMode(groupId, 'random');
         }
-        
+
         // Временно очищаем виджет (на случай если это было последнее фото)
         await HomeWidget.saveWidgetData<String>('photo_day_path', '');
         await HomeWidget.saveWidgetData<String>('photo_day_caption', '');
@@ -305,15 +432,26 @@ class HomeWidgetService {
       if (partnerMoodEmojiAssetPath.isNotEmpty) {
         partnerLocalPath = await _copyAssetToLocal(partnerMoodEmojiAssetPath);
       }
-      await HomeWidget.saveWidgetData<String>('partner_mood_emoji_path', partnerLocalPath);
-      await HomeWidget.saveWidgetData<String>('partner_mood_label', partnerMoodLabel);
-      await HomeWidget.saveWidgetData<String>('partner_mood_user_name', partnerUserName);
+      await HomeWidget.saveWidgetData<String>(
+        'partner_mood_emoji_path',
+        partnerLocalPath,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'partner_mood_label',
+        partnerMoodLabel,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'partner_mood_user_name',
+        partnerUserName,
+      );
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
         androidName: 'MoodWidgetProvider',
       );
-      debugPrint('HomeWidgetService: mood synced — me=$moodLabel, partner=$partnerMoodLabel');
+      debugPrint(
+        'HomeWidgetService: mood synced — me=$moodLabel, partner=$partnerMoodLabel',
+      );
     } catch (e) {
       debugPrint('HomeWidgetService.syncMood failed: $e');
     }
@@ -332,15 +470,23 @@ class HomeWidgetService {
         if (emojiAsset.isNotEmpty) {
           localPath = await _copyAssetToLocal(emojiAsset);
         }
-        await HomeWidget.saveWidgetData<String>('user_${i}_emoji_path', localPath);
-        await HomeWidget.saveWidgetData<String>('user_${i}_name', member['name'] ?? '');
+        await HomeWidget.saveWidgetData<String>(
+          'user_${i}_emoji_path',
+          localPath,
+        );
+        await HomeWidget.saveWidgetData<String>(
+          'user_${i}_name',
+          member['name'] ?? '',
+        );
       }
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
         androidName: 'MoodWidgetProvider',
       );
-      debugPrint('HomeWidgetService: group mood synced for ${members.length} users');
+      debugPrint(
+        'HomeWidgetService: group mood synced for ${members.length} users',
+      );
     } catch (e) {
       debugPrint('HomeWidgetService.syncGroupMood failed: $e');
     }
@@ -362,15 +508,40 @@ class HomeWidgetService {
     String? missYouLabel,
   }) async {
     try {
-      await HomeWidget.saveWidgetData<String>('stats_days_together', daysTogether.toString());
-      await HomeWidget.saveWidgetData<String>('stats_memories_count', memoriesCount.toString());
-      await HomeWidget.saveWidgetData<String>('stats_drawings_count', drawingsCount.toString());
-      await HomeWidget.saveWidgetData<String>('stats_miss_you_count', missYouCount.toString());
+      await HomeWidget.saveWidgetData<String>(
+        'stats_days_together',
+        daysTogether.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'stats_memories_count',
+        memoriesCount.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'stats_drawings_count',
+        drawingsCount.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'stats_miss_you_count',
+        missYouCount.toString(),
+      );
 
-      if (daysLabel != null) await HomeWidget.saveWidgetData<String>('stats_days_label', daysLabel);
-      if (memoriesLabel != null) await HomeWidget.saveWidgetData<String>('stats_memories_label', memoriesLabel);
-      if (drawingsLabel != null) await HomeWidget.saveWidgetData<String>('stats_drawings_label', drawingsLabel);
-      if (missYouLabel != null) await HomeWidget.saveWidgetData<String>('stats_miss_you_label', missYouLabel);
+      if (daysLabel != null)
+        await HomeWidget.saveWidgetData<String>('stats_days_label', daysLabel);
+      if (memoriesLabel != null)
+        await HomeWidget.saveWidgetData<String>(
+          'stats_memories_label',
+          memoriesLabel,
+        );
+      if (drawingsLabel != null)
+        await HomeWidget.saveWidgetData<String>(
+          'stats_drawings_label',
+          drawingsLabel,
+        );
+      if (missYouLabel != null)
+        await HomeWidget.saveWidgetData<String>(
+          'stats_miss_you_label',
+          missYouLabel,
+        );
 
       await HomeWidget.updateWidget(
         name: 'RelationshipStatsWidgetProvider',
@@ -383,7 +554,10 @@ class HomeWidgetService {
   }
 
   /// Загружает актуальную статистику из Firestore и синхронизирует виджет.
-  Future<void> refreshRelationshipStats(String groupId, {DateTime? startDate}) async {
+  Future<void> refreshRelationshipStats(
+    String groupId, {
+    DateTime? startDate,
+  }) async {
     if (groupId.isEmpty) return;
     try {
       // 1. Memories count
@@ -393,7 +567,7 @@ class HomeWidgetService {
           .collection('memories')
           .count()
           .get();
-      
+
       // 2. Drawings count
       final drawSnap = await _db
           .collection('groups')

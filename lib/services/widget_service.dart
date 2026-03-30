@@ -1,4 +1,4 @@
-import 'dart:async';
+оба человекimport 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -207,6 +207,11 @@ class WidgetService extends ChangeNotifier {
   /// Обновить фото по URL (уже загружено)
   Future<void> updatePhotoUrl(String url) async {
     await _updateField({'photoUrl': url});
+  }
+
+  /// Обновить режим PhotoDay (random/custom)
+  Future<void> setPhotoDayMode(String mode) async {
+    await _updateField({'photoDayMode': mode});
   }
 
   /// Обновить музыку
@@ -461,19 +466,24 @@ class WidgetService extends ChangeNotifier {
       final myUid = _fb.currentUser?.uid ?? '';
       final membersForWidget = <WidgetData>[];
       if (my != null) membersForWidget.add(my);
-      membersForWidget.addAll(
-        _partnerData.values.where((d) => d.uid != myUid),
-      );
+      membersForWidget.addAll(_partnerData.values.where((d) => d.uid != myUid));
       final limitedMembers = membersForWidget.take(4).toList();
 
-      final membersData = limitedMembers.map((m) => {
-        'name': m.displayName.isNotEmpty ? m.displayName : 'Участник',
-        'emojiPath': m.moodEmoji,
-      }).toList();
+      final membersData = limitedMembers
+          .map(
+            (m) => {
+              'name': m.displayName.isNotEmpty ? m.displayName : 'Участник',
+              'emojiPath': m.moodEmoji,
+            },
+          )
+          .toList();
       await HomeWidgetService.instance.syncGroupMood(membersData);
 
       for (int i = 0; i < limitedMembers.length; i++) {
-        await HomeWidget.saveWidgetData<String>('user_${i}_avatar_url', limitedMembers[i].avatarUrl);
+        await HomeWidget.saveWidgetData<String>(
+          'user_${i}_avatar_url',
+          limitedMembers[i].avatarUrl,
+        );
       }
 
       // Кэшируем эмодзи из assets → локальные файлы для нативного виджета (фоново)
@@ -495,6 +505,16 @@ class WidgetService extends ChangeNotifier {
       _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
+
+      // Если PhotoDay в custom режиме, пересинхронизируем его, чтобы показать фото партнёра
+      try {
+        final mode = await HomeWidgetService.instance.getPhotoDayMode(_groupId);
+        if (mode == 'custom' && _groupId.isNotEmpty) {
+          await HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
+        }
+      } catch (e) {
+        debugPrint('WidgetService: refresh PhotoDay on custom mode failed: $e');
+      }
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
     }
@@ -529,7 +549,9 @@ class WidgetService extends ChangeNotifier {
           androidName: 'LoveWidgetProvider',
         );
       } catch (e) {
-        debugPrint('WidgetService._cacheAvatarsForLoveWidget update failed: $e');
+        debugPrint(
+          'WidgetService._cacheAvatarsForLoveWidget update failed: $e',
+        );
       }
     });
   }
@@ -538,7 +560,9 @@ class WidgetService extends ChangeNotifier {
   void _cacheGroupAvatarsForWidget(List<WidgetData> members) {
     final futures = <Future<void>>[];
     for (int i = 0; i < members.length; i++) {
-      futures.add(_downloadPhoto(members[i].avatarUrl, 'user_${i}_avatar_path'));
+      futures.add(
+        _downloadPhoto(members[i].avatarUrl, 'user_${i}_avatar_path'),
+      );
     }
     Future.wait(futures).then((_) async {
       try {
@@ -547,7 +571,9 @@ class WidgetService extends ChangeNotifier {
           androidName: 'MoodWidgetProvider',
         );
       } catch (e) {
-        debugPrint('WidgetService._cacheGroupAvatarsForWidget update failed: $e');
+        debugPrint(
+          'WidgetService._cacheGroupAvatarsForWidget update failed: $e',
+        );
       }
     });
   }

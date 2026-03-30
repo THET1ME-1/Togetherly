@@ -13,6 +13,7 @@ class WidgetData {
   String moodEmoji; // путь к изображению emoji (из MoodOption)
   String moodLabel; // текстовая метка настроения
   String message; // короткое сообщение / love note
+  String photoDayMode; // 'random' or 'custom'
   String? photoUrl; // URL фотографии
   String? musicTitle; // название песни
   String? musicArtist; // исполнитель
@@ -29,6 +30,7 @@ class WidgetData {
     this.moodEmoji = '',
     this.moodLabel = '',
     this.message = '',
+    this.photoDayMode = 'random',
     this.photoUrl,
     this.musicTitle,
     this.musicArtist,
@@ -68,6 +70,7 @@ class WidgetData {
     'musicUrl': musicUrl,
     'musicCoverUrl': musicCoverUrl,
     'gender': gender,
+    'photoDayMode': photoDayMode,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -86,6 +89,7 @@ class WidgetData {
       musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
       gender: data['gender'] ?? '',
+      photoDayMode: data['photoDayMode'] ?? 'random',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -104,6 +108,7 @@ class WidgetData {
     String? musicUrl,
     String? musicCoverUrl,
     String? gender,
+    String? photoDayMode,
     DateTime? updatedAt,
   }) {
     return WidgetData(
@@ -114,6 +119,7 @@ class WidgetData {
       moodEmoji: moodEmoji ?? this.moodEmoji,
       moodLabel: moodLabel ?? this.moodLabel,
       message: message ?? this.message,
+      photoDayMode: photoDayMode ?? this.photoDayMode,
       photoUrl: photoUrl ?? this.photoUrl,
       musicTitle: musicTitle ?? this.musicTitle,
       musicArtist: musicArtist ?? this.musicArtist,
