@@ -188,8 +188,9 @@ class NavBarItem extends StatefulWidget {
   final String label;
   final bool isActive;
   final bool showBadge;
-  final Color activeColor;
+   final Color activeColor;
   final Color activeBg;
+  final Color inactiveColor;
   final Color badgeColor;
   final VoidCallback onTap;
 
@@ -200,8 +201,9 @@ class NavBarItem extends StatefulWidget {
     required this.index,
     required this.label,
     required this.isActive,
-    required this.activeColor,
+     required this.activeColor,
     required this.activeBg,
+    required this.inactiveColor,
     required this.badgeColor,
     required this.onTap,
     this.showBadge = false,
@@ -299,18 +301,18 @@ class _NavBarItemState extends State<NavBarItem>
                     child: widget.svgIcon != null
                         ? _SvgIconBuilder(
                             svgString: widget.svgIcon!,
-                            size: widget.isActive ? 26 : 23,
-                            color: widget.isActive
+                            size: widget.isActive ? 28 : 24,
+                             color: widget.isActive
                                 ? widget.activeColor
-                                : Colors.grey.shade400,
+                                : widget.inactiveColor,
                           )
                         : Icon(
                             widget.icon,
                             key: ValueKey('${widget.index}_${widget.isActive}'),
                             color: widget.isActive
                                 ? widget.activeColor
-                                : Colors.grey.shade400,
-                            size: widget.isActive ? 26 : 23,
+                                : widget.inactiveColor,
+                            size: widget.isActive ? 28 : 24,
                           ),
                   ),
                   const SizedBox(height: 3),
@@ -323,7 +325,7 @@ class _NavBarItemState extends State<NavBarItem>
                           : FontWeight.w500,
                       color: widget.isActive
                           ? widget.activeColor
-                          : Colors.grey.shade400,
+                          : widget.inactiveColor,
                     ),
                     child: const SizedBox.shrink(),
                   ),

@@ -2435,73 +2435,81 @@ class _HomeScreenState extends State<HomeScreen> {
     const widgetsIcon =
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M5.566 4.657A4.505 4.505 0 0 1 6.75 4.5h10.5c.41 0 .806.055 1.183.157A3 3 0 0 0 15.75 3h-7.5a3 3 0 0 0-2.684 1.657ZM2.25 12a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3v-6ZM5.25 7.5c-.41 0-.806.055-1.184.157A3 3 0 0 1 6.75 6h10.5a3 3 0 0 1 2.683 1.657A4.505 4.505 0 0 0 18.75 7.5H5.25Z" />\n</svg>';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _t.navActiveBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        boxShadow: [
-          BoxShadow(
-            color: _t.primary.withValues(alpha: 0.10),
-            blurRadius: 24,
-            spreadRadius: 0,
-            offset: const Offset(0, -6),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, -1),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              NavBarItem(
-                svgIcon: homeIcon,
-                index: 0,
-                label: s.home,
-                isActive: _selectedNavIndex == 0,
-                activeColor: _t.navActiveIcon,
-                activeBg: _t.navActiveBg,
-                badgeColor: primary,
-                onTap: () => setState(() => _selectedNavIndex = 0),
-              ),
-              NavBarItem(
-                svgIcon: widgetsIcon,
-                index: 1,
-                label: s.widgets,
-                isActive: _selectedNavIndex == 1,
-                activeColor: _t.navActiveIcon,
-                activeBg: _t.navActiveBg,
-                badgeColor: primary,
-                onTap: () => setState(() => _selectedNavIndex = 1),
-              ),
-              NavBarItem(
-                svgIcon: invitesIcon,
-                index: 2,
-                label: s.connect,
-                isActive: _selectedNavIndex == 2,
-                activeColor: _t.navActiveIcon,
-                activeBg: _t.navActiveBg,
-                badgeColor: primary,
-                showBadge: !_pairData.isPaired,
-                onTap: () => setState(() => _selectedNavIndex = 2),
-              ),
-              NavBarItem(
-                svgIcon: profileIcon,
-                index: 3,
-                label: s.profile,
-                isActive: _selectedNavIndex == 3,
-                activeColor: _t.navActiveIcon,
-                activeBg: _t.navActiveBg,
-                badgeColor: primary,
-                onTap: () => setState(() => _selectedNavIndex = 3),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 32,
+              spreadRadius: 0,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: _t.primary.withValues(alpha: 0.05),
+              blurRadius: 12,
+              spreadRadius: -2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                NavBarItem(
+                  svgIcon: homeIcon,
+                  index: 0,
+                  label: s.home,
+                  isActive: _selectedNavIndex == 0,
+                  activeColor: _t.navActiveIcon,
+                  activeBg: _t.navActiveIcon.withOpacity(0.12),
+                  inactiveColor: _t.timerDialBackground,
+                  badgeColor: primary,
+                  onTap: () => setState(() => _selectedNavIndex = 0),
+                ),
+                NavBarItem(
+                  svgIcon: widgetsIcon,
+                  index: 1,
+                  label: s.widgets,
+                  isActive: _selectedNavIndex == 1,
+                  activeColor: _t.navActiveIcon,
+                  activeBg: _t.navActiveIcon.withOpacity(0.12),
+                  inactiveColor: _t.timerDialBackground,
+                  badgeColor: primary,
+                  onTap: () => setState(() => _selectedNavIndex = 1),
+                ),
+                NavBarItem(
+                  svgIcon: invitesIcon,
+                  index: 2,
+                  label: s.connect,
+                  isActive: _selectedNavIndex == 2,
+                  activeColor: _t.navActiveIcon,
+                  activeBg: _t.navActiveIcon.withOpacity(0.12),
+                  inactiveColor: _t.timerDialBackground,
+                  badgeColor: primary,
+                  showBadge: !_pairData.isPaired,
+                  onTap: () => setState(() => _selectedNavIndex = 2),
+                ),
+                NavBarItem(
+                  svgIcon: profileIcon,
+                  index: 3,
+                  label: s.profile,
+                  isActive: _selectedNavIndex == 3,
+                  activeColor: _t.navActiveIcon,
+                  activeBg: _t.navActiveIcon.withOpacity(0.12),
+                  inactiveColor: _t.timerDialBackground,
+                  badgeColor: primary,
+                  onTap: () => setState(() => _selectedNavIndex = 3),
+                ),
+              ],
+            ),
           ),
         ),
       ),
