@@ -453,9 +453,9 @@ class _DayCellState extends State<_DayCell>
                           dayName,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w900,
                             color: isToday
-                                ? widget.theme.primary
+                                ? Colors.white.withOpacity(0.9)
                                 : baseTextColor,
                             letterSpacing: 0.6,
                           ),
@@ -468,9 +468,7 @@ class _DayCellState extends State<_DayCell>
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: isToday
-                                ? widget.theme.primary
-                                : baseNumColor,
+                            color: isToday ? Colors.white : baseNumColor,
                             height: 1.1,
                           ),
                         ),
@@ -508,7 +506,7 @@ class _DayCellState extends State<_DayCell>
                               dayName,
                               style: TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w900,
                                 color: Colors.white.withOpacity(0.9),
                                 letterSpacing: 0.6,
                               ),
