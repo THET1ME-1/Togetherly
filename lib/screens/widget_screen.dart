@@ -68,6 +68,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _savePhotoAsMemory = true;
   String? _photoDayPath;
   int _photoDayVersion = 0;
+  bool _isLoadingPhoto = false;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
@@ -173,14 +174,26 @@ class _WidgetScreenState extends State<WidgetScreen> {
     await hws.setPhotoDayMode(_pair.pairId, mode);
     setState(() => _photoDayMode = mode);
     if (mode == 'random') {
+      setState(() => _isLoadingPhoto = true);
       await hws.refreshPhotoOfDay(_pair.pairId);
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
-      _loadPhotoDayPrefs();
+      await _loadPhotoDayPrefs();
+      if (mounted) setState(() => _isLoadingPhoto = false);
     } else {
+      final prefs = await SharedPreferences.getInstance();
+      final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
+      
+      if (customPath != null && File(customPath).existsSync()) {
+        await hws.syncPhotoOfDay(photoUrl: '', localFile: File(customPath));
+      } else {
+        await HomeWidget.saveWidgetData<String>('photo_day_path', '');
+        await HomeWidget.updateWidget(name: 'PhotoDayWidgetProvider', androidName: 'PhotoDayWidgetProvider');
+      }
+      
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
-      _loadPhotoDayPrefs();
+      await _loadPhotoDayPrefs();
     }
   }
 
@@ -1403,6 +1416,19 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          
+          if (_isLoadingPhoto)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
               ),
             ),
           // Нижний оверлей
