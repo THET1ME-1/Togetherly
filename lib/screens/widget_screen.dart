@@ -1012,8 +1012,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
       width: double.infinity,
       height: 200,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFFFD1DC), width: 3),
+        color: _t.cardSurface,
+        border: Border.all(color: _t.primary.withOpacity(0.15), width: 3),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Stack(
@@ -1040,7 +1040,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 style: GoogleFonts.rubik(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF5D4037),
+                  color: _t.primary.withOpacity(0.7),
                 ),
               ),
             ),
@@ -1054,7 +1054,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   style: GoogleFonts.rubik(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF5D4037),
+                    color: _t.primary,
                     height: 1.0,
                   ),
                 ),
@@ -1063,7 +1063,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF5D4037),
+                    color: _t.primary.withOpacity(0.8),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1072,7 +1072,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   style: GoogleFonts.rubik(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF5D4037),
+                    color: _t.primary.withOpacity(0.5),
                   ),
                 ),
               ],
@@ -1096,8 +1096,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF3F0FF),
+          color: _t.primary.withOpacity(0.04),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _t.primary.withOpacity(0.08)),
         ),
         child: Column(
           children: [
@@ -1146,9 +1147,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [const Color(0xFFF3F0FF), const Color(0xFFEDE4FF)],
+          colors: [
+            _t.primary.withOpacity(0.06),
+            _t.primary.withOpacity(0.12),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _t.primary.withOpacity(0.1)),
       ),
       child: Column(
         children: [
@@ -1177,7 +1182,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             style: GoogleFonts.rubik(
               fontSize: 44,
               fontWeight: FontWeight.w900,
-              color: const Color(0xFF8B5CF6),
+              color: _t.primary,
               height: 1.1,
             ),
           ),
@@ -1272,8 +1277,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: isSelected
-                                ? const Color(0xFF8B5CF6)
-                                : Colors.grey.shade800,
+                                ? _t.primary
+                                : _t.primary.withOpacity(0.8),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1315,8 +1320,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
       width: double.infinity,
       height: 200,
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
+        color: _t.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _t.primary.withOpacity(0.1)),
       ),
       child: Stack(
         children: [
@@ -1332,7 +1338,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
+                    color: _t.primary.withOpacity(0.6),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1342,7 +1348,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       : 'Latest photo from memories',
                   style: GoogleFonts.rubik(
                     fontSize: 11,
-                    color: Colors.grey.shade400,
+                    color: _t.primary.withOpacity(0.4),
                   ),
                 ),
               ],
@@ -1399,9 +1405,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
         Text(
           isRu ? 'Источник фото:' : 'Photo source:',
           style: GoogleFonts.rubik(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade600,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _t.primary.withOpacity(0.8),
           ),
         ),
         const SizedBox(height: 10),
@@ -1458,8 +1464,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     icon: const Icon(Icons.add_a_photo_rounded, size: 18),
                     label: Text(isRu ? 'Выбрать фото с устройства' : 'Pick from device'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.pink.shade50,
-                      foregroundColor: Colors.pink,
+                      backgroundColor: _t.primaryLight,
+                      foregroundColor: _t.primary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -1471,12 +1477,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     Expanded(
                       child: Text(
                         isRu ? 'Добавить в ленту воспоминаний' : 'Save to Memory Lane',
-                        style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade700),
+                        style: GoogleFonts.rubik(
+                          fontSize: 12, 
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     Switch.adaptive(
                       value: _savePhotoAsMemory,
-                      activeColor: Colors.pink,
+                      activeColor: _t.primary,
                       onChanged: _toggleSavePhotoAsMemory,
                     ),
                   ],
@@ -1501,23 +1511,23 @@ class _WidgetScreenState extends State<WidgetScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.pink.withOpacity(0.1) : Colors.grey.shade50,
+          color: isSelected ? _t.primary.withOpacity(0.08) : _t.cardSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.pink : Colors.grey.shade200,
+            color: isSelected ? _t.primary : _t.cardBorder,
             width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon, color: isSelected ? Colors.pink : Colors.grey.shade400, size: 20),
+            Icon(icon, color: isSelected ? _t.primary : Colors.grey.shade400, size: 20),
             const SizedBox(height: 4),
             Text(
               label,
               style: GoogleFonts.rubik(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? Colors.pink : Colors.grey.shade600,
+                color: isSelected ? _t.primary : Colors.grey.shade600,
               ),
             ),
           ],
@@ -1560,12 +1570,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF8E1), Color(0xFFFFF3CD)],
+          colors: [
+            _t.primary.withOpacity(0.05),
+            _t.primary.withOpacity(0.1),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _t.primary.withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -1679,9 +1693,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _t.cardSurface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: _t.cardBorder),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -1691,20 +1705,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Expanded(
                 child: _buildSmallStatBox(
                   icon: Icons.calendar_today_rounded,
-                  color: const Color(0xFFE91E8C),
+                  color: _t.iconCalendar,
                   value: '$daysNum',
                   label: isRu ? 'Дней вместе' : 'Days Together',
-                  bg: const Color(0xFFFFF0F5),
+                  bg: _t.iconCalendar.withOpacity(0.08),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _buildSmallStatBox(
                   icon: Icons.photo_library_rounded,
-                  color: const Color(0xFF3498DB),
+                  color: _t.iconPost,
                   value: '${_memoriesCount ?? 0}',
                   label: isRu ? 'Воспоминаний' : 'Memories',
-                  bg: const Color(0xFFE3F2FD),
+                  bg: _t.iconPost.withOpacity(0.08),
                 ),
               ),
             ],
@@ -1715,20 +1729,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Expanded(
                 child: _buildSmallStatBox(
                   icon: Icons.brush_rounded,
-                  color: const Color(0xFFF39C12),
+                  color: _t.iconDraw,
                   value: '${_drawingsCount ?? 0}',
                   label: isRu ? 'Рисунков' : 'Drawings',
-                  bg: const Color(0xFFFFF8E1),
+                  bg: _t.iconDraw.withOpacity(0.08),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _buildSmallStatBox(
                   icon: Icons.favorite_rounded,
-                  color: const Color(0xFF9B59B6),
+                  color: _t.primary,
                   value: '${_missYouCount ?? 0}',
                   label: isRu ? 'Скучаю' : 'Miss Yous',
-                  bg: const Color(0xFFF3E5F5),
+                  bg: _t.primary.withOpacity(0.08),
                 ),
               ),
             ],
