@@ -183,11 +183,11 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: widget.theme.primary,
+                        color: widget.theme.navActiveIcon,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: widget.theme.primary.withOpacity(0.30),
+                            color: widget.theme.navActiveIcon.withOpacity(0.30),
                             blurRadius: 10,
                             offset: const Offset(0, 3),
                           ),
