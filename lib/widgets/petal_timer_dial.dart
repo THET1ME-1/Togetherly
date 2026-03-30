@@ -279,6 +279,9 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     }
 
     if (tappedIdx != -1) {
+      // Запрещаем удалять последний оставшийся лепесток (всего 6)
+      if (_hiddenIndices.length >= 5) return;
+
       HapticFeedback.mediumImpact();
       setState(() {
         _hiddenIndices.add(tappedIdx);
@@ -427,15 +430,17 @@ class _PetalDialPainter extends CustomPainter {
       // Фон лепестков берётся из новой настройки темы
       final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h, sweepHalf);
 
-      // Квадратичное затухание прозрачности для более чистого исчезновения
-      final alpha = (pres * pres).clamp(0.0, 1.0);
+      // Квадратичное (и даже кубическое) затухание прозрачности для лепестка,
+      // чтобы он исчезал быстрее, чем текст
+      final petalAlpha = (pres * pres * pres).clamp(0.0, 1.0);
+      final textAlpha = pres.clamp(0.0, 1.0);
 
       final bgPaintFill = Paint()
-        ..color = theme.timerDialBackground.withValues(alpha: alpha)
+        ..color = theme.timerDialBackground.withValues(alpha: petalAlpha)
         ..style = PaintingStyle.fill;
 
       final bgPaintStroke = Paint()
-        ..color = theme.timerDialBackground.withValues(alpha: alpha)
+        ..color = theme.timerDialBackground.withValues(alpha: petalAlpha)
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = cr * 2;
@@ -453,7 +458,7 @@ class _PetalDialPainter extends CustomPainter {
         final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h, sweepHalf);
 
         // Цвет заполнения с учетом прозрачности при анимации
-        final fgColor = theme.navActiveIcon.withValues(alpha: alpha);
+        final fgColor = theme.navActiveIcon.withValues(alpha: petalAlpha);
 
         final fgPaintFill = Paint()
           ..color = fgColor
@@ -469,9 +474,12 @@ class _PetalDialPainter extends CustomPainter {
         canvas.drawPath(fgPath, fgPaintStroke);
       }
 
-      // ── 3. Draw Text ──
       final textR = (innerR + outerR) / 2;
-      final txColor = Colors.white.withValues(alpha: 0.95 * alpha);
+      final txColor = Colors.white.withValues(alpha: 0.95 * textAlpha);
+
+      // Масштабируем размер текста пропорционально, но нелинейно (корень), чтобы не переборщить
+      // При 1 лепестке рост будет около 2.45x вместо 6x
+      final textScale = math.sqrt(6.0 / totalPresence).clamp(1.0, 2.5);
 
       canvas.save();
       canvas.translate(textR, 0);
@@ -481,8 +489,8 @@ class _PetalDialPainter extends CustomPainter {
         canvas,
         text: '${petal.value}',
         x: 0,
-        y: -8 * scale,
-        fontSize: 18 * scale,
+        y: -9 * scale * textScale,
+        fontSize: 18 * scale * textScale,
         fontWeight: FontWeight.w800,
         color: txColor,
         counterRotation: 0,
@@ -492,8 +500,8 @@ class _PetalDialPainter extends CustomPainter {
         canvas,
         text: petal.label,
         x: 0,
-        y: 10 * scale,
-        fontSize: 9 * scale,
+        y: 11 * scale * textScale,
+        fontSize: 9 * scale * textScale,
         fontWeight: FontWeight.w600,
         color: txColor.withValues(alpha: 0.65),
         counterRotation: 0,
