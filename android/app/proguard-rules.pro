@@ -37,3 +37,15 @@
 -dontwarn okio.**
 -dontwarn javax.annotation.**
 -dontwarn org.conscrypt.**
+
+# HomeWidget plugin
+-keep class es.antonborri.home_widget.** { *; }
+
+# App Widget Providers (required for requestPinWidget)
+-keep class com.example.love_app.LoveWidgetProvider { *; }
+-keep class com.example.love_app.DaysCounterWidgetProvider { *; }
+-keep class com.example.love_app.TimerWidgetProvider { *; }
+-keep class com.example.love_app.PhotoDayWidgetProvider { *; }
+-keep class com.example.love_app.MoodWidgetProvider { *; }
+-keep class com.example.love_app.RelationshipStatsWidgetProvider { *; }
+

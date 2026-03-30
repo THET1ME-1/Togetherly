@@ -246,13 +246,14 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {
+    debugPrint('_pinWidget called: qualifiedName=$qualifiedName, widgetType=$widgetType');
     try {
       final className = qualifiedName.split('.').last;
+      debugPrint('_pinWidget: requesting pin for className=$className');
       await HomeWidget.requestPinWidget(
-        name: className,
-        androidName: className,
         qualifiedAndroidName: qualifiedName,
       );
+      debugPrint('_pinWidget: requestPinWidget completed successfully');
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
       if (widgetType != null && _pair.pairId.isNotEmpty) {
         await HomeWidgetService.instance.bindWidgetToGroup(
@@ -262,17 +263,32 @@ class _WidgetScreenState extends State<WidgetScreen> {
         // Немедленно записать актуальные данные в виджет
         await _syncWidgetDataAfterPin(widgetType);
       }
-    } catch (e) {
-      debugPrint('Pin widget failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               LocaleService.instance.isRussian
-                  ? 'Не удалось добавить виджет'
-                  : 'Failed to add widget',
+                  ? 'Виджет добавлен на рабочий стол'
+                  : 'Widget added to home screen',
+            ),
+            backgroundColor: Colors.green.shade400,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('Pin widget failed: $e');
+      debugPrint('Pin widget stack: $stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              LocaleService.instance.isRussian
+                  ? 'Не удалось добавить виджет: $e'
+                  : 'Failed to add widget: $e',
             ),
             backgroundColor: Colors.red.shade400,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
