@@ -58,7 +58,5 @@
         android:textColor="#FFFFFF"
         android:textSize="10sp"
         android:visibility="gone" />
-    </LinearLayout>
-
 
 </FrameLayout>
