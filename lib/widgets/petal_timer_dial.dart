@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_theme.dart';
@@ -245,6 +246,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 
     if (distance < innerR) {
       if (_hiddenIndices.isNotEmpty) {
+        HapticFeedback.selectionClick();
         setState(() {
           _hiddenIndices.clear();
         });
@@ -277,6 +279,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     }
 
     if (tappedIdx != -1) {
+      HapticFeedback.mediumImpact();
       setState(() {
         _hiddenIndices.add(tappedIdx);
       });
