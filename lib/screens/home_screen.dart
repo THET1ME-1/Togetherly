@@ -546,27 +546,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 ),
+                // Show buttons right under the arrow ONLY if card is CLOSED
+                if (!_timerCardExpanded)
+                  Transform.translate(
+                    offset: const Offset(0, -40), // Closer but balanced
+                    child: AnimatedSlideIn(
+                      delay: const Duration(milliseconds: 300),
+                      child: _buildActionButtons(),
+                    ),
+                  ),
                 if (_pairData.isPaired &&
                     !_reflectionManuallyDismissed &&
                     (_showReflection || _hasPartnerAnswer)) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 300),
+                    delay: const Duration(milliseconds: 400),
                     child: _buildDailyReflection(),
                   ),
                 ],
                 if (!_pairData.isPaired) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 300),
+                    delay: const Duration(milliseconds: 400),
                     child: _buildConnectPrompt(),
                   ),
                 ],
-                const SizedBox(height: 8),
-                AnimatedSlideIn(
-                  delay: const Duration(milliseconds: 400),
-                  child: _buildActionButtons(),
-                ),
+                // Show buttons at the bottom IF card is EXPANDED (original position)
+                if (_timerCardExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: _buildActionButtons(),
+                  ),
                 const SizedBox(height: 40),
               ],
             ),
@@ -1700,33 +1710,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
     
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _actionButton(
+        _pillActionButton(
+          index: 0,
           svgIcon: drawSvg,
-          label: LocaleService.current.draw,
-          iconColor: _t.iconDraw,
-          enabled: true,
           onTap: _openDraw,
         ),
-        _actionButton(
+        const SizedBox(width: 10),
+        _pillActionButton(
+          index: 1,
           svgIcon: moodSvg,
-          label: LocaleService.current.mood,
-          iconColor: _t.iconMood,
           enabled: _pairData.isPaired,
           onTap: _showMoodPicker,
           moodImagePath: _pairData.myMood.imagePath,
         ),
-        _actionButton(
+        const SizedBox(width: 10),
+        _pillActionButton(
+          index: 2,
           svgIcon: calendarSvg,
-          label: LocaleService.current.calendar,
-          iconColor: _t.iconCalendar,
           enabled: _pairData.isPaired,
           onTap: _openMoodCalendar,
         ),
-        _actionButton(
+        const SizedBox(width: 10),
+        _pillActionButton(
+          index: 3,
           svgIcon: postSvg,
-          label: LocaleService.current.post,
-          iconColor: _t.iconPost,
           enabled: _pairData.isPaired,
           onTap: _postPhoto,
         ),
@@ -1734,82 +1743,61 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _actionButton({
+  Widget _pillActionButton({
+    required int index,
     required String svgIcon,
-    required String label,
-    required Color iconColor,
     bool enabled = true,
     VoidCallback? onTap,
     String? moodImagePath,
   }) {
-    final opacity = enabled ? 1.0 : 0.38;
+    final opacity = enabled ? 1.0 : 0.4;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
 
-    return Expanded(
+    // Точный изгиб как в календаре (парабола 11px): центр ниже краев ∪
+    // Смещение dy в пикселях.
+    final double dy = (index == 1 || index == 2) ? 11.0 : 0.0;
+
+    return Transform.translate(
+      offset: Offset(0, dy),
       child: Opacity(
         opacity: opacity,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: QuickTapScale(
-            onTap: enabled ? (onTap ?? () {}) : null,
-            scale: 0.95,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
+        child: QuickTapScale(
+          onTap: enabled ? (onTap ?? () {}) : null,
+          scale: 0.92,
+          child: Container(
+            width: 74,
+            height: 118,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: [
+                BoxShadow(
+                  color: _t.navActiveIcon.withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: hasMoodImage
-                          ? Image.asset(
-                              moodImagePath,
-                              width: 32,
-                              height: 32,
-                              errorBuilder: (_, __, ___) => Center(
-                                child: _buildSvgIcon(
-                                  svgIcon,
-                                  26,
-                                  iconColor,
-                                ),
-                              ),
-                            )
-                          : Center(
-                              child: _buildSvgIcon(
-                                svgIcon,
-                                26,
-                                iconColor,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
+              ],
+            ),
+            child: Center(
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: hasMoodImage
+                    ? Image.asset(
+                        moodImagePath,
+                        width: 30,
+                        height: 30,
+                        errorBuilder: (_, __, ___) => _buildSvgIcon(
+                          svgIcon,
+                          30,
+                          _t.navActiveIcon,
+                        ),
+                      )
+                    : _buildSvgIcon(
+                        svgIcon,
+                        30,
+                        _t.navActiveIcon,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
