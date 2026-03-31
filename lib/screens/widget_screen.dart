@@ -66,11 +66,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _photoDayExpanded = false;
   String _photoDayMode = 'random'; // 'random' | 'custom'
   bool _savePhotoAsMemory = true;
-  String? _photoDayPath;
+  String? _myOwnPhotoPath; // МОЁ фото (показывается в превью по умолчанию)
+  String?
+  _partnerWidgetPhotoPath; // Фото партнёра (всегда отображается на рабочем столе)
+  bool _previewShowsPartner = false; // Переключатель превью: моё ↔ партнёра
   String _photoDayAuthorName = '';
   String _photoDayAuthorUid = '';
   String _photoDayViewerUid = '';
-  String _photoDayViewerName = '';
   int _photoDayVersion = 0;
   bool _isLoadingPhoto = false;
 
@@ -168,8 +170,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final mode = await hws.getPhotoDayMode(_pair.pairId);
     final save = await hws.getPhotoDaySaveMemory(_pair.pairId);
     final prefs = await SharedPreferences.getInstance();
+
+    // Моё фото: для custom-режима — мой выбранный файл
     final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
-    final nativePath = await HomeWidget.getWidgetData<String>('photo_day_path');
+
+    // Фото на рабочем столе (ВСЕГДА фото партнёра или случайное)
+    final widgetPath = await HomeWidget.getWidgetData<String>('photo_day_path');
     final authorName = await HomeWidget.getWidgetData<String>(
       'photo_day_author',
     );
@@ -179,25 +185,40 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final viewerUid = await HomeWidget.getWidgetData<String>(
       'photo_day_viewer_uid',
     );
-    final viewerName = await HomeWidget.getWidgetData<String>(
-      'photo_day_viewer_name',
-    );
+
+    // Определяем МОЁ фото для превью
+    String? myPhoto;
+    if (mode == 'custom') {
+      // В кастомном режиме показываем мой выбранный файл
+      if (customPath != null &&
+          customPath.isNotEmpty &&
+          File(customPath).existsSync()) {
+        myPhoto = customPath;
+      } else {
+        // Fallback: URL из Firestore (если файл удалён/устарел)
+        myPhoto = (_ws.myData?.photoUrl?.isNotEmpty == true)
+            ? _ws.myData!.photoUrl
+            : null;
+      }
+    } else {
+      // В random-режиме превью показывает то же, что на рабочем столе
+      // (случайное фото или фото партнёра в режиме random+custom)
+      myPhoto = (widgetPath != null && widgetPath.isNotEmpty)
+          ? widgetPath
+          : null;
+    }
 
     if (mounted) {
       setState(() {
         _photoDayMode = mode;
         _savePhotoAsMemory = save;
-        if (_photoDayMode == 'custom') {
-          _photoDayPath = customPath ?? (nativePath ?? '');
-        } else {
-          _photoDayPath = (nativePath != null && nativePath.isNotEmpty)
-              ? nativePath
-              : customPath;
-        }
+        _myOwnPhotoPath = myPhoto;
+        _partnerWidgetPhotoPath = (widgetPath != null && widgetPath.isNotEmpty)
+            ? widgetPath
+            : null;
         _photoDayAuthorName = authorName ?? '';
         _photoDayAuthorUid = authorUid ?? '';
         _photoDayViewerUid = viewerUid ?? '';
-        _photoDayViewerName = viewerName ?? '';
         _photoDayVersion++;
       });
     }
@@ -205,35 +226,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Future<void> _selectPhotoDayMode(String mode) async {
     final hws = HomeWidgetService.instance;
+    // Сохраняем режим локально и в Firestore
     await hws.setPhotoDayMode(_pair.pairId, mode);
-    setState(() => _photoDayMode = mode);
-    if (mode == 'random') {
-      await _ws.setPhotoDayMode('random');
-      setState(() => _isLoadingPhoto = true);
-      await hws.refreshPhotoOfDay(_pair.pairId);
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-      await _loadPhotoDayPrefs();
-      if (mounted) setState(() => _isLoadingPhoto = false);
-    } else {
-      await _ws.setPhotoDayMode('custom');
-      final prefs = await SharedPreferences.getInstance();
-      final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
-
-      if (customPath != null && File(customPath).existsSync()) {
-        await hws.syncPhotoOfDay(photoUrl: '', localFile: File(customPath));
-      } else {
-        await HomeWidget.saveWidgetData<String>('photo_day_path', '');
-        await HomeWidget.updateWidget(
-          name: 'PhotoDayWidgetProvider',
-          androidName: 'PhotoDayWidgetProvider',
-        );
-      }
-
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-      await _loadPhotoDayPrefs();
-    }
+    await _ws.setPhotoDayMode(mode);
+    setState(() {
+      _photoDayMode = mode;
+      _isLoadingPhoto = true;
+      _previewShowsPartner = false; // сбрасываем переключатель превью
+    });
+    // Виджет рабочего стола ВСЕГДА показывает фото партнёра
+    // refreshPhotoOfDay сам определит правильное фото по матрице режимов
+    await hws.refreshPhotoOfDay(_pair.pairId);
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    await _loadPhotoDayPrefs();
+    if (mounted) setState(() => _isLoadingPhoto = false);
   }
 
   Future<void> _toggleSavePhotoAsMemory(bool value) async {
@@ -257,21 +264,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Сразу обновляем виджет локальным файлом (для скорости)
-    await hws.syncPhotoOfDay(
-      photoUrl: '',
-      localFile: file,
-      authorName: _ws.myData?.displayName ?? widget.userData.displayName,
-      authorUid: _ws.myData?.uid ?? widget.userData.uid,
-    );
-    // 1.1 публикуем своё фото в widgetData (чтобы партнёр видел его в custom)
+    // 1. Публикуем своё фото в widgetData Firestore (партнёр увидит его как «custom»)
     await _ws.updatePhoto(file.path);
     await _ws.setPhotoDayMode('custom');
 
+    // Сохраняем путь к моему файлу (для превью в приложении)
     await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
-    if (mounted) setState(() => _photoDayPath = file.path);
+    // Превью в приложении показывает МОЁ фото
+    if (mounted) setState(() => _myOwnPhotoPath = file.path);
 
     // 2. Если нужно сохранить в воспоминания
     if (_savePhotoAsMemory) {
@@ -290,16 +292,18 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 ? 'Установлено как фото дня'
                 : 'Set as Photo of the Day',
           );
-          // Обновляем widgetData, чтобы партнёр увидел это фото через HomeWidgetService.custom
+          // Обновляем URL в widgetData, чтобы партнёр мог загрузить это фото
           await _ws.updatePhotoUrl(url);
-          _loadStats(); // Обновить счетчик воспоминаний
-          // После сохранения как памяти обновляем на устройстве, чтобы показать правильное (партнёрское) фото
-          await hws.refreshPhotoOfDay(_pair.pairId);
+          _loadStats();
         }
       } catch (e) {
         debugPrint('Failed to save photo day as memory: $e');
       }
     }
+
+    // 3. Всегда обновляем рабочий стол: показываем фото ПАРТНЁРА (не своё)
+    await hws.refreshPhotoOfDay(_pair.pairId);
+    await _loadPhotoDayPrefs();
   }
 
   Future<void> _selectWidgetTimer(TimerItem timer) async {
@@ -1027,7 +1031,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
           const SizedBox(height: 14),
           // ── Превью виджета ──
-          ClipRRect(borderRadius: BorderRadius.circular(16), child: preview),
+          preview,
           // ── Кнопка «Добавить на рабочий стол» ──
           if (_canPinWidgets) ...[
             const SizedBox(height: 14),
@@ -1421,137 +1425,264 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Widget _buildPhotoDayPreview() {
     final isRu = LocaleService.instance.isRussian;
-    final isOwnPhoto =
-        _photoDayAuthorUid.isNotEmpty &&
-        _photoDayViewerUid.isNotEmpty &&
-        _photoDayAuthorUid == _photoDayViewerUid;
 
-    final authorLabel = _photoDayAuthorName.isNotEmpty
-        ? (isOwnPhoto
-              ? (isRu ? 'Ваше фото' : 'Your photo')
-              : '${isRu ? 'Фото от' : 'Photo by'} ${_photoDayAuthorName}')
-        : (isRu ? 'Фото дня' : 'Photo of the Day');
+    // Определяем какое фото показывать в превью
+    final displayPath = _previewShowsPartner
+        ? _partnerWidgetPhotoPath
+        : _myOwnPhotoPath;
 
-    final previewLabel = _photoDayMode == 'custom'
-        ? (isRu ? 'Ваше фото' : 'Your photo')
-        : authorLabel;
+    // Подпись на оверлее
+    final String bottomLabel;
+    if (_previewShowsPartner) {
+      // Фото партнёра (что видите вы на рабочем столе)
+      final partnerIsAuthor =
+          _photoDayAuthorUid.isNotEmpty &&
+          _photoDayAuthorUid != _photoDayViewerUid;
+      bottomLabel = partnerIsAuthor && _photoDayAuthorName.isNotEmpty
+          ? (isRu
+                ? 'Фото от ${_photoDayAuthorName}'
+                : 'Photo by ${_photoDayAuthorName}')
+          : (isRu ? 'Фото партнёра' : 'Partner\'s photo');
+    } else {
+      // МОЁ фото (что видит партнёр на СвОЕМ рабочем столе)
+      bottomLabel = _photoDayMode == 'custom'
+          ? (isRu ? 'Ваше фото' : 'Your photo')
+          : (isRu ? 'Случайное фото дня' : 'Today\'s random photo');
+    }
 
-    return AspectRatio(
-      aspectRatio: 1.0,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: _t.primary.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _t.primary.withOpacity(0.1)),
+    // Превью-заголовок для пустого состояния
+    final emptyLabel = _previewShowsPartner
+        ? (isRu
+              ? 'Фото партнёра появится\nпосле его выбора'
+              : 'Partner\'s photo will appear\nafter they choose one')
+        : (_photoDayMode == 'custom'
+              ? (isRu ? 'Выберите фото \u043dиже' : 'Choose a photo below')
+              : (isRu
+                    ? 'Случайное фото\nиз воспоминаний'
+                    : 'Random photo\nfrom memories'));
+
+    return Column(
+      children: [
+        // Переключатель: Моё фото ↔ Фото на виджете
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _previewShowsPartner = false),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    decoration: BoxDecoration(
+                      color: !_previewShowsPartner
+                          ? _t.primary.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(10),
+                      ),
+                      border: Border.all(
+                        color: !_previewShowsPartner
+                            ? _t.primary
+                            : _t.cardBorder,
+                        width: !_previewShowsPartner ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person_rounded,
+                          size: 14,
+                          color: !_previewShowsPartner
+                              ? _t.primary
+                              : Colors.grey.shade400,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isRu ? 'Моё' : 'Mine',
+                          style: GoogleFonts.rubik(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: !_previewShowsPartner
+                                ? _t.primary
+                                : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _previewShowsPartner = true),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _previewShowsPartner
+                          ? _t.primary.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(10),
+                      ),
+                      border: Border.all(
+                        color: _previewShowsPartner
+                            ? _t.primary
+                            : _t.cardBorder,
+                        width: _previewShowsPartner ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.phone_android_rounded,
+                          size: 14,
+                          color: _previewShowsPartner
+                              ? _t.primary
+                              : Colors.grey.shade400,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isRu ? 'На виджете' : 'On widget',
+                          style: GoogleFonts.rubik(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _previewShowsPartner
+                                ? _t.primary
+                                : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Stack(
-          children: [
-            if (_photoDayPath != null && _photoDayPath!.isNotEmpty)
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: _photoDayPath!.startsWith('http')
-                      ? Image.network(
-                          _photoDayPath!,
-                          fit: BoxFit.cover,
-                          key: ValueKey(
-                            'net_${_photoDayPath}_${_photoDayVersion}',
-                          ),
-                        )
-                      : Image.file(
-                          File(_photoDayPath!),
-                          fit: BoxFit.cover,
-                          key: ValueKey(
-                            'file_${_photoDayPath}_${_photoDayVersion}',
-                          ),
-                        ),
-                ),
-              )
-            else
-              // Заглушка
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('📷', style: TextStyle(fontSize: 40)),
-                    const SizedBox(height: 6),
-                    Text(
-                      previewLabel,
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _t.primary.withOpacity(0.6),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isRu
-                          ? 'Последнее фото из воспоминаний'
-                          : 'Latest photo from memories',
-                      style: GoogleFonts.rubik(
-                        fontSize: 11,
-                        color: _t.primary.withOpacity(0.4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-            if (_isLoadingPhoto)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  ),
-                ),
-              ),
-            // Нижний оверлей
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Text('📸', style: TextStyle(fontSize: 12)),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        previewLabel,
-                        style: GoogleFonts.rubik(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        // Превью фото
+        AspectRatio(
+          aspectRatio: 1.0,
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _t.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _t.primary.withOpacity(0.1)),
             ),
-          ],
+            child: Stack(
+              children: [
+                if (displayPath != null && displayPath.isNotEmpty)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: displayPath.startsWith('http')
+                          ? Image.network(
+                              displayPath,
+                              fit: BoxFit.cover,
+                              key: ValueKey(
+                                'net_${displayPath}_${_photoDayVersion}',
+                              ),
+                            )
+                          : Image.file(
+                              File(displayPath),
+                              fit: BoxFit.cover,
+                              key: ValueKey(
+                                'file_${displayPath}_${_photoDayVersion}',
+                              ),
+                            ),
+                    ),
+                  )
+                else
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _previewShowsPartner ? '👥' : '📷',
+                          style: const TextStyle(fontSize: 36),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          emptyLabel,
+                          style: GoogleFonts.rubik(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _t.primary.withOpacity(0.5),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                if (_isLoadingPhoto)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    ),
+                  ),
+
+                // Нижний оверлей с подписью
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.45),
+                        ],
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          _previewShowsPartner ? '📱' : '📸',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            bottomLabel,
+                            style: GoogleFonts.rubik(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1600,20 +1731,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildGlassCard(
             child: Column(
               children: [
-                if (_photoDayPath != null)
+                if (_myOwnPhotoPath != null && _myOwnPhotoPath!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: _photoDayPath!.startsWith('http')
+                      child: _myOwnPhotoPath!.startsWith('http')
                           ? Image.network(
-                              _photoDayPath!,
+                              _myOwnPhotoPath!,
                               height: 120,
                               width: double.infinity,
                               fit: BoxFit.cover,
                             )
                           : Image.file(
-                              File(_photoDayPath!),
+                              File(_myOwnPhotoPath!),
                               height: 120,
                               width: double.infinity,
                               fit: BoxFit.cover,

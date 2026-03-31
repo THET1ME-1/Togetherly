@@ -506,14 +506,14 @@ class WidgetService extends ChangeNotifier {
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
 
-      // Если PhotoDay в custom режиме, пересинхронизируем его, чтобы показать фото партнёра
+      // Пересинхронизируем PhotoDay при любом изменении данных партнёра —
+      // виджет рабочего стола ВСЕГДА должен показывать фото партнёра
       try {
-        final mode = await HomeWidgetService.instance.getPhotoDayMode(_groupId);
-        if (mode == 'custom' && _groupId.isNotEmpty) {
+        if (_groupId.isNotEmpty) {
           await HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
         }
       } catch (e) {
-        debugPrint('WidgetService: refresh PhotoDay on custom mode failed: $e');
+        debugPrint('WidgetService: refresh PhotoDay failed: $e');
       }
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');

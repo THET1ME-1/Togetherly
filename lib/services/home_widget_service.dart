@@ -246,15 +246,27 @@ class HomeWidgetService {
 
       final partnerData = await _getPartnerWidgetData(groupId, currentUserUid);
       final partnerMode = partnerData?['photoDayMode'] ?? 'random';
+      final partnerPhotoUrl = partnerData?['photoUrl'] ?? '';
 
-      if (mode == 'random' && partnerMode == 'custom' && partnerData != null) {
-        // я random, партнер custom -> показываем фото партнёра
+      // ── Матрица режимов ──
+      // Рабочий стол ВСЕГДА показывает фото ПАРТНЁРА:
+      // • random + custom  → кастомное фото партнёра
+      // • custom + custom  → кастомное фото партнёра
+      // • custom + random  → случайное (фото партнёра — random)
+      // • random + random  → случайное (общее для обоих)
+      final bool partnerHasCustomPhoto =
+          partnerMode == 'custom' && partnerPhotoUrl.isNotEmpty;
+
+      if (partnerHasCustomPhoto) {
+        // Партнёр выбрал конкретное фото — показываем его
         debugPrint(
-          'HomeWidgetService: local random, partner custom, using partner photo ${partnerData['authorName']} (${partnerData['authorUid']})',
+          'HomeWidgetService: showing partner custom photo '
+          '(partnerMode=$partnerMode, myMode=$mode) '
+          'author=${partnerData!['authorName']} uid=${partnerData['authorUid']}',
         );
         await syncPhotoOfDay(
-          photoUrl: partnerData['photoUrl'] ?? '',
-          caption: 'Партнёрское фото',
+          photoUrl: partnerPhotoUrl,
+          caption: '',
           memoryId: '',
           authorName: partnerData['authorName'] ?? '',
           authorUid: partnerData['authorUid'] ?? '',
@@ -262,22 +274,8 @@ class HomeWidgetService {
         return;
       }
 
-      if (mode == 'custom' && partnerMode == 'custom' && partnerData != null) {
-        // оба custom -> показываем фото партнёра
-        debugPrint(
-          'HomeWidgetService: both custom, using partner photo ${partnerData['authorName']} (${partnerData['authorUid']})',
-        );
-        await syncPhotoOfDay(
-          photoUrl: partnerData['photoUrl'] ?? '',
-          caption: 'Партнёрское фото',
-          memoryId: '',
-          authorName: partnerData['authorName'] ?? '',
-          authorUid: partnerData['authorUid'] ?? '',
-        );
-        return;
-      }
-
-      // При mode==custom и partnerMode==random (или наоборот) показываем общий random
+      // В остальных случаях (random+random или custom+random) —
+      // показываем случайное фото из Memory Lane
       final snap = await _db
           .collection('groups')
           .doc(groupId)
@@ -314,7 +312,8 @@ class HomeWidgetService {
     }
   }
 
-  /// Ищет информацию о другом пользователе из widgetData
+  /// Ищет информацию о партнёре из widgetData.
+  /// Возвращает данные партнёра вне зависимости от наличия photoUrl.
   Future<Map<String, String>?> _getPartnerWidgetData(
     String groupId,
     String currentUserUid,
@@ -334,14 +333,13 @@ class HomeWidgetService {
         final photoUrl = data['photoUrl'] as String? ?? '';
         final mode = data['photoDayMode'] as String? ?? 'random';
 
-        if (photoUrl.isNotEmpty) {
-          return {
-            'authorUid': uid,
-            'authorName': data['displayName'] as String? ?? '',
-            'photoUrl': photoUrl,
-            'photoDayMode': mode,
-          };
-        }
+        // Возвращаем данные партнёра вне зависимости от наличия фотографии
+        return {
+          'authorUid': uid,
+          'authorName': data['displayName'] as String? ?? '',
+          'photoUrl': photoUrl,
+          'photoDayMode': mode,
+        };
       }
     } catch (e) {
       debugPrint('HomeWidgetService._getPartnerWidgetData failed: $e');
