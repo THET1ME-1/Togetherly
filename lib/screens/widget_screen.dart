@@ -2162,7 +2162,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _slotDivider(),
           _buildSlotRow(
             icon: Icons.mail_outline_rounded,
-            iconColor: const Color(0xFFEC4899),
+            iconColor: _t.primary,
             label: _s.message,
             value: data.hasMessage ? '«${data.message}»' : null,
             onTap: () => _showTextEditor(
@@ -2363,7 +2363,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.mail_outline_rounded,
-            iconColor: const Color(0xFFEC4899),
+            iconColor: _t.primary,
             label: _s.message,
             value: partner.hasMessage ? '«${partner.message}»' : null,
           ),
@@ -2473,7 +2473,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               _settingDivider(),
               _buildSettingToggle(
                 icon: Icons.chat_outlined,
-                iconColor: const Color(0xFFEC4899),
+                iconColor: _t.primary,
                 title: _s.messagestoMemoryLane,
                 subtitle: _s.autoSaveMessages,
                 value: _ws.autoSendMessageToMemory,
