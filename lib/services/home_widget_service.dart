@@ -39,6 +39,7 @@ class HomeWidgetService {
   static const _boundGroupPrefix = 'widget_bound_group_';
   static const _photoModePrefix = 'photo_day_mode_';
   static const _photoSaveMemoryPrefix = 'photo_day_save_memory_';
+  static const _photoRefreshSeedPrefix = 'photo_day_refresh_seed_';
 
   /// Привязать тип виджета к группе (вызывается при пине).
   Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
@@ -73,6 +74,18 @@ class HomeWidgetService {
   Future<void> setPhotoDaySaveMemory(String groupId, bool save) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('$_photoSaveMemoryPrefix$groupId', save);
+  }
+
+  Future<int> getPhotoRefreshSeed(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('$_photoRefreshSeedPrefix$groupId') ?? 0;
+  }
+
+  Future<int> incrementPhotoRefreshSeed(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final next = (prefs.getInt('$_photoRefreshSeedPrefix$groupId') ?? 0) + 1;
+    await prefs.setInt('$_photoRefreshSeedPrefix$groupId', next);
+    return next;
   }
 
   /// Получить groupId, к которому привязан виджет. null = не привязан.
@@ -222,8 +235,11 @@ class HomeWidgetService {
 
   /// Выбирает последнее фото из Memory Lane и синхронизирует виджет.
   ///
-  /// Вызывается при запуске приложения и периодически.
-  Future<void> refreshPhotoOfDay(String groupId) async {
+  /// [forceNext] — если true, инкрементирует seed, чтобы выбрать следующее фото.
+  Future<void> refreshPhotoOfDay(
+    String groupId, {
+    bool forceNext = false,
+  }) async {
     if (groupId.isEmpty) return;
     try {
       final mode = await getPhotoDayMode(groupId);
@@ -288,11 +304,30 @@ class HomeWidgetService {
         return;
       }
 
-      final memories = snap.docs
+      final allMemories = snap.docs
           .map((doc) => Memory.fromFirestore(doc.id, doc.data()))
           .toList();
 
-      final selectedMemory = _pickDailyRandomMemory(memories, groupId);
+      // Предпочитаем фото партнёра: он выбрал фото из памяти, а не я
+      final partnerMemories = partnerData != null
+          ? allMemories
+                .where((m) => m.authorUid == partnerData['authorUid'])
+                .toList()
+          : <Memory>[];
+      final candidateMemories = partnerMemories.isNotEmpty
+          ? partnerMemories
+          : allMemories;
+
+      // Получаем (и при необходимости инкрементируем) сдвиг
+      final seed = forceNext
+          ? await incrementPhotoRefreshSeed(groupId)
+          : await getPhotoRefreshSeed(groupId);
+
+      final selectedMemory = _pickDailyRandomMemory(
+        candidateMemories,
+        groupId,
+        seed,
+      );
       if (selectedMemory == null ||
           selectedMemory.imageUrl == null ||
           selectedMemory.imageUrl!.isEmpty) {
@@ -347,13 +382,18 @@ class HomeWidgetService {
     return null;
   }
 
-  Memory? _pickDailyRandomMemory(List<Memory> memories, String groupId) {
+  Memory? _pickDailyRandomMemory(
+    List<Memory> memories,
+    String groupId, [
+    int seed = 0,
+  ]) {
     if (memories.isEmpty) return null;
     final sorted = List<Memory>.from(memories)
       ..sort((a, b) => a.id.compareTo(b.id));
     final dayIndex = DateTime.now().difference(DateTime(2000)).inDays;
     final hash = groupId.hashCode ^ dayIndex;
-    final index = hash.abs() % sorted.length;
+    // seed сдвигает индекс, позволяя выбирать разные фото при повторных нажатиях
+    final index = (hash.abs() + seed) % sorted.length;
     return sorted[index];
   }
 

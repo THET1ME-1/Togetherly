@@ -63,16 +63,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
   int? _missYouCount;
 
   // Фото дня
-  bool _photoDayExpanded = false;
+  bool _photoDayExpanded = true;
   String _photoDayMode = 'random'; // 'random' | 'custom'
   bool _savePhotoAsMemory = true;
   String? _myOwnPhotoPath; // МОЁ фото (показывается в превью по умолчанию)
   String?
   _partnerWidgetPhotoPath; // Фото партнёра (всегда отображается на рабочем столе)
   bool _previewShowsPartner = false; // Переключатель превью: моё ↔ партнёра
-  String _photoDayAuthorName = '';
-  String _photoDayAuthorUid = '';
-  String _photoDayViewerUid = '';
   int _photoDayVersion = 0;
   bool _isLoadingPhoto = false;
 
@@ -176,15 +173,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     // Фото на рабочем столе (ВСЕГДА фото партнёра или случайное)
     final widgetPath = await HomeWidget.getWidgetData<String>('photo_day_path');
-    final authorName = await HomeWidget.getWidgetData<String>(
-      'photo_day_author',
-    );
-    final authorUid = await HomeWidget.getWidgetData<String>(
-      'photo_day_author_uid',
-    );
-    final viewerUid = await HomeWidget.getWidgetData<String>(
-      'photo_day_viewer_uid',
-    );
 
     // Определяем МОЁ фото для превью
     String? myPhoto;
@@ -216,9 +204,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
         _partnerWidgetPhotoPath = (widgetPath != null && widgetPath.isNotEmpty)
             ? widgetPath
             : null;
-        _photoDayAuthorName = authorName ?? '';
-        _photoDayAuthorUid = authorUid ?? '';
-        _photoDayViewerUid = viewerUid ?? '';
         _photoDayVersion++;
       });
     }
@@ -226,6 +211,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Future<void> _selectPhotoDayMode(String mode) async {
     final hws = HomeWidgetService.instance;
+    // Если уже в этом режиме и это random — генерируем следующее фото
+    final forceNext = mode == 'random' && _photoDayMode == 'random';
     // Сохраняем режим локально и в Firestore
     await hws.setPhotoDayMode(_pair.pairId, mode);
     await _ws.setPhotoDayMode(mode);
@@ -236,7 +223,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     });
     // Виджет рабочего стола ВСЕГДА показывает фото партнёра
     // refreshPhotoOfDay сам определит правильное фото по матрице режимов
-    await hws.refreshPhotoOfDay(_pair.pairId);
+    await hws.refreshPhotoOfDay(_pair.pairId, forceNext: forceNext);
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
     await _loadPhotoDayPrefs();
@@ -249,10 +236,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
     setState(() => _savePhotoAsMemory = value);
   }
 
-  Future<void> _pickCustomPhoto() async {
+  Future<void> _pickCustomPhoto(ImageSource source) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 1024,
       maxHeight: 1024,
       imageQuality: 85,
@@ -1431,25 +1418,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
         ? _partnerWidgetPhotoPath
         : _myOwnPhotoPath;
 
-    // Подпись на оверлее
-    final String bottomLabel;
-    if (_previewShowsPartner) {
-      // Фото партнёра (что видите вы на рабочем столе)
-      final partnerIsAuthor =
-          _photoDayAuthorUid.isNotEmpty &&
-          _photoDayAuthorUid != _photoDayViewerUid;
-      bottomLabel = partnerIsAuthor && _photoDayAuthorName.isNotEmpty
-          ? (isRu
-                ? 'Фото от ${_photoDayAuthorName}'
-                : 'Photo by ${_photoDayAuthorName}')
-          : (isRu ? 'Фото партнёра' : 'Partner\'s photo');
-    } else {
-      // МОЁ фото (что видит партнёр на СвОЕМ рабочем столе)
-      bottomLabel = _photoDayMode == 'custom'
-          ? (isRu ? 'Ваше фото' : 'Your photo')
-          : (isRu ? 'Случайное фото дня' : 'Today\'s random photo');
-    }
-
     // Превью-заголовок для пустого состояния
     final emptyLabel = _previewShowsPartner
         ? (isRu
@@ -1622,62 +1590,19 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
                 if (_isLoadingPhoto)
                   Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      ),
-                    ),
-                  ),
-
-                // Нижний оверлей с подписью
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.45),
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(16),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          _previewShowsPartner ? '📱' : '📸',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            bottomLabel,
-                            style: GoogleFonts.rubik(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                        child: Container(
+                          color: Colors.white.withOpacity(0.35),
+                          child: Center(
+                            child: _MD3PhotoLoader(color: _t.primary),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1712,6 +1637,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 label: isRu ? 'Случайное' : 'Random',
                 icon: Icons.shuffle_rounded,
                 isSelected: _photoDayMode == 'random',
+                showRefresh: _photoDayMode == 'random',
+                subtitle: isRu ? 'из воспоминаний' : 'from memories',
                 onTap: () => _selectPhotoDayMode('random'),
               ),
             ),
@@ -1721,6 +1648,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 label: isRu ? 'Своё фото' : 'Own Photo',
                 icon: Icons.image_rounded,
                 isSelected: _photoDayMode == 'custom',
+                subtitle: isRu ? 'из галереи' : 'from gallery',
                 onTap: () => _selectPhotoDayMode('custom'),
               ),
             ),
@@ -1731,43 +1659,48 @@ class _WidgetScreenState extends State<WidgetScreen> {
           _buildGlassCard(
             child: Column(
               children: [
-                if (_myOwnPhotoPath != null && _myOwnPhotoPath!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _myOwnPhotoPath!.startsWith('http')
-                          ? Image.network(
-                              _myOwnPhotoPath!,
-                              height: 120,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            )
-                          : Image.file(
-                              File(_myOwnPhotoPath!),
-                              height: 120,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
-                    ),
-                  ),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _pickCustomPhoto,
-                    icon: const Icon(Icons.add_a_photo_rounded, size: 18),
-                    label: Text(
-                      isRu ? 'Выбрать фото с устройства' : 'Pick from device',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _t.primaryLight,
-                      foregroundColor: _t.primary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _pickCustomPhoto(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_rounded, size: 16),
+                        label: Text(
+                          isRu ? 'Галерея' : 'Gallery',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _t.primaryLight,
+                          foregroundColor: _t.primary,
+                          elevation: 0,
+                          textStyle: const TextStyle(fontSize: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _pickCustomPhoto(ImageSource.camera),
+                        icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                        label: Text(
+                          isRu ? 'Камера' : 'Camera',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _t.primaryLight,
+                          foregroundColor: _t.primary,
+                          elevation: 0,
+                          textStyle: const TextStyle(fontSize: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -1804,7 +1737,18 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
+    String? subtitle,
+    bool showRefresh = false,
   }) {
+    final isRu = LocaleService.instance.isRussian;
+    // Подсказка: если активна и есть showRefresh — показываем «Повторная генерация»;
+    // иначе — subtitle (нужен чтобы обе кнопки имели одинаковую высоту)
+    final String resolvedSubtitle;
+    if (isSelected && showRefresh) {
+      resolvedSubtitle = isRu ? 'Повторная генерация' : 'Regenerate';
+    } else {
+      resolvedSubtitle = subtitle ?? '';
+    }
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1832,6 +1776,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? _t.primary : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              resolvedSubtitle,
+              style: GoogleFonts.rubik(
+                fontSize: 9,
+                color: isSelected && showRefresh
+                    ? _t.primary.withOpacity(0.6)
+                    : Colors.grey.shade400,
               ),
             ),
           ],
@@ -3075,6 +3029,97 @@ class _WidgetScreenState extends State<WidgetScreen> {
     if (confirmed == true) {
       _ws.clearAll();
     }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MD3 PHOTO LOADER — анимация загрузки фото
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _MD3PhotoLoader extends StatefulWidget {
+  final Color color;
+  const _MD3PhotoLoader({required this.color});
+
+  @override
+  State<_MD3PhotoLoader> createState() => _MD3PhotoLoaderState();
+}
+
+class _MD3PhotoLoaderState extends State<_MD3PhotoLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+  late final Animation<double> _ring;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+    _pulse = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+    _ring = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutSine);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.color;
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Внешнее пульсирующее кольцо
+            Transform.scale(
+              scale: 1.0 + _pulse.value * 0.12,
+              child: Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.08 + _pulse.value * 0.07),
+                ),
+              ),
+            ),
+            // Среднее кольцо — чуть в противофазе
+            Transform.scale(
+              scale: 1.0 + (1 - _ring.value) * 0.08,
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.06 + (1 - _ring.value) * 0.06),
+                ),
+              ),
+            ),
+            // MD3 индикатор загрузки
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: CircularProgressIndicator(
+                color: color,
+                strokeWidth: 3.5,
+                strokeCap: StrokeCap.round,
+                backgroundColor: color.withOpacity(0.12),
+              ),
+            ),
+            // Иконка фото в центре
+            Opacity(
+              opacity: 0.25 + _pulse.value * 0.35,
+              child: Icon(Icons.image_rounded, size: 18, color: color),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

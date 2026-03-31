@@ -1010,9 +1010,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (photo == null || !mounted) return;
 
-    // Show caption dialog
-    final caption = await _showCaptionDialog();
+    // Show caption dialog (with optional "set as widget photo" toggle)
+    final result = await _showCaptionDialog();
     if (!mounted) return;
+    // null means user cancelled
+    if (result == null) return;
 
     // Show loading
     showDialog(
@@ -1070,8 +1072,27 @@ class _HomeScreenState extends State<HomeScreen> {
         groupId: _pairData.pairId,
         type: MemoryType.photo,
         imageUrl: downloadUrl,
-        caption: caption,
+        title: result.title,
+        caption: result.caption,
       );
+
+      // If user chose to set as widget Photo of the Day
+      if (result.setAsWidget) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await _widgetService.setPhotoDayMode('custom');
+          await _widgetService.updatePhotoUrl(downloadUrl);
+          await prefs.setString(
+            'photo_day_path_${_pairData.pairId}',
+            photo.path,
+          );
+          final hws = HomeWidgetService.instance;
+          await hws.setPhotoDayMode(_pairData.pairId, 'custom');
+          await hws.refreshPhotoOfDay(_pairData.pairId);
+        } catch (e) {
+          debugPrint('Failed to set widget photo day: $e');
+        }
+      }
 
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {
@@ -1096,96 +1117,162 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<String?> _showCaptionDialog() async {
+  Future<({String? title, String? caption, bool setAsWidget})?>
+  _showCaptionDialog() async {
+    final titleController = TextEditingController();
     final controller = TextEditingController();
-    return showDialog<String>(
+    return showDialog<({String? title, String? caption, bool setAsWidget})>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                LocaleService.current.addCaption,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
-                ),
+      builder: (ctx) {
+        bool setAsWidget = false;
+        return StatefulBuilder(
+          builder: (ctx, setDlgState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-              const SizedBox(height: 6),
-              Text(
-                LocaleService.current.optionalDescribe,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLines: 3,
-                maxLength: 200,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: LocaleService.current.writeSmth,
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: primary, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, null),
-                      child: Text(
-                        LocaleService.current.skip,
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w600,
-                        ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      LocaleService.instance.isRussian
+                          ? '📷  Новое фото'
+                          : '📷  New Photo',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade900,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final text = controller.text.trim();
-                        Navigator.pop(ctx, text.isEmpty ? null : text);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
+                    const SizedBox(height: 20),
+                    // Заголовок
+                    TextField(
+                      controller: titleController,
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLength: 60,
+                      decoration: InputDecoration(
+                        hintText: LocaleService.instance.isRussian
+                            ? 'Заголовок…'
+                            : 'Title…',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        LocaleService.current.post,
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: primary, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    // Описание
+                    TextField(
+                      controller: controller,
+                      autofocus: false,
+                      maxLines: 3,
+                      maxLength: 200,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: LocaleService.instance.isRussian
+                            ? 'Описание (необязательно)…'
+                            : 'Description (optional)…',
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: primary, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Опция: установить как фото дня виджета
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            LocaleService.instance.isRussian
+                                ? 'Фото дня на виджете'
+                                : 'Set as widget photo',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: setAsWidget,
+                          activeColor: primary,
+                          onChanged: (v) => setDlgState(() => setAsWidget = v),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(
+                              LocaleService.current.skip,
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final titleText = titleController.text.trim();
+                              final text = controller.text.trim();
+                              Navigator.pop(ctx, (
+                                title: titleText.isEmpty ? null : titleText,
+                                caption: text.isEmpty ? null : text,
+                                setAsWidget: setAsWidget,
+                              ));
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: Text(
+                              LocaleService.current.post,
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

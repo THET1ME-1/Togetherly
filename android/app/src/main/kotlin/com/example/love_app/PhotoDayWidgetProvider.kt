@@ -56,24 +56,8 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
                     setViewVisibility(R.id.photo_placeholder, View.VISIBLE)
                 }
 
-                val authorName = widgetData.getString("photo_day_author", "")
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-                val authorUid = widgetData.getString("photo_day_author_uid", "")
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-                val viewerUid = widgetData.getString("photo_day_viewer_uid", "")
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-
-                if (authorName.isNotEmpty()) {
-                    val label = if (authorUid.isNotEmpty() && authorUid == viewerUid) {
-                        "Ваше фото"
-                    } else {
-                        "Фото от $authorName"
-                    }
-                    setTextViewText(R.id.photo_author, label)
-                    setViewVisibility(R.id.photo_author, View.VISIBLE)
-                } else {
-                    setViewVisibility(R.id.photo_author, View.GONE)
-                }
+                // Подпись автора скрыта
+                setViewVisibility(R.id.photo_author, View.GONE)
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)
