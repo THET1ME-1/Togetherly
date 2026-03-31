@@ -558,6 +558,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       myAvatarUrl: widget.userData.avatarUrl,
                       partnerAvatarUrl: _pairData.partnerAvatarUrl,
                       isPaired: _pairData.isPaired,
+                      onPetalTap: _pairData.isPaired
+                          ? (label) => _openMemoryLaneForPetal(label)
+                          : null,
                     ),
                   ),
                 ),
@@ -906,7 +909,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: t.primary,
                 title: s.newCanvas,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'РќР°С‡Р°С‚СЊ СЃ С‡РёСЃС‚РѕРіРѕ С…РѕР»СЃС‚Р°'
+                    ? 'Начать с чистого холста'
                     : 'Start with a blank canvas',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -919,7 +922,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'РћС‚РєСЂС‹С‚СЊ СЃРѕС…СЂР°РЅС‘РЅРЅС‹Р№ СЂРёСЃСѓРЅРѕРє'
+                    ? 'Открыть сохранённый рисунок'
                     : 'Open a saved drawing',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -929,6 +932,40 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _openMemoryLaneForPetal(String petalLabel) {
+    if (!_pairData.isPaired) return;
+    final mode = petalLabel == 'Days'
+        ? MemoryFilterMode.day
+        : MemoryFilterMode.month;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 500),
+        reverseTransitionDuration: const Duration(milliseconds: 350),
+        pageBuilder: (_, __, ___) => MemoryLaneScreen(
+          pairData: _pairData,
+          theme: _t,
+          filterMode: mode,
+        ),
+        transitionsBuilder: (_, anim, __, child) {
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.12),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
       ),
     );
   }

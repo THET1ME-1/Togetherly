@@ -15,6 +15,7 @@ class ExpandableTimerCard extends StatefulWidget {
   final String myAvatarUrl;
   final bool isPaired;
   final ValueChanged<bool>? onExpandChanged;
+  final ValueChanged<String>? onPetalTap;
 
   const ExpandableTimerCard({
     super.key,
@@ -24,6 +25,7 @@ class ExpandableTimerCard extends StatefulWidget {
     required this.myAvatarUrl,
     required this.isPaired,
     this.onExpandChanged,
+    this.onPetalTap,
   });
 
   @override
@@ -145,6 +147,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                             theme: _t,
                             startDate: timers[index].startDate,
                             isCountdown: timers[index].isCountdown,
+                            onPetalTap: widget.onPetalTap,
                           ),
                         ),
                       );

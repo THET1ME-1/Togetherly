@@ -39,15 +39,20 @@ String _svgAssetForType(MemoryType type) {
   }
 }
 
+/// Filter mode for Memory Lane pinned memories.
+enum MemoryFilterMode { none, day, month }
+
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
 class MemoryLaneScreen extends StatefulWidget {
   final PairData pairData;
   final AppTheme theme;
+  final MemoryFilterMode filterMode;
   const MemoryLaneScreen({
     super.key,
     required this.pairData,
     required this.theme,
+    this.filterMode = MemoryFilterMode.none,
   });
 
   @override
@@ -102,8 +107,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ── Organize memories ──
-  List<Memory> get _pinnedMemories =>
-      _memories.where((m) => m.isPinned).toList();
+  List<Memory> get _pinnedMemories {
+    final pinned = _memories.where((m) => m.isPinned).toList();
+    final now = DateTime.now();
+    switch (widget.filterMode) {
+      case MemoryFilterMode.day:
+        return pinned.where((m) =>
+          m.createdAt.month == now.month && m.createdAt.day == now.day).toList();
+      case MemoryFilterMode.month:
+        return pinned.where((m) => m.createdAt.month == now.month).toList();
+      case MemoryFilterMode.none:
+        return pinned;
+    }
+  }
 
   /// Group non-pinned memories by date, newest first
   Map<String, List<Memory>> get _groupedByDate {
@@ -152,6 +168,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   String _weekdayName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[weekday - 1];
+  }
+
+  String _fmtToday() {
+    final n = DateTime.now();
+    const m = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${m[n.month]} ${n.day}';
+  }
+
+  String _fmtMonth() {
+    const m = ['','January','February','March','April','May','June',
+               'July','August','September','October','November','December'];
+    return m[DateTime.now().month];
   }
 
   String _timeStr(DateTime dt) {
@@ -290,13 +318,29 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           ),
         ),
       ),
-      title: Text(
-        LocaleService.current.memoryLane,
-        style: GoogleFonts.rubik(
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-          color: Colors.grey.shade900,
-        ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            LocaleService.current.memoryLane,
+            style: GoogleFonts.rubik(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.grey.shade900,
+            ),
+          ),
+          if (widget.filterMode != MemoryFilterMode.none)
+            Text(
+              widget.filterMode == MemoryFilterMode.day
+                  ? '📌 ${LocaleService.current.pinned} • ${_fmtToday()}'
+                  : '📌 ${LocaleService.current.pinned} • ${_fmtMonth()}',
+              style: GoogleFonts.rubik(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: primary.withOpacity(0.8),
+              ),
+            ),
+        ],
       ),
       actions: [
         Padding(

@@ -42,11 +42,15 @@ class PetalTimerDial extends StatefulWidget {
   /// Whether the timer counts down instead of up.
   final bool isCountdown;
 
+  /// Called when user taps on Days or Months petal. Passes the label.
+  final ValueChanged<String>? onPetalTap;
+
   const PetalTimerDial({
     super.key,
     required this.theme,
     required this.startDate,
     this.isCountdown = false,
+    this.onPetalTap,
   });
 
   @override
@@ -234,6 +238,31 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     ];
   }
 
+  /// Which petal index is at [localPos]? Returns -1 if outside the ring.
+  int _petalIndexAt(Offset localPos) {
+    final box = context.findRenderObject() as RenderBox;
+    final sz = box.size;
+    final center = sz.center(Offset.zero);
+    final off = localPos - center;
+    final dist = off.distance;
+    final outerR = math.min(center.dx, center.dy) - 2;
+    final innerR = outerR * 0.15;
+    if (dist < innerR || dist > outerR) return -1;
+
+    double a = math.atan2(off.dy, off.dx) - _rotationAngle + math.pi / 2;
+    while (a < 0) a += 2 * math.pi;
+    while (a >= 2 * math.pi) a -= 2 * math.pi;
+    final tp = _presenceFactors.reduce((x, y) => x + y);
+    if (tp < 0.001) return -1;
+    double norm = a * (tp / (2 * math.pi));
+    double run = 0;
+    for (int i = 0; i < 6; i++) {
+      run += _presenceFactors[i];
+      if (norm < run) return i;
+    }
+    return -1;
+  }
+
   void _handleInteraction(Offset localPos, {bool isLongPress = false}) {
     final box = context.findRenderObject() as RenderBox;
     final size = box.size;
@@ -242,19 +271,30 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     final distance = offset.distance;
 
     final outerR = math.min(center.dx, center.dy) - 2;
-    final innerR = outerR * 0.25; // Slightly larger hit area for center
+    final innerR = outerR * 0.25;
 
     if (distance < innerR) {
       if (_hiddenIndices.isNotEmpty) {
         HapticFeedback.selectionClick();
-        setState(() {
-          _hiddenIndices.clear();
-        });
+        setState(() => _hiddenIndices.clear());
       }
       return;
     }
 
-    if (!isLongPress || distance > outerR || distance < outerR * 0.15) return;
+    // Regular tap — detect Days / Months petal
+    if (!isLongPress) {
+      final idx = _petalIndexAt(localPos);
+      if (idx >= 0 && _presenceFactors[idx] > 0.5) {
+        final label = _currentPetals[idx].label;
+        if (label == 'Days' || label == 'Months') {
+          HapticFeedback.lightImpact();
+          widget.onPetalTap?.call(label);
+        }
+      }
+      return;
+    }
+
+    if (distance > outerR || distance < outerR * 0.15) return;
 
     // Determine angle
     double angle = math.atan2(offset.dy, offset.dx);
