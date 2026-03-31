@@ -39,8 +39,9 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   static const double _kItemStride = _kCellWidth + _kSeparator;
 
   late final ScrollController _scrollController;
-  late final DateTime _today;
-  late final DateTime _todayNorm;
+  late DateTime _today;
+  late DateTime _todayNorm;
+  Timer? _midnightTimer;
 
   bool _showBackToToday = false;
   double _todayScrollOffset = _kCenter * _kItemStride;
@@ -63,6 +64,26 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
       _todayScrollOffset = (_kCenter * _kItemStride) - viewport + _kItemStride;
       _scrollController.jumpTo(_todayScrollOffset);
     });
+    _scheduleMidnightUpdate();
+  }
+
+  /// Планирует таймер ровно на следующую полночь.
+  void _scheduleMidnightUpdate() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    final untilMidnight = nextMidnight.difference(now);
+    _midnightTimer = Timer(untilMidnight, _onNewDay);
+  }
+
+  /// Вызывается в 00:00: обновляет «сегодня» и перепланирует таймер.
+  void _onNewDay() {
+    if (!mounted) return;
+    setState(() {
+      _today = DateTime.now();
+      _todayNorm = DateTime(_today.year, _today.month, _today.day);
+    });
+    _scheduleMidnightUpdate();
   }
 
   void _onScroll() {
@@ -93,6 +114,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
 
   @override
   void dispose() {
+    _midnightTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -244,14 +266,17 @@ class _DayCell extends StatefulWidget {
   State<_DayCell> createState() => _DayCellState();
 }
 
-class _DayCellState extends State<_DayCell>
-    with SingleTickerProviderStateMixin {
+class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
   int _currentIndex = 0;
   Timer? _timer;
 
   double _displayFactor = 0.0;
   Ticker? _chaseTicker;
   DateTime? _lastProcessedDate;
+
+  // Анимация пульсации при наступлении нового дня
+  AnimationController? _newDayPulseController;
+  Animation<double>? _newDayScaleAnimation;
 
   bool get isToday =>
       widget.date.year == widget.today.year &&
@@ -320,6 +345,50 @@ class _DayCellState extends State<_DayCell>
     if (dateChanged && !isToday) {
       _displayFactor = 0.0;
     }
+
+    // Смена суток (полночь): ячейка остаётся «сегодня», но дата изменилась
+    if (dateChanged && isToday) {
+      _displayFactor = 0.0; // новый день — заполнение начинается с нуля
+      _playNewDayPulse();
+    }
+  }
+
+  /// Запускает кратковременную пульсирующую анимацию масштаба при наступлении нового дня.
+  void _playNewDayPulse() {
+    _newDayPulseController?.stop();
+    _newDayPulseController?.dispose();
+    _newDayPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _newDayScaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.08,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.08,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 65,
+      ),
+    ]).animate(_newDayPulseController!);
+    _newDayPulseController!.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _newDayPulseController!.forward().whenComplete(() {
+      if (mounted) {
+        setState(() {
+          _newDayScaleAnimation = null;
+          _newDayPulseController?.dispose();
+          _newDayPulseController = null;
+        });
+      }
+    });
   }
 
   void _onChaseTick(Duration elapsed) {
@@ -389,6 +458,7 @@ class _DayCellState extends State<_DayCell>
   void dispose() {
     _timer?.cancel();
     _chaseTicker?.dispose();
+    _newDayPulseController?.dispose();
     super.dispose();
   }
 
@@ -408,138 +478,142 @@ class _DayCellState extends State<_DayCell>
 
     return GestureDetector(
       onTap: isFuture ? null : () => widget.onTap(widget.date),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 74,
-        height: 118,
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(100),
-          boxShadow: isToday
-              ? [
-                  BoxShadow(
-                    color: widget.theme.navActiveIcon.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            // Заполнение текущего дня снизу вверх
-            if (isToday)
-              FractionallySizedBox(
-                heightFactor: _displayFactor,
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: widget.theme.navActiveIcon,
-                    borderRadius: BorderRadius.circular(100),
+      child: Transform.scale(
+        scale: _newDayScaleAnimation?.value ?? 1.0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 74,
+          height: 118,
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(100),
+            boxShadow: isToday
+                ? [
+                    BoxShadow(
+                      color: widget.theme.navActiveIcon.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              // Заполнение текущего дня снизу вверх
+              if (isToday)
+                FractionallySizedBox(
+                  heightFactor: _displayFactor,
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: widget.theme.navActiveIcon,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
                   ),
                 ),
-              ),
 
-            // Контент (текст и иконка)
-            Opacity(
-              opacity: isFuture ? 0.35 : 1.0,
-              child: Stack(
-                children: [
-                  // Слой 1: Обычный текст (виден на пустом фоне)
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Center(
-                        child: Text(
-                          dayName,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: isToday
-                                ? Colors.white.withOpacity(0.9)
-                                : baseTextColor,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Center(
-                        child: Text(
-                          widget.date.day.toString(),
-                          style: GoogleFonts.rubik(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: isToday ? Colors.white : baseNumColor,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      SizedBox(
-                        width: 30,
-                        height: 30,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 500),
-                          child: current != null && current.imagePath.isNotEmpty
-                              ? Image.asset(
-                                  current.imagePath,
-                                  key: ValueKey(current.id),
-                                  width: 30,
-                                  height: 30,
-                                  errorBuilder: (_, __, ___) =>
-                                      const SizedBox.shrink(),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Слой 2: Белый текст (виден только поверх заливки)
-                  if (isToday)
-                    ClipRect(
-                      clipper: _BottomHeightClipper(_displayFactor),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Center(
-                            child: Text(
-                              dayName,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white.withOpacity(0.9),
-                                letterSpacing: 0.6,
-                              ),
+              // Контент (текст и иконка)
+              Opacity(
+                opacity: isFuture ? 0.35 : 1.0,
+                child: Stack(
+                  children: [
+                    // Слой 1: Обычный текст (виден на пустом фоне)
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            dayName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: isToday
+                                  ? Colors.white.withOpacity(0.9)
+                                  : baseTextColor,
+                              letterSpacing: 0.6,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Center(
-                            child: Text(
-                              widget.date.day.toString(),
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                height: 1.1,
-                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Center(
+                          child: Text(
+                            widget.date.day.toString(),
+                            style: GoogleFonts.rubik(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: isToday ? Colors.white : baseNumColor,
+                              height: 1.1,
                             ),
                           ),
-                          // Иконка в инверсии не нужна, так как изображение само по себе цветное
-                          const SizedBox(
-                            height: 34,
-                          ), // Отступ под цифрой, чтобы пропустить иконку
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 500),
+                            child:
+                                current != null && current.imagePath.isNotEmpty
+                                ? Image.asset(
+                                    current.imagePath,
+                                    key: ValueKey(current.id),
+                                    width: 30,
+                                    height: 30,
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox.shrink(),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                        ),
+                      ],
                     ),
-                ],
+
+                    // Слой 2: Белый текст (виден только поверх заливки)
+                    if (isToday)
+                      ClipRect(
+                        clipper: _BottomHeightClipper(_displayFactor),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Center(
+                              child: Text(
+                                dayName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white.withOpacity(0.9),
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Center(
+                              child: Text(
+                                widget.date.day.toString(),
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                            // Иконка в инверсии не нужна, так как изображение само по себе цветное
+                            const SizedBox(
+                              height: 34,
+                            ), // Отступ под цифрой, чтобы пропустить иконку
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ), // Transform.scale
       ),
     );
   }
