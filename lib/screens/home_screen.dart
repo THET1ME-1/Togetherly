@@ -52,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   int _selectedNavIndex = 0;
   bool _showReflection = false;
+  bool _showTodayButton = false;
   Timer? _timer;
   StreamSubscription? _deepLinkSub;
 
@@ -522,12 +523,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     moodService: _moodService,
                     theme: _t,
                     onDayTap: _showMoodPickerForDate,
+                    onTodayButtonVisibilityChanged: (v) =>
+                        setState(() => _showTodayButton = v),
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Shift dial UP closer to calendar
-                Transform.translate(
-                  offset: const Offset(0, -20),
+                // Shift dial UP closer to calendar (disabled when Today button is visible)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  transform: Matrix4.translationValues(
+                    0,
+                    _showTodayButton ? 0 : -20,
+                    0,
+                  ),
                   child: AnimatedSlideIn(
                     delay: const Duration(milliseconds: 200),
                     child: ExpandableTimerCard(
@@ -540,8 +549,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 // Restore buttons offset to -15 for tighter layout
-                Transform.translate(
-                  offset: const Offset(0, -15),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  transform: Matrix4.translationValues(
+                    0,
+                    _showTodayButton ? 0 : -15,
+                    0,
+                  ),
                   child: AnimatedSlideIn(
                     delay: const Duration(milliseconds: 300),
                     child: _buildActionButtons(),

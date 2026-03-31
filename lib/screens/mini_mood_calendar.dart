@@ -15,12 +15,14 @@ class MiniMoodCalendar extends StatefulWidget {
   final MoodService moodService;
   final AppTheme theme;
   final void Function(DateTime date) onDayTap;
+  final void Function(bool visible)? onTodayButtonVisibilityChanged;
 
   const MiniMoodCalendar({
     super.key,
     required this.moodService,
     required this.theme,
     required this.onDayTap,
+    this.onTodayButtonVisibilityChanged,
   });
 
   static const _dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -70,6 +72,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
     final shouldShow = diff > 0.8;
     if (shouldShow != _showBackToToday) {
       setState(() => _showBackToToday = shouldShow);
+      widget.onTodayButtonVisibilityChanged?.call(shouldShow);
     }
 
     // Вибрация при пролистывании за экран каждого дня
