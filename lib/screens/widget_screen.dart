@@ -738,10 +738,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               Flexible(
                 child: Text(
                   data.moodLabel,
-                  style: GoogleFonts.rubik(
-                    fontSize: 10,
-                    color: _t.navActiveIcon, // адаптивный цвет темы
-                  ),
+                  style: GoogleFonts.rubik(fontSize: 10, color: Colors.white),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1915,7 +1912,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             style: GoogleFonts.rubik(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFFFF6B8A),
+              color: _t.primary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -2131,6 +2128,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             iconColor: _t.iconMood,
             label: _s.mood,
             value: data.hasMood ? data.moodLabel : null,
+            valueColor: Colors.white,
             trailing: data.hasMood
                 ? Image.asset(data.moodEmoji, width: 24, height: 24)
                 : null,
@@ -2350,6 +2348,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             iconColor: _t.iconMood,
             label: _s.mood,
             value: partner.hasMood ? partner.moodLabel : null,
+            valueColor: Colors.white,
             trailing: partner.hasMood
                 ? Image.asset(partner.moodEmoji, width: 24, height: 24)
                 : null,
@@ -2514,6 +2513,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required Color iconColor,
     required String label,
     String? value,
+    Color? valueColor,
     Widget? trailing,
     required VoidCallback onTap,
     VoidCallback? onClear,
@@ -2557,7 +2557,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       style: GoogleFonts.rubik(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
+                        color: valueColor ?? Colors.grey.shade800,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2624,6 +2624,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required Color iconColor,
     required String label,
     String? value,
+    Color? valueColor,
     Widget? trailing,
   }) {
     final hasValue = value != null;
@@ -2662,7 +2663,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     style: GoogleFonts.rubik(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade800,
+                      color: valueColor ?? Colors.grey.shade800,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
