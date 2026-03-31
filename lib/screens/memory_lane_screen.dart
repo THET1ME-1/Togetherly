@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,15 +10,34 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'map_picker_screen.dart';
+
+/// Returns SVG asset path for a given memory type
+String _svgAssetForType(MemoryType type) {
+  switch (type) {
+    case MemoryType.photo:
+      return 'assets/icons/ic_photo.svg';
+    case MemoryType.video:
+      return 'assets/icons/ic_photo.svg';
+    case MemoryType.location:
+      return 'assets/icons/ic_location.svg';
+    case MemoryType.music:
+      return 'assets/icons/ic_music_note.svg';
+    case MemoryType.text:
+      return 'assets/icons/ic_edit.svg';
+  }
+}
 
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
@@ -42,6 +62,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   StreamSubscription? _memorySub;
   bool _loading = true;
 
+  // User location for distance display
+  double? _userLat;
+  double? _userLng;
+
   PairData get pair => widget.pairData;
   String get _groupId => pair.pairId;
 
@@ -49,6 +73,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   void initState() {
     super.initState();
     _loadAndListen();
+    _fetchUserLocation();
   }
 
   void _loadAndListen() {
@@ -140,12 +165,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ══════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       backgroundColor: widget.theme.bgGradient[0],
       body: Stack(
         children: [
           CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
             slivers: [
               _buildAppBar(),
               if (_loading)
@@ -155,29 +183,29 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               else if (_memories.isEmpty)
                 _buildEmpty()
               else ...[
+                const SliverToBoxAdapter(child: SizedBox(height: 6)),
                 // Pinned section
                 if (_pinnedMemories.isNotEmpty) ...[
-                  _sectionHeader('📌  Pinned'),
+                  _sectionHeader('📌  ${LocaleService.current.pinned}'),
                   SliverPadding(
-                    padding: const EdgeInsets.only(left: 12, right: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (_, i) => _timelineMemoryRow(_pinnedMemories[i]),
+                        (_, i) => _memoryTile(_pinnedMemories[i]),
                         childCount: _pinnedMemories.length,
                       ),
                     ),
                   ),
-                  _timelineSpacer(8),
                 ],
-                // Date-grouped sections (Schedule view)
+                // Date-grouped sections
                 ..._groupedByDate.entries.expand((entry) {
                   return [
                     _sectionHeader(entry.key),
                     SliverPadding(
-                      padding: const EdgeInsets.only(left: 12, right: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (_, i) => _timelineMemoryRow(entry.value[i]),
+                          (_, i) => _memoryTile(entry.value[i]),
                           childCount: entry.value.length,
                         ),
                       ),
@@ -185,21 +213,53 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ];
                 }),
               ],
-              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+              SliverToBoxAdapter(child: SizedBox(height: 90 + bottomPad)),
             ],
           ),
           // FAB
           Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 24,
+            bottom: bottomPad + 24,
+            left: 24,
             right: 24,
-            child: FloatingActionButton.extended(
-              onPressed: _showAddMemorySheet,
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text(
-                'Add Memory',
-                style: TextStyle(fontWeight: FontWeight.w700),
+            child: Center(
+              child: GestureDetector(
+                onTap: _showAddMemorySheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primary,
+                    borderRadius: BorderRadius.circular(50),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withOpacity(0.35),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        LocaleService.current.addMemoryBtn,
+                        style: GoogleFonts.rubik(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -212,14 +272,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
       pinned: true,
-      backgroundColor: Colors.white.withOpacity(0.92),
+      backgroundColor: widget.theme.bgGradient[0].withOpacity(0.95),
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.black87),
+        icon: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.8),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            color: Colors.black87,
+            size: 20,
+          ),
+        ),
       ),
       title: Text(
-        'Memory Lane',
+        LocaleService.current.memoryLane,
         style: GoogleFonts.rubik(
           fontSize: 20,
           fontWeight: FontWeight.w800,
@@ -227,7 +299,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ),
       ),
       actions: [
-        // member count badge
         Padding(
           padding: const EdgeInsets.only(right: 16),
           child: Center(
@@ -294,152 +365,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ═══════════════════════════════════════════════════
-  //  TIMELINE COMPONENTS
-  // ═══════════════════════════════════════════════════
-  static const double _timelineColumnWidth = 32.0;
-  static const double _timelineLineWidth = 2.0;
-  static const double _timelineMarkerSize = 12.0;
-
-  /// Wraps a memory tile with a timeline marker + vertical line on the left
-  Widget _timelineMemoryRow(Memory memory) {
-    final typeColor = _memoryTypeColor(memory.type);
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: _timelineColumnWidth,
-            child: Stack(
-              children: [
-                // Continuous vertical line
-                Positioned(
-                  left: (_timelineColumnWidth - _timelineLineWidth) / 2,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: _timelineLineWidth,
-                    decoration: BoxDecoration(
-                      color: primary.withOpacity(0.13),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ),
-                // Circle marker with fade + scale animation
-                Positioned(
-                  top: 18,
-                  left: (_timelineColumnWidth - _timelineMarkerSize) / 2,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.elasticOut,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Opacity(
-                          opacity: value.clamp(0.0, 1.0),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: _timelineMarkerSize,
-                      height: _timelineMarkerSize,
-                      decoration: BoxDecoration(
-                        color: typeColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: typeColor.withOpacity(0.35),
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(child: _memoryTile(memory)),
-        ],
-      ),
-    );
-  }
-
-  /// Spacer that keeps the timeline line continuous between sections
-  SliverToBoxAdapter _timelineSpacer(double height) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: SizedBox(
-          height: height,
-          child: Stack(
-            children: [
-              Positioned(
-                left: (_timelineColumnWidth - _timelineLineWidth) / 2,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: _timelineLineWidth,
-                  color: primary.withOpacity(0.13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  //  SECTION HEADER (date label like Google Calendar)
+  //  SECTION HEADER
   // ═══════════════════════════════════════════════════
   SliverToBoxAdapter _sectionHeader(String title) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 20, top: 16, bottom: 6),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Timeline line through header
-              SizedBox(
-                width: _timelineColumnWidth,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: (_timelineColumnWidth - _timelineLineWidth) / 2,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: _timelineLineWidth,
-                        color: primary.withOpacity(0.13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                width: 4,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: GoogleFonts.rubik(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-            ],
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Text(
+          title,
+          style: GoogleFonts.rubik(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade500,
+            letterSpacing: 0.3,
           ),
         ),
       ),
@@ -464,59 +402,340 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
   }
 
-  // ── PHOTO TILE ──
-  Widget _photoTile(Memory memory) {
-    final hasImage = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    return _baseTile(
-      memory: memory,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  // ═══════════════════════════════════════════════════
+  //  Helper: SVG icon path per memory type
+  // ═══════════════════════════════════════════════════
+  String _typeSvgAsset(MemoryType type) => _svgAssetForType(type);
+
+  // ═══════════════════════════════════════════════════
+  //  SHARED CARD HEADER (avatar · name · time · subtitle)
+  // ═══════════════════════════════════════════════════
+  Widget _cardHeader(
+    Memory memory, {
+    required String subtitle,
+    Widget? trailing,
+    Color? badgeColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Row(
         children: [
-          if (hasImage)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+          // Avatar with accent ring + optional badge dot
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: primary.withOpacity(0.18),
+                    width: 1.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: memory.authorAvatar.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: memory.authorAvatar,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 120,
+                          memCacheHeight: 120,
+                          errorWidget: (_, __, ___) =>
+                              _avatarFallback(memory.authorName),
+                        )
+                      : _avatarFallback(memory.authorName),
+                ),
               ),
-              child: CachedNetworkImage(
-                imageUrl: memory.imageUrl!,
-                width: double.infinity,
-                fit: BoxFit.fitWidth,
-                memCacheWidth: 800,
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: Colors.grey.shade200,
-                  child: Center(
-                    child: Icon(
-                      Icons.broken_image_rounded,
-                      color: Colors.grey.shade400,
-                      size: 40,
+              if (badgeColor != null)
+                Positioned(
+                  bottom: -2,
+                  left: -2,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        _typeSvgAsset(memory.type),
+                        width: 10,
+                        height: 10,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: _tileFooter(memory),
+            ],
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        memory.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '  ·  ${_formatTimeAgo(memory.createdAt)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+          if (memory.isPinned && trailing == null)
+            Icon(
+              Icons.push_pin_rounded,
+              size: 16,
+              color: primary.withOpacity(0.45),
+            ),
         ],
       ),
     );
   }
 
-  // ── VIDEO TILE ──
-  Widget _videoTile(Memory memory) {
-    final hasThumb = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    final hasVideo = memory.videoUrl != null && memory.videoUrl!.isNotEmpty;
+  // ═══════════════════════════════════════════════════
+  //  PHOTO TILE — social-style photo card
+  // ═══════════════════════════════════════════════════
+  Widget _photoTile(Memory memory) {
+    final s = LocaleService.current;
+    // Support both legacy imageUrl and new imageUrls array
+    final allPhotos = <String>[
+      if (memory.imageUrls?.isNotEmpty == true)
+        ...memory.imageUrls!
+      else if (memory.imageUrl?.isNotEmpty == true)
+        memory.imageUrl!,
+    ];
+    final hasPhotos = allPhotos.isNotEmpty;
+
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _cardHeader(
+            memory,
+            subtitle: memory.title?.isNotEmpty == true
+                ? memory.title!
+                : s.sharedAPicture,
+            badgeColor: primary,
+          ),
+          const SizedBox(height: 10),
+          // ── Photo sub-card (same style as music tile) ──
+          GestureDetector(
+            onTap: hasPhotos
+                ? () => _openFullscreenGallery(context, allPhotos, 0)
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    // Left: text content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            memory.title?.isNotEmpty == true
+                                ? memory.title!
+                                : s.sharedAPicture,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade900,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (memory.caption?.isNotEmpty == true)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                memory.caption!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                  height: 1.35,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          if (!hasPhotos)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'No photo attached',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          if (allPhotos.length > 1)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 5),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${allPhotos.length} photos',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Right: square photo thumbnail (48×48, same size as album art)
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: hasPhotos
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: CachedNetworkImage(
+                                imageUrl: allPhotos.first,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 96,
+                                memCacheHeight: 96,
+                                errorWidget: (_, __, ___) => Icon(
+                                  Icons.broken_image_rounded,
+                                  color: Colors.grey.shade300,
+                                  size: 22,
+                                ),
+                              ),
+                            )
+                          : Icon(
+                              Icons.image_rounded,
+                              color: primary.withOpacity(0.4),
+                              size: 22,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // ── Multi-photo strip (shown when > 1 photo) ──
+          if (allPhotos.length > 1) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                itemCount: allPhotos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _openFullscreenGallery(context, allPhotos, i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: CachedNetworkImage(
+                      imageUrl: allPhotos[i],
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 144,
+                      memCacheHeight: 144,
+                      errorWidget: (_, __, ___) => Container(
+                        width: 72,
+                        height: 72,
+                        color: Colors.grey.shade100,
+                        child: Icon(
+                          Icons.broken_image_rounded,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  VIDEO TILE — cinematic preview card
+  // ═══════════════════════════════════════════════════
+  Widget _videoTile(Memory memory) {
+    final hasThumb = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
+    final s = LocaleService.current;
+
+    return _baseTile(
+      memory: memory,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+            memory,
+            subtitle: memory.title?.isNotEmpty == true
+                ? memory.title!
+                : s.sharedAVideo,
+            badgeColor: primary,
+          ),
+          const SizedBox(height: 10),
+          // Video preview with play button
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: AspectRatio(
-              aspectRatio: 16 / 10,
+              aspectRatio: 16 / 9,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -525,88 +744,124 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       imageUrl: memory.imageUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 800,
-                      memCacheHeight: 500,
-                      errorWidget: (context, url, error) =>
-                          Container(color: Colors.grey.shade300),
+                      memCacheHeight: 450,
+                      errorWidget: (_, __, ___) =>
+                          Container(color: Colors.grey.shade200),
                     )
                   else
                     Container(color: Colors.grey.shade900),
-                  Container(color: Colors.black.withOpacity(0.3)),
+                  Container(color: Colors.black.withOpacity(0.25)),
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withOpacity(0.92),
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 20,
+                          ),
+                        ],
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.play_arrow_rounded,
                         size: 32,
-                        color: const Color(0xFFEC4899),
+                        color: Color(0xFFEC4899),
                       ),
                     ),
                   ),
-                  if (hasVideo)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'VIDEO',
-                          style: TextStyle(
+                  // Duration/type badge
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.videocam_rounded,
+                            size: 12,
                             color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            s.videoLabel.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: _tileFooter(memory),
-          ),
+          if (memory.caption?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: Text(
+                memory.caption!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+            ),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
 
-  // ── LOCATION TILE ──
+  // ═══════════════════════════════════════════════════
+  //  LOCATION TILE — check-in card with route button
+  // ═══════════════════════════════════════════════════
   Widget _locationTile(Memory memory) {
+    final s = LocaleService.current;
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+
     return _baseTile(
       memory: memory,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0FAF4),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(memory, subtitle: s.sharedALocation, badgeColor: primary),
+          const SizedBox(height: 10),
+          // Location card body
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0FAF4),
+                      color: primary.withOpacity(0.10),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.location_on_rounded,
-                      color: Color(0xFF22C55E),
+                      color: primary,
                       size: 20,
                     ),
                   ),
@@ -618,267 +873,294 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         Text(
                           memory.locationName ?? 'Location',
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: Colors.grey.shade900,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (memory.latitude != null && memory.longitude != null)
+                        if (hasCoords && _userLat != null)
                           Text(
-                            '${memory.latitude!.toStringAsFixed(4)}, ${memory.longitude!.toStringAsFixed(4)}',
+                            s.kmFromYou(
+                              _distanceKm(memory.latitude!, memory.longitude!),
+                            ),
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade400,
+                              color: Colors.grey.shade500,
                             ),
                           ),
                       ],
                     ),
                   ),
-                  if (memory.isPinned)
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 14,
-                      color: primary.withOpacity(0.6),
+                  if (hasCoords)
+                    GestureDetector(
+                      onTap: () => _openLocationInMaps(
+                        memory.latitude!,
+                        memory.longitude!,
+                        memory.locationName,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          s.setARoute,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: primary,
+                          ),
+                        ),
+                      ),
                     ),
                 ],
               ),
-              if (memory.caption != null && memory.caption!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  memory.caption!,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const SizedBox(height: 8),
-              _authorTimeRow(memory),
-            ],
+            ),
           ),
-        ),
+          // Caption / thought text
+          if (memory.caption?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: Text(
+                memory.caption!,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Colors.grey.shade800,
+                ),
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }
 
-  // ── MUSIC TILE ──
+  // ═══════════════════════════════════════════════════
+  //  MUSIC TILE — streaming-style card
+  // ═══════════════════════════════════════════════════
   Widget _musicTile(Memory memory) {
     return _baseTile(
       memory: memory,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F0FF),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      enableTap: false,
+      child: _MusicMiniPlayer(
+        memory: memory,
+        theme: widget.theme,
+        onHeaderTap: () => _showMemoryDetail(memory),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  TEXT / NOTE TILE — thought bubble card
+  // ═══════════════════════════════════════════════════
+  Widget _textTile(Memory memory) {
+    final s = LocaleService.current;
+    final hasLocation =
+        memory.locationName != null && memory.locationName!.isNotEmpty;
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+
+    return _baseTile(
+      memory: memory,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(memory, subtitle: s.sharedAThought, badgeColor: primary),
+          const SizedBox(height: 10),
+          // ── Note sub-card (same style as music/location tiles) ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Row(
                 children: [
+                  // Left icon
                   Container(
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
+                      color: primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child:
-                        memory.musicCoverUrl != null &&
-                            memory.musicCoverUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: CachedNetworkImage(
-                              imageUrl: memory.musicCoverUrl!,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 96,
-                              memCacheHeight: 96,
-                              errorWidget: (context, url, error) => const Icon(
-                                Icons.music_note_rounded,
-                                color: Color(0xFF8B5CF6),
-                              ),
-                            ),
-                          )
-                        : const Icon(
-                            Icons.music_note_rounded,
-                            color: Color(0xFF8B5CF6),
-                            size: 24,
-                          ),
+                    child: Icon(
+                      Icons.sticky_note_2_rounded,
+                      color: primary,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
+                  // Text content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          memory.musicTitle ?? 'Music',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade900,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (memory.musicArtist != null)
+                        if (memory.title?.isNotEmpty == true)
                           Text(
-                            memory.musicArtist!,
+                            memory.title!,
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade900,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                        if (memory.caption?.isNotEmpty == true)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              top: memory.title?.isNotEmpty == true ? 3 : 0,
+                            ),
+                            child: Text(
+                              memory.caption!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                                height: 1.35,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        if (memory.title == null && memory.caption == null)
+                          Text(
+                            s.note,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade400,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                  // Play button indicator
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: Color(0xFF8B5CF6),
-                      size: 22,
-                    ),
-                  ),
                 ],
               ),
-              if (memory.caption != null && memory.caption!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  memory.caption!,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          // Location sub-card (if available)
+          if (hasLocation || hasCoords)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200, width: 1),
                 ),
-              ],
-              const SizedBox(height: 8),
-              // Fake waveform bar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.location_on_rounded,
+                        color: primary,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            memory.locationName ?? '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (hasCoords && _userLat != null)
+                            Text(
+                              s.kmFromYou(
+                                _distanceKm(
+                                  memory.latitude!,
+                                  memory.longitude!,
+                                ),
+                              ),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (hasCoords)
+                      GestureDetector(
+                        onTap: () => _openLocationInMaps(
+                          memory.latitude!,
+                          memory.longitude!,
+                          memory.locationName,
+                        ),
+                        child: Text(
+                          s.setARoute,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: primary,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              _authorTimeRow(memory),
-            ],
-          ),
-        ),
+            ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }
 
-  // ── TEXT / NOTE TILE ──
-  Widget _textTile(Memory memory) {
-    return _baseTile(
-      memory: memory,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFFBEB),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text('📝', style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Note',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (memory.isPinned)
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 14,
-                      color: primary.withOpacity(0.6),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (memory.title != null && memory.title!.isNotEmpty) ...[
-                Text(
-                  memory.title!,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade900,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (memory.caption != null && memory.caption!.isNotEmpty)
-                  const SizedBox(height: 4),
-              ],
-              if (memory.caption != null && memory.caption!.isNotEmpty)
-                Text(
-                  memory.caption!,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade800,
-                    height: 1.5,
-                  ),
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              if (memory.title == null && memory.caption == null)
-                Text(
-                  'Note',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              const SizedBox(height: 10),
-              _authorTimeRow(memory),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Base tile wrapper ──
-  Widget _baseTile({required Memory memory, required Widget child}) {
+  // ═══════════════════════════════════════════════════
+  //  BASE TILE WRAPPER
+  // ═══════════════════════════════════════════════════
+  Widget _baseTile({
+    required Memory memory,
+    required Widget child,
+    bool enableTap = true,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
-        onTap: () => _showMemoryDetail(memory),
+        onTap: enableTap ? () => _showMemoryDetail(memory) : null,
         onLongPress: () => _showMemoryActions(memory),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            color: widget.theme.cardSurface,
+            borderRadius: BorderRadius.circular(20),
             border: memory.isPinned
-                ? Border.all(color: primary.withOpacity(0.3), width: 1.5)
-                : null,
+                ? Border.all(color: primary.withOpacity(0.25), width: 1.5)
+                : Border.all(
+                    color: widget.theme.cardBorder.withOpacity(0.5),
+                    width: 0.5,
+                  ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 2),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -889,119 +1171,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
-  // ── Tile footer (for photo/video) ──
-  Widget _tileFooter(Memory memory) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(memory.typeEmoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                _memoryTitle(memory),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade900,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (memory.isPinned)
-              Icon(
-                Icons.push_pin_rounded,
-                size: 14,
-                color: primary.withOpacity(0.6),
-              ),
-          ],
-        ),
-        if (memory.caption != null && memory.caption!.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            memory.caption!,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-        const SizedBox(height: 6),
-        _authorTimeRow(memory),
-      ],
-    );
-  }
-
-  // ── Author + time row (reusable) ──
-  Widget _authorTimeRow(Memory memory) {
-    return Row(
-      children: [
-        if (memory.authorAvatar.isNotEmpty)
-          Container(
-            width: 16,
-            height: 16,
-            decoration: const BoxDecoration(shape: BoxShape.circle),
-            child: ClipOval(
-              child: CachedNetworkImage(
-                imageUrl: memory.authorAvatar,
-                fit: BoxFit.cover,
-                memCacheWidth: 48,
-                memCacheHeight: 48,
-                errorWidget: (context, url, error) => const SizedBox(),
-              ),
-            ),
-          ),
-        if (memory.authorAvatar.isNotEmpty) const SizedBox(width: 4),
-        Text(
-          memory.authorName,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade500,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          _timeStr(memory.createdAt),
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-        ),
-      ],
-    );
-  }
-
-  String _memoryTitle(Memory memory) {
-    if (memory.title != null && memory.title!.isNotEmpty) {
-      return memory.title!;
-    }
-    switch (memory.type) {
-      case MemoryType.photo:
-        return 'Photo';
-      case MemoryType.video:
-        return 'Video';
-      case MemoryType.location:
-        return memory.locationName ?? 'Location';
-      case MemoryType.music:
-        return memory.musicTitle ?? 'Music';
-      case MemoryType.text:
-        return memory.caption?.isNotEmpty == true ? memory.caption! : 'Note';
-    }
-  }
-
-  Color _memoryTypeColor(MemoryType type) {
-    switch (type) {
-      case MemoryType.photo:
-        return const Color(0xFF3B82F6);
-      case MemoryType.video:
-        return const Color(0xFFEC4899);
-      case MemoryType.location:
-        return const Color(0xFF22C55E);
-      case MemoryType.music:
-        return const Color(0xFF8B5CF6);
-      case MemoryType.text:
-        return const Color(0xFFFBBF24);
-    }
-  }
+  Color _memoryTypeColor(MemoryType type) => primary;
 
   // ═══════════════════════════════════════════════════
   //  MEMORY DETAIL — full screen
@@ -1082,9 +1252,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            memory.typeEmoji,
-                            style: const TextStyle(fontSize: 14),
+                          SvgPicture.asset(
+                            _typeSvgAsset(memory.type),
+                            width: 14,
+                            height: 14,
+                            colorFilter: ColorFilter.mode(
+                              _memoryTypeColor(memory.type),
+                              BlendMode.srcIn,
+                            ),
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -1768,7 +1943,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
               // Обновляем виджет, если удалили фото дня
               if (memory.type == MemoryType.photo) {
-                await HomeWidgetService.instance.handleMemoryDeleted(_groupId, memory.id);
+                await HomeWidgetService.instance.handleMemoryDeleted(
+                  _groupId,
+                  memory.id,
+                );
               }
             },
             child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
@@ -2065,6 +2243,104 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
+  /// Fetch track metadata from YouTube (stream-based) or Spotify (oEmbed).
+  Future<Map<String, String?>> _fetchMusicMeta(String url) async {
+    final lower = url.toLowerCase();
+
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      final yt = YoutubeExplode();
+      try {
+        final video = await yt.videos.get(url);
+        return {
+          'title': video.title,
+          'artist': video.author,
+          'cover': video.thumbnails.highResUrl,
+        };
+      } catch (e) {
+        debugPrint('YouTube meta fetch error: $e');
+        return {};
+      } finally {
+        yt.close();
+      }
+    }
+
+    if (lower.contains('spotify.com')) {
+      try {
+        // 1) oEmbed — get title & cover
+        final oembedResp = await http.get(
+          Uri.parse(
+            'https://open.spotify.com/oembed?url=${Uri.encodeComponent(url)}',
+          ),
+          headers: {'User-Agent': 'Mozilla/5.0'},
+        );
+        String? parsedTitle;
+        String? parsedArtist;
+        String? cover;
+
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          parsedTitle = data['title'] as String?;
+          cover = data['thumbnail_url'] as String?;
+        }
+
+        // 2) Fetch the Spotify page HTML — <title> contains artist info
+        //    Format: "Song Name - song and lyrics by Artist1, Artist2 | Spotify"
+        try {
+          final pageResp = await http.get(
+            Uri.parse(url),
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          );
+          if (pageResp.statusCode == 200) {
+            final body = pageResp.body;
+            final titleMatch = RegExp(
+              r'<title[^>]*>(.+?)</title>',
+              caseSensitive: false,
+            ).firstMatch(body);
+            if (titleMatch != null) {
+              final pageTitle = titleMatch.group(1) ?? '';
+              // "Song - song and lyrics by Artist | Spotify"
+              // "Song - Album by Artist | Spotify"
+              final byMatch = RegExp(
+                r'(?:song and lyrics|[Aa]lbum|single)\s+by\s+(.+?)\s*\|\s*Spotify',
+              ).firstMatch(pageTitle);
+              if (byMatch != null) {
+                parsedArtist = byMatch.group(1)?.trim();
+              }
+            }
+          }
+        } catch (_) {
+          // Page fetch is optional — don't fail if it doesn't work
+        }
+
+        return {'title': parsedTitle, 'artist': parsedArtist, 'cover': cover};
+      } catch (e) {
+        debugPrint('Spotify meta fetch error: $e');
+      }
+    }
+
+    // Generic fallback — try YouTube oEmbed (works for many services)
+    try {
+      final oembedResp = await http.get(
+        Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(url)}'),
+      );
+      if (oembedResp.statusCode == 200) {
+        final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+        if (data['error'] == null) {
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      }
+    } catch (_) {}
+
+    return {};
+  }
+
   void _showCreateMemoryForm(MemoryType type) {
     final titleCtrl = TextEditingController();
     final captionCtrl = TextEditingController();
@@ -2074,11 +2350,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final musicUrlCtrl = TextEditingController();
 
     // Local state for file selections
-    XFile? selectedMedia;
+    List<XFile> selectedPhotos = [];
+    XFile? selectedMedia; // video only
     String? selectedMusicPath;
     double? lat;
     double? lng;
     bool isLoadingLocation = false;
+    bool isFetchingMeta = false;
+    String? fetchedCoverUrl;
 
     showModalBottomSheet(
       context: context,
@@ -2122,35 +2401,166 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 const SizedBox(height: 20),
 
                 // ── Photo/Video picker ──
-                if (type == MemoryType.photo || type == MemoryType.video) ...[
-                  GestureDetector(
-                    onTap: () async {
-                      try {
-                        final picker = ImagePicker();
-                        XFile? picked;
-
-                        if (type == MemoryType.photo) {
-                          picked = await picker.pickImage(
-                            source: ImageSource.gallery,
+                if (type == MemoryType.photo) ...[
+                  // Thumbnails of already selected photos
+                  if (selectedPhotos.isNotEmpty) ...[
+                    SizedBox(
+                      height: 88,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: selectedPhotos.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          if (i == selectedPhotos.length) {
+                            return GestureDetector(
+                              onTap: () async {
+                                try {
+                                  final picker = ImagePicker();
+                                  final picked = await picker.pickMultiImage(
+                                    maxWidth: 1920,
+                                    maxHeight: 1920,
+                                    imageQuality: 85,
+                                  );
+                                  if (picked.isNotEmpty) {
+                                    setState(
+                                      () => selectedPhotos.addAll(picked),
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Pick photos failed: $e');
+                                }
+                              },
+                              child: Container(
+                                width: 88,
+                                height: 88,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: primary.withOpacity(0.35),
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.add_rounded,
+                                  color: primary,
+                                  size: 28,
+                                ),
+                              ),
+                            );
+                          }
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(
+                                  File(selectedPhotos[i].path),
+                                  width: 88,
+                                  height: 88,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () => setState(
+                                    () => selectedPhotos.removeAt(i),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Colors.white,
+                                      size: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  // Empty state — tap to pick photos
+                  if (selectedPhotos.isEmpty)
+                    GestureDetector(
+                      onTap: () async {
+                        try {
+                          final picker = ImagePicker();
+                          final picked = await picker.pickMultiImage(
                             maxWidth: 1920,
                             maxHeight: 1920,
                             imageQuality: 85,
                           );
-                        } else {
-                          picked = await picker.pickVideo(
-                            source: ImageSource.gallery,
-                          );
+                          if (picked.isNotEmpty) {
+                            setState(() => selectedPhotos = picked);
+                          }
+                        } catch (e) {
+                          debugPrint('Pick photos failed: $e');
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to select photos: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         }
-
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate_rounded,
+                                size: 28,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap to select photos',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                ] else if (type == MemoryType.video) ...[
+                  GestureDetector(
+                    onTap: () async {
+                      try {
+                        final picker = ImagePicker();
+                        final picked = await picker.pickVideo(
+                          source: ImageSource.gallery,
+                        );
                         if (picked != null) {
                           setState(() => selectedMedia = picked);
                         }
                       } catch (e) {
-                        debugPrint('Pick media failed: $e');
+                        debugPrint('Pick video failed: $e');
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Failed to select media: $e'),
+                              content: Text('Failed to select video: $e'),
                               backgroundColor: Colors.red,
                             ),
                           );
@@ -2177,17 +2587,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    type == MemoryType.photo
-                                        ? Icons.add_photo_alternate_rounded
-                                        : Icons.videocam_rounded,
+                                    Icons.videocam_rounded,
                                     size: 28,
                                     color: Colors.grey.shade400,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    type == MemoryType.photo
-                                        ? 'Tap to select photo'
-                                        : 'Tap to select video',
+                                    'Tap to select video',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey.shade400,
@@ -2203,7 +2609,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 child: CircleAvatar(
                                   backgroundColor: Colors.black54,
                                   radius: 16,
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.check,
                                     color: Colors.white,
                                     size: 18,
@@ -2456,7 +2862,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   TextField(
                     controller: musicArtistCtrl,
                     decoration: InputDecoration(
-                      hintText: 'Artist name',
+                      hintText: 'Artists (comma separated)',
+                      helperText: 'e.g. Drake, The Weeknd',
+                      helperStyle: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
                       prefixIcon: const Icon(Icons.person_rounded),
                       filled: true,
                       fillColor: Colors.grey.shade50,
@@ -2473,9 +2884,64 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: musicUrlCtrl,
+                    onSubmitted: (v) async {
+                      final url = v.trim();
+                      if (url.isEmpty) return;
+                      setState(() => isFetchingMeta = true);
+                      final meta = await _fetchMusicMeta(url);
+                      setState(() {
+                        isFetchingMeta = false;
+                        if ((meta['title']?.isNotEmpty ?? false) &&
+                            musicTitleCtrl.text.isEmpty) {
+                          musicTitleCtrl.text = meta['title']!;
+                        }
+                        if ((meta['artist']?.isNotEmpty ?? false) &&
+                            musicArtistCtrl.text.isEmpty) {
+                          musicArtistCtrl.text = meta['artist']!;
+                        }
+                        if (meta['cover']?.isNotEmpty ?? false) {
+                          fetchedCoverUrl = meta['cover'];
+                        }
+                      });
+                    },
                     decoration: InputDecoration(
-                      hintText: 'Link (Spotify, YouTube, Apple Music, etc.)',
+                      hintText: 'YouTube, Spotify или прямая ссылка...',
                       prefixIcon: const Icon(Icons.link_rounded),
+                      suffixIcon: isFetchingMeta
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.manage_search_rounded),
+                              tooltip: 'Получить название и автора по ссылке',
+                              onPressed: () async {
+                                final url = musicUrlCtrl.text.trim();
+                                if (url.isEmpty) return;
+                                setState(() => isFetchingMeta = true);
+                                final meta = await _fetchMusicMeta(url);
+                                setState(() {
+                                  isFetchingMeta = false;
+                                  if ((meta['title']?.isNotEmpty ?? false) &&
+                                      musicTitleCtrl.text.isEmpty) {
+                                    musicTitleCtrl.text = meta['title']!;
+                                  }
+                                  if ((meta['artist']?.isNotEmpty ?? false) &&
+                                      musicArtistCtrl.text.isEmpty) {
+                                    musicArtistCtrl.text = meta['artist']!;
+                                  }
+                                  if (meta['cover']?.isNotEmpty ?? false) {
+                                    fetchedCoverUrl = meta['cover'];
+                                  }
+                                });
+                              },
+                            ),
                       filled: true,
                       fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
@@ -2549,6 +3015,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         musicTitle: musicTitleCtrl.text.trim(),
                         musicArtist: musicArtistCtrl.text.trim(),
                         musicUrl: musicUrlCtrl.text.trim(),
+                        musicCoverUrl: fetchedCoverUrl,
+                        mediaPaths: selectedPhotos.isNotEmpty
+                            ? selectedPhotos.map((f) => f.path).toList()
+                            : null,
                         mediaPath: selectedMedia?.path,
                         musicPath: selectedMusicPath,
                       );
@@ -2604,7 +3074,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String musicTitle = '',
     String musicArtist = '',
     String musicUrl = '',
-    String? mediaPath,
+    String? musicCoverUrl,
+    List<String>? mediaPaths, // multiple photos
+    String? mediaPath, // single video
     String? musicPath,
   }) async {
     final user = _fb.currentUser;
@@ -2634,31 +3106,57 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
 
     String? uploadedImageUrl;
+    List<String> uploadedImageUrls = [];
     String? uploadedVideoUrl;
     String? uploadedMusicUrl;
 
     try {
-      // Upload photo or video if selected
-      if (mediaPath != null) {
+      // Upload multiple photos if selected
+      if (type == MemoryType.photo &&
+          mediaPaths != null &&
+          mediaPaths.isNotEmpty) {
+        for (final path in mediaPaths) {
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final ext = path.split('.').last;
+          final fileName = 'memory_$timestamp.$ext';
+          final destination = 'memories/$_groupId/$fileName';
+          final url = await _fb.uploadFile(path, destination);
+          if (url != null) uploadedImageUrls.add(url);
+        }
+        if (uploadedImageUrls.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Failed to upload photos. Make sure Firebase Storage is enabled.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+        uploadedImageUrl = uploadedImageUrls.first;
+      }
+
+      // Upload video if selected
+      if (type == MemoryType.video && mediaPath != null) {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final ext = mediaPath.split('.').last;
         final fileName = 'memory_$timestamp.$ext';
         final destination = 'memories/$_groupId/$fileName';
-
         final url = await _fb.uploadFile(mediaPath, destination);
         if (url != null) {
-          if (type == MemoryType.photo) {
-            uploadedImageUrl = url;
-          } else if (type == MemoryType.video) {
-            uploadedVideoUrl = url;
-          }
+          uploadedVideoUrl = url;
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
-                  'Failed to upload file. Make sure Firebase Storage is enabled in your Firebase Console.',
+                  'Failed to upload video. Make sure Firebase Storage is enabled.',
                 ),
                 backgroundColor: Colors.orange,
                 duration: Duration(seconds: 5),
@@ -2694,7 +3192,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         musicTitle: musicTitle.isNotEmpty ? musicTitle : null,
         musicArtist: musicArtist.isNotEmpty ? musicArtist : null,
         musicUrl: finalMusicUrl,
+        musicCoverUrl: musicCoverUrl,
         imageUrl: uploadedImageUrl,
+        imageUrls: uploadedImageUrls.isNotEmpty ? uploadedImageUrls : null,
         videoUrl: uploadedVideoUrl,
       );
 
@@ -2720,6 +3220,113 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         );
       }
     }
+  }
+
+  // =============================================
+  // HELPER METHODS: Location, Distance, Time, Avatar
+  // =============================================
+
+  /// Fetch user location for distance display on photo cards
+  Future<void> _fetchUserLocation() async {
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse) {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
+        if (mounted) {
+          setState(() {
+            _userLat = pos.latitude;
+            _userLng = pos.longitude;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to get user location: $e');
+    }
+  }
+
+  /// Calculate distance in km between user and a point
+  String _distanceKm(double lat, double lng) {
+    if (_userLat == null || _userLng == null) return '';
+    final d = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng);
+    if (d < 1000) return '${d.round()}m';
+    return '${(d / 1000).toStringAsFixed(1)}km';
+  }
+
+  /// Format time ago from DateTime using localized strings
+  String _formatTimeAgo(DateTime dt) {
+    final s = LocaleService.current;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return s.justNow;
+    if (diff.inMinutes < 60) return s.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
+    if (diff.inDays < 30) return s.daysAgo(diff.inDays);
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  /// Open fullscreen photo gallery
+  void _openFullscreenGallery(
+    BuildContext context,
+    List<String> urls,
+    int initialIndex,
+  ) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) =>
+            _FullscreenGallery(urls: urls, initialIndex: initialIndex),
+      ),
+    );
+  }
+
+  /// Open location in external maps app
+  Future<void> _openLocationInMaps(
+    double lat,
+    double lng,
+    String? label,
+  ) async {
+    final query = label != null ? Uri.encodeComponent(label) : '$lat,$lng';
+    final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng($query)');
+    final appleMapsUri = Uri.parse(
+      'https://maps.apple.com/?q=$query&ll=$lat,$lng',
+    );
+
+    if (await canLaunchUrl(geoUri)) {
+      await launchUrl(geoUri);
+    } else if (await canLaunchUrl(appleMapsUri)) {
+      await launchUrl(appleMapsUri, mode: LaunchMode.externalApplication);
+    } else {
+      final webUri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+      );
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  /// Avatar fallback with initial letter
+  Widget _avatarFallback(String? name) {
+    final initial = (name != null && name.isNotEmpty)
+        ? name[0].toUpperCase()
+        : '?';
+    return Container(
+      color: primary.withOpacity(0.15),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: primary,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2751,16 +3358,29 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
   bool _loading = false;
   String? _error;
 
+  StreamSubscription? _posSub;
+  StreamSubscription? _durSub;
+  StreamSubscription? _stateSub;
+
   @override
   void initState() {
     super.initState();
     _player = widget.player;
   }
 
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    _durSub?.cancel();
+    _stateSub?.cancel();
+    _player?.dispose();
+    super.dispose();
+  }
+
   Future<void> _initAndPlay() async {
     final url = widget.memory.musicUrl;
     if (url == null || url.isEmpty) {
-      setState(() => _error = 'No audio URL');
+      if (mounted) setState(() => _error = 'No audio URL');
       return;
     }
 
@@ -2774,18 +3394,19 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       _player ??= AudioPlayer();
       widget.onPlayerCreated(_player!);
 
-      _player!.positionStream.listen((pos) {
+      _posSub = _player!.positionStream.listen((pos) {
         if (mounted) setState(() => _position = pos);
       });
-      _player!.durationStream.listen((dur) {
+      _durSub = _player!.durationStream.listen((dur) {
         if (dur != null && mounted) setState(() => _duration = dur);
       });
-      _player!.playerStateStream.listen((state) {
+      _stateSub = _player!.playerStateStream.listen((state) {
         if (mounted) {
           setState(() {
             _isPlaying = state.playing;
@@ -2800,14 +3421,16 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
       });
 
       await _player!.setUrl(url);
+      if (mounted) setState(() => _loading = false);
       await _player!.play();
-      setState(() => _loading = false);
     } catch (e) {
       debugPrint('Audio player error: $e');
-      setState(() {
-        _loading = false;
-        _error = 'Cannot play this audio';
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Cannot play this audio';
+        });
+      }
     }
   }
 
@@ -2862,15 +3485,37 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (memory.musicArtist != null)
+                    if (memory.musicArtist != null &&
+                        memory.musicArtist!.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          memory.musicArtist!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                          ),
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: memory.musicArtist!
+                              .split(',')
+                              .map((a) => a.trim())
+                              .where((a) => a.isNotEmpty)
+                              .map(
+                                (a) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: widget.primary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    a,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: widget.primary,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                   ],
@@ -3010,6 +3655,552 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 }
 
 // ══════════════════════════════════════════════════════
+//  Music Mini Player — feed card with real playback
+// ══════════════════════════════════════════════════════
+
+class _MusicMiniPlayer extends StatefulWidget {
+  final Memory memory;
+  final AppTheme theme;
+  final VoidCallback? onHeaderTap;
+
+  const _MusicMiniPlayer({
+    required this.memory,
+    required this.theme,
+    this.onHeaderTap,
+  });
+
+  @override
+  State<_MusicMiniPlayer> createState() => _MusicMiniPlayerState();
+}
+
+class _MusicMiniPlayerState extends State<_MusicMiniPlayer> {
+  AudioPlayer? _player;
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _loading = false;
+  bool _isExternalLink = false;
+
+  StreamSubscription? _posSub;
+  StreamSubscription? _durSub;
+  StreamSubscription? _stateSub;
+
+  String? _sourceName;
+  Color? _sourceColor;
+  Color get primary => widget.theme.primary;
+  Memory get memory => widget.memory;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectSource();
+  }
+
+  void _detectSource() {
+    final url = memory.musicUrl;
+    if (url == null || url.isEmpty) return;
+    final lower = url.toLowerCase();
+
+    if (lower.contains('spotify')) {
+      _sourceName = 'Spotify';
+      _sourceColor = const Color(0xFF1DB954);
+      _isExternalLink = true;
+    } else if (lower.contains('youtube') || lower.contains('youtu.be')) {
+      _sourceName = 'YouTube';
+      _sourceColor = const Color(0xFFFF0000);
+      _isExternalLink = true;
+    } else if (lower.contains('apple')) {
+      _sourceName = 'Apple Music';
+      _sourceColor = const Color(0xFFFC3C44);
+      _isExternalLink = true;
+    } else if (lower.contains('deezer')) {
+      _sourceName = 'Deezer';
+      _sourceColor = const Color(0xFFFF0092);
+      _isExternalLink = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    _durSub?.cancel();
+    _stateSub?.cancel();
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlayback() async {
+    final url = memory.musicUrl;
+    if (url == null || url.isEmpty) return;
+
+    if (_isExternalLink) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (_isPlaying) {
+      _player?.pause();
+      return;
+    }
+
+    if (_player != null && _position > Duration.zero) {
+      _player?.play();
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      _player ??= AudioPlayer();
+
+      // Cancel any previous subscriptions before re-subscribing
+      await _posSub?.cancel();
+      await _durSub?.cancel();
+      await _stateSub?.cancel();
+
+      _posSub = _player!.positionStream.listen((pos) {
+        if (mounted) setState(() => _position = pos);
+      });
+      _durSub = _player!.durationStream.listen((dur) {
+        if (dur != null && mounted) setState(() => _duration = dur);
+      });
+      _stateSub = _player!.playerStateStream.listen((state) {
+        if (mounted) {
+          setState(() {
+            _isPlaying = state.playing;
+            if (state.processingState == ProcessingState.completed) {
+              _isPlaying = false;
+              _position = Duration.zero;
+              _player?.seek(Duration.zero);
+              _player?.pause();
+            }
+          });
+        }
+      });
+
+      if (!mounted) return;
+      await _player!.setUrl(url);
+      if (mounted) setState(() => _loading = false);
+      await _player!.play();
+    } catch (e) {
+      debugPrint('Mini player error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.toString();
+    final sec = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$sec';
+  }
+
+  String _timeAgo(DateTime dt) {
+    final s = LocaleService.current;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return s.justNow;
+    if (diff.inMinutes < 60) return s.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
+    if (diff.inDays < 30) return s.daysAgo(diff.inDays);
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  Widget _avatarFallback(String? name) {
+    final initial = (name != null && name.isNotEmpty)
+        ? name[0].toUpperCase()
+        : '?';
+    return Container(
+      color: primary.withOpacity(0.15),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: primary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCover =
+        memory.musicCoverUrl != null && memory.musicCoverUrl!.isNotEmpty;
+    final hasUrl = memory.musicUrl != null && memory.musicUrl!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header with streaming source (tap → open detail) ──
+        GestureDetector(
+          onTap: widget.onHeaderTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: primary.withOpacity(0.18),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: memory.authorAvatar.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: memory.authorAvatar,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 120,
+                                memCacheHeight: 120,
+                                errorWidget: (_, __, ___) =>
+                                    _avatarFallback(memory.authorName),
+                              )
+                            : _avatarFallback(memory.authorName),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -2,
+                      left: -2,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: primary, // Music type color is primary
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: Center(
+                          child: SvgPicture.asset(
+                            _svgAssetForType(memory.type),
+                            width: 10,
+                            height: 10,
+                            colorFilter: const ColorFilter.mode(
+                              Colors.white,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              memory.authorName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade900,
+                              ),
+                            ),
+                          ),
+                          if (_sourceName != null) ...[
+                            Text(
+                              ' via ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                            Text(
+                              _sourceName!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _sourceColor,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.verified_rounded,
+                              size: 14,
+                              color: _sourceColor,
+                            ),
+                          ],
+                          Text(
+                            '  ·  ${_timeAgo(memory.createdAt)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        [
+                          if (memory.musicTitle?.isNotEmpty == true)
+                            memory.musicTitle!,
+                          if (memory.caption?.isNotEmpty == true)
+                            memory.caption!,
+                        ].join(' • '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: primary),
+                      ),
+                    ],
+                  ),
+                ),
+                if (memory.isPinned)
+                  Icon(
+                    Icons.push_pin_rounded,
+                    size: 16,
+                    color: primary.withOpacity(0.45),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // ── Music player sub-card (absorbs taps — не открывает деталь) ──
+        GestureDetector(
+          onTap: () {}, // поглощаем тап, чтобы не всплывал к _baseTile
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Album cover
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: hasCover
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: CachedNetworkImage(
+                                  imageUrl: memory.musicCoverUrl!,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 96,
+                                  memCacheHeight: 96,
+                                  errorWidget: (_, __, ___) => SvgPicture.asset(
+                                    'assets/icons/ic_music_note.svg',
+                                    width: 18,
+                                    height: 18,
+                                    colorFilter: ColorFilter.mode(
+                                      primary,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : SvgPicture.asset(
+                                'assets/icons/ic_music_note.svg',
+                                width: 18,
+                                height: 18,
+                                colorFilter: ColorFilter.mode(
+                                  primary,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              memory.musicTitle ?? 'Unknown Track',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade900,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (memory.musicArtist != null &&
+                                memory.musicArtist!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Wrap(
+                                  spacing: 4,
+                                  runSpacing: 2,
+                                  children: memory.musicArtist!
+                                      .split(',')
+                                      .map((a) => a.trim())
+                                      .where((a) => a.isNotEmpty)
+                                      .map(
+                                        (a) => Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 1,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: primary.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            a,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: primary,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Play / Pause button
+                      if (hasUrl)
+                        GestureDetector(
+                          onTap: _togglePlayback,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: _loading
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primary,
+                                    ),
+                                  )
+                                : SvgPicture.asset(
+                                    _isExternalLink
+                                        ? 'assets/icons/ic_link.svg'
+                                        : _isPlaying
+                                        ? 'assets/icons/ic_stop.svg'
+                                        : 'assets/icons/ic_play.svg',
+                                    width: 20,
+                                    height: 20,
+                                    colorFilter: ColorFilter.mode(
+                                      primary,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // ── Progress slider + time labels (hidden for external links) ──
+                  if (!_isExternalLink) ...[
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 18,
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 3,
+                          thumbShape: RoundSliderThumbShape(
+                            enabledThumbRadius: _duration > Duration.zero
+                                ? 5
+                                : 0,
+                            disabledThumbRadius: 0,
+                          ),
+                          activeTrackColor: primary,
+                          inactiveTrackColor: primary.withOpacity(0.15),
+                          thumbColor: primary,
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 10,
+                          ),
+                          overlayColor: primary.withOpacity(0.08),
+                        ),
+                        child: Slider(
+                          value: _position.inMilliseconds.toDouble().clamp(
+                            0,
+                            _duration.inMilliseconds > 0
+                                ? _duration.inMilliseconds.toDouble()
+                                : 1,
+                          ),
+                          max: _duration.inMilliseconds > 0
+                              ? _duration.inMilliseconds.toDouble()
+                              : 1,
+                          onChanged: _duration > Duration.zero
+                              ? (v) => _player?.seek(
+                                  Duration(milliseconds: v.toInt()),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _fmt(_position),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                          Text(
+                            _duration > Duration.zero
+                                ? _fmt(_duration)
+                                : _timeAgo(memory.createdAt),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ── Caption ──
+        if (memory.caption?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Text(
+              memory.caption!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+          ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════
 //  Memory Detail Sheet Widget
 //  Extracted StatefulWidget — keyboard animation only
 //  rebuilds this isolated subtree, not the whole page.
@@ -3091,7 +4282,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(memory.typeEmoji, style: const TextStyle(fontSize: 14)),
+                  SvgPicture.asset(
+                    _svgAssetForType(memory.type),
+                    width: 14,
+                    height: 14,
+                    colorFilter: ColorFilter.mode(
+                      widget.typeColor,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     memory.typeLabel,
@@ -3106,18 +4305,92 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
             ),
             const SizedBox(height: 16),
             if (memory.type == MemoryType.photo)
-              RepaintBoundary(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: memory.imageUrl?.isNotEmpty == true
-                      ? CachedNetworkImage(
-                          imageUrl: memory.imageUrl!,
-                          width: double.infinity,
-                          fit: BoxFit.fitWidth,
-                          errorWidget: (context, url, error) => _noImgBox(200),
-                        )
-                      : _noImgBox(200),
-                ),
+              Builder(
+                builder: (_) {
+                  final allPhotos = <String>[
+                    if (memory.imageUrls?.isNotEmpty == true)
+                      ...memory.imageUrls!
+                    else if (memory.imageUrl?.isNotEmpty == true)
+                      memory.imageUrl!,
+                  ];
+                  if (allPhotos.isEmpty) return _noImgBox(200);
+                  void openGallery(int i) {
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        opaque: false,
+                        barrierColor: Colors.black,
+                        pageBuilder: (_, __, ___) => _FullscreenGallery(
+                          urls: allPhotos,
+                          initialIndex: i,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (allPhotos.length == 1) {
+                    return GestureDetector(
+                      onTap: () => openGallery(0),
+                      child: RepaintBoundary(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: allPhotos.first,
+                            width: double.infinity,
+                            height: 260,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) =>
+                                _noImgBox(200),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  // Multiple photos: swipeable PageView + thumbnail strip
+                  return Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SizedBox(
+                          height: 260,
+                          child: PageView.builder(
+                            itemCount: allPhotos.length,
+                            itemBuilder: (_, i) => GestureDetector(
+                              onTap: () => openGallery(i),
+                              child: CachedNetworkImage(
+                                imageUrl: allPhotos[i],
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => _noImgBox(260),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 60,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: allPhotos.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (_, i) => GestureDetector(
+                            onTap: () => openGallery(i),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: CachedNetworkImage(
+                                imageUrl: allPhotos[i],
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 120,
+                                memCacheHeight: 120,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             if (memory.type == MemoryType.video)
               RepaintBoundary(
@@ -3179,9 +4452,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FAF4),
+                  color: widget.primary.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFD1F0DE)),
+                  border: Border.all(color: widget.primary.withOpacity(0.15)),
                 ),
                 child: Column(
                   children: [
@@ -3190,12 +4463,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E).withOpacity(0.12),
+                            color: widget.primary.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.location_on_rounded,
-                            color: Color(0xFF22C55E),
+                            color: widget.primary,
                             size: 24,
                           ),
                         ),
@@ -3243,8 +4516,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                           icon: const Icon(Icons.map_rounded, size: 18),
                           label: const Text('Open in Google Maps'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF22C55E),
-                            side: const BorderSide(color: Color(0xFF22C55E)),
+                            foregroundColor: widget.primary,
+                            side: BorderSide(color: widget.primary),
                           ),
                         ),
                       ),
@@ -3265,9 +4538,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
+                  color: widget.primary.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFEF3C7)),
+                  border: Border.all(color: widget.primary.withOpacity(0.15)),
                 ),
                 child: Text(
                   memory.caption ?? '',
@@ -3753,6 +5026,117 @@ class _CommentsSectionState extends State<_CommentsSection> {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  Fullscreen Photo Gallery — swipe between photos
+// ══════════════════════════════════════════════════════
+class _FullscreenGallery extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+
+  const _FullscreenGallery({required this.urls, required this.initialIndex});
+
+  @override
+  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
+}
+
+class _FullscreenGalleryState extends State<_FullscreenGallery> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Photo pages
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.urls.length,
+            onPageChanged: (i) => setState(() => _currentIndex = i),
+            itemBuilder: (_, i) => InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: widget.urls[i],
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Center(
+                    child: CircularProgressIndicator(color: Colors.white54),
+                  ),
+                  errorWidget: (_, __, ___) => const Icon(
+                    Icons.broken_image_rounded,
+                    color: Colors.white38,
+                    size: 48,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Close button
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+          // Page indicator (only when > 1 photo)
+          if (widget.urls.length > 1)
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  widget.urls.length,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _currentIndex ? 24 : 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: i == _currentIndex
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

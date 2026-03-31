@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
@@ -74,6 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Memory> _recentMemories = [];
   StreamSubscription? _memorySub;
 
+  // -- User location (for distance calc) --
+  double? _userLat;
+  double? _userLng;
+
   // -- Daily Reflection --
   Map<String, dynamic>? _todayReflection;
   StreamSubscription? _reflectionSub;
@@ -126,6 +135,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // The connect_partner_screen will handle the code
       }
     });
+
+    // Fetch user location for distance display
+    _fetchUserLocation();
   }
 
   @override
@@ -1010,6 +1022,68 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (photo == null || !mounted) return;
 
+    // Extract EXIF geolocation from photo
+    double? photoLat;
+    double? photoLng;
+    String? photoLocationName;
+    try {
+      final bytes = await File(photo.path).readAsBytes();
+      final exifData = await readExifFromBytes(bytes);
+      final latTag = exifData['GPS GPSLatitude'];
+      final lngTag = exifData['GPS GPSLongitude'];
+      final latRef = exifData['GPS GPSLatitudeRef'];
+      final lngRef = exifData['GPS GPSLongitudeRef'];
+      if (latTag != null && lngTag != null) {
+        photoLat = _exifGpsToDouble(latTag.values, latRef?.printable ?? 'N');
+        photoLng = _exifGpsToDouble(lngTag.values, lngRef?.printable ?? 'E');
+      }
+    } catch (e) {
+      debugPrint('EXIF extraction failed: \$e');
+    }
+
+    // If no EXIF, try current device location
+    if (photoLat == null || photoLng == null) {
+      try {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (serviceEnabled) {
+          LocationPermission perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.denied) {
+            perm = await Geolocator.requestPermission();
+          }
+          if (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse) {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.medium,
+                timeLimit: Duration(seconds: 5),
+              ),
+            );
+            photoLat = pos.latitude;
+            photoLng = pos.longitude;
+          }
+        }
+      } catch (e) {
+        debugPrint('Geolocator fallback failed: \$e');
+      }
+    }
+
+    // Reverse geocode to get location name
+    if (photoLat != null && photoLng != null) {
+      try {
+        final placemarks = await placemarkFromCoordinates(photoLat, photoLng);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final parts = <String>[
+            if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
+            if (p.country != null && p.country!.isNotEmpty) p.country!,
+          ];
+          if (parts.isNotEmpty) photoLocationName = parts.join(', ');
+        }
+      } catch (e) {
+        debugPrint('Reverse geocode failed: \$e');
+      }
+    }
+
     // Show caption dialog (with optional "set as widget photo" toggle)
     final result = await _showCaptionDialog();
     if (!mounted) return;
@@ -1074,6 +1148,9 @@ class _HomeScreenState extends State<HomeScreen> {
         imageUrl: downloadUrl,
         title: result.title,
         caption: result.caption,
+        locationName: photoLocationName,
+        latitude: photoLat,
+        longitude: photoLng,
       );
 
       // If user chose to set as widget Photo of the Day
@@ -2028,10 +2105,108 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _photoPreview(Memory memory) {
     final hasImage = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
+    final s = LocaleService.current;
+    final hasLocation =
+        memory.locationName != null && memory.locationName!.isNotEmpty;
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // ── Header: avatar + name + time ago ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          child: Row(
+            children: [
+              // Author avatar
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: primary.withOpacity(0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: memory.authorAvatar.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: memory.authorAvatar,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 108,
+                          memCacheHeight: 108,
+                          errorWidget: (_, __, ___) =>
+                              _avatarPlaceholder(memory.authorName),
+                        )
+                      : _avatarPlaceholder(memory.authorName),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Name + time
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            memory.authorName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          ' · ${_formatTimeAgo(memory.createdAt)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      memory.title?.isNotEmpty == true
+                          ? memory.title!
+                          : s.sharedAPicture,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Emoji type badge
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: _buildSvgIcon(
+                    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z" /><path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>',
+                    18,
+                    Colors.grey.shade500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // ── Photo with location overlay ──
         Stack(
           children: [
             if (hasImage)
@@ -2041,11 +2216,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 fit: BoxFit.fitWidth,
                 memCacheWidth: 480,
                 errorWidget: (context, url, error) =>
-                    Container(height: 140, color: Colors.grey.shade200),
+                    Container(height: 180, color: Colors.grey.shade200),
               )
             else
               Container(
-                height: 140,
+                height: 180,
                 color: const Color(0xFFF3E8FF),
                 child: Center(
                   child: Icon(
@@ -2055,53 +2230,85 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(8),
+            // Location overlay at bottom
+            if (hasLocation || hasCoords)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: hasCoords
+                      ? () => _openLocationInMaps(
+                          memory.latitude!,
+                          memory.longitude!,
+                          memory.locationName,
+                        )
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.65),
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            memory.locationName ??
+                                '${memory.latitude!.toStringAsFixed(2)}, ${memory.longitude!.toStringAsFixed(2)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (_userLat != null && _userLng != null && hasCoords)
+                          Text(
+                            s.kmFromYou(
+                              _distanceKm(memory.latitude!, memory.longitude!),
+                            ),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.85),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: const Text('??', style: TextStyle(fontSize: 14)),
               ),
-            ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                memory.title?.isNotEmpty == true
-                    ? memory.title!
-                    : memory.caption?.isNotEmpty == true
-                    ? memory.caption!
-                    : LocaleService.current.photo,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              if (memory.title?.isNotEmpty == true &&
-                  memory.caption?.isNotEmpty == true) ...[
-                const SizedBox(height: 2),
-                Text(
-                  memory.caption!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
-              ],
-            ],
+        // ── Caption below photo ──
+        if (memory.caption?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Text(
+              memory.caption!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -2574,6 +2781,98 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  // =============================================
+  // HELPER METHODS: Location, EXIF, Time
+  // =============================================
+
+  /// Fetch user location for distance calculation on photo cards
+  Future<void> _fetchUserLocation() async {
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse) {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
+        if (mounted) {
+          setState(() {
+            _userLat = pos.latitude;
+            _userLng = pos.longitude;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to get user location: $e');
+    }
+  }
+
+  /// Convert EXIF GPS rational values to double degrees.
+  /// Based on the official exif package example (gps_coords.dart).
+  double _exifGpsToDouble(IfdValues values, String ref) {
+    if (values is! IfdRatios) return 0.0;
+
+    double sum = 0.0;
+    double unit = 1.0;
+    for (final v in values.ratios) {
+      sum += v.toDouble() * unit;
+      unit /= 60.0;
+    }
+
+    if (ref == 'S' || ref == 'W') sum = -sum;
+    return sum;
+  }
+
+  /// Calculate distance in km between user and a point
+  String _distanceKm(double lat, double lng) {
+    if (_userLat == null || _userLng == null) return '';
+    final d = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng);
+    if (d < 1000) return '${d.round()}m';
+    return '${(d / 1000).toStringAsFixed(1)}km';
+  }
+
+  /// Format time ago from DateTime
+  String _formatTimeAgo(DateTime dt) {
+    final s = LocaleService.current;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return s.justNow;
+    if (diff.inMinutes < 60) return s.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
+    if (diff.inDays < 30) return s.daysAgo(diff.inDays);
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  /// Open location in external maps app (geo: URI triggers app chooser)
+  Future<void> _openLocationInMaps(
+    double lat,
+    double lng,
+    String? label,
+  ) async {
+    final query = label != null ? Uri.encodeComponent(label) : '$lat,$lng';
+    // geo: URI works on Android; on iOS fallback to Apple Maps
+    final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng($query)');
+    final appleMapsUri = Uri.parse(
+      'https://maps.apple.com/?q=$query&ll=$lat,$lng',
+    );
+
+    if (await canLaunchUrl(geoUri)) {
+      await launchUrl(geoUri);
+    } else if (await canLaunchUrl(appleMapsUri)) {
+      await launchUrl(appleMapsUri, mode: LaunchMode.externalApplication);
+    } else {
+      // Fallback to Google Maps web
+      final webUri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+      );
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
   }
 
   /// Helper method to build SVG icon from string

@@ -68,6 +68,8 @@ dependencies:
   flutter_animate: ^4.5.0
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
+  exif: ^3.3.0
+  youtube_explode_dart: ^2.3.9
 
 dev_dependencies:
   flutter_test:
@@ -102,6 +104,7 @@ flutter:
   assets:
     - assets/images/emoji/
     - assets/images/widget/
+    - assets/icons/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

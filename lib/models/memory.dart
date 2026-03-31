@@ -16,6 +16,7 @@ class Memory {
 
   // Content fields (used depending on type)
   String? imageUrl; // photo / video thumbnail
+  List<String>? imageUrls; // array of photos
   String? videoUrl; // video URL
   String? title; // user-set title/name
   String? caption; // text description
@@ -39,6 +40,7 @@ class Memory {
     required this.createdAt,
     this.editedAt,
     this.imageUrl,
+    this.imageUrls,
     this.videoUrl,
     this.title,
     this.caption,
@@ -94,6 +96,7 @@ class Memory {
       'createdAt': Timestamp.fromDate(createdAt),
       if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
       if (imageUrl != null) 'imageUrl': imageUrl,
+      if (imageUrls != null) 'imageUrls': imageUrls,
       if (videoUrl != null) 'videoUrl': videoUrl,
       if (title != null) 'title': title,
       if (caption != null) 'caption': caption,
@@ -123,6 +126,9 @@ class Memory {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
       imageUrl: data['imageUrl'],
+      imageUrls: data['imageUrls'] != null
+          ? List<String>.from(data['imageUrls'])
+          : null,
       videoUrl: data['videoUrl'],
       title: data['title'],
       caption: data['caption'],
@@ -149,6 +155,7 @@ class Memory {
       'createdAt': createdAt.toIso8601String(),
       'editedAt': editedAt?.toIso8601String(),
       'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'videoUrl': videoUrl,
       'title': title,
       'caption': caption,
@@ -179,6 +186,9 @@ class Memory {
           ? DateTime.tryParse(json['editedAt'])
           : null,
       imageUrl: json['imageUrl'],
+      imageUrls: json['imageUrls'] != null
+          ? List<String>.from(json['imageUrls'])
+          : null,
       videoUrl: json['videoUrl'],
       title: json['title'],
       caption: json['caption'],

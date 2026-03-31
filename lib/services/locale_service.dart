@@ -457,6 +457,26 @@ abstract class AppStrings {
   String missYouNotifTitle(String name);
   String get missYouNotifBody;
   String missYouStreak(int count);
+
+  // ── Photo Card ──
+  String get sharedAPicture;
+  String kmFromYou(String km);
+  String get openInMaps;
+  String get justNow;
+  String minutesAgo(int m);
+  String hoursAgo(int h);
+  String daysAgo(int d);
+
+  // ── Memory Lane Feed ──
+  String get sharedAVideo;
+  String get sharedAThought;
+  String get sharedALocation;
+  String get sharedMusic;
+  String get vibesTo;
+  String get setARoute;
+  String get isListening;
+  String get playTrack;
+  String get note;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1258,11 +1278,43 @@ class _RuStrings extends AppStrings {
   String get missYouNotifBody => 'Думает о вас и вспоминает 💭';
   @override
   String missYouStreak(int count) => '🔥 $count';
-}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ENGLISH STRINGS
-// ══════════════════════════════════════════════════════════════════════════════
+  // ── Photo Card ──
+  @override
+  String get sharedAPicture => 'Поделился фото';
+  @override
+  String kmFromYou(String km) => '$km от вас';
+  @override
+  String get openInMaps => 'Открыть в картах';
+  @override
+  String get justNow => 'только что';
+  @override
+  String minutesAgo(int m) => '$m мин. назад';
+  @override
+  String hoursAgo(int h) => '$h ч. назад';
+  @override
+  String daysAgo(int d) => '$d д. назад';
+
+  // ── Memory Lane Feed ──
+  @override
+  String get sharedAVideo => 'Поделился видео';
+  @override
+  String get sharedAThought => 'Поделился мыслями';
+  @override
+  String get sharedALocation => 'Отметил локацию';
+  @override
+  String get sharedMusic => 'Поделился музыкой';
+  @override
+  String get vibesTo => 'Вайбит под';
+  @override
+  String get setARoute => 'Маршрут';
+  @override
+  String get isListening => 'слушает';
+  @override
+  String get playTrack => 'Включить';
+  @override
+  String get note => 'Заметка';
+}
 
 class _EnStrings extends AppStrings {
   const _EnStrings();
@@ -2065,4 +2117,40 @@ class _EnStrings extends AppStrings {
   String get missYouNotifBody => 'Thinking about you right now 💭';
   @override
   String missYouStreak(int count) => '🔥 $count';
+
+  // ── Photo Card ──
+  @override
+  String get sharedAPicture => 'Shared a picture';
+  @override
+  String kmFromYou(String km) => '$km from you';
+  @override
+  String get openInMaps => 'Open in maps';
+  @override
+  String get justNow => 'just now';
+  @override
+  String minutesAgo(int m) => '${m}m ago';
+  @override
+  String hoursAgo(int h) => '${h}h ago';
+  @override
+  String daysAgo(int d) => '${d}d ago';
+
+  // ── Memory Lane Feed ──
+  @override
+  String get sharedAVideo => 'Shared a video';
+  @override
+  String get sharedAThought => 'Shared a thought';
+  @override
+  String get sharedALocation => 'Checked in';
+  @override
+  String get sharedMusic => 'Shared music';
+  @override
+  String get vibesTo => 'Vibes to';
+  @override
+  String get setARoute => 'Set a route';
+  @override
+  String get isListening => 'is listening';
+  @override
+  String get playTrack => 'Play';
+  @override
+  String get note => 'Note';
 }

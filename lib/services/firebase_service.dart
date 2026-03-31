@@ -951,16 +951,17 @@ class FirebaseService {
           )
           .toList(),
       'maxMembers': data['maxMembers'] ?? 2,
-      'memberMoods': (data['memberMoods'] as Map<String, dynamic>? ?? {}).map(
-        (uid, moodData) {
-          final moodMap = Map<String, dynamic>.from(moodData as Map);
-          final ts = moodMap['updatedAt'];
-          if (ts is Timestamp) {
-            moodMap['updatedAt'] = ts.toDate();
-          }
-          return MapEntry(uid, moodMap);
-        },
-      ),
+      'memberMoods': (data['memberMoods'] as Map<String, dynamic>? ?? {}).map((
+        uid,
+        moodData,
+      ) {
+        final moodMap = Map<String, dynamic>.from(moodData as Map);
+        final ts = moodMap['updatedAt'];
+        if (ts is Timestamp) {
+          moodMap['updatedAt'] = ts.toDate();
+        }
+        return MapEntry(uid, moodMap);
+      }),
       'currentStatus': data['currentStatus'] as Map<String, dynamic>?,
       'customStatuses': data['customStatuses'] as List<dynamic>?,
       'relationshipType': data['relationshipType'] as String?,
@@ -1223,7 +1224,8 @@ class FirebaseService {
       if (['jpg', 'jpeg', 'png'].contains(ext)) {
         try {
           final tempDir = await getTemporaryDirectory();
-          final targetPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.$ext';
+          final targetPath =
+              '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.$ext';
           final xFile = await FlutterImageCompress.compressAndGetFile(
             path,
             targetPath,
@@ -1231,7 +1233,9 @@ class FirebaseService {
           );
           if (xFile != null) {
             fileToUpload = File(xFile.path);
-            debugPrint('uploadFile: Compressed image from ${await file.length()} to ${await fileToUpload.length()}');
+            debugPrint(
+              'uploadFile: Compressed image from ${await file.length()} to ${await fileToUpload.length()}',
+            );
           }
         } catch (e) {
           debugPrint('uploadFile: Compression failed: $e');
@@ -1288,6 +1292,7 @@ class FirebaseService {
     required String groupId,
     required MemoryType type,
     String? imageUrl,
+    List<String>? imageUrls,
     String? videoUrl,
     String? title,
     String? caption,
@@ -1321,6 +1326,7 @@ class FirebaseService {
         type: type,
         createdAt: DateTime.now(),
         imageUrl: imageUrl,
+        imageUrls: imageUrls,
         videoUrl: videoUrl,
         title: title,
         caption: caption,
@@ -1365,11 +1371,9 @@ class FirebaseService {
       // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
       // This prevents data loss if both partners edit the caption offline simultaneously.
       if (caption != null && uid != null) {
-        updates['captionHistory'] = FieldValue.arrayUnion([{
-          'caption': caption,
-          'uid': uid,
-          'timestamp': Timestamp.now(),
-        }]);
+        updates['captionHistory'] = FieldValue.arrayUnion([
+          {'caption': caption, 'uid': uid, 'timestamp': Timestamp.now()},
+        ]);
       }
 
       await _db
