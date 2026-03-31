@@ -59,7 +59,19 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   }
 
   void _onTimerChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final timers = widget.timerService.timers;
+    if (timers.isNotEmpty && _currentIndex >= timers.length) {
+      // После удаления — переходим на системный таймер, иначе на последний
+      final sysIdx = timers.indexWhere((t) => t.isSystem);
+      _currentIndex = sysIdx >= 0 ? sysIdx : timers.length - 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(_currentIndex);
+        }
+      });
+    }
+    setState(() {});
   }
 
   void _startTicker() {
@@ -83,7 +95,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   Widget build(BuildContext context) {
     final timers = widget.timerService.timers;
     if (timers.isEmpty) {
-      return const SizedBox(height: 300, child: Center(child: Text('No timers')));
+      return const SizedBox(
+        height: 300,
+        child: Center(child: Text('No timers')),
+      );
     }
 
     return LayoutBuilder(
@@ -92,11 +107,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
         final actualWidth = constraints.maxWidth;
         // Диаграмма занимает почти всю ширину, кнопки могут "парить" за пределами благодаря Clip.none
         final dialSize = actualWidth * 0.95;
-        
+
         // Уменьшаем отступ, так как Clip.none позволяет кнопкам парить выше
         final topPadding = 45.0;
         final containerHeight = dialSize + topPadding + 10;
-        
+
         final centerX = actualWidth / 2;
         final centerY = topPadding + (dialSize / 2);
 
@@ -150,37 +165,50 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   Widget _buildArcControls(double radius, double centerX, double centerY) {
     final timers = widget.timerService.timers;
     final timer = timers[_currentIndex];
-    
+
     final actions = [
-      _ArcAction(icon: Icons.chevron_left_rounded, onTap: () => _goToPage(_currentIndex - 1), visible: _currentIndex > 0),
+      _ArcAction(
+        icon: Icons.chevron_left_rounded,
+        onTap: () => _goToPage(_currentIndex - 1),
+        visible: _currentIndex > 0,
+      ),
       _ArcAction(icon: Icons.edit_rounded, onTap: () => _showEditDialog(timer)),
       _ArcAction(icon: Icons.add_rounded, onTap: _showCreateDialog),
-      _ArcAction(icon: Icons.delete_outline_rounded, onTap: () => _showDeleteConfirm(timer), visible: !timer.isSystem),
-      _ArcAction(icon: Icons.chevron_right_rounded, onTap: () => _goToPage(_currentIndex + 1), visible: _currentIndex < timers.length - 1),
+      _ArcAction(
+        icon: Icons.delete_outline_rounded,
+        onTap: () => _showDeleteConfirm(timer),
+        visible: !timer.isSystem,
+      ),
+      _ArcAction(
+        icon: Icons.chevron_right_rounded,
+        onTap: () => _goToPage(_currentIndex + 1),
+        visible: _currentIndex < timers.length - 1,
+      ),
     ];
 
     final visibleActions = actions.where((a) => a.visible).toList();
 
-    const double fixedStep = 15.0; 
+    const double fixedStep = 15.0;
     // СМЕЩАЕМ КЛАСТЕР НА 12 ЧАСОВ (-90 градусов)
-    const double centerAngle = -90.0; 
-    final double startAngle = centerAngle - ((visibleActions.length - 1) * fixedStep / 2);
-    
-    // Сдвиг радиуса: диаграмма сама рисуется на radius-2. 
+    const double centerAngle = -90.0;
+    final double startAngle =
+        centerAngle - ((visibleActions.length - 1) * fixedStep / 2);
+
+    // Сдвиг радиуса: диаграмма сама рисуется на radius-2.
     // Увеличено до +32 для существенного зазора.
-    final buttonRadius = radius + 32; 
+    final buttonRadius = radius + 32;
 
     return Stack(
       clipBehavior: Clip.none,
       children: List.generate(visibleActions.length, (i) {
         final angleDeg = startAngle + (fixedStep * i);
         final angleRad = angleDeg * math.pi / 180;
-        
+
         final x = buttonRadius * math.cos(angleRad);
         final y = buttonRadius * math.sin(angleRad);
 
         return Positioned(
-          left: centerX + x - 18, 
+          left: centerX + x - 18,
           top: centerY + y - 18,
           child: _RadialButton(
             icon: visibleActions[i].icon,
@@ -202,7 +230,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       initialEmoji: '❤️',
       initialIsDefault: widget.timerService.count == 0,
       initialIsCountdown: false,
-      onSave: (t, d, e, def, c) => widget.timerService.addTimer(title: t, startDate: d, emoji: e, isDefault: def, isCountdown: c),
+      onSave: (t, d, e, def, c) => widget.timerService.addTimer(
+        title: t,
+        startDate: d,
+        emoji: e,
+        isDefault: def,
+        isCountdown: c,
+      ),
     );
   }
 
@@ -214,7 +248,15 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       initialEmoji: timer.emoji,
       initialIsDefault: timer.isDefault,
       initialIsCountdown: timer.isCountdown,
-      onSave: (t, d, e, def, c) => widget.timerService.updateTimer(timer.copyWith(title: t, startDate: d, emoji: e, isDefault: def, isCountdown: c)),
+      onSave: (t, d, e, def, c) => widget.timerService.updateTimer(
+        timer.copyWith(
+          title: t,
+          startDate: d,
+          emoji: e,
+          isDefault: def,
+          isCountdown: c,
+        ),
+      ),
     );
   }
 
@@ -241,31 +283,84 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           return Container(
-            decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-            padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 32),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              MediaQuery.of(ctx).viewInsets.bottom + 32,
+            ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
-                  Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   _dialogLabel('NAME'),
-                  TextField(controller: titleCtrl, decoration: _dialogInputDeco('e.g. Anniversary')),
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: _dialogInputDeco('e.g. Anniversary'),
+                  ),
                   const SizedBox(height: 20),
                   _dialogLabel(isCountdown ? 'TARGET DATE' : 'START DATE'),
                   Row(
                     children: [
-                      Expanded(child: TextField(controller: dateCtrl, keyboardType: TextInputType.datetime, decoration: _dialogInputDeco('dd.mm.yyyy'))),
+                      Expanded(
+                        child: TextField(
+                          controller: dateCtrl,
+                          keyboardType: TextInputType.datetime,
+                          decoration: _dialogInputDeco('dd.mm.yyyy'),
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       GestureDetector(
                         onTap: () async {
-                          final d = await showDatePicker(context: ctx, initialDate: pickedDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
-                          if (d != null) setSheetState(() { pickedDate = d; dateCtrl.text = _formatDate(d); });
+                          final d = await showDatePicker(
+                            context: ctx,
+                            initialDate: pickedDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (d != null)
+                            setSheetState(() {
+                              pickedDate = d;
+                              dateCtrl.text = _formatDate(d);
+                            });
                         },
-                        child: Container(width: 54, height: 54, decoration: BoxDecoration(color: _t.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.calendar_today_rounded, color: _t.primary, size: 24)),
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: _t.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.calendar_today_rounded,
+                            color: _t.primary,
+                            size: 24,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -274,33 +369,94 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
-                    children: ['❤️', '💕', '💖', '🔥', '⭐', '🌙', '🎂', '🏠', '🎓', '💼', '✈️', '🐾', '🌸', '💍', '👶', '🎯'].map((e) {
-                      final sel = selectedEmoji == e;
-                      return GestureDetector(
-                        onTap: () => setSheetState(() => selectedEmoji = e),
-                        child: Container(
-                          width: 46, height: 46,
-                          decoration: BoxDecoration(color: sel ? _t.primary.withOpacity(0.15) : Colors.grey.shade100, borderRadius: BorderRadius.circular(14), border: sel ? Border.all(color: _t.primary, width: 2) : null),
-                          child: Center(child: Text(e, style: const TextStyle(fontSize: 22))),
-                        ),
-                      );
-                    }).toList(),
+                    children:
+                        [
+                          '❤️',
+                          '💕',
+                          '💖',
+                          '🔥',
+                          '⭐',
+                          '🌙',
+                          '🎂',
+                          '🏠',
+                          '🎓',
+                          '💼',
+                          '✈️',
+                          '🐾',
+                          '🌸',
+                          '💍',
+                          '👶',
+                          '🎯',
+                        ].map((e) {
+                          final sel = selectedEmoji == e;
+                          return GestureDetector(
+                            onTap: () => setSheetState(() => selectedEmoji = e),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? _t.primary.withOpacity(0.15)
+                                    : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(14),
+                                border: sel
+                                    ? Border.all(color: _t.primary, width: 2)
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  e,
+                                  style: const TextStyle(fontSize: 22),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                   ),
                   const SizedBox(height: 32),
-                  _dialogSwitch('Countdown Mode', isCountdown, (v) => setSheetState(() => isCountdown = v)),
-                  _dialogSwitch('Set as Main', isDefault, (v) => setSheetState(() => isDefault = v)),
+                  _dialogSwitch(
+                    'Countdown Mode',
+                    isCountdown,
+                    (v) => setSheetState(() => isCountdown = v),
+                  ),
+                  _dialogSwitch(
+                    'Set as Main',
+                    isDefault,
+                    (v) => setSheetState(() => isDefault = v),
+                  ),
                   const SizedBox(height: 32),
                   SizedBox(
-                    width: double.infinity, height: 56,
+                    width: double.infinity,
+                    height: 56,
                     child: ElevatedButton(
                       onPressed: () {
                         if (titleCtrl.text.isEmpty) return;
-                        final finalDate = _parseDate(dateCtrl.text) ?? pickedDate;
-                        onSave(titleCtrl.text.trim(), finalDate, selectedEmoji, isDefault, isCountdown);
+                        final finalDate =
+                            _parseDate(dateCtrl.text) ?? pickedDate;
+                        onSave(
+                          titleCtrl.text.trim(),
+                          finalDate,
+                          selectedEmoji,
+                          isDefault,
+                          isCountdown,
+                        );
                         Navigator.pop(ctx);
                       },
-                      style: ElevatedButton.styleFrom(backgroundColor: _t.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)), elevation: 0),
-                      child: const Text('SAVE SETTINGS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _t.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'SAVE SETTINGS',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -318,23 +474,112 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: const Text('Delete Timer?', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: const Text(
+          'Delete Timer?',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
         content: Text('"${timer.title}" will be gone forever.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('CANCEL', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w800))),
-          TextButton(onPressed: () { widget.timerService.deleteTimer(timer.id); Navigator.pop(ctx); }, child: const Text('DELETE', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              // _timers.removeWhere — синхронная операция внутри deleteTimer,
+              // поэтому timers уже обновлён к моменту чтения ниже.
+              widget.timerService.deleteTimer(timer.id);
+              Navigator.pop(ctx);
+              final updatedTimers = widget.timerService.timers;
+              if (updatedTimers.isNotEmpty) {
+                final sysIdx = updatedTimers.indexWhere((t) => t.isSystem);
+                final targetIdx = (sysIdx >= 0 ? sysIdx : 0).clamp(
+                  0,
+                  updatedTimers.length - 1,
+                );
+                setState(() => _currentIndex = targetIdx);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _pageController.hasClients) {
+                    _pageController.jumpToPage(targetIdx);
+                  }
+                });
+              }
+            },
+            child: const Text(
+              'DELETE',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _dialogLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.5)));
-  InputDecoration _dialogInputDeco(String hint) => InputDecoration(hintText: hint, filled: true, fillColor: Colors.grey.shade100, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16));
-  Widget _dialogSwitch(String label, bool val, ValueChanged<bool> onChanged) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: InkWell(onTap: () => onChanged(!val), child: Row(children: [Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: val ? _t.primary : Colors.transparent, border: Border.all(color: val ? _t.primary : Colors.grey.shade400, width: 2)), child: val ? const Icon(Icons.check, size: 16, color: Colors.white) : null), const SizedBox(width: 12), Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.grey.shade800))])),
+  Widget _dialogLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+        color: Colors.grey.shade500,
+        letterSpacing: 1.5,
+      ),
+    ),
   );
-  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  InputDecoration _dialogInputDeco(String hint) => InputDecoration(
+    hintText: hint,
+    filled: true,
+    fillColor: Colors.grey.shade100,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  );
+  Widget _dialogSwitch(String label, bool val, ValueChanged<bool> onChanged) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: () => onChanged(!val),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: val ? _t.primary : Colors.transparent,
+                  border: Border.all(
+                    color: val ? _t.primary : Colors.grey.shade400,
+                    width: 2,
+                  ),
+                ),
+                child: val
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
   DateTime? _parseDate(String s) {
     final parts = s.split('.');
     if (parts.length != 3) return null;
@@ -342,7 +587,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     final m = int.tryParse(parts[1]);
     final y = int.tryParse(parts[2]);
     if (d == null || m == null || y == null) return null;
-    try { return DateTime(y, m, d); } catch (_) { return null; }
+    try {
+      return DateTime(y, m, d);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -358,7 +607,11 @@ class _RadialButton extends StatefulWidget {
   final VoidCallback onTap;
   final AppTheme theme;
 
-  const _RadialButton({required this.icon, required this.onTap, required this.theme});
+  const _RadialButton({
+    required this.icon,
+    required this.onTap,
+    required this.theme,
+  });
 
   @override
   State<_RadialButton> createState() => _RadialButtonState();
