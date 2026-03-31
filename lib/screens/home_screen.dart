@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:exif/exif.dart';
@@ -26,6 +26,7 @@ import 'home/widgets/relationship_type_dialog.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
+import '../widgets/memory_tile_builder.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
@@ -117,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initPairData();
     _loadReflectionState();
 
-    // ������������� ������ "������" ��� �������� �������� ������
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     _fb.setOnlineStatus(true);
 
     // Dynamic timer - only start when needed (Time mode)
@@ -159,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// ���������, ������� �� ���������� �� ����� �� ������
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _checkWidgetLaunch() async {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
@@ -171,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// ��������� ����� �� ������� ���� ���������� ��������
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   void _onWidgetClicked(Uri? uri) {
     if (uri != null) {
       _handleWidgetUri(uri);
@@ -179,19 +180,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleWidgetUri(Uri uri) {
-    // loveapp://widgets > ������������� �� ������� �������� (index 1)
+    // loveapp://widgets > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (index 1)
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
       if (mounted) {
         setState(() => _selectedNavIndex = 1);
       }
     }
-    // loveapp://home > ������� ������� (index 0)
+    // loveapp://home > пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (index 0)
     else if (uri.host == 'home') {
       if (mounted) {
         setState(() => _selectedNavIndex = 0);
       }
     }
-    // loveapp://memory_lane > ��������� Memory Lane
+    // loveapp://memory_lane > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ Memory Lane
     else if (uri.host == 'memory_lane') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -202,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-    // loveapp://mood > ��������� ����� ���������� (mood calendar)
+    // loveapp://mood > пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (mood calendar)
     else if (uri.host == 'mood') {
       if (mounted && _pairData.isPaired) {
         Navigator.push(
@@ -259,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
           partnerName: _pairData.partnerDisplayName,
         );
 
-        // ������� �������� �����: ����������������� ������ ������� ������
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
@@ -269,8 +270,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// ����������������� �������� �������� �����.
-  /// ������ ������ ����������� ������� ����� ����������� ������.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.
   Future<void> _syncHomeWidgets() async {
     if (!_pairData.isPaired) return;
 
@@ -296,17 +297,17 @@ class _HomeScreenState extends State<HomeScreen> {
     await _syncMoodWidget();
   }
 
-  /// �������������� ������ ���������� (MoodWidgetProvider) � ��������
-  /// Mood Calendar �� ����������� ���� � � �����, � ��������.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (MoodWidgetProvider) пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  /// Mood Calendar пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
   Future<void> _syncMoodWidget() async {
     if (!_pairData.isPaired) return;
     final today = DateTime.now();
 
-    // �� ���������� �������
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     final myEntries = _moodService.myEntriesForDay(today);
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
 
-    // ���������� �������� �������
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     final partnerUid = _pairData.partners.isNotEmpty
         ? _pairData.partners.first.uid
         : '';
@@ -359,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
             (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
             false;
         if (alreadyAnswered) {
-          // ��������� � prefs, ����� ����� ����������� �� ����������
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ prefs, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
           _markReflectionAnsweredToday();
         }
         setState(() {
@@ -374,9 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  /// ������� MoodService � ��� ����� ��������� ���������� �� �������
-  /// �������������� ��� � pairData (��������, ��������� ��������)
-  /// � ��������� ������ ���������� �� ������� �����.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ MoodService пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ pairData (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+  /// пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
   void _onMoodServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     final today = DateTime.now();
@@ -392,12 +393,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _pairData.clearMood();
       }
     }
-    // �������������� ������ ���������� �������� ����� � ������ �������
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     _syncMoodWidget();
     if (mounted) setState(() {});
   }
 
-  /// ���� ��� SharedPreferences: �������� ��� ������� ������������ + ���
+  /// пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ SharedPreferences: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ + пїЅпїЅпїЅ
   String get _reflectionPrefKey {
     final today = DateTime.now();
     final dateStr =
@@ -405,14 +406,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'reflection_answered_${widget.userData.uid}_$dateStr';
   }
 
-  /// ��������� �� SharedPreferences � ������� �� ������������ �������
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ SharedPreferences пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _loadReflectionState() async {
     final prefs = await SharedPreferences.getInstance();
     final answeredToday = prefs.getBool(_reflectionPrefKey) ?? false;
     if (mounted) setState(() => _showReflection = !answeredToday);
   }
 
-  /// ��������� � SharedPreferences, ��� ������������ ������� �������
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ SharedPreferences, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   Future<void> _markReflectionAnsweredToday() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_reflectionPrefKey, true);
@@ -685,7 +686,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           const SizedBox(width: 8),
-          // Badge � tappable to change relationship type
+          // Badge пїЅ tappable to change relationship type
           GestureDetector(
             onTap: _pairData.isPaired ? _showRelationshipTypeDialog : null,
             child: Container(
@@ -905,7 +906,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: t.primary,
                 title: s.newCanvas,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'Начать с чистого холста'
+                    ? 'РќР°С‡Р°С‚СЊ СЃ С‡РёСЃС‚РѕРіРѕ С…РѕР»СЃС‚Р°'
                     : 'Start with a blank canvas',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -918,7 +919,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
                 subtitle: LocaleService.instance.isRussian
-                    ? 'Открыть сохранённый рисунок'
+                    ? 'РћС‚РєСЂС‹С‚СЊ СЃРѕС…СЂР°РЅС‘РЅРЅС‹Р№ СЂРёСЃСѓРЅРѕРє'
                     : 'Open a saved drawing',
                 onTap: () {
                   Navigator.pop(ctx);
@@ -983,7 +984,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// ������� ����� ���������� ��� ���������� ����.
+  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ.
   void _showMoodPickerForDate(DateTime date) {
     showMoodPickerForDate(
       context: context,
@@ -992,7 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
       moodService: _moodService,
       widgetService: _widgetService,
       primary: primary,
-      navActiveIcon: _t.navActiveIcon, // добавлено
+      navActiveIcon: _t.navActiveIcon, // РґРѕР±Р°РІР»РµРЅРѕ
     );
   }
 
@@ -1003,7 +1004,7 @@ class _HomeScreenState extends State<HomeScreen> {
       moodService: _moodService,
       widgetService: _widgetService,
       primary: primary,
-      navActiveIcon: _t.navActiveIcon, // добавлено
+      navActiveIcon: _t.navActiveIcon, // РґРѕР±Р°РІР»РµРЅРѕ
     );
   }
 
@@ -1216,8 +1217,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       LocaleService.instance.isRussian
-                          ? '📷  Новое фото'
-                          : '📷  New Photo',
+                          ? 'рџ“·  РќРѕРІРѕРµ С„РѕС‚Рѕ'
+                          : 'рџ“·  New Photo',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -1225,15 +1226,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Заголовок
+                    // Р—Р°РіРѕР»РѕРІРѕРє
                     TextField(
                       controller: titleController,
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: 60,
                       decoration: InputDecoration(
                         hintText: LocaleService.instance.isRussian
-                            ? 'Заголовок…'
-                            : 'Title…',
+                            ? 'Р—Р°РіРѕР»РѕРІРѕРєвЂ¦'
+                            : 'TitleвЂ¦',
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1252,7 +1253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Описание
+                    // РћРїРёСЃР°РЅРёРµ
                     TextField(
                       controller: controller,
                       autofocus: false,
@@ -1261,8 +1262,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
                         hintText: LocaleService.instance.isRussian
-                            ? 'Описание (необязательно)…'
-                            : 'Description (optional)…',
+                            ? 'РћРїРёСЃР°РЅРёРµ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)вЂ¦'
+                            : 'Description (optional)вЂ¦',
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1278,13 +1279,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Опция: установить как фото дня виджета
+                    // РћРїС†РёСЏ: СѓСЃС‚Р°РЅРѕРІРёС‚СЊ РєР°Рє С„РѕС‚Рѕ РґРЅСЏ РІРёРґР¶РµС‚Р°
                     Row(
                       children: [
                         Expanded(
                           child: Text(
                             LocaleService.instance.isRussian
-                                ? 'Фото дня на виджете'
+                                ? 'Р¤РѕС‚Рѕ РґРЅСЏ РЅР° РІРёРґР¶РµС‚Рµ'
                                 : 'Set as widget photo',
                             style: TextStyle(
                               fontSize: 13,
@@ -1521,7 +1522,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // �������� ����� ������ (��������)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     final partnerAnswers = answers.entries
         .where((e) => e.key != myUid)
         .toList();
@@ -1826,7 +1827,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       answer: text,
                       authorName: widget.userData.displayName,
                     );
-                    // ��������� ���� ������ �������� � ����� �� ���������� ������
+                    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
                     await _markReflectionAnsweredToday();
                     if (mounted) {
                       setState(() => _reflectionJustSaved = true);
@@ -1916,8 +1917,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final opacity = enabled ? 1.0 : 0.4;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
 
-    // Точный изгиб как в календаре (парабола 11px): центр ниже краев ∪
-    // Смещение dy в пикселях.
+    // РўРѕС‡РЅС‹Р№ РёР·РіРёР± РєР°Рє РІ РєР°Р»РµРЅРґР°СЂРµ (РїР°СЂР°Р±РѕР»Р° 11px): С†РµРЅС‚СЂ РЅРёР¶Рµ РєСЂР°РµРІ в€Є
+    // РЎРјРµС‰РµРЅРёРµ dy РІ РїРёРєСЃРµР»СЏС….
     final double dy = (index == 1 || index == 2) ? 11.0 : 0.0;
 
     return Transform.translate(
@@ -1959,6 +1960,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // RELATIONSHIP MEMORY LANE
   // =============================================
   Widget _buildMemoryLaneSection() {
+    final tileBuilder = MemoryTileBuilder(
+      primary: primary,
+      cardSurface: Colors.white,
+      cardBorder: const Color(0xFFE5E5E5),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2044,647 +2051,44 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
-                for (int i = 0; i < _recentMemories.length && i < 3; i++) ...[
-                  _memoryPreviewCard(_recentMemories[i]),
-                  if (i < (_recentMemories.length - 1).clamp(0, 2))
-                    const SizedBox(height: 12),
-                ],
+                for (int i = 0; i < _recentMemories.length && i < 3; i++)
+                  tileBuilder.buildTile(
+                    _recentMemories[i],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              MemoryLaneScreen(pairData: _pairData, theme: _t),
+                        ),
+                      );
+                    },
+                    onOpenGallery: (urls, index) {
+                      Navigator.of(context).push(
+                        PageRouteBuilder(
+                          opaque: false,
+                          barrierColor: Colors.black,
+                          pageBuilder: (_, __, ___) => FullscreenGallery(
+                            urls: urls,
+                            initialIndex: index,
+                          ),
+                        ),
+                      );
+                    },
+                    onOpenLocation: _openLocationInMaps,
+                    distanceText:
+                        _recentMemories[i].latitude != null &&
+                            _recentMemories[i].longitude != null
+                        ? _distanceKm(
+                            _recentMemories[i].latitude!,
+                            _recentMemories[i].longitude!,
+                          )
+                        : null,
+                  ),
               ],
             ),
           ),
       ],
-    );
-  }
-
-  Widget _memoryPreviewCard(Memory memory) {
-    return TapScale(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t),
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: _previewByType(memory),
-        ),
-      ),
-    );
-  }
-
-  Widget _previewByType(Memory memory) {
-    switch (memory.type) {
-      case MemoryType.photo:
-        return _photoPreview(memory);
-      case MemoryType.video:
-        return SizedBox(height: 200, child: _videoPreview(memory));
-      case MemoryType.location:
-        return SizedBox(height: 200, child: _locationPreview(memory));
-      case MemoryType.music:
-        return SizedBox(height: 200, child: _musicPreview(memory));
-      case MemoryType.text:
-        return SizedBox(height: 200, child: _textPreview(memory));
-    }
-  }
-
-  Widget _photoPreview(Memory memory) {
-    final hasImage = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    final s = LocaleService.current;
-    final hasLocation =
-        memory.locationName != null && memory.locationName!.isNotEmpty;
-    final hasCoords = memory.latitude != null && memory.longitude != null;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Header: avatar + name + time ago ──
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-          child: Row(
-            children: [
-              // Author avatar
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: primary.withOpacity(0.2),
-                    width: 1.5,
-                  ),
-                ),
-                child: ClipOval(
-                  child: memory.authorAvatar.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: memory.authorAvatar,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 108,
-                          memCacheHeight: 108,
-                          errorWidget: (_, __, ___) =>
-                              _avatarPlaceholder(memory.authorName),
-                        )
-                      : _avatarPlaceholder(memory.authorName),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Name + time
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            memory.authorName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade900,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          ' · ${_formatTimeAgo(memory.createdAt)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      memory.title?.isNotEmpty == true
-                          ? memory.title!
-                          : s.sharedAPicture,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Emoji type badge
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: _buildSvgIcon(
-                    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z" /><path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>',
-                    18,
-                    Colors.grey.shade500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // ── Photo with location overlay ──
-        Stack(
-          children: [
-            if (hasImage)
-              CachedNetworkImage(
-                imageUrl: memory.imageUrl!,
-                width: double.infinity,
-                fit: BoxFit.fitWidth,
-                memCacheWidth: 480,
-                errorWidget: (context, url, error) =>
-                    Container(height: 180, color: Colors.grey.shade200),
-              )
-            else
-              Container(
-                height: 180,
-                color: const Color(0xFFF3E8FF),
-                child: Center(
-                  child: Icon(
-                    Icons.image_rounded,
-                    size: 48,
-                    color: Colors.grey.shade300,
-                  ),
-                ),
-              ),
-            // Location overlay at bottom
-            if (hasLocation || hasCoords)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: hasCoords
-                      ? () => _openLocationInMaps(
-                          memory.latitude!,
-                          memory.longitude!,
-                          memory.locationName,
-                        )
-                      : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.65),
-                        ],
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            memory.locationName ??
-                                '${memory.latitude!.toStringAsFixed(2)}, ${memory.longitude!.toStringAsFixed(2)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        if (_userLat != null && _userLng != null && hasCoords)
-                          Text(
-                            s.kmFromYou(
-                              _distanceKm(memory.latitude!, memory.longitude!),
-                            ),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.85),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        // ── Caption below photo ──
-        if (memory.caption?.isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: Text(
-              memory.caption!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _videoPreview(Memory memory) {
-    final hasThumb = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (hasThumb)
-          CachedNetworkImage(
-            imageUrl: memory.imageUrl!,
-            fit: BoxFit.cover,
-            errorWidget: (context, url, error) =>
-                Container(color: Colors.grey.shade900),
-          )
-        else
-          Container(color: const Color(0xFF1E1B2E)),
-        Container(color: Colors.black.withOpacity(0.45)),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              size: 28,
-              color: Color(0xFFEC4899),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEC4899),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              LocaleService.current.video.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 12,
-          left: 12,
-          right: 12,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                memory.title?.isNotEmpty == true
-                    ? memory.title!
-                    : memory.caption ?? LocaleService.current.videoLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              if (memory.title?.isNotEmpty == true &&
-                  memory.caption?.isNotEmpty == true) ...[
-                const SizedBox(height: 2),
-                Text(
-                  memory.caption!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withOpacity(0.75),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _locationPreview(Memory memory) {
-    final hasCoordinates = memory.latitude != null && memory.longitude != null;
-
-    return Container(
-      decoration: const BoxDecoration(color: Color(0xFFF0FAF4)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE6F7ED),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.location_on_rounded,
-                    color: Color(0xFF22C55E),
-                    size: 22,
-                  ),
-                ),
-                if (hasCoordinates) ...[
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF22C55E).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.map_rounded,
-                      color: Color(0xFF22C55E),
-                      size: 18,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const Spacer(),
-            Text(
-              memory.locationName ?? LocaleService.current.location,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade800,
-              ),
-            ),
-            if (memory.title != null && memory.title!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                memory.title!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-            ],
-            if (hasCoordinates) ...[
-              const SizedBox(height: 4),
-              Text(
-                '${memory.latitude!.toStringAsFixed(3)}, ${memory.longitude?.toStringAsFixed(3) ?? ""}',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-              ),
-            ],
-            if (memory.caption != null && memory.caption!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                memory.caption!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-              ),
-            ],
-            const SizedBox(height: 6),
-            Text(
-              memory.authorName,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _musicPreview(Memory memory) {
-    return Container(
-      decoration: const BoxDecoration(color: Color(0xFFF5F0FF)),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (memory.musicCoverUrl != null &&
-                  memory.musicCoverUrl!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: memory.musicCoverUrl!,
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.music_note_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.music_note_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF8B5CF6),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 14,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            memory.title?.isNotEmpty == true
-                ? memory.title!
-                : memory.musicTitle ?? LocaleService.current.audio,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          if (memory.title?.isNotEmpty == true &&
-              memory.musicTitle?.isNotEmpty == true)
-            Text(
-              memory.musicTitle!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-            )
-          else if (memory.musicArtist != null)
-            Text(
-              memory.musicArtist!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-            ),
-          const SizedBox(height: 4),
-          // Waveform placeholder
-          Row(
-            children: List.generate(
-              12,
-              (i) => Expanded(
-                child: Container(
-                  height:
-                      4.0 +
-                      (i % 3 == 0
-                          ? 8.0
-                          : i % 2 == 0
-                          ? 4.0
-                          : 6.0),
-                  margin: const EdgeInsets.symmetric(horizontal: 1),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            memory.authorName,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _textPreview(Memory memory) {
-    return Container(
-      decoration: const BoxDecoration(color: Color(0xFFFFFBEB)),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text('📝', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
-              Text(
-                'Note',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (memory.title != null && memory.title!.isNotEmpty) ...[
-            Text(
-              memory.title!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
-              ),
-            ),
-            if (memory.caption?.isNotEmpty == true) const SizedBox(height: 4),
-          ],
-          if (memory.caption?.isNotEmpty == true)
-            Text(
-              memory.caption!,
-              maxLines: memory.title?.isNotEmpty == true ? 2 : 4,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey.shade800,
-                height: 1.4,
-              ),
-            )
-          else if (memory.title == null || memory.title!.isEmpty)
-            Text(
-              'Note',
-              maxLines: 4,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey.shade400,
-              ),
-            ),
-          const Spacer(),
-          Text(
-            memory.authorName,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-          ),
-        ],
-      ),
     );
   }
 

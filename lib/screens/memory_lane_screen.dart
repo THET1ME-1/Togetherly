@@ -3280,7 +3280,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         opaque: false,
         barrierColor: Colors.black,
         pageBuilder: (_, __, ___) =>
-            _FullscreenGallery(urls: urls, initialIndex: initialIndex),
+            FullscreenGallery(urls: urls, initialIndex: initialIndex),
       ),
     );
   }
@@ -4319,10 +4319,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                       PageRouteBuilder(
                         opaque: false,
                         barrierColor: Colors.black,
-                        pageBuilder: (_, __, ___) => _FullscreenGallery(
-                          urls: allPhotos,
-                          initialIndex: i,
-                        ),
+                        pageBuilder: (_, __, ___) =>
+                            FullscreenGallery(urls: allPhotos, initialIndex: i),
                       ),
                     );
                   }
@@ -5032,17 +5030,21 @@ class _CommentsSectionState extends State<_CommentsSection> {
 // ══════════════════════════════════════════════════════
 //  Fullscreen Photo Gallery — swipe between photos
 // ══════════════════════════════════════════════════════
-class _FullscreenGallery extends StatefulWidget {
+class FullscreenGallery extends StatefulWidget {
   final List<String> urls;
   final int initialIndex;
 
-  const _FullscreenGallery({required this.urls, required this.initialIndex});
+  const FullscreenGallery({
+    super.key,
+    required this.urls,
+    required this.initialIndex,
+  });
 
   @override
-  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
+  State<FullscreenGallery> createState() => _FullscreenGalleryState();
 }
 
-class _FullscreenGalleryState extends State<_FullscreenGallery> {
+class _FullscreenGalleryState extends State<FullscreenGallery> {
   late PageController _pageController;
   late int _currentIndex;
 
