@@ -164,7 +164,7 @@ class MemoryTileBuilder {
         break;
       case MemoryType.music:
         subtitle = [
-          if (memory.musicTitle?.isNotEmpty == true) memory.musicTitle!,
+          if (memory.title?.isNotEmpty == true) memory.title!,
           if (memory.caption?.isNotEmpty == true) memory.caption!,
         ].join(' • ');
         break;

@@ -1281,18 +1281,21 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           memory.imageUrl!.isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: CachedNetworkImage(
-                            imageUrl: memory.imageUrl!,
-                            width: double.infinity,
-                            fit: BoxFit.fitWidth,
-                            errorWidget: (context, url, error) => Container(
-                              height: 200,
-                              color: Colors.grey.shade200,
-                              child: Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  color: Colors.grey.shade400,
-                                  size: 48,
+                          child: AspectRatio(
+                            aspectRatio: 1.0,
+                            child: CachedNetworkImage(
+                              imageUrl: memory.imageUrl!,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey.shade200,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.broken_image_rounded,
+                                    color: Colors.grey.shade400,
+                                    size: 48,
+                                  ),
                                 ),
                               ),
                             ),
@@ -3945,8 +3948,7 @@ class _MusicMiniPlayerState extends State<_MusicMiniPlayer> {
                       const SizedBox(height: 1),
                       Text(
                         [
-                          if (memory.musicTitle?.isNotEmpty == true)
-                            memory.musicTitle!,
+                          if (memory.title?.isNotEmpty == true) memory.title!,
                           if (memory.caption?.isNotEmpty == true)
                             memory.caption!,
                         ].join(' • '),
@@ -4331,13 +4333,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                       child: RepaintBoundary(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: CachedNetworkImage(
-                            imageUrl: allPhotos.first,
-                            width: double.infinity,
-                            height: 260,
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) =>
-                                _noImgBox(200),
+                          child: AspectRatio(
+                            aspectRatio: 1.0,
+                            child: CachedNetworkImage(
+                              imageUrl: allPhotos.first,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) =>
+                                  _noImgBox(200),
+                            ),
                           ),
                         ),
                       ),
@@ -4348,16 +4353,18 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: SizedBox(
-                          height: 260,
+                        child: AspectRatio(
+                          aspectRatio: 1.0,
                           child: PageView.builder(
                             itemCount: allPhotos.length,
                             itemBuilder: (_, i) => GestureDetector(
                               onTap: () => openGallery(i),
                               child: CachedNetworkImage(
                                 imageUrl: allPhotos[i],
+                                width: double.infinity,
+                                height: double.infinity,
                                 fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => _noImgBox(260),
+                                errorWidget: (_, __, ___) => _noImgBox(200),
                               ),
                             ),
                           ),
