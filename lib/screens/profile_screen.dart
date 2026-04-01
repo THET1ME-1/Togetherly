@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/firebase_service.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
@@ -1568,7 +1569,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _settingsTile(
             icon: Icons.notifications_outlined,
             label: _s.notifications,
-            onTap: () {},
+            onTap: () async {
+              // Открыть системные настройки уведомлений
+              final uri = Uri.parse('app-settings:');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              } else {
+                // Android fallback
+                final androidUri = Uri.parse(
+                  'android.settings.APP_NOTIFICATION_SETTINGS',
+                );
+                if (await canLaunchUrl(androidUri)) {
+                  await launchUrl(androidUri);
+                }
+              }
+            },
           ),
           _divider(),
           _settingsTile(

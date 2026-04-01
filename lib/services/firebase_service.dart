@@ -1892,7 +1892,7 @@ class FirebaseService {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
     try {
-      // 1. Инкремент общего счётчика
+      // 1. Инкремент общего счётчика + per-user счётчик
       await _db.collection('groups').doc(groupId).set({
         'missYouCount': FieldValue.increment(1),
         'lastMissYou': {
@@ -1901,6 +1901,11 @@ class FirebaseService {
           'timestamp': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
+
+      // Per-user счётчик через dot-notation update
+      await _db.collection('groups').doc(groupId).update({
+        'missYouCounts.$myUid': FieldValue.increment(1),
+      });
 
       // 2. Добавить запись в subcollection для push-триггера
       await _db
@@ -1927,6 +1932,19 @@ class FirebaseService {
       final count = (data?['missYouCount'] as int?) ?? 0;
       onData(count);
     }, onError: (e) => debugPrint('listenToMissYouCount error: $e'));
+  }
+
+  /// Слушать per-user счётчики «Я скучаю» (Map uid → count).
+  StreamSubscription listenToMissYouCounts({
+    required String groupId,
+    required void Function(Map<String, int> counts) onData,
+  }) {
+    return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
+      final data = snap.data();
+      final raw = (data?['missYouCounts'] as Map<String, dynamic>?) ?? {};
+      final counts = raw.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0));
+      onData(counts);
+    }, onError: (e) => debugPrint('listenToMissYouCounts error: $e'));
   }
 
   // ══════════════════════════════════════════════
