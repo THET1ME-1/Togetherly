@@ -56,9 +56,10 @@ class _MissYouButtonState extends State<MissYouButton>
       vsync: this,
       duration: const Duration(milliseconds: 140),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.90).animate(
-      CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.90,
+    ).animate(CurvedAnimation(parent: _scaleController, curve: Curves.easeOut));
     _startListening();
   }
 
@@ -148,116 +149,107 @@ class _MissYouButtonState extends State<MissYouButton>
     return Opacity(
       opacity: widget.enabled ? 1.0 : 0.4,
       child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            // -- Floating hearts --
-            ..._hearts.map(
-              (h) => AnimatedBuilder(
-                animation: h.controller,
-                builder: (_, __) {
-                  final t = h.controller.value;
-                  final ct = Curves.easeOut.transform(t);
-                  return Positioned(
-                    left: 20 + h.dx * ct,
-                    bottom: 22 + (-h.endDy * ct),
-                    child: Opacity(
-                      opacity: (1 - t).clamp(0.0, 1.0),
-                      child: Text(h.emoji, style: TextStyle(fontSize: h.size)),
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // -- Floating hearts --
+          ..._hearts.map(
+            (h) => AnimatedBuilder(
+              animation: h.controller,
+              builder: (_, __) {
+                final t = h.controller.value;
+                final ct = Curves.easeOut.transform(t);
+                return Positioned(
+                  left: 20 + h.dx * ct,
+                  bottom: 22 + (-h.endDy * ct),
+                  child: Opacity(
+                    opacity: (1 - t).clamp(0.0, 1.0),
+                    child: Text(h.emoji, style: TextStyle(fontSize: h.size)),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // -- Main button --
+          AnimatedBuilder(
+            animation: _scaleAnimation,
+            builder: (_, child) =>
+                Transform.scale(scale: _scaleAnimation.value, child: child),
+            child: GestureDetector(
+              onTap: _onTap,
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_currentRatio),
+                tween: Tween(begin: _prevRatio, end: _currentRatio),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOut,
+                builder: (_, ratio, __) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: hasData
+                            ? LinearGradient(
+                                stops: [ratio, ratio],
+                                colors: [
+                                  btnColor.withOpacity(0.78),
+                                  btnColor.withOpacity(0.28),
+                                ],
+                              )
+                            : null,
+                        color: hasData ? null : btnColor.withOpacity(0.11),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: btnColor.withOpacity(hasData ? 0.0 : 0.22),
+                        ),
+                        boxShadow: hasData
+                            ? [
+                                BoxShadow(
+                                  color: btnColor.withOpacity(0.18),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _CountBadge(
+                            count: _myCount,
+                            color: btnColor,
+                            hasData: hasData,
+                            isOnDarkSide: hasData && ratio > 0.15,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            s.iMissYou,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: hasData ? Colors.white : btnColor,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          _CountBadge(
+                            count: _partnerCount,
+                            color: btnColor,
+                            hasData: hasData,
+                            isOnDarkSide: hasData && ratio < 0.85,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
               ),
             ),
-
-            // -- Main button --
-            AnimatedBuilder(
-              animation: _scaleAnimation,
-              builder: (_, child) =>
-                  Transform.scale(scale: _scaleAnimation.value, child: child),
-              child: GestureDetector(
-                onTap: _onTap,
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey(_currentRatio),
-                  tween: Tween(begin: _prevRatio, end: _currentRatio),
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeInOut,
-                  builder: (_, ratio, __) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          // Конкурентная заливка: моя (слева, ярче) / партнёра (справа, светлее)
-                          gradient: hasData
-                              ? LinearGradient(
-                                  stops: [ratio, ratio],
-                                  colors: [
-                                    btnColor.withOpacity(0.78),
-                                    btnColor.withOpacity(0.28),
-                                  ],
-                                )
-                              : null,
-                          color: hasData
-                              ? null
-                              : btnColor.withOpacity(0.11),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: btnColor.withOpacity(
-                              hasData ? 0.0 : 0.22,
-                            ),
-                          ),
-                          boxShadow: hasData
-                              ? [
-                                  BoxShadow(
-                                    color: btnColor.withOpacity(0.18),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Мой счётчик (слева)
-                            _CountBadge(
-                              count: _myCount,
-                              color: btnColor,
-                              hasData: hasData,
-                              isOnDarkSide: hasData && ratio > 0.15,
-                            ),
-                            const SizedBox(width: 7),
-                            // Текст  
-                            Text(
-                              s.iMissYou,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: hasData ? Colors.white : btnColor,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            // Счётчик партнёра (справа)
-                            _CountBadge(
-                              count: _partnerCount,
-                              color: btnColor,
-                              hasData: hasData,
-                              isOnDarkSide: hasData && ratio < 0.85,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

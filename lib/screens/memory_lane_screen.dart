@@ -2626,37 +2626,74 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
 
     // ── Deezer ──
-    if (lower.contains('deezer.com')) {
+    final isDeezer =
+        lower.contains('deezer.com') ||
+        lower.contains('deezer.page.link') ||
+        lower.contains('link.deezer.com');
+    if (isDeezer) {
       try {
+        // Resolve short/dynamic links → actual deezer.com/track/ URL
+        String resolvedUrl = url;
+        final isShortLink =
+            lower.contains('deezer.page.link') ||
+            lower.contains('link.deezer.com');
+        if (isShortLink) {
+          try {
+            String current = url;
+            for (int i = 0; i < 5; i++) {
+              final httpClient = HttpClient();
+              httpClient.connectionTimeout = const Duration(seconds: 6);
+              final req = await httpClient.getUrl(Uri.parse(current));
+              req.followRedirects = false;
+              final resp = await req.close();
+              final location = resp.headers.value('location');
+              httpClient.close();
+              if (location == null || location.isEmpty) break;
+              current = location;
+              if (current.toLowerCase().contains('deezer.com/') &&
+                  current.toLowerCase().contains('/track/')) {
+                resolvedUrl = current;
+                break;
+              }
+              resolvedUrl = current;
+            }
+          } catch (_) {}
+        }
+        final resolvedLower = resolvedUrl.toLowerCase();
+
         final trackMatch = RegExp(
-          r'deezer\.com/(?:\w+/)?track/(\d+)',
-        ).firstMatch(lower);
+          r'deezer\.com/(?:[^/?#]+/)*track/(\d+)',
+        ).firstMatch(resolvedLower);
         if (trackMatch != null) {
           final trackId = trackMatch.group(1);
           final apiResp = await http.get(
             Uri.parse('https://api.deezer.com/track/$trackId'),
+            headers: {'Accept': 'application/json'},
           );
           if (apiResp.statusCode == 200) {
             final data = json.decode(apiResp.body) as Map<String, dynamic>;
-            return {
-              'title': data['title'] as String?,
-              'artist':
-                  (data['artist'] as Map<String, dynamic>?)?['name'] as String?,
-              'cover':
-                  (data['album'] as Map<String, dynamic>?)?['cover_big']
-                      as String?,
-            };
+            if (data['error'] == null) {
+              return {
+                'title': data['title'] as String?,
+                'artist':
+                    (data['artist'] as Map<String, dynamic>?)?['name']
+                        as String?,
+                'cover':
+                    (data['album'] as Map<String, dynamic>?)?['cover_big']
+                        as String?,
+              };
+            }
           }
         }
-        // Fallback to oEmbed
+        // Fallback to oEmbed (works with both full and resolved URLs)
         final oembedResp = await http.get(
           Uri.parse(
-            'https://noembed.com/embed?url=${Uri.encodeComponent(url)}',
+            'https://noembed.com/embed?url=${Uri.encodeComponent(resolvedUrl)}',
           ),
         );
         if (oembedResp.statusCode == 200) {
           final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-          if (data['error'] == null) {
+          if (data['error'] == null && data['title'] != null) {
             return {
               'title': data['title'] as String?,
               'artist': data['author_name'] as String?,
@@ -3140,45 +3177,113 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // Caption (always show)
-                TextField(
-                  controller: titleCtrl,
-                  maxLines: 1,
-                  decoration: InputDecoration(
-                    hintText: type == MemoryType.text
-                        ? 'Title (optional)'
-                        : 'Title (optional)',
-                    prefixIcon: const Icon(Icons.title_rounded, size: 20),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                // ─── Section: Memory Details ───
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primary.withOpacity(0.04),
+                        const Color(0xFFEC4899).withOpacity(0.03),
+                      ],
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: primary.withOpacity(0.12)),
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: captionCtrl,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: type == MemoryType.text
-                        ? 'Write your note...'
-                        : 'Description (optional)',
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.edit_note_rounded,
+                              size: 16,
+                              color: primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Memory Details',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: titleCtrl,
+                        maxLines: 1,
+                        style: const TextStyle(fontSize: 15),
+                        decoration: InputDecoration(
+                          hintText: 'Title (optional)',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          prefixIcon: Icon(
+                            Icons.title_rounded,
+                            color: primary,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: primary, width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: captionCtrl,
+                        maxLines: 3,
+                        style: const TextStyle(fontSize: 15),
+                        decoration: InputDecoration(
+                          hintText: type == MemoryType.text
+                              ? 'Write your note...'
+                              : 'Description (optional)',
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.only(bottom: 40),
+                            child: Icon(
+                              Icons.notes_rounded,
+                              color: primary,
+                              size: 20,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: primary, width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
