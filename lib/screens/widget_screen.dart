@@ -3464,6 +3464,82 @@ class _PhotoSourceSheet extends StatelessWidget {
 // MUSIC EDITOR SHEET
 // ══════════════════════════════════════════════════════════════════════════════
 
+/// Supported music services for the info dialog
+const List<Map<String, dynamic>> _musicServicesList = [
+  {
+    'name': 'Spotify',
+    'supported': true,
+    'color': Color(0xFF1DB954),
+    'icon': Icons.music_note_rounded,
+  },
+  {
+    'name': 'YouTube Music',
+    'supported': true,
+    'color': Color(0xFFFF0000),
+    'icon': Icons.play_circle_rounded,
+  },
+  {
+    'name': 'Apple Music',
+    'supported': true,
+    'color': Color(0xFFFC3C44),
+    'icon': Icons.apple_rounded,
+  },
+  {
+    'name': 'Deezer',
+    'supported': true,
+    'color': Color(0xFFA238FF),
+    'icon': Icons.album_rounded,
+  },
+  {
+    'name': 'SoundCloud',
+    'supported': true,
+    'color': Color(0xFFFF5500),
+    'icon': Icons.cloud_rounded,
+  },
+  {
+    'name': 'Яндекс Музыка',
+    'supported': true,
+    'color': Color(0xFFFFCC00),
+    'icon': Icons.library_music_rounded,
+  },
+  {
+    'name': 'Tidal',
+    'supported': true,
+    'color': Color(0xFF000000),
+    'icon': Icons.waves_rounded,
+  },
+  {
+    'name': 'VK Music',
+    'supported': true,
+    'color': Color(0xFF0077FF),
+    'icon': Icons.music_video_rounded,
+  },
+  {
+    'name': 'YouTube',
+    'supported': true,
+    'color': Color(0xFFFF0000),
+    'icon': Icons.smart_display_rounded,
+  },
+  {
+    'name': 'Audio file',
+    'supported': true,
+    'color': Color(0xFF8B5CF6),
+    'icon': Icons.audio_file_rounded,
+  },
+  {
+    'name': 'Amazon Music',
+    'supported': false,
+    'color': Color(0xFF25D1DA),
+    'icon': Icons.shopping_bag_rounded,
+  },
+  {
+    'name': 'Pandora',
+    'supported': false,
+    'color': Color(0xFF005483),
+    'icon': Icons.radio_rounded,
+  },
+];
+
 class _MusicEditorSheet extends StatefulWidget {
   final AppTheme theme;
   final String initialTitle;
@@ -3511,6 +3587,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final primary = widget.theme.primary;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -3533,32 +3610,186 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
-              LocaleService.current.music,
-              style: GoogleFonts.rubik(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
-              ),
+            // ── Header with info button ──
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    LocaleService.current.music,
+                    style: GoogleFonts.rubik(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _showServicesInfo(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 20,
+                      color: primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
-            _buildField(
-              _titleCtrl,
-              LocaleService.current.trackName,
-              Icons.music_note_rounded,
+
+            // ─── Song Details Section ───
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    primary.withOpacity(0.04),
+                    const Color(0xFFEC4899).withOpacity(0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: primary.withOpacity(0.12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.music_note_rounded,
+                          size: 16,
+                          color: primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Song Details',
+                        style: GoogleFonts.rubik(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildField(
+                    _titleCtrl,
+                    LocaleService.current.trackName,
+                    Icons.audiotrack_rounded,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildField(
+                    _artistCtrl,
+                    LocaleService.current.artist,
+                    Icons.person_rounded,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            _buildField(
-              _artistCtrl,
-              LocaleService.current.artist,
-              Icons.person_rounded,
+
+            // ─── Divider ───
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: Colors.grey.shade200, height: 1),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.link_rounded, size: 14, color: primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Source',
+                            style: GoogleFonts.rubik(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(color: Colors.grey.shade200, height: 1),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            _buildField(
-              _urlCtrl,
-              LocaleService.current.linkOptional,
-              Icons.link_rounded,
+
+            // ─── Link Section ───
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.link_rounded,
+                          size: 16,
+                          color: Color(0xFF22C55E),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Streaming Link',
+                        style: GoogleFonts.rubik(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildField(
+                    _urlCtrl,
+                    LocaleService.current.linkOptional,
+                    Icons.link_rounded,
+                  ),
+                ],
+              ),
             ),
+
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -3576,7 +3807,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.theme.primary,
+                  backgroundColor: primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -3593,6 +3824,124 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showServicesInfo(BuildContext context) {
+    final primary = widget.theme.primary;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 340),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      primary.withOpacity(0.15),
+                      const Color(0xFFEC4899).withOpacity(0.1),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.music_note_rounded, color: primary, size: 28),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Supported Services',
+                style: GoogleFonts.rubik(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Paste a link from any supported service',
+                style: GoogleFonts.rubik(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ..._musicServicesList.map(
+                (svc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (svc['color'] as Color).withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (svc['color'] as Color).withOpacity(0.12),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          svc['icon'] as IconData,
+                          size: 20,
+                          color: svc['color'] as Color,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            svc['name'] as String,
+                            style: GoogleFonts.rubik(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          svc['supported'] == true
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          size: 20,
+                          color: svc['supported'] == true
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: TextButton.styleFrom(
+                    foregroundColor: primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Got it',
+                    style: GoogleFonts.rubik(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

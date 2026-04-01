@@ -2360,10 +2360,204 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Fetch track metadata from YouTube (stream-based) or Spotify (oEmbed).
+  /// Supported music services list for the info dialog
+  static const List<Map<String, dynamic>> _supportedMusicServices = [
+    {
+      'name': 'Spotify',
+      'supported': true,
+      'color': Color(0xFF1DB954),
+      'icon': Icons.music_note_rounded,
+    },
+    {
+      'name': 'YouTube Music',
+      'supported': true,
+      'color': Color(0xFFFF0000),
+      'icon': Icons.play_circle_rounded,
+    },
+    {
+      'name': 'Apple Music',
+      'supported': true,
+      'color': Color(0xFFFC3C44),
+      'icon': Icons.apple_rounded,
+    },
+    {
+      'name': 'Deezer',
+      'supported': true,
+      'color': Color(0xFFA238FF),
+      'icon': Icons.album_rounded,
+    },
+    {
+      'name': 'SoundCloud',
+      'supported': true,
+      'color': Color(0xFFFF5500),
+      'icon': Icons.cloud_rounded,
+    },
+    {
+      'name': 'Яндекс Музыка',
+      'supported': true,
+      'color': Color(0xFFFFCC00),
+      'icon': Icons.library_music_rounded,
+    },
+    {
+      'name': 'Tidal',
+      'supported': true,
+      'color': Color(0xFF000000),
+      'icon': Icons.waves_rounded,
+    },
+    {
+      'name': 'VK Music',
+      'supported': true,
+      'color': Color(0xFF0077FF),
+      'icon': Icons.music_video_rounded,
+    },
+    {
+      'name': 'YouTube',
+      'supported': true,
+      'color': Color(0xFFFF0000),
+      'icon': Icons.smart_display_rounded,
+    },
+    {
+      'name': 'Audio file',
+      'supported': true,
+      'color': Color(0xFF8B5CF6),
+      'icon': Icons.audio_file_rounded,
+    },
+    {
+      'name': 'Amazon Music',
+      'supported': false,
+      'color': Color(0xFF25D1DA),
+      'icon': Icons.shopping_bag_rounded,
+    },
+    {
+      'name': 'Pandora',
+      'supported': false,
+      'color': Color(0xFF005483),
+      'icon': Icons.radio_rounded,
+    },
+  ];
+
+  void _showSupportedServicesDialog() {
+    final primary = widget.theme.primary;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 340),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      primary.withOpacity(0.15),
+                      const Color(0xFFEC4899).withOpacity(0.1),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.music_note_rounded, color: primary, size: 28),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Supported Services',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Paste a link from any supported service',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 18),
+              ..._supportedMusicServices.map(
+                (svc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (svc['color'] as Color).withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: (svc['color'] as Color).withOpacity(0.12),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          svc['icon'] as IconData,
+                          size: 20,
+                          color: svc['color'] as Color,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            svc['name'] as String,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          svc['supported'] == true
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          size: 20,
+                          color: svc['supported'] == true
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: TextButton.styleFrom(
+                    foregroundColor: primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Got it',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<Map<String, String?>> _fetchMusicMeta(String url) async {
     final lower = url.toLowerCase();
 
-    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+    // ── YouTube / YouTube Music ──
+    if (lower.contains('youtube.com') ||
+        lower.contains('youtu.be') ||
+        lower.contains('music.youtube.com')) {
       final yt = YoutubeExplode();
       try {
         final video = await yt.videos.get(url);
@@ -2380,9 +2574,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       }
     }
 
+    // ── Spotify ──
     if (lower.contains('spotify.com')) {
       try {
-        // 1) oEmbed — get title & cover
         final oembedResp = await http.get(
           Uri.parse(
             'https://open.spotify.com/oembed?url=${Uri.encodeComponent(url)}',
@@ -2399,8 +2593,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           cover = data['thumbnail_url'] as String?;
         }
 
-        // 2) Fetch the Spotify page HTML — <title> contains artist info
-        //    Format: "Song Name - song and lyrics by Artist1, Artist2 | Spotify"
         try {
           final pageResp = await http.get(
             Uri.parse(url),
@@ -2417,8 +2609,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ).firstMatch(body);
             if (titleMatch != null) {
               final pageTitle = titleMatch.group(1) ?? '';
-              // "Song - song and lyrics by Artist | Spotify"
-              // "Song - Album by Artist | Spotify"
               final byMatch = RegExp(
                 r'(?:song and lyrics|[Aa]lbum|single)\s+by\s+(.+?)\s*\|\s*Spotify',
               ).firstMatch(pageTitle);
@@ -2427,9 +2617,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               }
             }
           }
-        } catch (_) {
-          // Page fetch is optional — don't fail if it doesn't work
-        }
+        } catch (_) {}
 
         return {'title': parsedTitle, 'artist': parsedArtist, 'cover': cover};
       } catch (e) {
@@ -2437,7 +2625,199 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       }
     }
 
-    // Generic fallback — try YouTube oEmbed (works for many services)
+    // ── Deezer ──
+    if (lower.contains('deezer.com')) {
+      try {
+        final trackMatch = RegExp(
+          r'deezer\.com/(?:\w+/)?track/(\d+)',
+        ).firstMatch(lower);
+        if (trackMatch != null) {
+          final trackId = trackMatch.group(1);
+          final apiResp = await http.get(
+            Uri.parse('https://api.deezer.com/track/$trackId'),
+          );
+          if (apiResp.statusCode == 200) {
+            final data = json.decode(apiResp.body) as Map<String, dynamic>;
+            return {
+              'title': data['title'] as String?,
+              'artist':
+                  (data['artist'] as Map<String, dynamic>?)?['name'] as String?,
+              'cover':
+                  (data['album'] as Map<String, dynamic>?)?['cover_big']
+                      as String?,
+            };
+          }
+        }
+        // Fallback to oEmbed
+        final oembedResp = await http.get(
+          Uri.parse(
+            'https://noembed.com/embed?url=${Uri.encodeComponent(url)}',
+          ),
+        );
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          if (data['error'] == null) {
+            return {
+              'title': data['title'] as String?,
+              'artist': data['author_name'] as String?,
+              'cover': data['thumbnail_url'] as String?,
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint('Deezer meta fetch error: $e');
+      }
+    }
+
+    // ── SoundCloud ──
+    if (lower.contains('soundcloud.com')) {
+      try {
+        final oembedResp = await http.get(
+          Uri.parse(
+            'https://soundcloud.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
+          ),
+        );
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      } catch (e) {
+        debugPrint('SoundCloud meta fetch error: $e');
+      }
+    }
+
+    // ── Яндекс Музыка ──
+    if (lower.contains('music.yandex.') || lower.contains('music.yandex.com')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        );
+        if (pageResp.statusCode == 200) {
+          final body = pageResp.body;
+          final titleMatch = RegExp(
+            r'<title[^>]*>(.+?)</title>',
+            caseSensitive: false,
+          ).firstMatch(body);
+          if (titleMatch != null) {
+            final pageTitle = titleMatch.group(1) ?? '';
+            // Format: "Song Name — Artist слушать онлайн на Яндекс Музыке"
+            final parts = pageTitle.split('—');
+            if (parts.length >= 2) {
+              final title = parts[0].trim();
+              final artistPart = parts[1]
+                  .split(RegExp(r'слушать|listen'))
+                  .first
+                  .trim();
+              return {'title': title, 'artist': artistPart, 'cover': null};
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Yandex Music meta fetch error: $e');
+      }
+    }
+
+    // ── Apple Music ──
+    if (lower.contains('music.apple.com')) {
+      try {
+        final oembedResp = await http.get(
+          Uri.parse(
+            'https://noembed.com/embed?url=${Uri.encodeComponent(url)}',
+          ),
+        );
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          if (data['error'] == null) {
+            return {
+              'title': data['title'] as String?,
+              'artist': data['author_name'] as String?,
+              'cover': data['thumbnail_url'] as String?,
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint('Apple Music meta fetch error: $e');
+      }
+    }
+
+    // ── Tidal ──
+    if (lower.contains('tidal.com')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        );
+        if (pageResp.statusCode == 200) {
+          final body = pageResp.body;
+          final titleMatch = RegExp(
+            r'<title[^>]*>(.+?)</title>',
+            caseSensitive: false,
+          ).firstMatch(body);
+          if (titleMatch != null) {
+            final pageTitle = titleMatch.group(1) ?? '';
+            // Format: "Song by Artist | TIDAL"
+            final byMatch = RegExp(
+              r'(.+?)\s+by\s+(.+?)\s*\|',
+            ).firstMatch(pageTitle);
+            if (byMatch != null) {
+              return {
+                'title': byMatch.group(1)?.trim(),
+                'artist': byMatch.group(2)?.trim(),
+                'cover': null,
+              };
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Tidal meta fetch error: $e');
+      }
+    }
+
+    // ── VK Music ──
+    if (lower.contains('vk.com/music') || lower.contains('vk.com/audio')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        );
+        if (pageResp.statusCode == 200) {
+          final body = pageResp.body;
+          final titleMatch = RegExp(
+            r'<title[^>]*>(.+?)</title>',
+            caseSensitive: false,
+          ).firstMatch(body);
+          if (titleMatch != null) {
+            final pageTitle = titleMatch.group(1) ?? '';
+            final parts = pageTitle.split('–');
+            if (parts.length >= 2) {
+              return {
+                'title': parts[1].trim(),
+                'artist': parts[0].trim(),
+                'cover': null,
+              };
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('VK Music meta fetch error: $e');
+      }
+    }
+
+    // ── Generic fallback — noembed.com (works for many services) ──
     try {
       final oembedResp = await http.get(
         Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(url)}'),
@@ -2506,13 +2886,35 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'New ${_typeName(type)}',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade900,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'New ${_typeName(type)}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                    ),
+                    if (type == MemoryType.music)
+                      GestureDetector(
+                        onTap: _showSupportedServicesDialog,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primary.withOpacity(0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: primary,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 
@@ -2958,162 +3360,422 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
                 // ── Music fields ──
                 if (type == MemoryType.music) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: musicTitleCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Song name',
-                      prefixIcon: const Icon(Icons.music_note_rounded),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
+                  // ─── Section: Song Details ───
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          primary.withOpacity(0.04),
+                          const Color(0xFFEC4899).withOpacity(0.03),
+                        ],
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: primary.withOpacity(0.12)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.music_note_rounded,
+                                size: 16,
+                                color: primary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Song Details',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: musicTitleCtrl,
+                          style: const TextStyle(fontSize: 15),
+                          decoration: InputDecoration(
+                            hintText: 'Song name',
+                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            prefixIcon: Icon(
+                              Icons.audiotrack_rounded,
+                              color: primary,
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: primary,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: musicArtistCtrl,
+                          style: const TextStyle(fontSize: 15),
+                          decoration: InputDecoration(
+                            hintText: 'Artists (comma separated)',
+                            helperText: 'e.g. Drake, The Weeknd',
+                            helperStyle: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade400,
+                            ),
+                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              color: primary,
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: primary,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: musicArtistCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Artists (comma separated)',
-                      helperText: 'e.g. Drake, The Weeknd',
-                      helperStyle: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                      ),
-                      prefixIcon: const Icon(Icons.person_rounded),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
+
+                  // ─── Divider ───
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: Colors.grey.shade200,
+                            height: 1,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.link_rounded,
+                                  size: 14,
+                                  color: primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Source',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: Colors.grey.shade200,
+                            height: 1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: musicUrlCtrl,
-                    onSubmitted: (v) async {
-                      final url = v.trim();
-                      if (url.isEmpty) return;
-                      setState(() => isFetchingMeta = true);
-                      final meta = await _fetchMusicMeta(url);
-                      setState(() {
-                        isFetchingMeta = false;
-                        if ((meta['title']?.isNotEmpty ?? false) &&
-                            musicTitleCtrl.text.isEmpty) {
-                          musicTitleCtrl.text = meta['title']!;
-                        }
-                        if ((meta['artist']?.isNotEmpty ?? false) &&
-                            musicArtistCtrl.text.isEmpty) {
-                          musicArtistCtrl.text = meta['artist']!;
-                        }
-                        if (meta['cover']?.isNotEmpty ?? false) {
-                          fetchedCoverUrl = meta['cover'];
-                        }
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'YouTube, Spotify или прямая ссылка...',
-                      prefixIcon: const Icon(Icons.link_rounded),
-                      suffixIcon: isFetchingMeta
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: M3LoadingDots(
-                                  color: Colors.grey,
-                                  dotSize: 4,
-                                  gap: 2,
+
+                  // ─── Section: Link / Upload ───
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF22C55E).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.link_rounded,
+                                size: 16,
+                                color: Color(0xFF22C55E),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Streaming Link',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade800,
                                 ),
                               ),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.manage_search_rounded),
-                              tooltip: 'Получить название и автора по ссылке',
-                              onPressed: () async {
-                                final url = musicUrlCtrl.text.trim();
-                                if (url.isEmpty) return;
-                                setState(() => isFetchingMeta = true);
-                                final meta = await _fetchMusicMeta(url);
-                                setState(() {
-                                  isFetchingMeta = false;
-                                  if ((meta['title']?.isNotEmpty ?? false) &&
-                                      musicTitleCtrl.text.isEmpty) {
-                                    musicTitleCtrl.text = meta['title']!;
-                                  }
-                                  if ((meta['artist']?.isNotEmpty ?? false) &&
-                                      musicArtistCtrl.text.isEmpty) {
-                                    musicArtistCtrl.text = meta['artist']!;
-                                  }
-                                  if (meta['cover']?.isNotEmpty ?? false) {
-                                    fetchedCoverUrl = meta['cover'];
-                                  }
-                                });
-                              },
                             ),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      'OR',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade400,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final result = await FilePicker.platform.pickFiles(
-                          type: FileType.audio,
-                        );
-                        if (result != null && result.files.isNotEmpty) {
-                          setState(
-                            () => selectedMusicPath = result.files.first.path,
-                          );
-                          if (musicTitleCtrl.text.isEmpty) {
-                            musicTitleCtrl.text = result.files.first.name
-                                .split('.')
-                                .first;
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.upload_file_rounded),
-                      label: Text(
-                        selectedMusicPath != null
-                            ? 'File selected ✓'
-                            : 'Pick from device',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: primary,
-                        side: BorderSide(color: primary),
-                      ),
+                            if (fetchedCoverUrl != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF22C55E,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 12,
+                                      color: Color(0xFF22C55E),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Fetched',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: musicUrlCtrl,
+                          style: const TextStyle(fontSize: 14),
+                          onSubmitted: (v) async {
+                            final url = v.trim();
+                            if (url.isEmpty) return;
+                            setState(() => isFetchingMeta = true);
+                            final meta = await _fetchMusicMeta(url);
+                            setState(() {
+                              isFetchingMeta = false;
+                              if ((meta['title']?.isNotEmpty ?? false) &&
+                                  musicTitleCtrl.text.isEmpty) {
+                                musicTitleCtrl.text = meta['title']!;
+                              }
+                              if ((meta['artist']?.isNotEmpty ?? false) &&
+                                  musicArtistCtrl.text.isEmpty) {
+                                musicArtistCtrl.text = meta['artist']!;
+                              }
+                              if (meta['cover']?.isNotEmpty ?? false) {
+                                fetchedCoverUrl = meta['cover'];
+                              }
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Paste link from any service...',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 13,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.link_rounded,
+                              color: primary,
+                              size: 20,
+                            ),
+                            suffixIcon: isFetchingMeta
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: M3LoadingDots(
+                                        color: Colors.grey,
+                                        dotSize: 4,
+                                        gap: 2,
+                                      ),
+                                    ),
+                                  )
+                                : IconButton(
+                                    icon: Icon(
+                                      Icons.manage_search_rounded,
+                                      color: primary,
+                                    ),
+                                    tooltip: 'Auto-fetch song info from link',
+                                    onPressed: () async {
+                                      final url = musicUrlCtrl.text.trim();
+                                      if (url.isEmpty) return;
+                                      setState(() => isFetchingMeta = true);
+                                      final meta = await _fetchMusicMeta(url);
+                                      setState(() {
+                                        isFetchingMeta = false;
+                                        if ((meta['title']?.isNotEmpty ??
+                                                false) &&
+                                            musicTitleCtrl.text.isEmpty) {
+                                          musicTitleCtrl.text = meta['title']!;
+                                        }
+                                        if ((meta['artist']?.isNotEmpty ??
+                                                false) &&
+                                            musicArtistCtrl.text.isEmpty) {
+                                          musicArtistCtrl.text =
+                                              meta['artist']!;
+                                        }
+                                        if (meta['cover']?.isNotEmpty ??
+                                            false) {
+                                          fetchedCoverUrl = meta['cover'];
+                                        }
+                                      });
+                                    },
+                                  ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: primary,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // ── OR divider ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.grey.shade300,
+                                height: 1,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.grey.shade300,
+                                height: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // ── File picker ──
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final result = await FilePicker.platform
+                                  .pickFiles(type: FileType.audio);
+                              if (result != null && result.files.isNotEmpty) {
+                                setState(
+                                  () => selectedMusicPath =
+                                      result.files.first.path,
+                                );
+                                if (musicTitleCtrl.text.isEmpty) {
+                                  musicTitleCtrl.text = result.files.first.name
+                                      .split('.')
+                                      .first;
+                                }
+                              }
+                            },
+                            icon: Icon(
+                              selectedMusicPath != null
+                                  ? Icons.check_circle_rounded
+                                  : Icons.upload_file_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              selectedMusicPath != null
+                                  ? 'File selected ✓'
+                                  : 'Pick audio from device',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: selectedMusicPath != null
+                                  ? const Color(0xFF22C55E)
+                                  : primary,
+                              side: BorderSide(
+                                color: selectedMusicPath != null
+                                    ? const Color(0xFF22C55E)
+                                    : primary,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -3501,12 +4163,19 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
       return;
     }
 
-    // If it's an external streaming link (spotify, youtube, etc) open externally
-    if (url.contains('spotify.com') ||
-        url.contains('youtube.com') ||
-        url.contains('youtu.be') ||
-        url.contains('music.apple.com') ||
-        url.contains('deezer.com')) {
+    // If it's an external streaming link open externally
+    final lower = url.toLowerCase();
+    if (lower.contains('spotify.com') ||
+        lower.contains('youtube.com') ||
+        lower.contains('youtu.be') ||
+        lower.contains('music.youtube.com') ||
+        lower.contains('music.apple.com') ||
+        lower.contains('deezer.com') ||
+        lower.contains('soundcloud.com') ||
+        lower.contains('music.yandex.') ||
+        lower.contains('tidal.com') ||
+        lower.contains('vk.com/music') ||
+        lower.contains('vk.com/audio')) {
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       return;
     }
@@ -3824,17 +4493,38 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
       _sourceName = 'Spotify';
       _sourceColor = const Color(0xFF1DB954);
       _isExternalLink = true;
+    } else if (lower.contains('music.youtube.com')) {
+      _sourceName = 'YouTube Music';
+      _sourceColor = const Color(0xFFFF0000);
+      _isExternalLink = true;
     } else if (lower.contains('youtube') || lower.contains('youtu.be')) {
       _sourceName = 'YouTube';
       _sourceColor = const Color(0xFFFF0000);
       _isExternalLink = true;
-    } else if (lower.contains('apple')) {
+    } else if (lower.contains('music.apple.com')) {
       _sourceName = 'Apple Music';
       _sourceColor = const Color(0xFFFC3C44);
       _isExternalLink = true;
-    } else if (lower.contains('deezer')) {
+    } else if (lower.contains('deezer.com')) {
       _sourceName = 'Deezer';
-      _sourceColor = const Color(0xFFFF0092);
+      _sourceColor = const Color(0xFFA238FF);
+      _isExternalLink = true;
+    } else if (lower.contains('soundcloud.com')) {
+      _sourceName = 'SoundCloud';
+      _sourceColor = const Color(0xFFFF5500);
+      _isExternalLink = true;
+    } else if (lower.contains('music.yandex.')) {
+      _sourceName = 'Яндекс Музыка';
+      _sourceColor = const Color(0xFFFFCC00);
+      _isExternalLink = true;
+    } else if (lower.contains('tidal.com')) {
+      _sourceName = 'Tidal';
+      _sourceColor = const Color(0xFF000000);
+      _isExternalLink = true;
+    } else if (lower.contains('vk.com/music') ||
+        lower.contains('vk.com/audio')) {
+      _sourceName = 'VK Music';
+      _sourceColor = const Color(0xFF0077FF);
       _isExternalLink = true;
     }
   }
