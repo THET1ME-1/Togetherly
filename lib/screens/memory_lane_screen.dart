@@ -2405,13 +2405,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       'icon': Icons.waves_rounded,
     },
     {
-      'name': 'VK Music',
-      'supported': true,
-      'color': Color(0xFF0077FF),
-      'icon': Icons.music_video_rounded,
-    },
-    {
-      'name': 'YouTube',
+      'name': 'YouTube Music',
+
       'supported': true,
       'color': Color(0xFFFF0000),
       'icon': Icons.smart_display_rounded,
@@ -2549,6 +2544,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ),
       ),
     );
+  }
+
+  String _decodeHtmlEntities(String text) {
+    return text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&#x27;', "'")
+        .replaceAll('&nbsp;', ' ');
   }
 
   Future<Map<String, String?>> _fetchMusicMeta(String url) async {
@@ -2765,19 +2772,35 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // ── Apple Music ──
     if (lower.contains('music.apple.com')) {
       try {
-        final oembedResp = await http.get(
-          Uri.parse(
-            'https://noembed.com/embed?url=${Uri.encodeComponent(url)}',
-          ),
-        );
-        if (oembedResp.statusCode == 200) {
-          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-          if (data['error'] == null) {
-            return {
-              'title': data['title'] as String?,
-              'artist': data['author_name'] as String?,
-              'cover': data['thumbnail_url'] as String?,
-            };
+        // Extract track ID from ?i= parameter (highest priority)
+        final trackIdMatch = RegExp(r'[?&]i=(\d+)').firstMatch(url);
+        // Fallback: last numeric segment in the path (album/song ID)
+        final pathIdMatch = RegExp(
+          r'/(\d+)(?:[?#/]|$)',
+        ).allMatches(url).lastOrNull;
+        final lookupId = trackIdMatch?.group(1) ?? pathIdMatch?.group(1);
+        if (lookupId != null) {
+          final resp = await http.get(
+            Uri.parse(
+              'https://itunes.apple.com/lookup?id=$lookupId&entity=song',
+            ),
+          );
+          if (resp.statusCode == 200) {
+            final data = json.decode(resp.body) as Map<String, dynamic>;
+            final results = data['results'] as List?;
+            if (results != null && results.isNotEmpty) {
+              final track =
+                  results.firstWhere(
+                        (r) => r['wrapperType'] == 'track',
+                        orElse: () => results.first,
+                      )
+                      as Map<String, dynamic>;
+              return {
+                'title': track['trackName'] as String?,
+                'artist': track['artistName'] as String?,
+                'cover': track['artworkUrl100'] as String?,
+              };
+            }
           }
         }
       } catch (e) {
@@ -2788,69 +2811,41 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // ── Tidal ──
     if (lower.contains('tidal.com')) {
       try {
+        // Tidal serves pre-rendered OG tags to social media bots
         final pageResp = await http.get(
           Uri.parse(url),
-          headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
+          headers: {'User-Agent': 'Twitterbot/1.0'},
         );
         if (pageResp.statusCode == 200) {
           final body = pageResp.body;
-          final titleMatch = RegExp(
-            r'<title[^>]*>(.+?)</title>',
+          final ogTitleMatch = RegExp(
+            r'property="og:title"\s+content="([^"]+)"',
             caseSensitive: false,
           ).firstMatch(body);
-          if (titleMatch != null) {
-            final pageTitle = titleMatch.group(1) ?? '';
-            // Format: "Song by Artist | TIDAL"
-            final byMatch = RegExp(
-              r'(.+?)\s+by\s+(.+?)\s*\|',
-            ).firstMatch(pageTitle);
-            if (byMatch != null) {
+          final ogImageMatch = RegExp(
+            r'property="og:image"\s+content="([^"]+)"',
+            caseSensitive: false,
+          ).firstMatch(body);
+          if (ogTitleMatch != null) {
+            // Format: "Artist - Title"
+            final raw = _decodeHtmlEntities(ogTitleMatch.group(1) ?? '');
+            final sepIdx = raw.indexOf(' - ');
+            if (sepIdx != -1) {
               return {
-                'title': byMatch.group(1)?.trim(),
-                'artist': byMatch.group(2)?.trim(),
-                'cover': null,
+                'title': raw.substring(sepIdx + 3).trim(),
+                'artist': raw.substring(0, sepIdx).trim(),
+                'cover': ogImageMatch?.group(1),
               };
             }
+            return {
+              'title': raw.isNotEmpty ? raw : null,
+              'artist': null,
+              'cover': ogImageMatch?.group(1),
+            };
           }
         }
       } catch (e) {
         debugPrint('Tidal meta fetch error: $e');
-      }
-    }
-
-    // ── VK Music ──
-    if (lower.contains('vk.com/music') || lower.contains('vk.com/audio')) {
-      try {
-        final pageResp = await http.get(
-          Uri.parse(url),
-          headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        );
-        if (pageResp.statusCode == 200) {
-          final body = pageResp.body;
-          final titleMatch = RegExp(
-            r'<title[^>]*>(.+?)</title>',
-            caseSensitive: false,
-          ).firstMatch(body);
-          if (titleMatch != null) {
-            final pageTitle = titleMatch.group(1) ?? '';
-            final parts = pageTitle.split('–');
-            if (parts.length >= 2) {
-              return {
-                'title': parts[1].trim(),
-                'artist': parts[0].trim(),
-                'cover': null,
-              };
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('VK Music meta fetch error: $e');
       }
     }
 
@@ -4242,6 +4237,10 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
   bool _loading = false;
   String? _error;
 
+  bool _isExternalLink = false;
+  String? _sourceName;
+  Color? _sourceColor;
+
   StreamSubscription? _posSub;
   StreamSubscription? _durSub;
   StreamSubscription? _stateSub;
@@ -4250,6 +4249,53 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
   void initState() {
     super.initState();
     _player = widget.player;
+    _detectSource();
+  }
+
+  void _detectSource() {
+    final url = widget.memory.musicUrl;
+    if (url == null || url.isEmpty) return;
+    final lower = url.toLowerCase();
+
+    if (lower.contains('spotify')) {
+      _sourceName = 'Spotify';
+      _sourceColor = const Color(0xFF1DB954);
+      _isExternalLink = true;
+    } else if (lower.contains('music.youtube.com')) {
+      _sourceName = 'YouTube Music';
+      _sourceColor = const Color(0xFFFF0000);
+      _isExternalLink = true;
+    } else if (lower.contains('youtube') || lower.contains('youtu.be')) {
+      _sourceName = 'YouTube';
+      _sourceColor = const Color(0xFFFF0000);
+      _isExternalLink = true;
+    } else if (lower.contains('music.apple.com')) {
+      _sourceName = 'Apple Music';
+      _sourceColor = const Color(0xFFFC3C44);
+      _isExternalLink = true;
+    } else if (lower.contains('deezer')) {
+      _sourceName = 'Deezer';
+      _sourceColor = const Color(0xFFA238FF);
+      _isExternalLink = true;
+    } else if (lower.contains('soundcloud')) {
+      _sourceName = 'SoundCloud';
+      _sourceColor = const Color(0xFFFF5500);
+      _isExternalLink = true;
+    } else if (lower.contains('music.yandex') ||
+        lower.contains('yandex.ru/music')) {
+      _sourceName = 'Яндекс Музыка';
+      _sourceColor = const Color(0xFFFFCC00);
+      _isExternalLink = true;
+    } else if (lower.contains('tidal.com')) {
+      _sourceName = 'Tidal';
+      _sourceColor = const Color(0xFF000000);
+      _isExternalLink = true;
+    } else if (lower.startsWith('http') &&
+        !lower.contains('firebasestorage') &&
+        !lower.contains('firebase')) {
+      _sourceName = null;
+      _isExternalLink = true;
+    }
   }
 
   @override
@@ -4270,17 +4316,17 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 
     // If it's an external streaming link open externally
     final lower = url.toLowerCase();
-    if (lower.contains('spotify.com') ||
-        lower.contains('youtube.com') ||
+    if (lower.contains('spotify') ||
+        lower.contains('youtube') ||
         lower.contains('youtu.be') ||
-        lower.contains('music.youtube.com') ||
         lower.contains('music.apple.com') ||
-        lower.contains('deezer.com') ||
-        lower.contains('soundcloud.com') ||
-        lower.contains('music.yandex.') ||
+        lower.contains('deezer') ||
+        lower.contains('soundcloud') ||
+        lower.contains('music.yandex') ||
         lower.contains('tidal.com') ||
-        lower.contains('vk.com/music') ||
-        lower.contains('vk.com/audio')) {
+        (!lower.contains('firebasestorage') &&
+            !lower.contains('firebase') &&
+            lower.startsWith('http'))) {
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       return;
     }
@@ -4412,49 +4458,50 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                   ],
                 ),
               ),
-              // Play / Pause button
-              GestureDetector(
-                onTap: _loading
-                    ? null
-                    : () {
-                        if (_player == null ||
-                            !_isPlaying && _position == Duration.zero) {
-                          _initAndPlay();
-                        } else if (_isPlaying) {
-                          _player?.pause();
-                        } else {
-                          _player?.play();
-                        }
-                      },
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF8B5CF6),
-                    shape: BoxShape.circle,
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: M3LoadingDots(
+              // Play / Pause button — only for local audio files
+              if (!_isExternalLink)
+                GestureDetector(
+                  onTap: _loading
+                      ? null
+                      : () {
+                          if (_player == null ||
+                              !_isPlaying && _position == Duration.zero) {
+                            _initAndPlay();
+                          } else if (_isPlaying) {
+                            _player?.pause();
+                          } else {
+                            _player?.play();
+                          }
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF8B5CF6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: M3LoadingDots(
+                              color: Colors.white,
+                              dotSize: 5,
+                              gap: 2,
+                            ),
+                          )
+                        : Icon(
+                            _isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
                             color: Colors.white,
-                            dotSize: 5,
-                            gap: 2,
+                            size: 24,
                           ),
-                        )
-                      : Icon(
-                          _isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                  ),
                 ),
-              ),
             ],
           ),
-          // Progress bar
-          if (_duration > Duration.zero) ...[
+          // Progress bar — only for local audio
+          if (!_isExternalLink && _duration > Duration.zero) ...[
             const SizedBox(height: 12),
             SliderTheme(
               data: SliderThemeData(
@@ -4500,24 +4547,39 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
               style: TextStyle(fontSize: 12, color: Colors.red.shade400),
             ),
           ],
-          // Open in external service if musicUrl is a link
-          if (memory.musicUrl != null &&
-              memory.musicUrl!.startsWith('http')) ...[
-            const SizedBox(height: 10),
+          // Branded link button for external streaming services
+          if (_isExternalLink && memory.musicUrl != null) ...[
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: ElevatedButton.icon(
                 onPressed: () {
                   launchUrl(
                     Uri.parse(memory.musicUrl!),
                     mode: LaunchMode.externalApplication,
                   );
                 },
-                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                label: const Text('Open link'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF8B5CF6),
-                  side: const BorderSide(color: Color(0xFF8B5CF6)),
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'Open in ${_sourceName ?? 'Streaming App'}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _sourceColor ?? const Color(0xFF8B5CF6),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
                 ),
               ),
             ),
@@ -4610,15 +4672,19 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
       _sourceName = 'Apple Music';
       _sourceColor = const Color(0xFFFC3C44);
       _isExternalLink = true;
-    } else if (lower.contains('deezer.com')) {
+    } else if (lower.contains('deezer')) {
+      // covers deezer.com, deezer.page.link, link.deezer.com
       _sourceName = 'Deezer';
       _sourceColor = const Color(0xFFA238FF);
       _isExternalLink = true;
-    } else if (lower.contains('soundcloud.com')) {
+    } else if (lower.contains('soundcloud')) {
+      // covers soundcloud.com, on.soundcloud.com, soundcloud.app.goo.gl
       _sourceName = 'SoundCloud';
       _sourceColor = const Color(0xFFFF5500);
       _isExternalLink = true;
-    } else if (lower.contains('music.yandex.')) {
+    } else if (lower.contains('music.yandex.') ||
+        lower.contains('yandex.ru/music') ||
+        lower.contains('music.yandex')) {
       _sourceName = 'Яндекс Музыка';
       _sourceColor = const Color(0xFFFFCC00);
       _isExternalLink = true;
@@ -4626,10 +4692,11 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
       _sourceName = 'Tidal';
       _sourceColor = const Color(0xFF000000);
       _isExternalLink = true;
-    } else if (lower.contains('vk.com/music') ||
-        lower.contains('vk.com/audio')) {
-      _sourceName = 'VK Music';
-      _sourceColor = const Color(0xFF0077FF);
+    } else if (lower.startsWith('http') &&
+        !lower.contains('firebasestorage') &&
+        !lower.contains('firebase')) {
+      // Any other http link that's not firebase storage
+      _sourceName = null;
       _isExternalLink = true;
     }
   }
@@ -4992,8 +5059,8 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                           ],
                         ),
                       ),
-                      // Play / Pause button
-                      if (hasUrl)
+                      // Play / Pause button — only for local audio files
+                      if (hasUrl && !_isExternalLink)
                         GestureDetector(
                           onTap: _togglePlayback,
                           child: Container(
@@ -5013,9 +5080,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                                     ),
                                   )
                                 : SvgPicture.asset(
-                                    _isExternalLink
-                                        ? 'assets/icons/ic_link.svg'
-                                        : _isPlaying
+                                    _isPlaying
                                         ? 'assets/icons/ic_stop.svg'
                                         : 'assets/icons/ic_play.svg',
                                     width: 20,
@@ -5030,7 +5095,40 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                     ],
                   ),
 
-                  // ── Progress slider + time labels (hidden for external links) ──
+                  // ── Branded link button for external streaming services ──
+                  if (_isExternalLink && hasUrl) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _togglePlayback,
+                        icon: const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                        label: Text(
+                          'Open in ${_sourceName ?? 'Streaming App'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _sourceColor ?? primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  // ── Progress slider + time labels (only for local audio) ──
                   if (!_isExternalLink) ...[
                     const SizedBox(height: 6),
                     SizedBox(
