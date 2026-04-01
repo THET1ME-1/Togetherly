@@ -945,11 +945,8 @@ class _HomeScreenState extends State<HomeScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
         reverseTransitionDuration: const Duration(milliseconds: 350),
-        pageBuilder: (_, __, ___) => MemoryLaneScreen(
-          pairData: _pairData,
-          theme: _t,
-          filterMode: mode,
-        ),
+        pageBuilder: (_, __, ___) =>
+            MemoryLaneScreen(pairData: _pairData, theme: _t, filterMode: mode),
         transitionsBuilder: (_, anim, __, child) {
           final curved = CurvedAnimation(
             parent: anim,
@@ -2029,12 +2026,33 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                 },
-                child: Text(
-                  LocaleService.current.viewAll,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: primary,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        LocaleService.current.viewAll,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: primary,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: primary,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -2089,43 +2107,224 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 for (int i = 0; i < _recentMemories.length && i < 3; i++)
-                  tileBuilder.buildTile(
-                    _recentMemories[i],
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              MemoryLaneScreen(pairData: _pairData, theme: _t),
-                        ),
-                      );
-                    },
-                    onOpenGallery: (urls, index) {
-                      Navigator.of(context).push(
-                        PageRouteBuilder(
-                          opaque: false,
-                          barrierColor: Colors.black,
-                          pageBuilder: (_, __, ___) => FullscreenGallery(
-                            urls: urls,
-                            initialIndex: index,
-                          ),
-                        ),
-                      );
-                    },
-                    onOpenLocation: _openLocationInMaps,
-                    distanceText:
-                        _recentMemories[i].latitude != null &&
-                            _recentMemories[i].longitude != null
-                        ? _distanceKm(
-                            _recentMemories[i].latitude!,
-                            _recentMemories[i].longitude!,
-                          )
-                        : null,
-                  ),
+                  _buildHomePreviewTile(tileBuilder, _recentMemories[i]),
               ],
             ),
           ),
       ],
+    );
+  }
+
+  // ─── Builds a single memory tile in the home preview ───────────────────────
+  // Music → full inline player; text → note detail sheet; others → open Memory Lane
+  Widget _buildHomePreviewTile(MemoryTileBuilder tileBuilder, Memory memory) {
+    final distanceText = memory.latitude != null && memory.longitude != null
+        ? _distanceKm(memory.latitude!, memory.longitude!)
+        : null;
+
+    if (memory.type == MemoryType.music) {
+      return tileBuilder.buildTile(
+        memory,
+        musicPlayerWidget: MemoryMusicPlayer(memory: memory, theme: _t),
+      );
+    }
+
+    if (memory.type == MemoryType.text) {
+      return tileBuilder.buildTile(
+        memory,
+        onTap: () => _showHomeNoteDetail(memory),
+        onOpenLocation: _openLocationInMaps,
+        distanceText: distanceText,
+      );
+    }
+
+    return tileBuilder.buildTile(
+      memory,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t),
+          ),
+        );
+      },
+      onOpenGallery: (urls, index) {
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            opaque: false,
+            barrierColor: Colors.black,
+            pageBuilder: (_, __, ___) =>
+                FullscreenGallery(urls: urls, initialIndex: index),
+          ),
+        );
+      },
+      onOpenLocation: _openLocationInMaps,
+      distanceText: distanceText,
+    );
+  }
+
+  // ─── Note detail bottom sheet ───────────────────────────────────────────────
+  void _showHomeNoteDetail(Memory memory) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (_) {
+        final hasLocation =
+            memory.locationName != null && memory.locationName!.isNotEmpty;
+        final hasCoords = memory.latitude != null && memory.longitude != null;
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.55,
+          maxChildSize: 0.9,
+          builder: (_, sc) => SingleChildScrollView(
+            controller: sc,
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.sticky_note_2_rounded,
+                        color: primary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            memory.authorName,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade900,
+                            ),
+                          ),
+                          Text(
+                            LocaleService.current.sharedAThought,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (memory.title?.isNotEmpty == true) ...[
+                  Text(
+                    memory.title!,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (memory.caption?.isNotEmpty == true)
+                  Text(
+                    memory.caption!,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade700,
+                      height: 1.6,
+                    ),
+                  ),
+                if (hasLocation || hasCoords) ...[
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: hasCoords
+                        ? () {
+                            Navigator.pop(context);
+                            _openLocationInMaps(
+                              memory.latitude!,
+                              memory.longitude!,
+                              memory.locationName,
+                            );
+                          }
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: primary.withOpacity(0.15),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            color: primary,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              memory.locationName ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (hasCoords)
+                            Text(
+                              LocaleService.current.setARoute,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

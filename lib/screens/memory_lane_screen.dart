@@ -112,8 +112,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final now = DateTime.now();
     switch (widget.filterMode) {
       case MemoryFilterMode.day:
-        return pinned.where((m) =>
-          m.createdAt.month == now.month && m.createdAt.day == now.day).toList();
+        return pinned
+            .where(
+              (m) =>
+                  m.createdAt.month == now.month && m.createdAt.day == now.day,
+            )
+            .toList();
       case MemoryFilterMode.month:
         return pinned.where((m) => m.createdAt.month == now.month).toList();
       case MemoryFilterMode.none:
@@ -172,13 +176,40 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   String _fmtToday() {
     final n = DateTime.now();
-    const m = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const m = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${m[n.month]} ${n.day}';
   }
 
   String _fmtMonth() {
-    const m = ['','January','February','March','April','May','June',
-               'July','August','September','October','November','December'];
+    const m = [
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
     return m[DateTime.now().month];
   }
 
@@ -995,7 +1026,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return _baseTile(
       memory: memory,
       enableTap: false,
-      child: _MusicMiniPlayer(
+      child: MemoryMusicPlayer(
         memory: memory,
         theme: widget.theme,
         onHeaderTap: () => _showMemoryDetail(memory),
@@ -3705,22 +3736,23 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 //  Music Mini Player — feed card with real playback
 // ══════════════════════════════════════════════════════
 
-class _MusicMiniPlayer extends StatefulWidget {
+class MemoryMusicPlayer extends StatefulWidget {
   final Memory memory;
   final AppTheme theme;
   final VoidCallback? onHeaderTap;
 
-  const _MusicMiniPlayer({
+  const MemoryMusicPlayer({
+    super.key,
     required this.memory,
     required this.theme,
     this.onHeaderTap,
   });
 
   @override
-  State<_MusicMiniPlayer> createState() => _MusicMiniPlayerState();
+  State<MemoryMusicPlayer> createState() => _MemoryMusicPlayerState();
 }
 
-class _MusicMiniPlayerState extends State<_MusicMiniPlayer> {
+class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
   AudioPlayer? _player;
   bool _isPlaying = false;
   Duration _position = Duration.zero;
