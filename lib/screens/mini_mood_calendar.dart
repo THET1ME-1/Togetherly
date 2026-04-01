@@ -46,7 +46,6 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   bool _showBackToToday = false;
   double _todayScrollOffset = _kCenter * _kItemStride;
   int _lastDaysScrolled = 0;
-  int _lastDayIndex = 0;
 
   @override
   void initState() {

@@ -5039,468 +5039,733 @@ class _MemoryDetailSheet extends StatefulWidget {
   State<_MemoryDetailSheet> createState() => _MemoryDetailSheetState();
 }
 
-class _MemoryDetailSheetState extends State<_MemoryDetailSheet> {
+class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
+    with SingleTickerProviderStateMixin {
   AudioPlayer? _audioPlayer;
+  late final AnimationController _animCtrl;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.06),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
+    _animCtrl.forward();
+  }
 
   @override
   void dispose() {
+    _animCtrl.dispose();
     _audioPlayer?.dispose();
     super.dispose();
+  }
+
+  List<Color> get _bannerGradient {
+    final p = widget.primary;
+    return [p, Color.lerp(p, Colors.white, 0.30)!];
   }
 
   @override
   Widget build(BuildContext context) {
     final memory = widget.memory;
+    final p = widget.primary;
+    final isLarge =
+        memory.type == MemoryType.photo || memory.type == MemoryType.video;
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize:
-          memory.type == MemoryType.photo || memory.type == MemoryType.video
-          ? 0.85
-          : 0.7,
+      initialChildSize: isLarge ? 0.88 : 0.75,
       maxChildSize: 0.95,
-      builder: (_, sc) => SingleChildScrollView(
-        controller: sc,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: widget.typeColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    _svgAssetForType(memory.type),
-                    width: 14,
-                    height: 14,
-                    colorFilter: ColorFilter.mode(
-                      widget.typeColor,
-                      BlendMode.srcIn,
+      builder: (_, sc) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: Container(
+          color: Colors.white,
+          child: Column(
+            children: [
+              _buildHeader(memory, p),
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: SingleChildScrollView(
+                      controller: sc,
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildMedia(memory, p),
+                          _buildCaption(memory),
+                          const SizedBox(height: 20),
+                          _buildActions(memory, p),
+                          const SizedBox(height: 24),
+                          RepaintBoundary(
+                            child: _CommentsSection(
+                              groupId: widget.groupId,
+                              memoryId: widget.memory.id,
+                              fb: widget.fb,
+                              primary: p,
+                            ),
+                          ),
+                          const _KeyboardPaddingBox(),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    memory.typeLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: widget.typeColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (memory.type == MemoryType.photo)
-              Builder(
-                builder: (_) {
-                  final allPhotos = <String>[
-                    if (memory.imageUrls?.isNotEmpty == true)
-                      ...memory.imageUrls!
-                    else if (memory.imageUrl?.isNotEmpty == true)
-                      memory.imageUrl!,
-                  ];
-                  if (allPhotos.isEmpty) return _noImgBox(200);
-                  void openGallery(int i) {
-                    Navigator.of(context).push(
-                      PageRouteBuilder(
-                        opaque: false,
-                        barrierColor: Colors.black,
-                        pageBuilder: (_, __, ___) =>
-                            FullscreenGallery(urls: allPhotos, initialIndex: i),
-                      ),
-                    );
-                  }
-
-                  if (allPhotos.length == 1) {
-                    return GestureDetector(
-                      onTap: () => openGallery(0),
-                      child: RepaintBoundary(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: AspectRatio(
-                            aspectRatio: 1.0,
-                            child: CachedNetworkImage(
-                              imageUrl: allPhotos.first,
-                              width: double.infinity,
-                              height: double.infinity,
-                              fit: BoxFit.cover,
-                              errorWidget: (context, url, error) =>
-                                  _noImgBox(200),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  // Multiple photos: swipeable PageView + thumbnail strip
-                  return Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: PageView.builder(
-                            itemCount: allPhotos.length,
-                            itemBuilder: (_, i) => GestureDetector(
-                              onTap: () => openGallery(i),
-                              child: CachedNetworkImage(
-                                imageUrl: allPhotos[i],
-                                width: double.infinity,
-                                height: double.infinity,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => _noImgBox(200),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 60,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: allPhotos.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 6),
-                          itemBuilder: (_, i) => GestureDetector(
-                            onTap: () => openGallery(i),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CachedNetworkImage(
-                                imageUrl: allPhotos[i],
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 120,
-                                memCacheHeight: 120,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            if (memory.type == MemoryType.video)
-              RepaintBoundary(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    children: [
-                      if (memory.imageUrl?.isNotEmpty == true)
-                        CachedNetworkImage(
-                          imageUrl: memory.imageUrl!,
-                          width: double.infinity,
-                          height: 220,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            height: 220,
-                            color: Colors.grey.shade900,
-                          ),
-                        )
-                      else
-                        Container(height: 220, color: Colors.grey.shade900),
-                      Container(
-                        height: 220,
-                        color: Colors.black.withOpacity(0.4),
-                      ),
-                      SizedBox(
-                        height: 220,
-                        width: double.infinity,
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              final url = memory.videoUrl;
-                              if (url != null && url.isNotEmpty) {
-                                launchUrl(
-                                  Uri.parse(url),
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(18),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 40,
-                                color: Color(0xFFEC4899),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (memory.type == MemoryType.location)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: widget.primary.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: widget.primary.withOpacity(0.15)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: widget.primary.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.location_on_rounded,
-                            color: widget.primary,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                memory.locationName ?? 'Unknown location',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade900,
-                                ),
-                              ),
-                              if (memory.latitude != null)
-                                Text(
-                                  '${memory.latitude!.toStringAsFixed(5)}, '
-                                  '${memory.longitude?.toStringAsFixed(5) ?? ""}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (memory.latitude != null &&
-                        memory.longitude != null) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            final url =
-                                'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
-                            launchUrl(
-                              Uri.parse(url),
-                              mode: LaunchMode.externalApplication,
-                            );
-                          },
-                          icon: const Icon(Icons.map_rounded, size: 18),
-                          label: const Text('Open in Google Maps'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: widget.primary,
-                            side: BorderSide(color: widget.primary),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            if (memory.type == MemoryType.music)
-              _MusicPlayerWidget(
-                memory: memory,
-                player: _audioPlayer,
-                onPlayerCreated: (p) => setState(() => _audioPlayer = p),
-                primary: widget.primary,
-                typeColor: widget.typeColor,
-              ),
-            if (memory.type == MemoryType.text)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: widget.primary.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: widget.primary.withOpacity(0.15)),
-                ),
-                child: Text(
-                  memory.caption ?? '',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade800,
-                    height: 1.6,
-                  ),
-                ),
-              ),
-            if (memory.type != MemoryType.text &&
-                memory.caption != null &&
-                memory.caption!.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                memory.caption!,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade800,
-                  height: 1.5,
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                if (memory.authorAvatar.isNotEmpty)
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundImage: NetworkImage(memory.authorAvatar),
-                  ),
-                if (memory.authorAvatar.isNotEmpty) const SizedBox(width: 8),
-                Text(
-                  memory.authorName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _fmtDate(memory.createdAt),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                ),
-              ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── HEADER ───────────────────────────────────────────────────────────────────
+  Widget _buildHeader(Memory memory, Color p) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _bannerGradient,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            const SizedBox(height: 24),
-            Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          widget.onTogglePin();
-                        },
-                        icon: Icon(
-                          memory.isPinned
-                              ? Icons.push_pin_rounded
-                              : Icons.push_pin_outlined,
-                          size: 16,
-                        ),
-                        label: Text(memory.isPinned ? 'Unpin' : 'Pin'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: widget.primary,
-                          side: BorderSide(
-                            color: widget.primary.withOpacity(0.3),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.7),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 8,
                     ),
-                    if (widget.canDownload) ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            widget.onDownload();
-                          },
-                          icon: const Icon(Icons.download_rounded, size: 16),
-                          label: const Text('Save'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue.shade600,
-                            side: BorderSide(color: Colors.blue.shade200),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                  ],
+                ),
+                child: ClipOval(
+                  child: memory.authorAvatar.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: memory.authorAvatar,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 88,
+                          memCacheHeight: 88,
+                        )
+                      : Container(
+                          color: Colors.white.withOpacity(0.3),
+                          child: Center(
+                            child: Text(
+                              memory.authorName.isNotEmpty
+                                  ? memory.authorName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      memory.authorName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _fmtDate(memory.createdAt),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.white.withOpacity(0.8),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      _svgAssetForType(memory.type),
+                      width: 12,
+                      height: 12,
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      memory.typeLabel,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (memory.isPinned) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.22),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.35),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.push_pin_rounded,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (memory.title?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Text(
+              memory.title!,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── MEDIA ────────────────────────────────────────────────────────────────────
+  Widget _buildMedia(Memory memory, Color p) {
+    switch (memory.type) {
+      case MemoryType.photo:
+        return _buildPhotoMedia(memory);
+      case MemoryType.video:
+        return _buildVideoMedia(memory, p);
+      case MemoryType.location:
+        return _buildLocationMedia(memory, p);
+      case MemoryType.music:
+        return _MusicPlayerWidget(
+          memory: memory,
+          player: _audioPlayer,
+          onPlayerCreated: (pl) => setState(() => _audioPlayer = pl),
+          primary: p,
+          typeColor: widget.typeColor,
+        );
+      case MemoryType.text:
+        return _buildTextMedia(memory, p);
+    }
+  }
+
+  Widget _buildPhotoMedia(Memory memory) {
+    final allPhotos = <String>[
+      if (memory.imageUrls?.isNotEmpty == true)
+        ...memory.imageUrls!
+      else if (memory.imageUrl?.isNotEmpty == true)
+        memory.imageUrl!,
+    ];
+    if (allPhotos.isEmpty) return _noImgBox(200);
+    void openGallery(int i) {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: false,
+          barrierColor: Colors.black,
+          pageBuilder: (_, __, ___) =>
+              FullscreenGallery(urls: allPhotos, initialIndex: i),
+        ),
+      );
+    }
+
+    if (allPhotos.length == 1) {
+      return GestureDetector(
+        onTap: () => openGallery(0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: AspectRatio(
+            aspectRatio: 1.0,
+            child: CachedNetworkImage(
+              imageUrl: allPhotos.first,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => _noImgBox(200),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: AspectRatio(
+            aspectRatio: 1.0,
+            child: PageView.builder(
+              itemCount: allPhotos.length,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => openGallery(i),
+                child: CachedNetworkImage(
+                  imageUrl: allPhotos[i],
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => _noImgBox(200),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 60,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: allPhotos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (_, i) => GestureDetector(
+              onTap: () => openGallery(i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CachedNetworkImage(
+                  imageUrl: allPhotos[i],
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 120,
+                  memCacheHeight: 120,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoMedia(Memory memory, Color p) {
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Stack(
+        children: [
+          if (hasThumb)
+            CachedNetworkImage(
+              imageUrl: memory.imageUrl!,
+              width: double.infinity,
+              height: 220,
+              fit: BoxFit.cover,
+            )
+          else
+            Container(height: 220, color: Colors.grey.shade900),
+          Container(
+            height: 220,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.1),
+                  Colors.black.withOpacity(0.45),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 220,
+            width: double.infinity,
+            child: Center(
+              child: GestureDetector(
+                onTap: () {
+                  final url = memory.videoUrl;
+                  if (url != null && url.isNotEmpty) {
+                    launchUrl(
+                      Uri.parse(url),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.92),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Icon(Icons.play_arrow_rounded, size: 42, color: p),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.videocam_rounded, size: 12, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    'VIDEO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationMedia(Memory memory, Color p) {
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.withOpacity(0.07), p.withOpacity(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.withOpacity(0.18), width: 1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [p, p.withOpacity(0.75)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: p.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      memory.locationName ?? 'Unknown location',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    if (memory.latitude != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        '${memory.latitude!.toStringAsFixed(5)}, '
+                        '${memory.longitude?.toStringAsFixed(5) ?? ""}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
                         ),
                       ),
                     ],
                   ],
                 ),
-                if (widget.isOwner) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            widget.onEdit();
-                          },
-                          icon: const Icon(Icons.edit_rounded, size: 16),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade700,
-                            side: BorderSide(color: Colors.grey.shade300),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            widget.onDelete();
-                          },
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 16,
-                          ),
-                          label: const Text('Delete'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red.shade400,
-                            side: BorderSide(color: Colors.red.shade200),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+              ),
+            ],
+          ),
+          if (hasCoords) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final url =
+                      'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
+                  launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  );
+                },
+                icon: const Icon(Icons.map_rounded, size: 18),
+                label: const Text('Open in Google Maps'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 24),
-            RepaintBoundary(
-              child: _CommentsSection(
-                groupId: widget.groupId,
-                memoryId: widget.memory.id,
-                fb: widget.fb,
-                primary: widget.primary,
+                ),
               ),
             ),
-            const _KeyboardPaddingBox(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextMedia(Memory memory, Color p) {
+    final text = memory.caption ?? '';
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.withOpacity(0.07), p.withOpacity(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.withOpacity(0.15), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: p.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.format_quote_rounded, color: p, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'NOTE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: p,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade800,
+              height: 1.65,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── CAPTION ──────────────────────────────────────────────────────────────────
+  Widget _buildCaption(Memory memory) {
+    if (memory.type == MemoryType.text) return const SizedBox.shrink();
+    final caption = memory.caption;
+    if (caption == null || caption.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Text(
+        caption,
+        style: TextStyle(
+          fontSize: 15.5,
+          color: Colors.grey.shade800,
+          height: 1.55,
+        ),
+      ),
+    );
+  }
+
+  // ── ACTIONS ───────────────────────────────────────────────────────────────────
+  Widget _buildActions(Memory memory, Color p) {
+    return Column(
+      children: [
+        Container(height: 1, color: Colors.grey.shade100),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _actionBtn(
+                icon: memory.isPinned
+                    ? Icons.push_pin_rounded
+                    : Icons.push_pin_outlined,
+                label: memory.isPinned ? 'Unpin' : 'Pin',
+                color: p,
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onTogglePin();
+                },
+              ),
+            ),
+            if (widget.canDownload) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: _actionBtn(
+                  icon: Icons.download_rounded,
+                  label: 'Save',
+                  color: const Color(0xFF3B82F6),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onDownload();
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (widget.isOwner) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _actionBtn(
+                  icon: Icons.edit_rounded,
+                  label: 'Edit',
+                  color: Colors.grey.shade700,
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onEdit();
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _actionBtn(
+                  icon: Icons.delete_outline_rounded,
+                  label: 'Delete',
+                  color: const Color(0xFFEF4444),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onDelete();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _actionBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.22), width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
           ],
         ),
       ),

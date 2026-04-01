@@ -2494,17 +2494,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${(d / 1000).toStringAsFixed(1)}km';
   }
 
-  /// Format time ago from DateTime
-  String _formatTimeAgo(DateTime dt) {
-    final s = LocaleService.current;
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return s.justNow;
-    if (diff.inMinutes < 60) return s.minutesAgo(diff.inMinutes);
-    if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
-    if (diff.inDays < 30) return s.daysAgo(diff.inDays);
-    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
-  }
-
   /// Open location in external maps app (geo: URI triggers app chooser)
   Future<void> _openLocationInMaps(
     double lat,

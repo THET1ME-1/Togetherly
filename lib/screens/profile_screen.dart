@@ -17,7 +17,6 @@ import '../services/export_service.dart';
 import '../services/timer_service.dart';
 import 'package:home_widget/home_widget.dart';
 import '../services/home_widget_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
