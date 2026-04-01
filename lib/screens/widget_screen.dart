@@ -250,46 +250,57 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     final file = File(pickedFile.path);
     final hws = HomeWidgetService.instance;
+    final fb = FirebaseService();
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Публикуем своё фото в widgetData Firestore (партнёр увидит его как «custom»)
-    await _ws.updatePhoto(file.path);
-    await _ws.setPhotoDayMode('custom');
-
-    // Сохраняем путь к моему файлу (для превью в приложении)
-    await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
-    PaintingBinding.instance.imageCache.clear();
-    PaintingBinding.instance.imageCache.clearLiveImages();
-    // Превью в приложении показывает МОЁ фото
-    if (mounted) setState(() => _myOwnPhotoPath = file.path);
-
-    // 2. Если нужно сохранить в воспоминания
-    if (_savePhotoAsMemory) {
-      try {
-        final fb = FirebaseService();
+    // 1. Загружаем фото один раз и публикуем в widgetData
+    //    Используем updatePhotoUrl (без auto-save в Memory Lane), чтобы
+    //    избежать дублирования — запись в Memory Lane управляется только
+    //    флагом _savePhotoAsMemory ниже.
+    String? uploadedUrl;
+    try {
+      if (_savePhotoAsMemory) {
+        // Загружаем в папку memories/, чтобы партнёр мог скачать то же фото
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final destination = 'memories/${_pair.pairId}/photo_day_$timestamp.jpg';
-
-        final url = await fb.uploadFile(file.path, destination);
-        if (url != null) {
+        uploadedUrl = await fb.uploadFile(file.path, destination);
+        if (uploadedUrl != null) {
           await fb.addMemory(
             groupId: _pair.pairId,
             type: MemoryType.photo,
-            imageUrl: url,
+            imageUrl: uploadedUrl,
             caption: LocaleService.instance.isRussian
                 ? 'Установлено как фото дня'
                 : 'Set as Photo of the Day',
           );
-          // Обновляем URL в widgetData, чтобы партнёр мог загрузить это фото
-          await _ws.updatePhotoUrl(url);
           _loadStats();
         }
-      } catch (e) {
-        debugPrint('Failed to save photo day as memory: $e');
+      } else {
+        // Загружаем в папку widget/ без создания записи в Memory Lane
+        final uid = fb.uid ?? '';
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        uploadedUrl = await fb.uploadFile(
+          file.path,
+          'widget/${_pair.pairId}/${uid}_$ts.jpg',
+        );
       }
+    } catch (e) {
+      debugPrint('Failed to upload photo day: $e');
     }
 
-    // 3. Всегда обновляем рабочий стол: показываем фото ПАРТНЁРА (не своё)
+    // 2. Публикуем URL в widgetData (партнёр увидит как «custom»)
+    await _ws.setPhotoDayMode('custom');
+    if (uploadedUrl != null) {
+      await _ws.updatePhotoUrl(uploadedUrl);
+    }
+
+    // 3. Сохраняем путь к локальному файлу (для превью в приложении)
+    await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    if (mounted) setState(() => _myOwnPhotoPath = file.path);
+
+    // 4. Обновляем виджет рабочего стола (показывает фото ПАРТНЁРА)
     await hws.refreshPhotoOfDay(_pair.pairId);
     await _loadPhotoDayPrefs();
   }

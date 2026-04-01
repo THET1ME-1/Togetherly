@@ -230,6 +230,45 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       backgroundColor: widget.theme.bgGradient[0],
       body: Stack(
         children: [
+          // -- Background --
+          Positioned.fill(
+            child: RepaintBoundary(
+              child: widget.theme.bgImageUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: widget.theme.bgImageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      placeholder: (_, __) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: widget.theme.bgGradient,
+                          ),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: widget.theme.bgGradient,
+                          ),
+                        ),
+                      ),
+                    )
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: widget.theme.bgGradient,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
           CustomScrollView(
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),

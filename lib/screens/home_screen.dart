@@ -1250,26 +1250,41 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      LocaleService.instance.isRussian
-                          ? 'рџ“·  РќРѕРІРѕРµ С„РѕС‚Рѕ'
-                          : 'рџ“·  New Photo',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/ic_photo.svg',
+                          width: 22,
+                          height: 22,
+                          colorFilter: ColorFilter.mode(
+                            Colors.grey.shade900,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          LocaleService.instance.isRussian
+                              ? 'Новое фото'
+                              : 'New Photo',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
-                    // Р—Р°РіРѕР»РѕРІРѕРє
+                    // Заголовок
                     TextField(
                       controller: titleController,
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: 60,
                       decoration: InputDecoration(
                         hintText: LocaleService.instance.isRussian
-                            ? 'Р—Р°РіРѕР»РѕРІРѕРєвЂ¦'
-                            : 'TitleвЂ¦',
+                            ? 'Заголовок…'
+                            : 'Title…',
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1288,7 +1303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // РћРїРёСЃР°РЅРёРµ
+                    // Описание
                     TextField(
                       controller: controller,
                       autofocus: false,
@@ -1297,8 +1312,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
                         hintText: LocaleService.instance.isRussian
-                            ? 'РћРїРёСЃР°РЅРёРµ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)вЂ¦'
-                            : 'Description (optional)вЂ¦',
+                            ? 'Описание (необязательно)…'
+                            : 'Description (optional)…',
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1314,13 +1329,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // РћРїС†РёСЏ: СѓСЃС‚Р°РЅРѕРІРёС‚СЊ РєР°Рє С„РѕС‚Рѕ РґРЅСЏ РІРёРґР¶РµС‚Р°
+                    // Опция: установить как фото дня виджета
                     Row(
                       children: [
                         Expanded(
                           child: Text(
                             LocaleService.instance.isRussian
-                                ? 'Р¤РѕС‚Рѕ РґРЅСЏ РЅР° РІРёРґР¶РµС‚Рµ'
+                                ? 'Фото дня на виджете'
                                 : 'Set as widget photo',
                             style: TextStyle(
                               fontSize: 13,
