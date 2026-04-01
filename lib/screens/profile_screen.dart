@@ -1566,31 +1566,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           _divider(),
           _settingsTile(
-            icon: Icons.palette_outlined,
-            label: _s.theme,
-            onTap: () => _showThemePicker(context),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: _accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-          _divider(),
-          _settingsTile(
             icon: Icons.notifications_outlined,
             label: _s.notifications,
             onTap: () {},
@@ -1600,39 +1575,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.lock_outline_rounded,
             label: _s.privacy,
             onTap: () {},
-          ),
-          _divider(),
-          // ── Blob animation toggle ──
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.grey.shade600,
-                  size: 20,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    _s.blobAnimation,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ),
-                Switch.adaptive(
-                  value: widget.userData.blobAnimationEnabled,
-                  activeColor: _accent,
-                  onChanged: (val) {
-                    widget.userData.setBlobAnimationEnabled(val);
-                    setState(() {});
-                  },
-                ),
-              ],
-            ),
           ),
           _divider(),
           _settingsTile(
@@ -2182,53 +2124,294 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showEditProfileDialog(BuildContext context) {
     final nameCtrl = TextEditingController(text: widget.userData.displayName);
-    final emailCtrl = TextEditingController(text: widget.userData.email);
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_s.editProfileTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: _s.name,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Цветная шапка с градиентом ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 20, 16, 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [_accent, _accent.withOpacity(0.75)],
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Аватар с кнопкой смены
+                        GestureDetector(
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            await _changeAvatar();
+                          },
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withOpacity(0.2),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.6),
+                                    width: 2.5,
+                                  ),
+                                ),
+                                child: widget.userData.avatarUrl.isNotEmpty
+                                    ? ClipOval(
+                                        child: CachedNetworkImage(
+                                          imageUrl: widget.userData.avatarUrl,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (_, __, ___) =>
+                                              _buildAvatarFallback(),
+                                        ),
+                                      )
+                                    : _buildAvatarFallback(),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: _accent.withOpacity(0.3),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt_rounded,
+                                    color: _accent,
+                                    size: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Имя + подсказка
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _s.editProfile,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.userData.displayName,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Кнопка закрыть
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Поля формы ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                    child: Column(
+                      children: [
+                        // Имя
+                        TextField(
+                          controller: nameCtrl,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            labelText: _s.name,
+                            labelStyle: TextStyle(color: Colors.grey.shade500),
+                            prefixIcon: Icon(
+                              Icons.person_outline_rounded,
+                              color: _accent,
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: _accent.withOpacity(0.04),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: _accent,
+                                width: 1.8,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Email (только отображение, не редактируется)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.email_outlined,
+                                color: Colors.grey.shade400,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Email',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade400,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      widget.userData.email.isNotEmpty
+                                          ? widget.userData.email
+                                          : '—',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                color: Colors.grey.shade300,
+                                size: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Кнопки ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade600,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              _s.cancel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final newName = nameCtrl.text.trim();
+                              if (newName.isNotEmpty &&
+                                  newName != widget.userData.displayName) {
+                                await _changeName(newName);
+                              }
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shadowColor: _accent.withOpacity(0.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              _s.save,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: emailCtrl,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(_s.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              widget.userData.updateProfile(
-                displayName: nameCtrl.text.trim(),
-                email: emailCtrl.text.trim(),
-              );
-              Navigator.of(ctx).pop();
-            },
-            child: Text(_s.save, style: TextStyle(color: _accent)),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
