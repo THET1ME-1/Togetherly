@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../widgets/common/m3_loading.dart';
 
 class SetupScreen extends StatefulWidget {
   final UserData userData;
@@ -255,8 +255,6 @@ class _SetupScreenState extends State<SetupScreen>
       }
     }
   }
-
-
 
   void _showEmailExistsDialog() {
     showDialog(
@@ -772,9 +770,10 @@ class _SetupScreenState extends State<SetupScreen>
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
+                      child: M3LoadingDots(
                         color: Colors.white,
+                        dotSize: 5,
+                        gap: 3,
                       ),
                     )
                   : Text(

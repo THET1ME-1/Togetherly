@@ -16,6 +16,7 @@ import '../services/canvas_storage_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/m3_loading.dart';
 
 //  Palette
 
@@ -339,8 +340,11 @@ class _DrawScreenState extends State<DrawScreen>
     _bgColorSub = _fb
         .listenToCanvasBgColor(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
-        .listen(_onBgColor, onError: (e) => debugPrint('[Draw] stream error: $e'));
-    
+        .listen(
+          _onBgColor,
+          onError: (e) => debugPrint('[Draw] stream error: $e'),
+        );
+
     // Safety: ensure listeners don't crash the app if rules are restrictive
     _strokesSub?.onError((e) => debugPrint('[Draw] global strokes error: $e'));
 
@@ -933,13 +937,16 @@ class _DrawScreenState extends State<DrawScreen>
     _cancelCurrentGesture();
 
     // 1. Convert local point to canvas coordinates (0..1)
-    final canvasPt = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+    final canvasPt = DrawPoint.fromOffset(
+      _screenToCanvas(localPoint),
+      _canvasSize,
+    );
 
     // 2. Search for a shape that contains this point (from top to bottom)
     DrawStroke? hitShape;
     for (final s in _visibleStrokes.reversed) {
       if (s.shapeType == null || s.points.length < 2) continue;
-      
+
       final first = s.points.first;
       final last = s.points.last;
 
@@ -948,7 +955,10 @@ class _DrawScreenState extends State<DrawScreen>
         final maxX = math.max(first.x, last.x);
         final minY = math.min(first.y, last.y);
         final maxY = math.max(first.y, last.y);
-        if (canvasPt.x >= minX && canvasPt.x <= maxX && canvasPt.y >= minY && canvasPt.y <= maxY) {
+        if (canvasPt.x >= minX &&
+            canvasPt.x <= maxX &&
+            canvasPt.y >= minY &&
+            canvasPt.y <= maxY) {
           hitShape = s;
           break;
         }
@@ -958,7 +968,9 @@ class _DrawScreenState extends State<DrawScreen>
         final dx = last.x - first.x;
         final dy = last.y - first.y;
         final radius = math.sqrt(dx * dx + dy * dy) / 2;
-        final dist = math.sqrt(math.pow(canvasPt.x - cx, 2) + math.pow(canvasPt.y - cy, 2));
+        final dist = math.sqrt(
+          math.pow(canvasPt.x - cx, 2) + math.pow(canvasPt.y - cy, 2),
+        );
         if (dist <= radius) {
           hitShape = s;
           break;
@@ -1455,12 +1467,16 @@ class _DrawScreenState extends State<DrawScreen>
             tooltip: s.redoAction,
           ),
           _saving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 40,
                   height: 40,
                   child: Padding(
-                    padding: EdgeInsets.all(11),
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    padding: const EdgeInsets.all(11),
+                    child: M3LoadingDots(
+                      color: widget.theme.primary,
+                      dotSize: 4,
+                      gap: 2,
+                    ),
                   ),
                 )
               : _topIconBtn(
@@ -1540,7 +1556,11 @@ class _DrawScreenState extends State<DrawScreen>
                 child: ClipRect(
                   child: Transform(
                     transform: Matrix4.identity()
-                      ..setTranslationRaw(_canvasOffset.dx, _canvasOffset.dy, 0.0)
+                      ..setTranslationRaw(
+                        _canvasOffset.dx,
+                        _canvasOffset.dy,
+                        0.0,
+                      )
                       ..scale(_scale, _scale, 1.0)
                       ..rotateZ(_canvasRotation),
                     child: RepaintBoundary(
@@ -2408,7 +2428,6 @@ class _DrawingPainter extends CustomPainter {
         );
       }
     }
-
   }
 
   void _drawShape(

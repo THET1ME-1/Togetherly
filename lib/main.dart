@@ -9,6 +9,7 @@ import 'services/firebase_service.dart';
 import 'services/locale_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
+import 'widgets/common/m3_loading.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -115,7 +116,7 @@ class _LoveAppState extends State<LoveApp> {
         debugShowCheckedModeBanner: false,
         theme: _cachedTheme,
         home: _loading
-            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+            ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
             : ListenableBuilder(
                 listenable: _userData,
                 builder: (context, _) => _buildInitialScreen(),

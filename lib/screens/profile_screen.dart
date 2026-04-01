@@ -10,12 +10,14 @@ import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
 import 'package:home_widget/home_widget.dart';
 import '../services/home_widget_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// Entry for a partner across all connections
 class _PartnerEntry {
   final GroupMember member;
@@ -51,10 +53,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Timer to refresh day counter every hour
   Timer? _dayTimer;
-  
+
   /// Toggle for Relationship Stats
   bool _showStats = false;
-  
+
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
@@ -95,40 +97,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
     currentGroupId ??= widget.pairData.pairId;
-    
+
     if (currentGroupId.isEmpty) return;
     if (_lastLoadedGroupId == currentGroupId) return;
-    
+
     _lastLoadedGroupId = currentGroupId;
     _missYouSub?.cancel();
-    
+
     // Load memories count
     FirebaseFirestore.instance
-      .collection('groups')
-      .doc(currentGroupId)
-      .collection('memories')
-      .count()
-      .get()
-      .then((snap) {
-        if (mounted && _lastLoadedGroupId == currentGroupId) {
-          setState(() => _memoriesCount = snap.count ?? 0);
-        }
-      })
-      .catchError((_) {});
+        .collection('groups')
+        .doc(currentGroupId)
+        .collection('memories')
+        .count()
+        .get()
+        .then((snap) {
+          if (mounted && _lastLoadedGroupId == currentGroupId) {
+            setState(() => _memoriesCount = snap.count ?? 0);
+          }
+        })
+        .catchError((_) {});
 
     // Load drawings count
     FirebaseFirestore.instance
-      .collection('groups')
-      .doc(currentGroupId)
-      .collection('canvases')
-      .count()
-      .get()
-      .then((snap) {
-        if (mounted && _lastLoadedGroupId == currentGroupId) {
-          setState(() => _drawingsCount = snap.count ?? 0);
-        }
-      })
-      .catchError((_) {});
+        .collection('groups')
+        .doc(currentGroupId)
+        .collection('canvases')
+        .count()
+        .get()
+        .then((snap) {
+          if (mounted && _lastLoadedGroupId == currentGroupId) {
+            setState(() => _drawingsCount = snap.count ?? 0);
+          }
+        })
+        .catchError((_) {});
 
     // Listen to Miss You count
     _missYouSub = FirebaseService().listenToMissYouCount(
@@ -496,7 +498,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: _accent),
+                M3LoadingDots(color: _accent),
                 const SizedBox(height: 16),
                 Text(
                   _s.uploading,
@@ -763,15 +765,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.male_rounded, color: currentGender == Gender.male ? _accent : Colors.grey),
-              title: Text(_s.male, style: TextStyle(fontWeight: currentGender == Gender.male ? FontWeight.w700 : FontWeight.normal)),
-              trailing: currentGender == Gender.male ? Icon(Icons.check_circle_rounded, color: _accent) : null,
+              leading: Icon(
+                Icons.male_rounded,
+                color: currentGender == Gender.male ? _accent : Colors.grey,
+              ),
+              title: Text(
+                _s.male,
+                style: TextStyle(
+                  fontWeight: currentGender == Gender.male
+                      ? FontWeight.w700
+                      : FontWeight.normal,
+                ),
+              ),
+              trailing: currentGender == Gender.male
+                  ? Icon(Icons.check_circle_rounded, color: _accent)
+                  : null,
               onTap: () => Navigator.pop(context, Gender.male),
             ),
             ListTile(
-              leading: Icon(Icons.female_rounded, color: currentGender == Gender.female ? _accent : Colors.grey),
-              title: Text(_s.female, style: TextStyle(fontWeight: currentGender == Gender.female ? FontWeight.w700 : FontWeight.normal)),
-              trailing: currentGender == Gender.female ? Icon(Icons.check_circle_rounded, color: _accent) : null,
+              leading: Icon(
+                Icons.female_rounded,
+                color: currentGender == Gender.female ? _accent : Colors.grey,
+              ),
+              title: Text(
+                _s.female,
+                style: TextStyle(
+                  fontWeight: currentGender == Gender.female
+                      ? FontWeight.w700
+                      : FontWeight.normal,
+                ),
+              ),
+              trailing: currentGender == Gender.female
+                  ? Icon(Icons.check_circle_rounded, color: _accent)
+                  : null,
               onTap: () => Navigator.pop(context, Gender.female),
             ),
             const SizedBox(height: 16),
@@ -783,11 +809,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (selectedGender != null && selectedGender != currentGender) {
       if (context.mounted) {
         await widget.userData.updateProfile(gender: selectedGender);
-        
+
         final pgData = await HomeWidget.getWidgetData<String>('partner_gender');
-        final partnerGender = (pgData != null && pgData.isNotEmpty) ? pgData : 'female';
+        final partnerGender = (pgData != null && pgData.isNotEmpty)
+            ? pgData
+            : 'female';
         final sysTimer = widget.timerService.systemTimer;
-        
+
         final uid = widget.userData.uid;
         if (uid.isNotEmpty && widget.pairData.pairId.isNotEmpty) {
           try {
@@ -802,21 +830,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
         }
 
-        
-        await HomeWidget.saveWidgetData<String>('my_gender', selectedGender.name);
-        await HomeWidget.saveWidgetData<String>('partner_gender', partnerGender);
-        
+        await HomeWidget.saveWidgetData<String>(
+          'my_gender',
+          selectedGender.name,
+        );
+        await HomeWidget.saveWidgetData<String>(
+          'partner_gender',
+          partnerGender,
+        );
+
         await HomeWidget.updateWidget(
           name: 'DaysCounterWidgetProvider',
-          qualifiedAndroidName: 'com.example.love_app.DaysCounterWidgetProvider',
+          qualifiedAndroidName:
+              'com.example.love_app.DaysCounterWidgetProvider',
         );
-        
+
         await HomeWidgetService.instance.syncAllBoundWidgets(
           activeGroupId: widget.pairData.pairId,
           activeTimers: widget.timerService.timers,
           activeSysTimer: sysTimer,
           activeStartDate: widget.pairData.startDate,
-          coupleNames: widget.pairData.partnerName.isNotEmpty ? widget.pairData.partnerName : '',
+          coupleNames: widget.pairData.partnerName.isNotEmpty
+              ? widget.pairData.partnerName
+              : '',
           emoji: sysTimer?.emoji ?? widget.pairData.relationshipEmoji,
           myGender: selectedGender.name,
           partnerGender: partnerGender,
@@ -854,7 +890,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 Icon(
-                  _showStats ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  _showStats
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
                   color: Colors.grey.shade400,
                 ),
               ],
@@ -891,26 +929,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1),
                       const SizedBox(height: 8),
                       Row(
-                        children: [
-                          Expanded(
-                            child: _statBox(
-                              title: 'Drawings',
-                              value: _drawingsCount?.toString() ?? '...',
-                              icon: Icons.brush_rounded,
-                              color: const Color(0xFFF39C12),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _statBox(
-                              title: 'Miss Yous',
-                              value: _missYouCount?.toString() ?? '...',
-                              icon: Icons.favorite_rounded,
-                              color: const Color(0xFF9B59B6),
-                            ),
-                          ),
-                        ],
-                      ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.1),
+                            children: [
+                              Expanded(
+                                child: _statBox(
+                                  title: 'Drawings',
+                                  value: _drawingsCount?.toString() ?? '...',
+                                  icon: Icons.brush_rounded,
+                                  color: const Color(0xFFF39C12),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _statBox(
+                                  title: 'Miss Yous',
+                                  value: _missYouCount?.toString() ?? '...',
+                                  icon: Icons.favorite_rounded,
+                                  color: const Color(0xFF9B59B6),
+                                ),
+                              ),
+                            ],
+                          )
+                          .animate()
+                          .fadeIn(duration: 400.ms, delay: 100.ms)
+                          .slideY(begin: 0.1),
                     ],
                   ),
           ),
@@ -1000,13 +1041,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       selectedPartner = found.isNotEmpty ? found.first : null;
     }
-    
+
     // Fallback: active connection first, then any connection
     if (selectedPartner == null && allPartners.isNotEmpty) {
       final activePartner = allPartners.where(
         (p) => p.connection.id == widget.pairData.manager.activeConnection?.id,
       );
-      selectedPartner = activePartner.isNotEmpty ? activePartner.first : allPartners.first;
+      selectedPartner = activePartner.isNotEmpty
+          ? activePartner.first
+          : allPartners.first;
     }
 
     // Relationship type: synced with selected partner's group, or local override
@@ -1023,8 +1066,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // ── Days together — ALWAYS from system clock (DateTime.now) ──
     final startDate = selectedPartner?.connection.startDate;
-    final daysString =
-        _s.daysTogetherLabel('${_calculateDaysTogether(startDate)}');
+    final daysString = _s.daysTogetherLabel(
+      '${_calculateDaysTogether(startDate)}',
+    );
 
     final hasPaired = allPartners.isNotEmpty;
 
@@ -1386,12 +1430,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final uid = entry.member.uid;
                     setState(() => _selectedPartnerUid = uid);
                     widget.pairData.manager.setPreferredPartnerUid(uid);
-                    
-                    final idx = widget.pairData.manager.connections.indexOf(entry.connection);
-                    if (idx != -1 && idx != widget.pairData.manager.activeConnectionIndex) {
+
+                    final idx = widget.pairData.manager.connections.indexOf(
+                      entry.connection,
+                    );
+                    if (idx != -1 &&
+                        idx != widget.pairData.manager.activeConnectionIndex) {
                       widget.pairData.manager.switchToConnection(idx);
                     }
-                    
+
                     Navigator.pop(ctx);
                   },
                   child: Container(
@@ -1425,15 +1472,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: CachedNetworkImage(
                                     imageUrl: entry.member.avatar,
                                     fit: BoxFit.cover,
-                                    errorWidget: (context, url, error) => Center(
-                                      child: Text(
-                                        initial,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: _accent,
+                                    errorWidget: (context, url, error) =>
+                                        Center(
+                                          child: Text(
+                                            initial,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: _accent,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
                                   ),
                                 )
                               : Center(
@@ -1616,7 +1664,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _divider(),
           _settingsTile(
             icon: Icons.archive_outlined,
-            label: LocaleService.instance.language == AppLanguage.ru ? 'Экспорт воспоминаний' : 'Export Memories',
+            label: LocaleService.instance.language == AppLanguage.ru
+                ? 'Экспорт воспоминаний'
+                : 'Export Memories',
             onTap: () => _handleExportConfig(context),
           ),
           _divider(),
@@ -1770,7 +1820,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(LocaleService.instance.language == AppLanguage.ru ? 'Нет активной группы для экспорта' : 'No active group for export'),
+          content: Text(
+            LocaleService.instance.language == AppLanguage.ru
+                ? 'Нет активной группы для экспорта'
+                : 'No active group for export',
+          ),
           backgroundColor: _accent,
         ),
       );
@@ -1793,7 +1847,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: _accent),
+                M3LoadingDots(color: _accent),
                 const SizedBox(height: 16),
                 Text(
                   LocaleService.instance.language == AppLanguage.ru
@@ -1817,7 +1871,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final timerService = TimerService();
       await timerService.init();
-      
+
       final exportService = ExportService();
       await exportService.exportMemories(
         groupId: groupId,
@@ -1833,8 +1887,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pop(context); // close dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-             content: Text(LocaleService.instance.language == AppLanguage.ru ? 'Ошибка при экспорте: \$e' : 'Error during export: \$e'),
-             backgroundColor: Colors.red.shade400,
+            content: Text(
+              LocaleService.instance.language == AppLanguage.ru
+                  ? 'Ошибка при экспорте: \$e'
+                  : 'Error during export: \$e',
+            ),
+            backgroundColor: Colors.red.shade400,
           ),
         );
       }

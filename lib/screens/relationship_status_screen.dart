@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/pair_data.dart';
 import '../models/relationship_status.dart';
+import '../widgets/common/m3_loading.dart';
 
 class RelationshipStatusScreen extends StatefulWidget {
   final PairData pairData;
@@ -58,7 +59,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: M3LoadingDots(color: Color(0xFFFF7E8B)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(

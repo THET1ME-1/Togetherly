@@ -21,6 +21,7 @@ import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/m3_loading.dart';
 import 'map_picker_screen.dart';
 
 /// Returns SVG asset path for a given memory type
@@ -236,9 +237,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             slivers: [
               _buildAppBar(),
               if (_loading)
-                const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
-                )
+                SliverFillRemaining(child: M3PageLoading(color: primary))
               else if (_memories.isEmpty)
                 _buildEmpty()
               else ...[
@@ -2862,8 +2861,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               ? SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                                  child: M3LoadingDots(
+                                    color: primary,
+                                    dotSize: 4,
+                                    gap: 2,
                                   ),
                                 )
                               : const Icon(Icons.my_location_rounded),
@@ -2991,8 +2992,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                child: M3LoadingDots(
+                                  color: Colors.grey,
+                                  dotSize: 4,
+                                  gap: 2,
                                 ),
                               ),
                             )
@@ -3169,10 +3172,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                ),
+                child: M3LoadingDots(color: Colors.white, dotSize: 5, gap: 2),
               ),
               const SizedBox(width: 12),
               const Text('Uploading memory...'),
@@ -3623,9 +3623,10 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+                          child: M3LoadingDots(
                             color: Colors.white,
+                            dotSize: 5,
+                            gap: 2,
                           ),
                         )
                       : Icon(
@@ -4167,9 +4168,10 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                                 ? SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                                    child: M3LoadingDots(
                                       color: primary,
+                                      dotSize: 5,
+                                      gap: 2,
                                     ),
                                   )
                                 : SvgPicture.asset(
@@ -4960,9 +4962,10 @@ class _CommentsSectionState extends State<_CommentsSection> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                        child: M3LoadingDots(
                           color: Colors.white,
+                          dotSize: 4,
+                          gap: 2,
                         ),
                       )
                     : const Icon(
@@ -5152,7 +5155,11 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   imageUrl: widget.urls[i],
                   fit: BoxFit.contain,
                   placeholder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white54),
+                    child: M3LoadingDots(
+                      color: Colors.white54,
+                      dotSize: 6,
+                      gap: 4,
+                    ),
                   ),
                   errorWidget: (_, __, ___) => const Icon(
                     Icons.broken_image_rounded,

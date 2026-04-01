@@ -21,6 +21,7 @@ import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/m3_loading.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
@@ -2970,7 +2971,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: _t.primary),
+                M3LoadingDots(color: _t.primary),
                 const SizedBox(height: 16),
                 Text(_s.uploadingPhoto, style: GoogleFonts.rubik(fontSize: 14)),
               ],

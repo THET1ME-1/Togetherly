@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import '../widgets/common/m3_loading.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final double? initialLatitude;
@@ -211,9 +212,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                   SizedBox(
                                     width: 16,
                                     height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                                    child: M3LoadingDots(
                                       color: Theme.of(context).primaryColor,
+                                      dotSize: 4,
+                                      gap: 2,
                                     ),
                                   ),
                                   const SizedBox(width: 8),

@@ -21,6 +21,7 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/animations.dart';
+import '../widgets/common/m3_loading.dart';
 import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/relationship_type_dialog.dart';
 import 'connect_partner_screen.dart';
@@ -1141,7 +1142,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: primary),
+                M3LoadingDots(color: primary),
                 const SizedBox(height: 16),
                 Text(
                   LocaleService.current.posting,

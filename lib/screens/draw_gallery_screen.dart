@@ -9,6 +9,7 @@ import '../models/user_data.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/m3_loading.dart';
 import 'draw_screen.dart';
 
 /// Gallery of saved drawings.  Shows a 2-column card grid with thumbnail
@@ -292,7 +293,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: M3LoadingDots(color: t.primary))
           : _canvases.isEmpty
           ? _buildEmpty(s, t)
           : _buildGrid(s, t),
