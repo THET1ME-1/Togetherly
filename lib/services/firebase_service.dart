@@ -537,6 +537,14 @@ class FirebaseService {
           if (groupDoc.exists) {
             final groupData = groupDoc.data()!;
             final groupMembers = List<String>.from(groupData['members'] ?? []);
+            // Already in this group together — no need to do anything
+            if (groupMembers.contains(ownerUid) &&
+                groupMembers.contains(u.uid)) {
+              return {
+                'success': false,
+                'message': 'Вы уже подключены к этому пользователю',
+              };
+            }
             if (groupMembers.contains(ownerUid) &&
                 !groupMembers.contains(u.uid)) {
               return _joinExistingGroup(
@@ -567,6 +575,14 @@ class FirebaseService {
               final groupMembers = List<String>.from(
                 groupData['members'] ?? [],
               );
+              // Already in this group together — no need to do anything
+              if (groupMembers.contains(ownerUid) &&
+                  groupMembers.contains(u.uid)) {
+                return {
+                  'success': false,
+                  'message': 'Вы уже подключены к этому пользователю',
+                };
+              }
               if (groupMembers.contains(ownerUid) &&
                   !groupMembers.contains(u.uid)) {
                 return _joinExistingGroup(
@@ -927,7 +943,20 @@ class FirebaseService {
     Map<String, dynamic> data,
   ) {
     final u = currentUser!;
-    final members = List<String>.from(data['members'] ?? []);
+    final rawMembers = List<String>.from(data['members'] ?? []);
+    // Deduplicate in case Firestore data has become inconsistent
+    final members = rawMembers.toSet().toList();
+    // If duplicates found — silently repair the Firestore document
+    if (members.length < rawMembers.length) {
+      debugPrint(
+        '_parseGroupDoc: duplicates detected in $groupId, repairing...',
+      );
+      _db
+          .collection('groups')
+          .doc(groupId)
+          .update({'members': members})
+          .catchError((e) => debugPrint('auto-repair members failed: $e'));
+    }
     final memberNames = Map<String, dynamic>.from(data['memberNames'] ?? {});
     final memberAvatars = Map<String, dynamic>.from(
       data['memberAvatars'] ?? {},
@@ -1168,13 +1197,19 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return null;
 
-    return _db.collection('users').doc(u.uid).snapshots().listen((snap) {
-      if (snap.exists) {
-        onData(snap.data());
-      } else {
-        onData(null);
-      }
-    }, onError: (e) => debugPrint('listenToUserDoc error: $e'));
+    return _db
+        .collection('users')
+        .doc(u.uid)
+        .snapshots(includeMetadataChanges: true)
+        .listen((snap) {
+          // Skip if data is only from local cache and not yet confirmed by server
+          if (snap.metadata.isFromCache) return;
+          if (snap.exists) {
+            onData(snap.data());
+          } else {
+            onData(null);
+          }
+        }, onError: (e) => debugPrint('listenToUserDoc error: $e'));
   }
 
   // ══════════════════════════════════════════════

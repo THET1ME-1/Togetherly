@@ -147,9 +147,7 @@ class _MissYouButtonState extends State<MissYouButton>
 
     return Opacity(
       opacity: widget.enabled ? 1.0 : 0.4,
-      child: SizedBox(
-        height: 44,
-        child: Stack(
+      child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
@@ -190,7 +188,7 @@ class _MissYouButtonState extends State<MissYouButton>
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
-                          vertical: 0,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
                           // Конкурентная заливка: моя (слева, ярче) / партнёра (справа, светлее)
@@ -233,13 +231,6 @@ class _MissYouButtonState extends State<MissYouButton>
                               isOnDarkSide: hasData && ratio > 0.15,
                             ),
                             const SizedBox(width: 7),
-                            // Иконка сердца
-                            Icon(
-                              Icons.favorite_rounded,
-                              color: hasData ? Colors.white : btnColor,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 4),
                             // Текст  
                             Text(
                               s.iMissYou,
