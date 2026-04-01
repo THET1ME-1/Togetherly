@@ -700,22 +700,26 @@ class MemoryTileBuilder {
                         fit: BoxFit.cover,
                         memCacheWidth: 96,
                         memCacheHeight: 96,
-                        errorWidget: (_, __, ___) => SvgPicture.asset(
-                          'assets/icons/ic_music_note.svg',
-                          width: 18,
-                          height: 18,
-                          colorFilter: ColorFilter.mode(
-                            primary,
-                            BlendMode.srcIn,
+                        errorWidget: (_, __, ___) => Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/ic_music_note.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: ColorFilter.mode(
+                              primary,
+                              BlendMode.srcIn,
+                            ),
                           ),
                         ),
                       ),
                     )
-                  : SvgPicture.asset(
-                      'assets/icons/ic_music_note.svg',
-                      width: 18,
-                      height: 18,
-                      colorFilter: ColorFilter.mode(primary, BlendMode.srcIn),
+                  : Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/ic_music_note.svg',
+                        width: 20,
+                        height: 20,
+                        colorFilter: ColorFilter.mode(primary, BlendMode.srcIn),
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
