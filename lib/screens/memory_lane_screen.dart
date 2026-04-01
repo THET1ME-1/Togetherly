@@ -4245,7 +4245,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                           Text(
                             _duration > Duration.zero
                                 ? _fmt(_duration)
-                                : _timeAgo(memory.createdAt),
+                                : '--:--',
                             style: TextStyle(
                               fontSize: 10,
                               color: Colors.grey.shade400,
@@ -4261,17 +4261,6 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
           ),
         ),
 
-        // ── Caption ──
-        if (memory.caption?.isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-            child: Text(
-              memory.caption!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-            ),
-          ),
         const SizedBox(height: 12),
       ],
     );
