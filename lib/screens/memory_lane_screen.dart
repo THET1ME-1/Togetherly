@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,6 +70,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   List<Memory> _memories = [];
   StreamSubscription? _memorySub;
   bool _loading = true;
+
+  // IDs of 18+ video tiles that the user has chosen to reveal
+  final Set<String> _revealedAdultContent = {};
 
   // User location for distance display
   double? _userLat;
@@ -1260,7 +1264,222 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final platformColor = platform['color'] as Color;
     final platformName = platform['name'] as String;
     final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    final isAdult = _isAdultPlatform(platformName);
+    final isRevealed = _revealedAdultContent.contains(memory.id);
 
+    Widget buildSubCard() => Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thumbnail with play overlay
+              GestureDetector(
+                onTap: () {
+                  final url = memory.videoUrl;
+                  if (url != null && url.isNotEmpty) {
+                    launchUrl(
+                      Uri.parse(url),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 80,
+                    height: 56,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Thumbnail or platform-colored fallback
+                        if (hasThumb)
+                          CachedNetworkImage(
+                            imageUrl: memory.imageUrl!,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 160,
+                            memCacheHeight: 112,
+                            errorWidget: (_, __, ___) =>
+                                _videoLinkThumbFallback(platformColor),
+                          )
+                        else
+                          _videoLinkThumbFallback(platformColor),
+                        // Dark overlay
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.35),
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                          ),
+                        ),
+                        // Play button
+                        Center(
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.92),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.20),
+                                  blurRadius: 6,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              size: 18,
+                              color: platformColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Title, author, platform badge
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      memory.title?.isNotEmpty == true
+                          ? memory.title!
+                          : 'Video',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    // Platform badge — music-style chip (no border)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: platformColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _videoPlatformIcon(platformName),
+                            size: 11,
+                            color: platformColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              platformName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: platformColor,
+                                letterSpacing: 0.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Author/channel if in musicArtist field
+                    if (memory.musicArtist?.isNotEmpty == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          memory.musicArtist!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Caption
+          if (memory.caption?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(
+              memory.caption!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 8),
+          // Open button — solid platform color, no border, white text
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                final url = memory.videoUrl;
+                if (url != null && url.isNotEmpty) {
+                  launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  );
+                }
+              },
+              icon: const Icon(
+                Icons.open_in_new_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              label: Text(
+                'Открыть в $platformName',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: platformColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
     return _baseTile(
       memory: memory,
       child: Column(
@@ -1277,231 +1496,64 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // ── Video link sub-card ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Thumbnail with play overlay
-                      GestureDetector(
-                        onTap: () {
-                          final url = memory.videoUrl;
-                          if (url != null && url.isNotEmpty) {
-                            launchUrl(
-                              Uri.parse(url),
-                              mode: LaunchMode.externalApplication,
-                            );
-                          }
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                            width: 80,
-                            height: 56,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                // Thumbnail or platform-colored fallback
-                                if (hasThumb)
-                                  CachedNetworkImage(
-                                    imageUrl: memory.imageUrl!,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 160,
-                                    memCacheHeight: 112,
-                                    errorWidget: (_, __, ___) =>
-                                        _videoLinkThumbFallback(platformColor),
-                                  )
-                                else
-                                  _videoLinkThumbFallback(platformColor),
-                                // Dark overlay
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(0.35),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    ),
-                                  ),
-                                ),
-                                // Play button
-                                Center(
-                                  child: Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.92),
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.20),
-                                          blurRadius: 6,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      Icons.play_arrow_rounded,
-                                      size: 18,
-                                      color: platformColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Title, author, platform badge
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              memory.title?.isNotEmpty == true
-                                  ? memory.title!
-                                  : 'Video',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade900,
-                                height: 1.3,
+            child: isAdult && !isRevealed
+                ? GestureDetector(
+                    onTap: () =>
+                        setState(() => _revealedAdultContent.add(memory.id)),
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        buildSubCard(),
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(
+                                sigmaX: 14,
+                                sigmaY: 14,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 5),
-                            // Platform badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: platformColor.withOpacity(0.10),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: platformColor.withOpacity(0.22),
-                                  width: 1,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _videoPlatformIcon(platformName),
-                                    size: 11,
-                                    color: platformColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      platformName,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: platformColor,
-                                        letterSpacing: 0.2,
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.lock_rounded,
+                                        color: Colors.white,
+                                        size: 22,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        '18+',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'Нажмите, чтобы открыть',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                            // Author/channel if in musicArtist field
-                            if (memory.musicArtist?.isNotEmpty == true)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 3),
-                                child: Text(
-                                  memory.musicArtist!,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Caption
-                  if (memory.caption?.isNotEmpty == true) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      memory.caption!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  // Open button
-                  SizedBox(
-                    width: double.infinity,
-                    child: GestureDetector(
-                      onTap: () {
-                        final url = memory.videoUrl;
-                        if (url != null && url.isNotEmpty) {
-                          launchUrl(
-                            Uri.parse(url),
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        decoration: BoxDecoration(
-                          color: platformColor.withOpacity(0.09),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: platformColor.withOpacity(0.20),
-                            width: 1,
+                            ),
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.open_in_new_rounded,
-                              size: 14,
-                              color: platformColor,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Открыть в $platformName',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: platformColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
+                  )
+                : buildSubCard(),
           ),
           const SizedBox(height: 12),
         ],
@@ -2887,6 +2939,254 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     },
   ];
 
+  static bool _isAdultPlatform(String name) {
+    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
+    return adultPlatforms.contains(name);
+  }
+
+  static const List<Map<String, dynamic>> _supportedVideoServices = [
+    {
+      'name': 'YouTube',
+      'supported': true,
+      'color': Color(0xFFFF0000),
+      'icon': Icons.smart_display_rounded,
+    },
+    {
+      'name': 'Vimeo',
+      'supported': true,
+      'color': Color(0xFF1AB7EA),
+      'icon': Icons.play_circle_rounded,
+    },
+    {
+      'name': 'Dailymotion',
+      'supported': true,
+      'color': Color(0xFF0066DC),
+      'icon': Icons.play_circle_outline_rounded,
+    },
+    {
+      'name': 'Twitch',
+      'supported': true,
+      'color': Color(0xFF9146FF),
+      'icon': Icons.live_tv_rounded,
+    },
+    {
+      'name': 'TikTok',
+      'supported': true,
+      'color': Color(0xFF010101),
+      'icon': Icons.music_video_rounded,
+    },
+    {
+      'name': 'Instagram',
+      'supported': true,
+      'color': Color(0xFFE1306C),
+      'icon': Icons.camera_alt_rounded,
+    },
+    {
+      'name': 'Facebook',
+      'supported': true,
+      'color': Color(0xFF1877F2),
+      'icon': Icons.facebook_rounded,
+    },
+    {
+      'name': 'Twitter / X',
+      'supported': true,
+      'color': Color(0xFF000000),
+      'icon': Icons.alternate_email_rounded,
+    },
+    {
+      'name': 'Rutube',
+      'supported': true,
+      'color': Color(0xFF1482C8),
+      'icon': Icons.play_circle_outline_rounded,
+    },
+    {
+      'name': 'VK Video',
+      'supported': true,
+      'color': Color(0xFF0077FF),
+      'icon': Icons.play_circle_outline_rounded,
+    },
+    // ── 18+ platforms (shown with adult tag) ──
+    {
+      'name': 'PornHub',
+      'supported': true,
+      'color': Color(0xFFFF9000),
+      'icon': Icons.play_circle_rounded,
+      'adult': true,
+    },
+    {
+      'name': 'xVideos',
+      'supported': true,
+      'color': Color(0xFF8B0000),
+      'icon': Icons.play_circle_rounded,
+      'adult': true,
+    },
+    {
+      'name': 'xHamster',
+      'supported': true,
+      'color': Color(0xFFE5673B),
+      'icon': Icons.play_circle_rounded,
+      'adult': true,
+    },
+    {
+      'name': 'RedTube',
+      'supported': true,
+      'color': Color(0xFFD11F1F),
+      'icon': Icons.play_circle_rounded,
+      'adult': true,
+    },
+  ];
+
+  void _showSupportedVideoServicesDialog() {
+    final primary = widget.theme.primary;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 340),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      primary.withOpacity(0.15),
+                      const Color(0xFFFF0000).withOpacity(0.1),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.smart_display_rounded,
+                  color: primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Поддерживаемые платформы',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Вставьте ссылку с любой поддерживаемой платформы',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: _supportedVideoServices.map((svc) {
+                      final isAdult = svc['adult'] == true;
+                      final svcColor = svc['color'] as Color;
+                      final row = Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: svcColor.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: svcColor.withOpacity(0.12),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                svc['icon'] as IconData,
+                                size: 20,
+                                color: svcColor,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  svc['name'] as String,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                              ),
+                              if (isAdult)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    '18+',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 20,
+                                  color: const Color(0xFF22C55E),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                      // 18+ rows: blur until tapped
+                      if (isAdult) {
+                        return _BlurAfterTap(child: row);
+                      }
+                      return row;
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: TextButton.styleFrom(
+                    foregroundColor: primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Понятно',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showSupportedServicesDialog() {
     final primary = widget.theme.primary;
     showDialog(
@@ -3407,6 +3707,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           ),
                         ),
                       ),
+                    if (type == MemoryType.video)
+                      GestureDetector(
+                        onTap: _showSupportedVideoServicesDialog,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primary.withOpacity(0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: primary,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -3782,7 +4098,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             autocorrect: false,
                             onChanged: (_) {},
                             decoration: InputDecoration(
-                              hintText: 'YouTube, Vimeo, PornHub, TikTok...',
+                              hintText: 'YouTube, Vimeo, TikTok, Twitch...',
                               prefixIcon: const Icon(
                                 Icons.play_circle_outline_rounded,
                                 size: 20,
@@ -7454,5 +7770,56 @@ class _KeyboardPaddingBox extends StatelessWidget {
         MediaQuery.paddingOf(context).bottom +
         24;
     return SizedBox(height: bottom);
+  }
+}
+
+// ─── Blur-until-tapped helper ───────────────────────────────────────────────
+class _BlurAfterTap extends StatefulWidget {
+  final Widget child;
+  const _BlurAfterTap({required this.child});
+
+  @override
+  State<_BlurAfterTap> createState() => _BlurAfterTapState();
+}
+
+class _BlurAfterTapState extends State<_BlurAfterTap> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => setState(() => _revealed = !_revealed),
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          widget.child,
+          if (!_revealed)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '18+  •  Нажмите для просмотра',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

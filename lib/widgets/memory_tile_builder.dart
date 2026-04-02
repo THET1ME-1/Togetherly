@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -978,200 +979,192 @@ class MemoryTileBuilder {
     final platformColor = platform['color'] as Color;
     final hasThumb = memory.imageUrl?.isNotEmpty == true;
     final author = memory.musicArtist;
+    final isAdult = _isAdultPlatform(platformName);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top row: thumbnail + text
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Thumbnail with play overlay
-                Container(
-                  width: 80,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: platformColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (hasThumb)
-                          CachedNetworkImage(
-                            imageUrl: memory.imageUrl!,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 160,
-                            memCacheHeight: 112,
-                            errorWidget: (_, __, ___) =>
-                                _thumbFallback(platformColor),
-                          )
-                        else
-                          _thumbFallback(platformColor),
-                        Container(color: Colors.black.withOpacity(0.20)),
-                        Center(
-                          child: Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.90),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.play_arrow_rounded,
-                              size: 16,
-                              color: platformColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+    final card = Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top row: thumbnail + text
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thumbnail with play overlay
+              Container(
+                width: 80,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: platformColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 12),
-                // Title + author + platform badge
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        memory.title?.isNotEmpty == true
-                            ? memory.title!
-                            : platformName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
-                          height: 1.3,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (author?.isNotEmpty == true)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            author!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      if (hasThumb)
+                        CachedNetworkImage(
+                          imageUrl: memory.imageUrl!,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 160,
+                          memCacheHeight: 112,
+                          errorWidget: (_, __, ___) =>
+                              _thumbFallback(platformColor),
+                        )
+                      else
+                        _thumbFallback(platformColor),
+                      Container(color: Colors.black.withOpacity(0.20)),
+                      Center(
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.90),
+                            shape: BoxShape.circle,
                           ),
-                        ),
-                      const SizedBox(height: 6),
-                      // Platform badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: platformColor.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: platformColor.withOpacity(0.20),
-                            width: 0.8,
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            size: 16,
+                            color: platformColor,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _platformIcon(platformName),
-                              size: 10,
-                              color: platformColor,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              platformName,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: platformColor,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            // Caption
-            if (memory.caption?.isNotEmpty == true)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  memory.caption!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    height: 1.35,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 12),
+              // Title + author + platform badge
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      memory.title?.isNotEmpty == true
+                          ? memory.title!
+                          : platformName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (author?.isNotEmpty == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          author!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    // Platform badge — music-style chip (no border)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: platformColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _platformIcon(platformName),
+                            size: 10,
+                            color: platformColor,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            platformName,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: platformColor,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 10),
-            // Open button
-            if (url.isNotEmpty)
-              GestureDetector(
-                onTap: () async {
+            ],
+          ),
+          // Caption
+          if (memory.caption?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                memory.caption!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          const SizedBox(height: 10),
+          // Open button — solid platform color, no border, white text
+          if (url.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
                   final uri = Uri.tryParse(url);
                   if (uri != null) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  decoration: BoxDecoration(
-                    color: platformColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: platformColor.withOpacity(0.18),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.open_in_new_rounded,
-                        size: 13,
-                        color: platformColor,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Открыть в $platformName',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: platformColor,
-                        ),
-                      ),
-                    ],
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  'Открыть в $platformName',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                 ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: platformColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  elevation: 0,
+                ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: isAdult ? _AdultBlurWrapper(child: card) : card,
     );
   }
 
@@ -1233,5 +1226,80 @@ class MemoryTileBuilder {
       default:
         return Icons.play_circle_outline_rounded;
     }
+  }
+
+  static bool _isAdultPlatform(String name) {
+    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
+    return adultPlatforms.contains(name);
+  }
+}
+
+// ─── 18+ Blur Wrapper ───────────────────────────────────────────────────────
+class _AdultBlurWrapper extends StatefulWidget {
+  final Widget child;
+  const _AdultBlurWrapper({required this.child});
+
+  @override
+  State<_AdultBlurWrapper> createState() => _AdultBlurWrapperState();
+}
+
+class _AdultBlurWrapperState extends State<_AdultBlurWrapper> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => setState(() => _revealed = !_revealed),
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          widget.child,
+          if (!_revealed)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '18+',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Нажмите, чтобы открыть',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
