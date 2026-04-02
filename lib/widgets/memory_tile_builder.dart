@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 
@@ -17,6 +18,8 @@ String svgAssetForMemoryType(MemoryType type) {
       return 'assets/icons/ic_music_note.svg';
     case MemoryType.text:
       return 'assets/icons/ic_edit.svg';
+    case MemoryType.videoLink:
+      return 'assets/icons/ic_photo.svg';
   }
 }
 
@@ -87,6 +90,9 @@ class MemoryTileBuilder {
           onOpenLocation: onOpenLocation,
           distanceText: distanceText,
         );
+        break;
+      case MemoryType.videoLink:
+        content = _videoLinkContent(memory);
         break;
     }
 
@@ -170,6 +176,11 @@ class MemoryTileBuilder {
         break;
       case MemoryType.text:
         subtitle = s.sharedAThought;
+        break;
+      case MemoryType.videoLink:
+        subtitle = memory.title?.isNotEmpty == true
+            ? memory.title!
+            : s.sharedAVideoLink;
         break;
     }
 
@@ -955,5 +966,272 @@ class MemoryTileBuilder {
     if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
     if (diff.inDays < 30) return s.daysAgo(diff.inDays);
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  VIDEO LINK CONTENT  (YouTube / Vimeo / etc.)
+  // ═══════════════════════════════════════════════════
+  Widget _videoLinkContent(Memory memory) {
+    final url = memory.videoUrl ?? '';
+    final platform = _detectVideoPlatform(url);
+    final platformName = platform['name'] as String;
+    final platformColor = platform['color'] as Color;
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    final author = memory.musicArtist;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: thumbnail + text
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Thumbnail with play overlay
+                Container(
+                  width: 80,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: platformColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (hasThumb)
+                          CachedNetworkImage(
+                            imageUrl: memory.imageUrl!,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 160,
+                            memCacheHeight: 112,
+                            errorWidget: (_, __, ___) =>
+                                _thumbFallback(platformColor),
+                          )
+                        else
+                          _thumbFallback(platformColor),
+                        Container(color: Colors.black.withOpacity(0.20)),
+                        Center(
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.90),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              size: 16,
+                              color: platformColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Title + author + platform badge
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        memory.title?.isNotEmpty == true
+                            ? memory.title!
+                            : platformName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (author?.isNotEmpty == true)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            author!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      // Platform badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: platformColor.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: platformColor.withOpacity(0.20),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _platformIcon(platformName),
+                              size: 10,
+                              color: platformColor,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              platformName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: platformColor,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Caption
+            if (memory.caption?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  memory.caption!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    height: 1.35,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const SizedBox(height: 10),
+            // Open button
+            if (url.isNotEmpty)
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.tryParse(url);
+                  if (uri != null) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: platformColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: platformColor.withOpacity(0.18),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.open_in_new_rounded,
+                        size: 13,
+                        color: platformColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Открыть в $platformName',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: platformColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbFallback(Color color) {
+    return Container(
+      color: color.withOpacity(0.08),
+      child: Icon(
+        Icons.smart_display_rounded,
+        color: color.withOpacity(0.4),
+        size: 22,
+      ),
+    );
+  }
+
+  static Map<String, dynamic> _detectVideoPlatform(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      return {'name': 'YouTube', 'color': const Color(0xFFFF0000)};
+    } else if (lower.contains('vimeo.com')) {
+      return {'name': 'Vimeo', 'color': const Color(0xFF1AB7EA)};
+    } else if (lower.contains('dailymotion.com')) {
+      return {'name': 'Dailymotion', 'color': const Color(0xFF0066DC)};
+    } else if (lower.contains('pornhub.com')) {
+      return {'name': 'PornHub', 'color': const Color(0xFFFF9000)};
+    } else if (lower.contains('xvideos.com')) {
+      return {'name': 'xVideos', 'color': const Color(0xFF1A1A1A)};
+    } else if (lower.contains('xhamster.com')) {
+      return {'name': 'xHamster', 'color': const Color(0xFFFF7900)};
+    } else if (lower.contains('redtube.com')) {
+      return {'name': 'RedTube', 'color': const Color(0xFFCC0000)};
+    } else if (lower.contains('twitch.tv')) {
+      return {'name': 'Twitch', 'color': const Color(0xFF9146FF)};
+    } else if (lower.contains('tiktok.com')) {
+      return {'name': 'TikTok', 'color': const Color(0xFF010101)};
+    } else if (lower.contains('instagram.com')) {
+      return {'name': 'Instagram', 'color': const Color(0xFFE1306C)};
+    } else if (lower.contains('facebook.com') || lower.contains('fb.watch')) {
+      return {'name': 'Facebook', 'color': const Color(0xFF1877F2)};
+    } else if (lower.contains('twitter.com') || lower.contains('x.com')) {
+      return {'name': 'X', 'color': const Color(0xFF000000)};
+    } else if (lower.contains('rutube.ru')) {
+      return {'name': 'Rutube', 'color': const Color(0xFF1C77FD)};
+    } else if (lower.contains('vk.com')) {
+      return {'name': 'VK', 'color': const Color(0xFF0077FF)};
+    } else {
+      return {'name': 'Video', 'color': const Color(0xFFEC4899)};
+    }
+  }
+
+  static IconData _platformIcon(String platformName) {
+    switch (platformName) {
+      case 'YouTube':
+        return Icons.smart_display_rounded;
+      case 'Twitch':
+        return Icons.videocam_rounded;
+      case 'TikTok':
+      case 'Instagram':
+        return Icons.music_video_rounded;
+      default:
+        return Icons.play_circle_outline_rounded;
+    }
   }
 }

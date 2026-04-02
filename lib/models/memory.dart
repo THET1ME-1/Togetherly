@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Types of memory content
-enum MemoryType { photo, video, location, music, text }
+enum MemoryType { photo, video, location, music, text, videoLink }
 
 /// A single memory entry in the shared Memory Lane
 class Memory {
@@ -67,6 +67,8 @@ class Memory {
         return 'Music';
       case MemoryType.text:
         return 'Note';
+      case MemoryType.videoLink:
+        return 'Video Link';
     }
   }
 
@@ -82,6 +84,8 @@ class Memory {
         return '🎵';
       case MemoryType.text:
         return '📝';
+      case MemoryType.videoLink:
+        return '🎬';
     }
   }
 

@@ -31,6 +31,8 @@ String _svgAssetForType(MemoryType type) {
       return 'assets/icons/ic_photo.svg';
     case MemoryType.video:
       return 'assets/icons/ic_photo.svg';
+    case MemoryType.videoLink:
+      return 'assets/icons/ic_photo.svg';
     case MemoryType.location:
       return 'assets/icons/ic_location.svg';
     case MemoryType.music:
@@ -506,6 +508,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return _photoTile(memory);
       case MemoryType.video:
         return _videoTile(memory);
+      case MemoryType.videoLink:
+        return _videoLinkTile(memory);
       case MemoryType.location:
         return _locationTile(memory);
       case MemoryType.music:
@@ -1245,6 +1249,457 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  VIDEO LINK TILE — card for shared web video link
+  // ═══════════════════════════════════════════════════
+  Widget _videoLinkTile(Memory memory) {
+    final s = LocaleService.current;
+    final platform = _detectVideoPlatform(memory.videoUrl ?? '');
+    final platformColor = platform['color'] as Color;
+    final platformName = platform['name'] as String;
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+
+    return _baseTile(
+      memory: memory,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+            memory,
+            subtitle: memory.title?.isNotEmpty == true
+                ? memory.title!
+                : s.sharedAVideoLink,
+            badgeColor: platformColor,
+          ),
+          const SizedBox(height: 10),
+          // ── Video link sub-card ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Thumbnail with play overlay
+                      GestureDetector(
+                        onTap: () {
+                          final url = memory.videoUrl;
+                          if (url != null && url.isNotEmpty) {
+                            launchUrl(
+                              Uri.parse(url),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          }
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 80,
+                            height: 56,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // Thumbnail or platform-colored fallback
+                                if (hasThumb)
+                                  CachedNetworkImage(
+                                    imageUrl: memory.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 160,
+                                    memCacheHeight: 112,
+                                    errorWidget: (_, __, ___) =>
+                                        _videoLinkThumbFallback(platformColor),
+                                  )
+                                else
+                                  _videoLinkThumbFallback(platformColor),
+                                // Dark overlay
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.35),
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                ),
+                                // Play button
+                                Center(
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.92),
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.20),
+                                          blurRadius: 6,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.play_arrow_rounded,
+                                      size: 18,
+                                      color: platformColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Title, author, platform badge
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              memory.title?.isNotEmpty == true
+                                  ? memory.title!
+                                  : 'Video',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade900,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 5),
+                            // Platform badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: platformColor.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: platformColor.withOpacity(0.22),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _videoPlatformIcon(platformName),
+                                    size: 11,
+                                    color: platformColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      platformName,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: platformColor,
+                                        letterSpacing: 0.2,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Author/channel if in musicArtist field
+                            if (memory.musicArtist?.isNotEmpty == true)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(
+                                  memory.musicArtist!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Caption
+                  if (memory.caption?.isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      memory.caption!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  // Open button
+                  SizedBox(
+                    width: double.infinity,
+                    child: GestureDetector(
+                      onTap: () {
+                        final url = memory.videoUrl;
+                        if (url != null && url.isNotEmpty) {
+                          launchUrl(
+                            Uri.parse(url),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: platformColor.withOpacity(0.09),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: platformColor.withOpacity(0.20),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.open_in_new_rounded,
+                              size: 14,
+                              color: platformColor,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Открыть в $platformName',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: platformColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _videoLinkThumbFallback(Color platformColor) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            platformColor.withOpacity(0.85),
+            platformColor.withOpacity(0.55),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Icon(
+        Icons.play_circle_outline_rounded,
+        color: Colors.white,
+        size: 28,
+      ),
+    );
+  }
+
+  // ── Platform detection for video URLs ──
+  static Map<String, dynamic> _detectVideoPlatform(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      return {'name': 'YouTube', 'color': const Color(0xFFFF0000)};
+    } else if (lower.contains('vimeo.com')) {
+      return {'name': 'Vimeo', 'color': const Color(0xFF1AB7EA)};
+    } else if (lower.contains('dailymotion.com')) {
+      return {'name': 'Dailymotion', 'color': const Color(0xFF0066DC)};
+    } else if (lower.contains('pornhub.com')) {
+      return {'name': 'PornHub', 'color': const Color(0xFFFF9000)};
+    } else if (lower.contains('xvideos.com')) {
+      return {'name': 'xVideos', 'color': const Color(0xFF8B0000)};
+    } else if (lower.contains('xhamster.com')) {
+      return {'name': 'xHamster', 'color': const Color(0xFFE5673B)};
+    } else if (lower.contains('redtube.com')) {
+      return {'name': 'RedTube', 'color': const Color(0xFFD11F1F)};
+    } else if (lower.contains('twitch.tv')) {
+      return {'name': 'Twitch', 'color': const Color(0xFF9146FF)};
+    } else if (lower.contains('tiktok.com')) {
+      return {'name': 'TikTok', 'color': const Color(0xFF010101)};
+    } else if (lower.contains('instagram.com')) {
+      return {'name': 'Instagram', 'color': const Color(0xFFE1306C)};
+    } else if (lower.contains('facebook.com') || lower.contains('fb.watch')) {
+      return {'name': 'Facebook', 'color': const Color(0xFF1877F2)};
+    } else if (lower.contains('twitter.com') || lower.contains('x.com')) {
+      return {'name': 'Twitter/X', 'color': const Color(0xFF000000)};
+    } else if (lower.contains('rutube.ru')) {
+      return {'name': 'Rutube', 'color': const Color(0xFF1482C8)};
+    } else if (lower.contains('vk.com') || lower.contains('vkvideo.ru')) {
+      return {'name': 'VK Video', 'color': const Color(0xFF0077FF)};
+    } else {
+      return {'name': 'Video', 'color': const Color(0xFF6B7280)};
+    }
+  }
+
+  static IconData _videoPlatformIcon(String platformName) {
+    switch (platformName) {
+      case 'YouTube':
+        return Icons.smart_display_rounded;
+      case 'Twitch':
+        return Icons.live_tv_rounded;
+      case 'TikTok':
+        return Icons.music_video_rounded;
+      case 'Instagram':
+        return Icons.camera_alt_rounded;
+      case 'Facebook':
+        return Icons.facebook_rounded;
+      case 'Vimeo':
+      case 'Dailymotion':
+        return Icons.play_circle_rounded;
+      case 'Rutube':
+      case 'VK Video':
+        return Icons.play_circle_outline_rounded;
+      default:
+        return Icons.videocam_rounded;
+    }
+  }
+
+  /// Fetch video metadata (title, channel, thumbnail) from a URL
+  Future<Map<String, String?>> _fetchVideoMeta(String url) async {
+    final lower = url.toLowerCase();
+
+    // ── YouTube ──
+    if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
+      final yt = YoutubeExplode();
+      try {
+        final video = await yt.videos.get(url);
+        return {
+          'title': video.title,
+          'author': video.author,
+          'cover': video.thumbnails.highResUrl,
+        };
+      } catch (e) {
+        debugPrint('YouTube video meta error: $e');
+        return {};
+      } finally {
+        yt.close();
+      }
+    }
+
+    // ── Vimeo via oEmbed ──
+    if (lower.contains('vimeo.com')) {
+      try {
+        final resp = await http.get(
+          Uri.parse(
+            'https://vimeo.com/api/oembed.json?url=${Uri.encodeComponent(url)}',
+          ),
+        );
+        if (resp.statusCode == 200) {
+          final data = json.decode(resp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'author': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      } catch (e) {
+        debugPrint('Vimeo meta error: $e');
+      }
+    }
+
+    // ── Dailymotion via oEmbed ──
+    if (lower.contains('dailymotion.com')) {
+      try {
+        final resp = await http.get(
+          Uri.parse(
+            'https://www.dailymotion.com/services/oembed?url=${Uri.encodeComponent(url)}&format=json',
+          ),
+        );
+        if (resp.statusCode == 200) {
+          final data = json.decode(resp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'author': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      } catch (e) {
+        debugPrint('Dailymotion meta error: $e');
+      }
+    }
+
+    // ── Generic noembed.com fallback ──
+    try {
+      final resp = await http.get(
+        Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(url)}'),
+      );
+      if (resp.statusCode == 200) {
+        final data = json.decode(resp.body) as Map<String, dynamic>;
+        if (data['error'] == null) {
+          return {
+            'title': data['title'] as String?,
+            'author': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      }
+    } catch (_) {}
+
+    // ── OG tags fallback ──
+    try {
+      final resp = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'Mozilla/5.0 (compatible; Twitterbot/1.0)'},
+      );
+      if (resp.statusCode == 200) {
+        final body = resp.body;
+        final titleMatch = RegExp(
+          r'property="og:title"\s+content="([^"]+)"',
+          caseSensitive: false,
+        ).firstMatch(body);
+        final imageMatch = RegExp(
+          r'property="og:image"\s+content="([^"]+)"',
+          caseSensitive: false,
+        ).firstMatch(body);
+        final authorMatch = RegExp(
+          r'name="author"\s+content="([^"]+)"',
+          caseSensitive: false,
+        ).firstMatch(body);
+        if (titleMatch != null) {
+          return {
+            'title': _decodeHtmlEntities(titleMatch.group(1) ?? ''),
+            'author': authorMatch?.group(1),
+            'cover': imageMatch?.group(1),
+          };
+        }
+      }
+    } catch (_) {}
+
+    return {};
   }
 
   // ═══════════════════════════════════════════════════
@@ -2306,6 +2761,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 type: MemoryType.video,
               ),
               _addMemoryOption(
+                icon: Icons.smart_display_rounded,
+                label: 'Video Link',
+                color: const Color(0xFFFF4040),
+                type: MemoryType.videoLink,
+              ),
+              _addMemoryOption(
                 icon: Icons.location_on_rounded,
                 label: 'Location',
                 color: const Color(0xFF22C55E),
@@ -2877,6 +3338,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final musicTitleCtrl = TextEditingController();
     final musicArtistCtrl = TextEditingController();
     final musicUrlCtrl = TextEditingController();
+    final videoLinkCtrl = TextEditingController();
 
     // Local state for file selections
     List<XFile> selectedPhotos = [];
@@ -2887,6 +3349,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     bool isLoadingLocation = false;
     bool isFetchingMeta = false;
     String? fetchedCoverUrl;
+    bool isFetchingVideoMeta = false;
+    String? fetchedVideoThumb;
+    String? fetchedVideoAuthor;
 
     showModalBottomSheet(
       context: context,
@@ -3171,9 +3636,184 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                ] else if (type == MemoryType.videoLink) ...[
+                  // ── Video URL input + auto-fetch ──
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4040).withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFFF4040).withOpacity(0.18),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFF4040,
+                                ).withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.link_rounded,
+                                size: 16,
+                                color: Color(0xFFFF4040),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Ссылка на видео',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: videoLinkCtrl,
+                          keyboardType: TextInputType.url,
+                          autocorrect: false,
+                          onChanged: (_) {},
+                          decoration: InputDecoration(
+                            hintText: 'YouTube, Vimeo, PornHub, TikTok...',
+                            prefixIcon: const Icon(
+                              Icons.play_circle_outline_rounded,
+                              size: 20,
+                            ),
+                            suffixIcon: isFetchingVideoMeta
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.search_rounded),
+                                    tooltip: 'Получить данные',
+                                    onPressed: () async {
+                                      final url = videoLinkCtrl.text.trim();
+                                      if (url.isEmpty) return;
+                                      setState(
+                                        () => isFetchingVideoMeta = true,
+                                      );
+                                      final meta = await _fetchVideoMeta(url);
+                                      setState(() {
+                                        isFetchingVideoMeta = false;
+                                        if (meta['title'] != null &&
+                                            meta['title']!.isNotEmpty) {
+                                          titleCtrl.text = meta['title']!;
+                                        }
+                                        fetchedVideoThumb = meta['cover'];
+                                        fetchedVideoAuthor = meta['author'];
+                                        if (meta['author'] != null) {
+                                          musicArtistCtrl.text =
+                                              meta['author']!;
+                                        }
+                                      });
+                                    },
+                                  ),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Preview thumbnail if fetched
+                        if (fetchedVideoThumb != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: CachedNetworkImage(
+                                  imageUrl: fetchedVideoThumb!,
+                                  width: 72,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 144,
+                                  memCacheHeight: 96,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (titleCtrl.text.isNotEmpty)
+                                      Text(
+                                        titleCtrl.text,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade800,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    if (fetchedVideoAuthor != null)
+                                      Text(
+                                        fetchedVideoAuthor!,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                        maxLines: 1,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 18,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Text(
+                          'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                 ],
-
-                // ─── Section: Memory Details ───
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -3904,6 +4544,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             : null,
                         mediaPath: selectedMedia?.path,
                         musicPath: selectedMusicPath,
+                        // videoLink-specific
+                        videoLinkUrl: type == MemoryType.videoLink
+                            ? videoLinkCtrl.text.trim()
+                            : null,
+                        videoLinkThumb: fetchedVideoThumb,
+                        videoLinkAuthor: musicArtistCtrl.text.trim(),
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -3938,6 +4584,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return 'Photo';
       case MemoryType.video:
         return 'Video';
+      case MemoryType.videoLink:
+        return 'Video Link';
       case MemoryType.location:
         return 'Location';
       case MemoryType.music:
@@ -3961,6 +4609,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     List<String>? mediaPaths, // multiple photos
     String? mediaPath, // single video
     String? musicPath,
+    // videoLink
+    String? videoLinkUrl,
+    String? videoLinkThumb,
+    String? videoLinkAuthor,
   }) async {
     final user = _fb.currentUser;
     if (user == null || _groupId.isEmpty) return;
@@ -4061,6 +4713,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       final finalMusicUrl =
           uploadedMusicUrl ?? (musicUrl.isNotEmpty ? musicUrl : null);
 
+      // For videoLink type — resolve fields
+      final finalVideoUrl = type == MemoryType.videoLink
+          ? (videoLinkUrl?.isNotEmpty == true ? videoLinkUrl : null)
+          : uploadedVideoUrl;
+      final finalImageUrl = type == MemoryType.videoLink
+          ? videoLinkThumb
+          : uploadedImageUrl;
+      final finalMusicArtist = type == MemoryType.videoLink
+          ? (videoLinkAuthor?.isNotEmpty == true ? videoLinkAuthor : null)
+          : (musicArtist.isNotEmpty ? musicArtist : null);
+
       await _fb.addMemory(
         groupId: _groupId,
         type: type,
@@ -4070,12 +4733,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         latitude: latitude,
         longitude: longitude,
         musicTitle: musicTitle.isNotEmpty ? musicTitle : null,
-        musicArtist: musicArtist.isNotEmpty ? musicArtist : null,
+        musicArtist: finalMusicArtist,
         musicUrl: finalMusicUrl,
         musicCoverUrl: musicCoverUrl,
-        imageUrl: uploadedImageUrl,
+        imageUrl: finalImageUrl,
         imageUrls: uploadedImageUrls.isNotEmpty ? uploadedImageUrls : null,
-        videoUrl: uploadedVideoUrl,
+        videoUrl: finalVideoUrl,
       );
 
       if (mounted) {
@@ -5304,7 +5967,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     final memory = widget.memory;
     final p = widget.primary;
     final isLarge =
-        memory.type == MemoryType.photo || memory.type == MemoryType.video;
+        memory.type == MemoryType.photo ||
+        memory.type == MemoryType.video ||
+        memory.type == MemoryType.videoLink;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: isLarge ? 0.88 : 0.75,
@@ -5542,6 +6207,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         );
       case MemoryType.text:
         return _buildTextMedia(memory, p);
+      case MemoryType.videoLink:
+        return _buildVideoLinkMedia(memory, p);
     }
   }
 
@@ -5715,6 +6382,225 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVideoLinkMedia(Memory memory, Color p) {
+    final platform = _MemoryLaneScreenState._detectVideoPlatform(
+      memory.videoUrl ?? '',
+    );
+    final platformColor = platform['color'] as Color;
+    final platformName = platform['name'] as String;
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: platformColor.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: platformColor.withOpacity(0.18), width: 1),
+      ),
+      child: Column(
+        children: [
+          // Thumbnail strip
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasThumb)
+                    CachedNetworkImage(
+                      imageUrl: memory.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) =>
+                          _buildThumbFallback(platformColor, platformName),
+                    )
+                  else
+                    _buildThumbFallback(platformColor, platformName),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.55),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Play button
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        final url = memory.videoUrl;
+                        if (url != null && url.isNotEmpty) {
+                          launchUrl(
+                            Uri.parse(url),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.92),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          size: 42,
+                          color: platformColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Platform badge
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _MemoryLaneScreenState._videoPlatformIcon(
+                              platformName,
+                            ),
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            platformName.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Bottom row: author + open button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Row(
+              children: [
+                if (memory.musicArtist?.isNotEmpty == true)
+                  Expanded(
+                    child: Text(
+                      memory.musicArtist!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                else
+                  const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final url = memory.videoUrl;
+                    if (url != null && url.isNotEmpty) {
+                      launchUrl(
+                        Uri.parse(url),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    'Открыть в $platformName',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: platformColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbFallback(Color platformColor, String platformName) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            platformColor.withOpacity(0.75),
+            platformColor.withOpacity(0.45),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.play_circle_outline_rounded,
+              color: Colors.white.withOpacity(0.9),
+              size: 52,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              platformName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

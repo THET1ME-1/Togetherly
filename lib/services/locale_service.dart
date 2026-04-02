@@ -469,6 +469,7 @@ abstract class AppStrings {
 
   // ── Memory Lane Feed ──
   String get sharedAVideo;
+  String get sharedAVideoLink;
   String get sharedAThought;
   String get sharedALocation;
   String get sharedMusic;
@@ -1298,6 +1299,8 @@ class _RuStrings extends AppStrings {
   // ── Memory Lane Feed ──
   @override
   String get sharedAVideo => 'Поделился видео';
+  @override
+  String get sharedAVideoLink => 'Поделился видео по ссылке';
   @override
   String get sharedAThought => 'Поделился мыслями';
   @override
@@ -2153,4 +2156,6 @@ class _EnStrings extends AppStrings {
   String get playTrack => 'Play';
   @override
   String get note => 'Note';
+  @override
+  String get sharedAVideoLink => 'Shared a video link';
 }
