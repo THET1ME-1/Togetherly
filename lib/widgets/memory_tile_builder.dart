@@ -393,34 +393,41 @@ class MemoryTileBuilder {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // Square thumbnail
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: hasPhotos
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: CachedNetworkImage(
-                              imageUrl: allPhotos.first,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 96,
-                              memCacheHeight: 96,
-                              errorWidget: (_, __, ___) => Icon(
-                                Icons.broken_image_rounded,
-                                color: Colors.grey.shade300,
+                  // Square thumbnail (blurred individually for 18+)
+                  Builder(
+                    builder: (_) {
+                      final thumb = Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: hasPhotos
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: CachedNetworkImage(
+                                  imageUrl: allPhotos.first,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 96,
+                                  memCacheHeight: 96,
+                                  errorWidget: (_, __, ___) => Icon(
+                                    Icons.broken_image_rounded,
+                                    color: Colors.grey.shade300,
+                                    size: 22,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.image_rounded,
+                                color: primary.withOpacity(0.4),
                                 size: 22,
                               ),
-                            ),
-                          )
-                        : Icon(
-                            Icons.image_rounded,
-                            color: primary.withOpacity(0.4),
-                            size: 22,
-                          ),
+                      );
+                      if (memory.isAdult)
+                        return _AdultBlurWrapper(child: thumb);
+                      return thumb;
+                    },
                   ),
                 ],
               ),
@@ -437,11 +444,8 @@ class MemoryTileBuilder {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               itemCount: allPhotos.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: onOpenGallery != null
-                    ? () => onOpenGallery(allPhotos, i)
-                    : null,
-                child: ClipRRect(
+              itemBuilder: (_, i) {
+                final img = ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: CachedNetworkImage(
                     imageUrl: allPhotos[i],
@@ -460,16 +464,19 @@ class MemoryTileBuilder {
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+                return GestureDetector(
+                  onTap: onOpenGallery != null
+                      ? () => onOpenGallery(allPhotos, i)
+                      : null,
+                  child: memory.isAdult ? _AdultBlurWrapper(child: img) : img,
+                );
+              },
             ),
           ),
         ],
       ],
     );
-    if (memory.isAdult) {
-      return _AdultBlurWrapper(child: content);
-    }
     return content;
   }
 
@@ -1250,8 +1257,6 @@ class _AdultBlurWrapper extends StatefulWidget {
 class _AdultBlurWrapperState extends State<_AdultBlurWrapper>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ac;
-  late final Animation<double> _blur;
-  late final Animation<double> _fade;
 
   @override
   void initState() {
@@ -1260,14 +1265,6 @@ class _AdultBlurWrapperState extends State<_AdultBlurWrapper>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _blur = Tween<double>(
-      begin: 14,
-      end: 0,
-    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeInOut));
-    _fade = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeIn));
   }
 
   @override
@@ -1284,58 +1281,38 @@ class _AdultBlurWrapperState extends State<_AdultBlurWrapper>
         clipBehavior: Clip.hardEdge,
         children: [
           widget.child,
-          AnimatedBuilder(
-            animation: _ac,
-            builder: (_, __) {
-              if (_ac.isCompleted) return const SizedBox.shrink();
-              final sigma = _blur.value.clamp(0.1, 14.0);
-              return Positioned.fill(
-                child: ClipRRect(
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _ac,
+              builder: (_, __) {
+                if (_ac.isCompleted) return const SizedBox.shrink();
+                final t = _ac.value;
+                final sigma = (14.0 * (1.0 - t)).clamp(0.1, 14.0);
+                final opacity = (1.0 - t).clamp(0.0, 1.0);
+                return ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: BackdropFilter(
                     filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
                     child: Opacity(
-                      opacity: _fade.value,
+                      opacity: opacity,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.18),
+                          color: Colors.black.withOpacity(0.25),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.lock_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '18+',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Нажмите, чтобы открыть',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
+                          child: Icon(
+                            Icons.lock_rounded,
+                            color: Colors.white,
+                            size: 22,
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ],
       ),

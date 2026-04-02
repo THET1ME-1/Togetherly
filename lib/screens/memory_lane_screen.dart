@@ -757,34 +757,40 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Right: square photo thumbnail (48×48, same size as album art)
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: hasPhotos
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: CachedNetworkImage(
-                                imageUrl: allPhotos.first,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 96,
-                                memCacheHeight: 96,
-                                errorWidget: (_, __, ___) => Icon(
-                                  Icons.broken_image_rounded,
-                                  color: Colors.grey.shade300,
+                    // Right: square photo thumbnail (48×48) – blurred for 18+
+                    Builder(
+                      builder: (_) {
+                        final thumb = Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: hasPhotos
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: CachedNetworkImage(
+                                    imageUrl: allPhotos.first,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 96,
+                                    memCacheHeight: 96,
+                                    errorWidget: (_, __, ___) => Icon(
+                                      Icons.broken_image_rounded,
+                                      color: Colors.grey.shade300,
+                                      size: 22,
+                                    ),
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.image_rounded,
+                                  color: primary.withOpacity(0.4),
                                   size: 22,
                                 ),
-                              ),
-                            )
-                          : Icon(
-                              Icons.image_rounded,
-                              color: primary.withOpacity(0.4),
-                              size: 22,
-                            ),
+                        );
+                        if (memory.isAdult) return _BlurAfterTap(child: thumb);
+                        return thumb;
+                      },
                     ),
                   ],
                 ),
@@ -801,9 +807,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 itemCount: allPhotos.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => _openFullscreenGallery(context, allPhotos, i),
-                  child: ClipRRect(
+                itemBuilder: (_, i) {
+                  final img = ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: CachedNetworkImage(
                       imageUrl: allPhotos[i],
@@ -822,8 +827,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                  return GestureDetector(
+                    onTap: () => _openFullscreenGallery(context, allPhotos, i),
+                    child: memory.isAdult ? _BlurAfterTap(child: img) : img,
+                  );
+                },
               ),
             ),
           ],
@@ -1145,8 +1154,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             padding: EdgeInsets.only(
                               top: memory.title?.isNotEmpty == true ? 3 : 0,
                             ),
-                            child: Text(
-                              memory.caption!,
+                            child: _SpoilerRichText(
+                              text: memory.caption!,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade500,
@@ -6956,8 +6965,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       );
     }
 
+    Widget photoWidget;
     if (allPhotos.length == 1) {
-      return GestureDetector(
+      photoWidget = GestureDetector(
         onTap: () => openGallery(0),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
@@ -6971,52 +6981,57 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           ),
         ),
       );
-    }
-
-    return Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: AspectRatio(
-            aspectRatio: 1.0,
-            child: PageView.builder(
+    } else {
+      photoWidget = Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: AspectRatio(
+              aspectRatio: 1.0,
+              child: PageView.builder(
+                itemCount: allPhotos.length,
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => openGallery(i),
+                  child: CachedNetworkImage(
+                    imageUrl: allPhotos[i],
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _noImgBox(200),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 60,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
               itemCount: allPhotos.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
               itemBuilder: (_, i) => GestureDetector(
                 onTap: () => openGallery(i),
-                child: CachedNetworkImage(
-                  imageUrl: allPhotos[i],
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => _noImgBox(200),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: CachedNetworkImage(
+                    imageUrl: allPhotos[i],
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 120,
+                    memCacheHeight: 120,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 60,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: allPhotos.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
-            itemBuilder: (_, i) => GestureDetector(
-              onTap: () => openGallery(i),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: CachedNetworkImage(
-                  imageUrl: allPhotos[i],
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 120,
-                  memCacheHeight: 120,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+        ],
+      );
+    }
+
+    if (memory.isAdult) {
+      return _BlurAfterTap(child: photoWidget);
+    }
+    return photoWidget;
   }
 
   Widget _buildVideoMedia(Memory memory, Color p) {
@@ -7473,8 +7488,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            text,
+          _SpoilerRichText(
+            text: text,
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey.shade800,
@@ -8106,13 +8121,10 @@ class _BlurAfterTapState extends State<_BlurAfterTap> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Center(
-                      child: Text(
-                        '18+  •  Нажмите для просмотра',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
+                      child: Icon(
+                        Icons.lock_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
                   ),
@@ -8121,6 +8133,88 @@ class _BlurAfterTapState extends State<_BlurAfterTap> {
             ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Spoiler rich text for detail view ───────────────────────────────────────
+
+class _SpoilerRichText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  const _SpoilerRichText({
+    required this.text,
+    required this.style,
+    this.maxLines,
+    this.overflow,
+  });
+  @override
+  State<_SpoilerRichText> createState() => _SpoilerRichTextState();
+}
+
+class _SpoilerRichTextState extends State<_SpoilerRichText> {
+  final Set<int> _revealed = {};
+
+  List<({String text, bool isSpoiler})> _parse() {
+    final result = <({String text, bool isSpoiler})>[];
+    final parts = widget.text.split('||');
+    for (int i = 0; i < parts.length; i++) {
+      if (parts[i].isEmpty) continue;
+      result.add((text: parts[i], isSpoiler: i.isOdd));
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = _parse();
+    if (!segments.any((s) => s.isSpoiler)) {
+      return Text(
+        widget.text,
+        style: widget.style,
+        maxLines: widget.maxLines,
+        overflow: widget.overflow,
+      );
+    }
+    int spoilerIndex = 0;
+    return Text.rich(
+      TextSpan(
+        children: segments.map((seg) {
+          if (!seg.isSpoiler)
+            return TextSpan(text: seg.text, style: widget.style);
+          final idx = spoilerIndex++;
+          final isRevealed = _revealed.contains(idx);
+          return WidgetSpan(
+            alignment: ui.PlaceholderAlignment.middle,
+            child: GestureDetector(
+              onTap: isRevealed
+                  ? null
+                  : () => setState(() => _revealed.add(idx)),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isRevealed ? Colors.transparent : Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  seg.text,
+                  style: widget.style.copyWith(
+                    color: isRevealed
+                        ? widget.style.color
+                        : Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
     );
   }
 }
