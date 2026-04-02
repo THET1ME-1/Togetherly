@@ -239,7 +239,7 @@ class _MissYouButtonState extends State<MissYouButton>
                             count: _partnerCount,
                             color: btnColor,
                             hasData: hasData,
-                            isOnDarkSide: hasData && ratio < 0.85,
+                            isOnDarkSide: hasData && ratio > 0.85,
                           ),
                         ],
                       ),
