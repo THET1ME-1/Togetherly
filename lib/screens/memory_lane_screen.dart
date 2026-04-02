@@ -1065,6 +1065,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       memory: memory,
       enableTap: false,
       child: MemoryMusicPlayer(
+        key: ValueKey(memory.id),
         memory: memory,
         theme: widget.theme,
         onHeaderTap: () => _showMemoryDetail(memory),
@@ -4252,6 +4253,17 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
     _detectSource();
   }
 
+  @override
+  void didUpdateWidget(_MusicPlayerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.memory.musicUrl != widget.memory.musicUrl) {
+      _sourceName = null;
+      _sourceColor = null;
+      _isExternalLink = false;
+      _detectSource();
+    }
+  }
+
   void _detectSource() {
     final url = widget.memory.musicUrl;
     if (url == null || url.isEmpty) return;
@@ -4649,6 +4661,17 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
   void initState() {
     super.initState();
     _detectSource();
+  }
+
+  @override
+  void didUpdateWidget(MemoryMusicPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.memory.musicUrl != widget.memory.musicUrl) {
+      _sourceName = null;
+      _sourceColor = null;
+      _isExternalLink = false;
+      _detectSource();
+    }
   }
 
   void _detectSource() {

@@ -2141,7 +2141,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (memory.type == MemoryType.music) {
       return tileBuilder.buildTile(
         memory,
-        musicPlayerWidget: MemoryMusicPlayer(memory: memory, theme: _t),
+        musicPlayerWidget: MemoryMusicPlayer(
+          key: ValueKey(memory.id),
+          memory: memory,
+          theme: _t,
+        ),
       );
     }
 
