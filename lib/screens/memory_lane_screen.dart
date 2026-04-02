@@ -2761,12 +2761,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 type: MemoryType.video,
               ),
               _addMemoryOption(
-                icon: Icons.smart_display_rounded,
-                label: 'Video Link',
-                color: const Color(0xFFFF4040),
-                type: MemoryType.videoLink,
-              ),
-              _addMemoryOption(
                 icon: Icons.location_on_rounded,
                 label: 'Location',
                 color: const Color(0xFF22C55E),
@@ -3352,6 +3346,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     bool isFetchingVideoMeta = false;
     String? fetchedVideoThumb;
     String? fetchedVideoAuthor;
+    bool useVideoUrl = false;
 
     showModalBottomSheet(
       context: context,
@@ -3561,258 +3556,366 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   const SizedBox(height: 12),
                 ] else if (type == MemoryType.video) ...[
-                  GestureDetector(
-                    onTap: () async {
-                      try {
-                        final picker = ImagePicker();
-                        final picked = await picker.pickVideo(
-                          source: ImageSource.gallery,
-                        );
-                        if (picked != null) {
-                          setState(() => selectedMedia = picked);
-                        }
-                      } catch (e) {
-                        debugPrint('Pick video failed: $e');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Failed to select video: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      height: selectedMedia != null ? 200 : 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.shade200),
-                        image: selectedMedia != null
-                            ? DecorationImage(
-                                image: FileImage(File(selectedMedia!.path)),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: selectedMedia == null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.videocam_rounded,
-                                    size: 28,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Tap to select video',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                  ),
-                                ],
+                  // ── Toggle: Из галереи / По ссылке ──
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            useVideoUrl = false;
+                            selectedMedia = null;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: !useVideoUrl
+                                  ? primary.withOpacity(0.10)
+                                  : Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: !useVideoUrl
+                                    ? primary.withOpacity(0.30)
+                                    : Colors.grey.shade200,
                               ),
-                            )
-                          : Align(
-                              alignment: Alignment.topRight,
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: CircleAvatar(
-                                  backgroundColor: Colors.black54,
-                                  radius: 16,
-                                  child: const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 18,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.video_library_rounded,
+                                  size: 16,
+                                  color: !useVideoUrl
+                                      ? primary
+                                      : Colors.grey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Из галереи',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: !useVideoUrl
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: !useVideoUrl
+                                        ? primary
+                                        : Colors.grey.shade500,
                                   ),
                                 ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ] else if (type == MemoryType.videoLink) ...[
-                  // ── Video URL input + auto-fetch ──
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF4040).withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFFF4040).withOpacity(0.18),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFFF4040,
-                                ).withOpacity(0.10),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.link_rounded,
-                                size: 16,
-                                color: Color(0xFFFF4040),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Ссылка на видео',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade800,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: videoLinkCtrl,
-                          keyboardType: TextInputType.url,
-                          autocorrect: false,
-                          onChanged: (_) {},
-                          decoration: InputDecoration(
-                            hintText: 'YouTube, Vimeo, PornHub, TikTok...',
-                            prefixIcon: const Icon(
-                              Icons.play_circle_outline_rounded,
-                              size: 20,
-                            ),
-                            suffixIcon: isFetchingVideoMeta
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                : IconButton(
-                                    icon: const Icon(Icons.search_rounded),
-                                    tooltip: 'Получить данные',
-                                    onPressed: () async {
-                                      final url = videoLinkCtrl.text.trim();
-                                      if (url.isEmpty) return;
-                                      setState(
-                                        () => isFetchingVideoMeta = true,
-                                      );
-                                      final meta = await _fetchVideoMeta(url);
-                                      setState(() {
-                                        isFetchingVideoMeta = false;
-                                        if (meta['title'] != null &&
-                                            meta['title']!.isNotEmpty) {
-                                          titleCtrl.text = meta['title']!;
-                                        }
-                                        fetchedVideoThumb = meta['cover'];
-                                        fetchedVideoAuthor = meta['author'];
-                                        if (meta['author'] != null) {
-                                          musicArtistCtrl.text =
-                                              meta['author']!;
-                                        }
-                                      });
-                                    },
-                                  ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade200,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade200,
-                              ),
+                              ],
                             ),
                           ),
                         ),
-                        // Preview thumbnail if fetched
-                        if (fetchedVideoThumb != null) ...[
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: CachedNetworkImage(
-                                  imageUrl: fetchedVideoThumb!,
-                                  width: 72,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 144,
-                                  memCacheHeight: 96,
-                                ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            useVideoUrl = true;
+                            selectedMedia = null;
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: useVideoUrl
+                                  ? const Color(0xFFEC4899).withOpacity(0.10)
+                                  : Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: useVideoUrl
+                                    ? const Color(0xFFEC4899).withOpacity(0.30)
+                                    : Colors.grey.shade200,
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.link_rounded,
+                                  size: 16,
+                                  color: useVideoUrl
+                                      ? const Color(0xFFEC4899)
+                                      : Colors.grey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'По ссылке',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: useVideoUrl
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: useVideoUrl
+                                        ? const Color(0xFFEC4899)
+                                        : Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (!useVideoUrl) ...[
+                    // ── File picker ──
+                    GestureDetector(
+                      onTap: () async {
+                        try {
+                          final picker = ImagePicker();
+                          final picked = await picker.pickVideo(
+                            source: ImageSource.gallery,
+                          );
+                          if (picked != null) {
+                            setState(() => selectedMedia = picked);
+                          }
+                        } catch (e) {
+                          debugPrint('Pick video failed: $e');
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to select video: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: selectedMedia != null ? 200 : 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade200),
+                          image: selectedMedia != null
+                              ? DecorationImage(
+                                  image: FileImage(File(selectedMedia!.path)),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: selectedMedia == null
+                            ? Center(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (titleCtrl.text.isNotEmpty)
-                                      Text(
-                                        titleCtrl.text,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade800,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
+                                    Icon(
+                                      Icons.videocam_rounded,
+                                      size: 28,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Tap to select video',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade400,
                                       ),
-                                    if (fetchedVideoAuthor != null)
-                                      Text(
-                                        fetchedVideoAuthor!,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade500,
-                                        ),
-                                        maxLines: 1,
-                                      ),
+                                    ),
                                   ],
                                 ),
+                              )
+                            : Align(
+                                alignment: Alignment.topRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: CircleAvatar(
+                                    backgroundColor: Colors.black54,
+                                    radius: 16,
+                                    child: const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
                               ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ] else ...[
+                    // ── URL input ──
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEC4899).withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFEC4899).withOpacity(0.18),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
                               Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  shape: BoxShape.circle,
+                                  color: const Color(
+                                    0xFFEC4899,
+                                  ).withOpacity(0.10),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 18,
-                                  color: Colors.green,
+                                  Icons.link_rounded,
+                                  size: 16,
+                                  color: Color(0xFFEC4899),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Ссылка на видео',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade800,
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                        const SizedBox(height: 8),
-                        Text(
-                          'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade400,
-                            height: 1.4,
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: videoLinkCtrl,
+                            keyboardType: TextInputType.url,
+                            autocorrect: false,
+                            onChanged: (_) {},
+                            decoration: InputDecoration(
+                              hintText: 'YouTube, Vimeo, PornHub, TikTok...',
+                              prefixIcon: const Icon(
+                                Icons.play_circle_outline_rounded,
+                                size: 20,
+                              ),
+                              suffixIcon: isFetchingVideoMeta
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      icon: const Icon(Icons.search_rounded),
+                                      tooltip: 'Получить данные',
+                                      onPressed: () async {
+                                        final url = videoLinkCtrl.text.trim();
+                                        if (url.isEmpty) return;
+                                        setState(
+                                          () => isFetchingVideoMeta = true,
+                                        );
+                                        final meta = await _fetchVideoMeta(url);
+                                        setState(() {
+                                          isFetchingVideoMeta = false;
+                                          if (meta['title'] != null &&
+                                              meta['title']!.isNotEmpty) {
+                                            titleCtrl.text = meta['title']!;
+                                          }
+                                          fetchedVideoThumb = meta['cover'];
+                                          fetchedVideoAuthor = meta['author'];
+                                          if (meta['author'] != null) {
+                                            musicArtistCtrl.text =
+                                                meta['author']!;
+                                          }
+                                        });
+                                      },
+                                    ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          // Preview thumbnail if fetched
+                          if (fetchedVideoThumb != null) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: CachedNetworkImage(
+                                    imageUrl: fetchedVideoThumb!,
+                                    width: 72,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 144,
+                                    memCacheHeight: 96,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (titleCtrl.text.isNotEmpty)
+                                        Text(
+                                          titleCtrl.text,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey.shade800,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      if (fetchedVideoAuthor != null)
+                                        Text(
+                                          fetchedVideoAuthor!,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade500,
+                                          ),
+                                          maxLines: 1,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 18,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade400,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
+                ] else if (type == MemoryType.videoLink) ...[
+                  // legacy — existing videoLink memories; form handled via video toggle
+                  const SizedBox(height: 0),
                 ],
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -4528,8 +4631,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   child: ElevatedButton(
                     onPressed: () async {
                       Navigator.pop(context);
+                      // When video form is in "by link" mode — treat as videoLink
+                      final effectiveType =
+                          (type == MemoryType.video && useVideoUrl)
+                          ? MemoryType.videoLink
+                          : type;
                       await _saveNewMemory(
-                        type: type,
+                        type: effectiveType,
                         title: titleCtrl.text.trim(),
                         caption: captionCtrl.text.trim(),
                         locationName: locationCtrl.text.trim(),
@@ -4545,7 +4653,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         mediaPath: selectedMedia?.path,
                         musicPath: selectedMusicPath,
                         // videoLink-specific
-                        videoLinkUrl: type == MemoryType.videoLink
+                        videoLinkUrl: effectiveType == MemoryType.videoLink
                             ? videoLinkCtrl.text.trim()
                             : null,
                         videoLinkThumb: fetchedVideoThumb,
