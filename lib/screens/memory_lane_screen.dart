@@ -2586,6 +2586,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final locationCtrl = TextEditingController(text: memory.locationName ?? '');
     double? editLat = memory.latitude;
     double? editLng = memory.longitude;
+    bool isAdultEdit = memory.isAdult;
 
     showModalBottomSheet(
       context: context,
@@ -2663,6 +2664,83 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ),
                 ),
+                // Spoiler toolbar for text pins in edit form
+                if (memory.type == MemoryType.text) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          final sel = captionCtrl.selection;
+                          if (!sel.isValid) return;
+                          final text = captionCtrl.text;
+                          if (sel.isCollapsed) {
+                            final pos = sel.start;
+                            final newText =
+                                '${text.substring(0, pos)}||||${text.substring(pos)}';
+                            captionCtrl.value = TextEditingValue(
+                              text: newText,
+                              selection: TextSelection.collapsed(
+                                offset: pos + 2,
+                              ),
+                            );
+                          } else {
+                            final selected = text.substring(sel.start, sel.end);
+                            final newText = text.replaceRange(
+                              sel.start,
+                              sel.end,
+                              '||$selected||',
+                            );
+                            captionCtrl.value = TextEditingValue(
+                              text: newText,
+                              selection: TextSelection.collapsed(
+                                offset: sel.start + selected.length + 4,
+                              ),
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.visibility_off_rounded,
+                                size: 14,
+                                color: primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Spoiler',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Выдели текст и нажми',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 if (memory.type == MemoryType.location) ...[
                   const SizedBox(height: 12),
                   TextField(
@@ -2719,6 +2797,75 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ],
                 const SizedBox(height: 20),
+                // 18+ toggle for photo edits
+                if (memory.type == MemoryType.photo) ...[
+                  GestureDetector(
+                    onTap: () => setState(() => isAdultEdit = !isAdultEdit),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isAdultEdit
+                            ? Colors.red.shade50
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isAdultEdit
+                              ? Colors.red.shade200
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isAdultEdit
+                                ? Icons.lock_rounded
+                                : Icons.lock_open_rounded,
+                            size: 18,
+                            color: isAdultEdit
+                                ? Colors.red.shade400
+                                : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Контент 18+',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: isAdultEdit
+                                        ? Colors.red.shade600
+                                        : Colors.grey.shade700,
+                                  ),
+                                ),
+                                Text(
+                                  'Фото будет скрыто под блюром',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isAdultEdit
+                                        ? Colors.red.shade400
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: isAdultEdit,
+                            onChanged: (v) => setState(() => isAdultEdit = v),
+                            activeColor: Colors.red.shade400,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -2734,6 +2881,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         caption: captionCtrl.text.trim(),
                         locationName: memory.type == MemoryType.location
                             ? locationCtrl.text.trim()
+                            : null,
+                        isAdult: memory.type == MemoryType.photo
+                            ? isAdultEdit
                             : null,
                       );
                     },
@@ -3647,6 +3797,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? fetchedVideoThumb;
     String? fetchedVideoAuthor;
     bool useVideoUrl = false;
+    bool isAdultPhoto = false;
 
     showModalBottomSheet(
       context: context,
@@ -3870,6 +4021,73 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ),
                       ),
                     ),
+                  // 18+ toggle for photo pins
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => setState(() => isAdultPhoto = !isAdultPhoto),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isAdultPhoto
+                            ? Colors.red.shade50
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isAdultPhoto
+                              ? Colors.red.shade200
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isAdultPhoto
+                                ? Icons.lock_rounded
+                                : Icons.lock_open_rounded,
+                            size: 18,
+                            color: isAdultPhoto
+                                ? Colors.red.shade400
+                                : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Контент 18+',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: isAdultPhoto
+                                        ? Colors.red.shade600
+                                        : Colors.grey.shade700,
+                                  ),
+                                ),
+                                Text(
+                                  'Фото будет скрыто под блюром',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isAdultPhoto
+                                        ? Colors.red.shade400
+                                        : Colors.grey.shade400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: isAdultPhoto,
+                            onChanged: (v) => setState(() => isAdultPhoto = v),
+                            activeColor: Colors.red.shade400,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ] else if (type == MemoryType.video) ...[
                   // ── Toggle: Из галереи / По ссылке ──
@@ -4338,6 +4556,86 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           ),
                         ),
                       ),
+                      // Spoiler toolbar — shown only for text pins
+                      if (type == MemoryType.text) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                final sel = captionCtrl.selection;
+                                if (!sel.isValid) return;
+                                final text = captionCtrl.text;
+                                if (sel.isCollapsed) {
+                                  // Insert empty spoiler at cursor
+                                  final pos = sel.start;
+                                  final newText =
+                                      '${text.substring(0, pos)}||||${text.substring(pos)}';
+                                  captionCtrl.value = TextEditingValue(
+                                    text: newText,
+                                    selection: TextSelection.collapsed(
+                                      offset: pos + 2,
+                                    ),
+                                  );
+                                } else {
+                                  final selected = text.substring(
+                                    sel.start,
+                                    sel.end,
+                                  );
+                                  final newText = text.replaceRange(
+                                    sel.start,
+                                    sel.end,
+                                    '||$selected||',
+                                  );
+                                  captionCtrl.value = TextEditingValue(
+                                    text: newText,
+                                    selection: TextSelection.collapsed(
+                                      offset: sel.start + selected.length + 4,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.visibility_off_rounded,
+                                      size: 14,
+                                      color: primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Spoiler',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Выдели текст и нажми',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -4974,6 +5272,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             : null,
                         videoLinkThumb: fetchedVideoThumb,
                         videoLinkAuthor: musicArtistCtrl.text.trim(),
+                        isAdult: isAdultPhoto,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -5037,6 +5336,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? videoLinkUrl,
     String? videoLinkThumb,
     String? videoLinkAuthor,
+    bool isAdult = false,
   }) async {
     final user = _fb.currentUser;
     if (user == null || _groupId.isEmpty) return;
@@ -5163,6 +5463,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         imageUrl: finalImageUrl,
         imageUrls: uploadedImageUrls.isNotEmpty ? uploadedImageUrls : null,
         videoUrl: finalVideoUrl,
+        isAdult: isAdult,
       );
 
       if (mounted) {

@@ -1338,6 +1338,7 @@ class FirebaseService {
     String? musicArtist,
     String? musicUrl,
     String? musicCoverUrl,
+    bool isAdult = false,
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return null;
@@ -1372,6 +1373,7 @@ class FirebaseService {
         musicArtist: musicArtist,
         musicUrl: musicUrl,
         musicCoverUrl: musicCoverUrl,
+        isAdult: isAdult,
       );
 
       await ref.set(memory.toFirestore());
@@ -1392,6 +1394,7 @@ class FirebaseService {
     String? musicArtist,
     String? imageUrl,
     bool? isPinned,
+    bool? isAdult,
   }) async {
     try {
       final updates = <String, dynamic>{'editedAt': Timestamp.now()};
@@ -1402,6 +1405,7 @@ class FirebaseService {
       if (musicArtist != null) updates['musicArtist'] = musicArtist;
       if (imageUrl != null) updates['imageUrl'] = imageUrl;
       if (isPinned != null) updates['isPinned'] = isPinned;
+      if (isAdult != null) updates['isAdult'] = isAdult;
 
       // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
       // This prevents data loss if both partners edit the caption offline simultaneously.

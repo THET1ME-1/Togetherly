@@ -29,6 +29,7 @@ class Memory {
   String? musicCoverUrl; // album art
 
   bool isPinned;
+  bool isAdult;
 
   Memory({
     required this.id,
@@ -52,6 +53,7 @@ class Memory {
     this.musicUrl,
     this.musicCoverUrl,
     this.isPinned = false,
+    this.isAdult = false,
   });
 
   /// Human-friendly type label
@@ -112,6 +114,7 @@ class Memory {
       if (musicUrl != null) 'musicUrl': musicUrl,
       if (musicCoverUrl != null) 'musicCoverUrl': musicCoverUrl,
       'isPinned': isPinned,
+      if (isAdult) 'isAdult': isAdult,
     };
   }
 
@@ -144,6 +147,7 @@ class Memory {
       musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
       isPinned: data['isPinned'] ?? false,
+      isAdult: data['isAdult'] ?? false,
     );
   }
 
@@ -171,6 +175,7 @@ class Memory {
       'musicUrl': musicUrl,
       'musicCoverUrl': musicCoverUrl,
       'isPinned': isPinned,
+      'isAdult': isAdult,
     };
   }
 
@@ -204,6 +209,7 @@ class Memory {
       musicUrl: json['musicUrl'],
       musicCoverUrl: json['musicCoverUrl'],
       isPinned: json['isPinned'] ?? false,
+      isAdult: json['isAdult'] ?? false,
     );
   }
 }

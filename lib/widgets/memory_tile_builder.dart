@@ -307,7 +307,7 @@ class MemoryTileBuilder {
     ];
     final hasPhotos = allPhotos.isNotEmpty;
 
-    return Column(
+    final content = Column(
       children: [
         // Sub-card
         GestureDetector(
@@ -467,6 +467,10 @@ class MemoryTileBuilder {
         ],
       ],
     );
+    if (memory.isAdult) {
+      return _AdultBlurWrapper(child: content);
+    }
+    return content;
   }
 
   // ═══════════════════════════════════════════════════
@@ -833,8 +837,8 @@ class MemoryTileBuilder {
                           padding: EdgeInsets.only(
                             top: memory.title?.isNotEmpty == true ? 3 : 0,
                           ),
-                          child: Text(
-                            memory.caption!,
+                          child: _SpoilerText(
+                            text: memory.caption!,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade500,
@@ -1243,61 +1247,212 @@ class _AdultBlurWrapper extends StatefulWidget {
   State<_AdultBlurWrapper> createState() => _AdultBlurWrapperState();
 }
 
-class _AdultBlurWrapperState extends State<_AdultBlurWrapper> {
-  bool _revealed = false;
+class _AdultBlurWrapperState extends State<_AdultBlurWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac;
+  late final Animation<double> _blur;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _blur = Tween<double>(
+      begin: 14,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeInOut));
+    _fade = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeIn));
+  }
+
+  @override
+  void dispose() {
+    _ac.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => setState(() => _revealed = !_revealed),
+      onTap: _ac.isDismissed ? () => _ac.forward() : null,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
           widget.child,
-          if (!_revealed)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lock_rounded,
-                            color: Colors.white,
-                            size: 22,
+          AnimatedBuilder(
+            animation: _ac,
+            builder: (_, __) {
+              if (_ac.isCompleted) return const SizedBox.shrink();
+              final sigma = _blur.value.clamp(0.1, 14.0);
+              return Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                    child: Opacity(
+                      opacity: _fade.value,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.lock_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '18+',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Нажмите, чтобы открыть',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            '18+',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Нажмите, чтобы открыть',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Spoiler Text ────────────────────────────────────────────────────────────
+/// Renders plain text with optional `||spoiler||` segments hidden until tapped.
+class _SpoilerText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  final int? maxLines;
+  final TextOverflow? overflow;
+
+  const _SpoilerText({
+    required this.text,
+    this.style,
+    this.maxLines,
+    this.overflow,
+  });
+
+  List<({String text, bool isSpoiler})> _parse() {
+    final result = <({String text, bool isSpoiler})>[];
+    final parts = text.split('||');
+    for (int i = 0; i < parts.length; i++) {
+      if (parts[i].isEmpty) continue;
+      result.add((text: parts[i], isSpoiler: i.isOdd));
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = _parse();
+    final hasSpoiler = segments.any((s) => s.isSpoiler);
+    if (!hasSpoiler) {
+      return Text(text, style: style, maxLines: maxLines, overflow: overflow);
+    }
+    return Text.rich(
+      TextSpan(
+        children: segments.map((seg) {
+          if (!seg.isSpoiler) {
+            return TextSpan(text: seg.text, style: style);
+          }
+          return WidgetSpan(
+            alignment: ui.PlaceholderAlignment.middle,
+            child: _InlineSpoiler(
+              text: seg.text,
+              style: style ?? const TextStyle(fontSize: 12),
             ),
+          );
+        }).toList(),
+      ),
+      maxLines: maxLines,
+      overflow: overflow,
+    );
+  }
+}
+
+/// A single inline spoiler chip — hidden until tapped.
+class _InlineSpoiler extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  const _InlineSpoiler({required this.text, required this.style});
+
+  @override
+  State<_InlineSpoiler> createState() => _InlineSpoilerState();
+}
+
+class _InlineSpoilerState extends State<_InlineSpoiler>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ac.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _ac.isCompleted ? null : () => _ac.forward(),
+      child: Stack(
+        children: [
+          // Transparent text for layout sizing
+          Text(widget.text, style: widget.style),
+          // Cover overlay that animates away on reveal
+          AnimatedBuilder(
+            animation: _ac,
+            builder: (_, __) {
+              if (_ac.isCompleted) return const SizedBox.shrink();
+              return Opacity(
+                opacity: 1.0 - Curves.easeOut.transform(_ac.value),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    widget.text,
+                    style: widget.style.copyWith(color: Colors.grey.shade800),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
