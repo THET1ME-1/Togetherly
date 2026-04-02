@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -5912,25 +5913,22 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
           // Progress bar — only for local audio
           if (!_isExternalLink && _duration > Duration.zero) ...[
             const SizedBox(height: 12),
-            SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                activeTrackColor: const Color(0xFF8B5CF6),
-                inactiveTrackColor: const Color(0xFF8B5CF6).withOpacity(0.15),
-                thumbColor: const Color(0xFF8B5CF6),
-                overlayColor: const Color(0xFF8B5CF6).withOpacity(0.1),
-              ),
-              child: Slider(
-                value: _position.inMilliseconds.toDouble().clamp(
-                  0,
-                  _duration.inMilliseconds.toDouble(),
-                ),
-                max: _duration.inMilliseconds.toDouble(),
-                onChanged: (v) {
-                  _player?.seek(Duration(milliseconds: v.toInt()));
-                },
-              ),
+            WaveProgressBar(
+              value: _duration.inMilliseconds > 0
+                  ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(
+                      0.0,
+                      1.0,
+                    )
+                  : 0.0,
+              color: const Color(0xFF8B5CF6),
+              isPlaying: _isPlaying,
+              onChanged: (v) {
+                _player?.seek(
+                  Duration(
+                    milliseconds: (v * _duration.inMilliseconds).toInt(),
+                  ),
+                );
+              },
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -6551,42 +6549,23 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                   // ── Progress slider + time labels (only for local audio) ──
                   if (!_isExternalLink) ...[
                     const SizedBox(height: 6),
-                    SizedBox(
-                      height: 18,
-                      child: SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 3,
-                          thumbShape: RoundSliderThumbShape(
-                            enabledThumbRadius: _duration > Duration.zero
-                                ? 5
-                                : 0,
-                            disabledThumbRadius: 0,
-                          ),
-                          activeTrackColor: primary,
-                          inactiveTrackColor: primary.withOpacity(0.15),
-                          thumbColor: primary,
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 10,
-                          ),
-                          overlayColor: primary.withOpacity(0.08),
-                        ),
-                        child: Slider(
-                          value: _position.inMilliseconds.toDouble().clamp(
-                            0,
-                            _duration.inMilliseconds > 0
-                                ? _duration.inMilliseconds.toDouble()
-                                : 1,
-                          ),
-                          max: _duration.inMilliseconds > 0
-                              ? _duration.inMilliseconds.toDouble()
-                              : 1,
-                          onChanged: _duration > Duration.zero
-                              ? (v) => _player?.seek(
-                                  Duration(milliseconds: v.toInt()),
-                                )
-                              : null,
-                        ),
-                      ),
+                    WaveProgressBar(
+                      value: _duration.inMilliseconds > 0
+                          ? (_position.inMilliseconds /
+                                    _duration.inMilliseconds)
+                                .clamp(0.0, 1.0)
+                          : 0.0,
+                      color: primary,
+                      isPlaying: _isPlaying,
+                      height: 22,
+                      onChanged: _duration > Duration.zero
+                          ? (v) => _player?.seek(
+                              Duration(
+                                milliseconds: (v * _duration.inMilliseconds)
+                                    .toInt(),
+                              ),
+                            )
+                          : null,
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -8217,4 +8196,180 @@ class _SpoilerRichTextState extends State<_SpoilerRichText> {
       overflow: widget.overflow,
     );
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  WaveProgressBar — Material You animated wave progress bar for music player
+//  Active portion: animated sine wave. Inactive portion: flat line.
+// ──────────────────────────────────────────────────────────────────────────────
+
+class WaveProgressBar extends StatefulWidget {
+  /// Progress from 0.0 to 1.0
+  final double value;
+  final Color color;
+
+  /// Controls wave animation: starts/stops based on playback state
+  final bool isPlaying;
+
+  /// Called with new value (0.0–1.0) when user seeks
+  final ValueChanged<double>? onChanged;
+
+  final double height;
+
+  const WaveProgressBar({
+    super.key,
+    required this.value,
+    required this.color,
+    this.isPlaying = false,
+    this.onChanged,
+    this.height = 28,
+  });
+
+  @override
+  State<WaveProgressBar> createState() => _WaveProgressBarState();
+}
+
+class _WaveProgressBarState extends State<WaveProgressBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    if (widget.isPlaying) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(WaveProgressBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    } else if (!widget.isPlaying && _ctrl.isAnimating) {
+      _ctrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (d) {
+            if (widget.onChanged == null) return;
+            final r = (d.localPosition.dx / constraints.maxWidth).clamp(
+              0.0,
+              1.0,
+            );
+            widget.onChanged!(r);
+          },
+          onHorizontalDragUpdate: (d) {
+            if (widget.onChanged == null) return;
+            final r = (d.localPosition.dx / constraints.maxWidth).clamp(
+              0.0,
+              1.0,
+            );
+            widget.onChanged!(r);
+          },
+          child: SizedBox(
+            height: widget.height,
+            width: double.infinity,
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) => CustomPaint(
+                painter: _WaveProgressPainter(
+                  value: widget.value,
+                  color: widget.color,
+                  phase: _ctrl.value * 2 * pi,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _WaveProgressPainter extends CustomPainter {
+  final double value; // 0.0 – 1.0
+  final Color color;
+  final double phase;
+
+  static const double _amplitude = 3.5;
+  static const int _wavesVisible = 4;
+
+  const _WaveProgressPainter({
+    required this.value,
+    required this.color,
+    required this.phase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    final activeWidth = (size.width * value).clamp(0.0, size.width);
+    const strokeWidth = 2.5;
+
+    final activePaint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final inactivePaint = Paint()
+      ..color = color.withOpacity(0.22)
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Inactive flat line from activeWidth to end
+    if (activeWidth < size.width) {
+      canvas.drawLine(
+        Offset(activeWidth, cy),
+        Offset(size.width, cy),
+        inactivePaint,
+      );
+    }
+
+    // Active wavy line from 0 to activeWidth
+    if (activeWidth > 1) {
+      final wavelength = size.width / _wavesVisible;
+      final path = Path();
+      const steps = 200;
+      for (int i = 0; i <= steps; i++) {
+        final t = i / steps;
+        final x = activeWidth * t;
+        final y = cy + _amplitude * sin((x / wavelength) * 2 * pi - phase);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, activePaint);
+    }
+
+    // Thumb circle at current position
+    if (value > 0.005 && value < 0.995) {
+      final thumbPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(activeWidth, cy), 5.5, thumbPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveProgressPainter old) =>
+      old.value != value || old.phase != phase || old.color != color;
 }
