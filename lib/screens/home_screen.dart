@@ -58,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedTimeUnit = 0; // 0=Days, 1=Months, 2=Time
   int _selectedNavIndex = 0;
-  bool _showReflection = false;
   bool _showTodayButton = false;
   Timer? _timer;
   StreamSubscription? _deepLinkSub;
@@ -85,30 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
   double? _userLat;
   double? _userLng;
 
-  // -- Daily Reflection --
-  Map<String, dynamic>? _todayReflection;
-  StreamSubscription? _reflectionSub;
-  bool _reflectionJustSaved = false;
-  bool _reflectionManuallyDismissed = false;
-
-  bool get _hasPartnerAnswer {
-    final myUid = widget.userData.uid;
-    final answers = _todayReflection?['answers'] as Map<String, dynamic>?;
-    if (answers == null || answers.isEmpty) return false;
-    return answers.keys.any((k) => k != myUid);
-  }
-
-  List<String> get _localizedQuestions =>
-      LocaleService.current.reflectionQuestions;
-
-  String get _todayQuestion {
-    final questions = _localizedQuestions;
-    final dayOfYear = DateTime.now()
-        .difference(DateTime(DateTime.now().year))
-        .inDays;
-    return questions[dayOfYear % questions.length];
-  }
-
   @override
   void initState() {
     super.initState();
@@ -117,7 +92,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _moodService.addListener(_onMoodServiceChanged);
     _timerService.init();
     _initPairData();
-    _loadReflectionState();
 
     // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     _fb.setOnlineStatus(true);
@@ -147,7 +121,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
-    _reflectionSub?.cancel();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _moodService.removeListener(_onMoodServiceChanged);
@@ -235,7 +208,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onPairChanged() {
     if (mounted) {
       _startMemoryListener();
-      _startReflectionListener();
       _startTimerIfNeeded();
 
       if (_pairData.isPaired && _pairData.startDate != null) {
@@ -345,33 +317,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _startReflectionListener() {
-    _reflectionSub?.cancel();
-    final groupId = _pairData.pairId;
-    if (groupId.isEmpty || !_pairData.isPaired) {
-      _todayReflection = null;
-      return;
-    }
-    _reflectionSub = _fb.listenToTodayReflection(
-      groupId: groupId,
-      onData: (data) {
-        if (!mounted) return;
-        final myUid = widget.userData.uid;
-        final alreadyAnswered =
-            (data?['answers'] as Map<String, dynamic>?)?.containsKey(myUid) ??
-            false;
-        if (alreadyAnswered) {
-          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ prefs, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
-          _markReflectionAnsweredToday();
-        }
-        setState(() {
-          _todayReflection = data;
-          if (alreadyAnswered) _showReflection = false;
-        });
-      },
-    );
-  }
-
   void _onUserChanged() {
     if (mounted) setState(() {});
   }
@@ -397,27 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
     // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     _syncMoodWidget();
     if (mounted) setState(() {});
-  }
-
-  /// пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ SharedPreferences: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ + пїЅпїЅпїЅ
-  String get _reflectionPrefKey {
-    final today = DateTime.now();
-    final dateStr =
-        '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
-    return 'reflection_answered_${widget.userData.uid}_$dateStr';
-  }
-
-  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ SharedPreferences пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
-  Future<void> _loadReflectionState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final answeredToday = prefs.getBool(_reflectionPrefKey) ?? false;
-    if (mounted) setState(() => _showReflection = !answeredToday);
-  }
-
-  /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ SharedPreferences, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
-  Future<void> _markReflectionAnsweredToday() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_reflectionPrefKey, true);
   }
 
   String get _statusBadgeText {
@@ -579,15 +503,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildActionButtons(),
                   ),
                 ),
-                if (_pairData.isPaired &&
-                    !_reflectionManuallyDismissed &&
-                    (_showReflection || _hasPartnerAnswer)) ...[
-                  const SizedBox(height: 8),
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 400),
-                    child: _buildDailyReflection(),
-                  ),
-                ],
                 if (!_pairData.isPaired) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
@@ -1520,393 +1435,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // =============================================
-  // DAILY REFLECTION
-  // =============================================
-  Widget _buildDailyReflection() {
-    final myUid = widget.userData.uid;
-
-    final question =
-        (_todayReflection?['question'] as String?) ?? _todayQuestion;
-    final answers =
-        (_todayReflection?['answers'] as Map<String, dynamic>?) ?? {};
-    final myAnswer =
-        (answers[myUid] as Map<String, dynamic>?)?['text'] as String?;
-    final btnColor = _t.promptButtonColor;
-
-    // -- Success state --
-    if (_reflectionJustSaved) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: _t.cardBorder, width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_rounded, color: btnColor, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              LocaleService.current.answerSent,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: btnColor,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
-    final partnerAnswers = answers.entries
-        .where((e) => e.key != myUid)
-        .toList();
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _t.cardSurface,
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: _t.cardBorder, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 24,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, color: btnColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                LocaleService.current.dailyReflection,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: btnColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  LocaleService.current.today,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: btnColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Question
-          Text(
-            '"$question"',
-            style: TextStyle(
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
-              color: Colors.grey.shade600,
-              height: 1.6,
-            ),
-          ),
-          // My answer (if answered)
-          if (myAnswer != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: btnColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: btnColor.withOpacity(0.2)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.check_circle_rounded, color: btnColor, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      myAnswer,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade700,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => _showReflectionInput(question, myAnswer),
-                    child: Icon(
-                      Icons.edit_rounded,
-                      size: 16,
-                      color: btnColor.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          // Partner answers
-          for (final e in partnerAnswers) ...[
-            const SizedBox(height: 10),
-            _buildPartnerAnswer(e.value as Map<String, dynamic>, btnColor),
-          ],
-          const SizedBox(height: 20),
-          // Buttons row
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: () => _showReflectionInput(question, myAnswer),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: btnColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                      shadowColor: btnColor.withOpacity(0.25),
-                    ),
-                    child: Text(
-                      myAnswer == null
-                          ? LocaleService.current.answerPrompt
-                          : LocaleService.current.editAnswer,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _showReflection = false;
-                    _reflectionManuallyDismissed = true;
-                  });
-                  _markReflectionAnsweredToday();
-                },
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade100),
-                  ),
-                  child: Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPartnerAnswer(Map<String, dynamic> data, Color color) {
-    final text = data['text'] as String? ?? '';
-    final name = data['authorName'] as String? ?? LocaleService.current.partner;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: color.withOpacity(0.15),
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showReflectionInput(String question, String? existing) {
-    final controller = TextEditingController(text: existing ?? '');
-    final btnColor = _t.promptButtonColor;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome, color: btnColor, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    LocaleService.current.dailyReflection,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '"$question"',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey.shade500,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                maxLines: 4,
-                style: const TextStyle(fontSize: 14, height: 1.6),
-                decoration: InputDecoration(
-                  hintText: LocaleService.current.shareYourThoughts,
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: btnColor, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final text = controller.text.trim();
-                    if (text.isEmpty) return;
-                    Navigator.pop(context);
-                    await _fb.saveReflectionAnswer(
-                      groupId: _pairData.pairId,
-                      question: question,
-                      answer: text,
-                      authorName: widget.userData.displayName,
-                    );
-                    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
-                    await _markReflectionAnsweredToday();
-                    if (mounted) {
-                      setState(() => _reflectionJustSaved = true);
-                      await Future.delayed(const Duration(seconds: 1));
-                      if (mounted) {
-                        setState(() {
-                          _reflectionJustSaved = false;
-                          _showReflection = false;
-                        });
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: btnColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    LocaleService.current.save,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
