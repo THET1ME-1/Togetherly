@@ -6383,23 +6383,38 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                 children: [
                   Row(
                     children: [
-                      // Album cover
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: hasCover
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: CachedNetworkImage(
-                                  imageUrl: memory.musicCoverUrl!,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 96,
-                                  memCacheHeight: 96,
-                                  errorWidget: (_, __, ___) => Center(
+                      // Album cover with M3 Expressive wave overlay when playing
+                      Stack(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: hasCover
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: CachedNetworkImage(
+                                      imageUrl: memory.musicCoverUrl!,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 96,
+                                      memCacheHeight: 96,
+                                      errorWidget: (_, __, ___) => Center(
+                                        child: SvgPicture.asset(
+                                          'assets/icons/ic_music_note.svg',
+                                          width: 20,
+                                          height: 20,
+                                          colorFilter: ColorFilter.mode(
+                                            primary,
+                                            BlendMode.srcIn,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Center(
                                     child: SvgPicture.asset(
                                       'assets/icons/ic_music_note.svg',
                                       width: 20,
@@ -6410,19 +6425,30 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                                       ),
                                     ),
                                   ),
-                                ),
-                              )
-                            : Center(
-                                child: SvgPicture.asset(
-                                  'assets/icons/ic_music_note.svg',
-                                  width: 20,
-                                  height: 20,
-                                  colorFilter: ColorFilter.mode(
-                                    primary,
-                                    BlendMode.srcIn,
+                          ),
+                          // M3 Expressive wave bars overlay — fades in when playing
+                          Positioned.fill(
+                            child: AnimatedOpacity(
+                              opacity: _isPlaying ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 300),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: primary.withOpacity(0.72),
+                                  ),
+                                  child: Center(
+                                    child: _M3WaveBars(
+                                      isPlaying: _isPlaying,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -8238,7 +8264,7 @@ class _WaveProgressBarState extends State<WaveProgressBar>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 3200),
     );
     if (widget.isPlaying) _ctrl.repeat();
   }
@@ -8306,8 +8332,8 @@ class _WaveProgressPainter extends CustomPainter {
   final Color color;
   final double phase;
 
-  static const double _amplitude = 3.5;
-  static const int _wavesVisible = 4;
+  static const double _amplitude = 2.0;
+  static const int _wavesVisible = 2;
 
   const _WaveProgressPainter({
     required this.value,
@@ -8372,4 +8398,133 @@ class _WaveProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(_WaveProgressPainter old) =>
       old.value != value || old.phase != phase || old.color != color;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  _M3WaveBars — M3 Expressive animated equalizer bars (now-playing indicator)
+//  4 vertical rounded bars that bounce with wave-like offset phases, giving a
+//  fluid, spring-like feel characteristic of Material 3 Expressive motion.
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _M3WaveBars extends StatefulWidget {
+  final bool isPlaying;
+  final Color color;
+  final double width;
+  final double height;
+
+  const _M3WaveBars({
+    required this.isPlaying,
+    required this.color,
+    this.width = 28,
+    this.height = 18,
+  });
+
+  @override
+  State<_M3WaveBars> createState() => _M3WaveBarsState();
+}
+
+class _M3WaveBarsState extends State<_M3WaveBars>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    );
+    if (widget.isPlaying) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_M3WaveBars old) {
+    super.didUpdateWidget(old);
+    if (widget.isPlaying && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    } else if (!widget.isPlaying && _ctrl.isAnimating) {
+      _ctrl.animateTo(
+        0.5,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => CustomPaint(
+        size: Size(widget.width, widget.height),
+        painter: _WaveBarsPainter(
+          phase: _ctrl.value * 2 * pi,
+          color: widget.color,
+          isPlaying: widget.isPlaying,
+        ),
+      ),
+    );
+  }
+}
+
+class _WaveBarsPainter extends CustomPainter {
+  final double phase;
+  final Color color;
+  final bool isPlaying;
+
+  // Quarter-period offsets → adjacent bars peak at different times (wave effect)
+  static const List<double> _phaseOffsets = [0.0, pi * 0.5, pi * 1.0, pi * 1.5];
+
+  // Slightly different frequencies per bar for organic, non-robotic feel
+  static const List<double> _freqs = [1.0, 1.25, 0.85, 1.15];
+
+  const _WaveBarsPainter({
+    required this.phase,
+    required this.color,
+    required this.isPlaying,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barCount = 4;
+    const gap = 3.0;
+    final barW = (size.width - gap * (barCount - 1)) / barCount;
+    final maxH = size.height;
+    const minH = 3.0;
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < barCount; i++) {
+      double h;
+      if (isPlaying) {
+        // Primary wave + subtle harmonic for spring-like feel
+        final t1 = sin(phase * _freqs[i] + _phaseOffsets[i]);
+        final t2 = sin(phase * _freqs[i] * 1.8 + _phaseOffsets[i] * 0.4) * 0.25;
+        final combined = ((t1 + t2) / 1.25).clamp(-1.0, 1.0);
+        h = (minH + (maxH - minH) * (combined * 0.5 + 0.5)).clamp(minH, maxH);
+      } else {
+        h = minH;
+      }
+      final x = i * (barW + gap);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, size.height - h, barW, h),
+          const Radius.circular(2.5),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveBarsPainter old) =>
+      old.phase != phase || old.color != color || old.isPlaying != isPlaying;
 }
