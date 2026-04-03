@@ -15,7 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
@@ -1654,22 +1654,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   Future<Map<String, String?>> _fetchVideoMeta(String url) async {
     final lower = url.toLowerCase();
 
-    // ── YouTube ──
+    // ── YouTube (official oEmbed — no API key required) ──
     if (lower.contains('youtube.com') || lower.contains('youtu.be')) {
-      final yt = YoutubeExplode();
       try {
-        final video = await yt.videos.get(url);
-        return {
-          'title': video.title,
-          'author': video.author,
-          'cover': video.thumbnails.highResUrl,
-        };
+        final resp = await http.get(
+          Uri.parse(
+            'https://www.youtube.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
+          ),
+        );
+        if (resp.statusCode == 200) {
+          final data = json.decode(resp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'author': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
       } catch (e) {
         debugPrint('YouTube video meta error: $e');
-        return {};
-      } finally {
-        yt.close();
       }
+      return {};
     }
 
     // ── Vimeo via oEmbed ──
@@ -3477,24 +3481,28 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   Future<Map<String, String?>> _fetchMusicMeta(String url) async {
     final lower = url.toLowerCase();
 
-    // ── YouTube / YouTube Music ──
+    // ── YouTube / YouTube Music (official oEmbed — no API key required) ──
     if (lower.contains('youtube.com') ||
         lower.contains('youtu.be') ||
         lower.contains('music.youtube.com')) {
-      final yt = YoutubeExplode();
       try {
-        final video = await yt.videos.get(url);
-        return {
-          'title': video.title,
-          'artist': video.author,
-          'cover': video.thumbnails.highResUrl,
-        };
+        final resp = await http.get(
+          Uri.parse(
+            'https://www.youtube.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
+          ),
+        );
+        if (resp.statusCode == 200) {
+          final data = json.decode(resp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
       } catch (e) {
         debugPrint('YouTube meta fetch error: $e');
-        return {};
-      } finally {
-        yt.close();
       }
+      return {};
     }
 
     // ── Spotify ──
