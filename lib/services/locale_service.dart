@@ -293,6 +293,11 @@ abstract class AppStrings {
   String get logoutConfirm;
   String get logoutBtn;
   String get chooseColorTheme;
+  String get themeNamePink;
+  String get themeNamePurple;
+  String get themeNameBlue;
+  String get themeNamePeach;
+  String get themeNameSage;
   String get changesApplyImmediately;
   String get editProfileTitle;
   String get uploading;
@@ -702,6 +707,16 @@ abstract class AppStrings {
 
   // ── Mini Mood Calendar (extended) ──
   List<String> get shortWeekdaysUpper;
+
+  // ── Notification Settings ──
+  String get notifMissYou;
+  String get notifMissYouSub;
+  String get notifNewMemory;
+  String get notifNewMemorySub;
+  String get notifMood;
+  String get notifMoodSub;
+  String get openSystemSettings;
+  String get notifSystemSettingsHint;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1148,6 +1163,16 @@ class _RuStrings extends AppStrings {
   @override
   String get chooseColorTheme => 'Выбери цветовую тему';
   @override
+  String get themeNamePink => 'Розовая';
+  @override
+  String get themeNamePurple => 'Фиолетовая';
+  @override
+  String get themeNameBlue => 'Голубая';
+  @override
+  String get themeNamePeach => 'Персиковая';
+  @override
+  String get themeNameSage => 'Шалфейная';
+  @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
   @override
   String get editProfileTitle => 'Редактировать профиль';
@@ -1267,7 +1292,7 @@ class _RuStrings extends AppStrings {
   @override
   String get addFirstMemory => 'Добавьте первое воспоминание в Ленту';
   @override
-  String get video => 'ВИДЕО';
+  String get video => 'Видео';
   @override
   String get videoLabel => 'Видео';
   @override
@@ -1551,7 +1576,7 @@ class _RuStrings extends AppStrings {
   @override
   String get pinMemory => 'Закрепить';
   @override
-  String get saveToDevice => 'Сохранить на устройство';
+  String get saveToDevice => 'Сохранить';
   @override
   String get editMemory => 'Редактировать';
   @override
@@ -2032,6 +2057,25 @@ class _RuStrings extends AppStrings {
     'СБ',
     'ВС',
   ];
+
+  // ── Notification Settings ──
+  @override
+  String get notifMissYou => '«Я скучаю»';
+  @override
+  String get notifMissYouSub => 'Когда партнёр нажимает кнопку «Я скучаю»';
+  @override
+  String get notifNewMemory => 'Новые воспоминания';
+  @override
+  String get notifNewMemorySub =>
+      'Когда партнёр добавляет в ленту воспоминаний';
+  @override
+  String get notifMood => 'Настроение партнёра';
+  @override
+  String get notifMoodSub => 'Когда партнёр обновляет своё настроение';
+  @override
+  String get openSystemSettings => 'Системные настройки';
+  @override
+  String get notifSystemSettingsHint => 'Настройки хранятся на устройстве';
 }
 
 class _EnStrings extends AppStrings {
@@ -2473,6 +2517,16 @@ class _EnStrings extends AppStrings {
   @override
   String get chooseColorTheme => 'Choose color theme';
   @override
+  String get themeNamePink => 'Pink';
+  @override
+  String get themeNamePurple => 'Purple';
+  @override
+  String get themeNameBlue => 'Blue';
+  @override
+  String get themeNamePeach => 'Peach';
+  @override
+  String get themeNameSage => 'Sage';
+  @override
   String get changesApplyImmediately => 'Changes apply immediately';
   @override
   String get editProfileTitle => 'Edit Profile';
@@ -2592,7 +2646,7 @@ class _EnStrings extends AppStrings {
   @override
   String get addFirstMemory => 'Add your first memory in Memory Lane';
   @override
-  String get video => 'VIDEO';
+  String get video => 'Video';
   @override
   String get videoLabel => 'Video';
   @override
@@ -2883,7 +2937,7 @@ class _EnStrings extends AppStrings {
   @override
   String get pinMemory => 'Pin memory';
   @override
-  String get saveToDevice => 'Save to device';
+  String get saveToDevice => 'Save';
   @override
   String get editMemory => 'Edit memory';
   @override
@@ -3349,4 +3403,22 @@ class _EnStrings extends AppStrings {
     'SAT',
     'SUN',
   ];
+
+  // ── Notification Settings ──
+  @override
+  String get notifMissYou => '"Miss You"';
+  @override
+  String get notifMissYouSub => 'When your partner taps the Miss You button';
+  @override
+  String get notifNewMemory => 'New Memories';
+  @override
+  String get notifNewMemorySub => 'When your partner adds to the Memory Lane';
+  @override
+  String get notifMood => 'Partner Mood';
+  @override
+  String get notifMoodSub => 'When your partner updates their mood';
+  @override
+  String get openSystemSettings => 'System Settings';
+  @override
+  String get notifSystemSettingsHint => 'Settings are stored on this device';
 }

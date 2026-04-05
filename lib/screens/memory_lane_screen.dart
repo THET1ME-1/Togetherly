@@ -677,7 +677,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
-                                'No photo attached',
+                                LocaleService.current.noPhotoAttached,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade400,
@@ -698,7 +698,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '${allPhotos.length} photos',
+                                  LocaleService.current.nPhotos(
+                                    allPhotos.length,
+                                  ),
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: primary,
@@ -1916,7 +1918,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Photo not uploaded yet',
+                                  LocaleService.current.photoNotUploaded,
                                   style: TextStyle(color: Colors.grey.shade500),
                                 ),
                               ],
@@ -2021,7 +2023,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     children: [
                                       Text(
                                         memory.locationName ??
-                                            'Unknown location',
+                                            LocaleService
+                                                .current
+                                                .unknownLocation,
                                         style: TextStyle(
                                           fontSize: 17,
                                           fontWeight: FontWeight.w700,
@@ -5815,7 +5819,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      memory.musicTitle ?? 'Audio file',
+                      memory.musicTitle ?? LocaleService.current.audioFile,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -5964,7 +5968,9 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                   color: Colors.white,
                 ),
                 label: Text(
-                  'Open in ${_sourceName ?? 'Streaming App'}',
+                  LocaleService.current.openIn(
+                    _sourceName ?? LocaleService.current.audioFile,
+                  ),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -6448,7 +6454,8 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              memory.musicTitle ?? 'Unknown Track',
+                              memory.musicTitle ??
+                                  LocaleService.current.unknownTrack,
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -6544,7 +6551,9 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                           color: Colors.white,
                         ),
                         label: Text(
-                          'Open in ${_sourceName ?? 'Streaming App'}',
+                          LocaleService.current.openIn(
+                            _sourceName ?? LocaleService.current.audioFile,
+                          ),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -7393,7 +7402,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      memory.locationName ?? 'Unknown location',
+                      memory.locationName ??
+                          LocaleService.current.unknownLocation,
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,

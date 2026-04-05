@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show Platform;
 import '../services/firebase_service.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
@@ -57,6 +59,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Toggle for Relationship Stats
   bool _showStats = false;
 
+  // Notification preferences
+  bool _notifMissYou = true;
+  bool _notifNewMemory = true;
+  bool _notifMood = true;
+  static const _kNotifMissYou = 'notif_miss_you';
+  static const _kNotifNewMemory = 'notif_new_memory';
+  static const _kNotifMood = 'notif_mood';
+
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
@@ -80,6 +90,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() {});
     });
     _loadStats();
+    _loadNotifPrefs();
+  }
+
+  Future<void> _loadNotifPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _notifMissYou = prefs.getBool(_kNotifMissYou) ?? true;
+      _notifNewMemory = prefs.getBool(_kNotifNewMemory) ?? true;
+      _notifMood = prefs.getBool(_kNotifMood) ?? true;
+    });
+  }
+
+  Future<void> _saveNotifPref(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
   }
 
   void _loadStats() {
@@ -646,7 +672,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: _infoRow(
               icon: Icons.palette_outlined,
               label: _s.theme,
-              value: widget.userData.themeName,
+              value: [
+                _s.themeNamePink,
+                _s.themeNamePurple,
+                _s.themeNameBlue,
+                _s.themeNamePeach,
+                _s.themeNameSage,
+              ][widget.userData.themeId.clamp(0, 4)],
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -881,7 +913,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'RELATIONSHIP STATS',
+                  _s.relationshipStats,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -910,7 +942,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Expanded(
                             child: _statBox(
-                              title: 'Days Together',
+                              title: _s.daysTogetherStat,
                               value: daysString,
                               icon: Icons.calendar_today_rounded,
                               color: const Color(0xFFE91E8C),
@@ -919,7 +951,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _statBox(
-                              title: 'Memories',
+                              title: _s.memoriesStat,
                               value: _memoriesCount?.toString() ?? '...',
                               icon: Icons.photo_library_rounded,
                               color: const Color(0xFF3498DB),
@@ -932,7 +964,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               Expanded(
                                 child: _statBox(
-                                  title: 'Drawings',
+                                  title: _s.drawingsStat,
                                   value: _drawingsCount?.toString() ?? '...',
                                   icon: Icons.brush_rounded,
                                   color: const Color(0xFFF39C12),
@@ -941,7 +973,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _statBox(
-                                  title: 'Miss Yous',
+                                  title: _s.missYousStat,
                                   value: _missYouCount?.toString() ?? '...',
                                   icon: Icons.favorite_rounded,
                                   color: const Color(0xFF9B59B6),
@@ -1568,21 +1600,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _settingsTile(
             icon: Icons.notifications_outlined,
             label: _s.notifications,
-            onTap: () async {
-              // Открыть системные настройки уведомлений
-              final uri = Uri.parse('app-settings:');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              } else {
-                // Android fallback
-                final androidUri = Uri.parse(
-                  'android.settings.APP_NOTIFICATION_SETTINGS',
-                );
-                if (await canLaunchUrl(androidUri)) {
-                  await launchUrl(androidUri);
-                }
-              }
-            },
+            onTap: () => _showNotificationSettings(context),
           ),
           _divider(),
           _settingsTile(
@@ -1667,6 +1685,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  NOTIFICATION SETTINGS
+  // ═══════════════════════════════════════════════════
+  void _showNotificationSettings(BuildContext context) {
+    final s = LocaleService.current;
+    final accent = _accent;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Title
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      size: 20,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    s.notifications,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Toggles
+              _notifToggle(
+                ctx: ctx,
+                setModal: setModal,
+                icon: Icons.favorite_rounded,
+                color: const Color(0xFFEC4899),
+                title: s.notifMissYou,
+                subtitle: s.notifMissYouSub,
+                value: _notifMissYou,
+                onChanged: (v) {
+                  setState(() => _notifMissYou = v);
+                  setModal(() {});
+                  _saveNotifPref(_kNotifMissYou, v);
+                },
+              ),
+              const Divider(height: 1),
+              _notifToggle(
+                ctx: ctx,
+                setModal: setModal,
+                icon: Icons.photo_library_outlined,
+                color: const Color(0xFF3B82F6),
+                title: s.notifNewMemory,
+                subtitle: s.notifNewMemorySub,
+                value: _notifNewMemory,
+                onChanged: (v) {
+                  setState(() => _notifNewMemory = v);
+                  setModal(() {});
+                  _saveNotifPref(_kNotifNewMemory, v);
+                },
+              ),
+              const Divider(height: 1),
+              _notifToggle(
+                ctx: ctx,
+                setModal: setModal,
+                icon: Icons.mood_rounded,
+                color: const Color(0xFFF59E0B),
+                title: s.notifMood,
+                subtitle: s.notifMoodSub,
+                value: _notifMood,
+                onChanged: (v) {
+                  setState(() => _notifMood = v);
+                  setModal(() {});
+                  _saveNotifPref(_kNotifMood, v);
+                },
+              ),
+              const SizedBox(height: 20),
+              // System settings button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    final iosUri = Uri.parse('app-settings:');
+                    if (await canLaunchUrl(iosUri)) {
+                      await launchUrl(iosUri);
+                    } else if (Platform.isAndroid) {
+                      final androidUri = Uri.parse(
+                        'intent:#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;'
+                        'S.android.provider.extra.APP_PACKAGE=com.example.love_app;end',
+                      );
+                      if (await canLaunchUrl(androidUri)) {
+                        await launchUrl(androidUri);
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: Text(s.openSystemSettings),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                s.notifSystemSettingsHint,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _notifToggle({
+    required BuildContext ctx,
+    required StateSetter setModal,
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged, activeColor: _accent),
+        ],
       ),
     );
   }
@@ -2086,7 +2300,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            t.name,
+                                            [
+                                              _s.themeNamePink,
+                                              _s.themeNamePurple,
+                                              _s.themeNameBlue,
+                                              _s.themeNamePeach,
+                                              _s.themeNameSage,
+                                            ][t.index],
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: isSelected
