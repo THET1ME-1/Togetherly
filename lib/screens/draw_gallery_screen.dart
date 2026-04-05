@@ -448,43 +448,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       final m = dt.minute.toString().padLeft(2, '0');
       return '$h:$m';
     }
-    if (diff.inDays == 1)
-      return LocaleService.instance.isRussian ? 'Вчера' : 'Yesterday';
+    if (diff.inDays == 1) return LocaleService.current.yesterday;
     if (diff.inDays < 7) {
-      final weekdays = LocaleService.instance.isRussian
-          ? ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
-          : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      return weekdays[dt.weekday % 7];
+      final weekdays = LocaleService.current.shortWeekdays;
+      return weekdays[dt.weekday - 1];
     }
-    final months = LocaleService.instance.isRussian
-        ? [
-            'янв',
-            'фев',
-            'мар',
-            'апр',
-            'май',
-            'июн',
-            'июл',
-            'авг',
-            'сен',
-            'окт',
-            'ноя',
-            'дек',
-          ]
-        : [
-            'Jan',
-            'Feb',
-            'Mar',
-            'Apr',
-            'May',
-            'Jun',
-            'Jul',
-            'Aug',
-            'Sep',
-            'Oct',
-            'Nov',
-            'Dec',
-          ];
+    final months = LocaleService.current.shortMonths;
     return '${dt.day} ${months[dt.month - 1]}';
   }
 }

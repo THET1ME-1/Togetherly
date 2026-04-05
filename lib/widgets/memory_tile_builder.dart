@@ -359,7 +359,7 @@ class MemoryTileBuilder {
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              'No photo attached',
+                              s.noPhotoAttached,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey.shade400,
@@ -380,7 +380,7 @@ class MemoryTileBuilder {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '${allPhotos.length} photos',
+                                s.nPhotos(allPhotos.length),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: primary,
@@ -622,7 +622,7 @@ class MemoryTileBuilder {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        memory.locationName ?? 'Location',
+                        memory.locationName ?? s.location,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -751,7 +751,7 @@ class MemoryTileBuilder {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    memory.musicTitle ?? 'Unknown Track',
+                    memory.musicTitle ?? LocaleService.current.unknownTrack,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1152,7 +1152,7 @@ class MemoryTileBuilder {
                   color: Colors.white,
                 ),
                 label: Text(
-                  'Открыть в $platformName',
+                  LocaleService.current.openIn(platformName),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

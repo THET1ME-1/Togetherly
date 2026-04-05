@@ -34,7 +34,6 @@ class MoodCalendarScreen extends StatefulWidget {
 }
 
 class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
-
   int _selectedPeriod = 1; // 0=Week, 1=Month, 2=Year
   late DateTime _currentMonth;
   double _calendarScale = 1.0;
@@ -116,7 +115,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
-              'Mood Calendar',
+              LocaleService.current.moodCalendarTitle,
               style: GoogleFonts.rubik(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -194,7 +193,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   scale: _calendarScale,
                   alignment: Alignment.topCenter,
                   child: _buildCalendarSection(
-                    label: 'My Mood',
+                    label: LocaleService.current.myMood,
                     entries: _mood.myEntries,
                     stats: _mood.myStats(from: _periodStart, to: _periodEnd),
                   ),
@@ -212,7 +211,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   scale: _calendarScale,
                   alignment: Alignment.topCenter,
                   child: _buildCalendarSection(
-                    label: '${p.name}\'s Mood',
+                    label: LocaleService.current.partnerMood(p.name),
                     entries: _mood.partnerEntries(p.uid),
                     stats: _mood.partnerStats(
                       p.uid,
@@ -238,7 +237,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
 
   Widget _buildPeriodToggle() {
-    const labels = ['Week', 'Month', 'Year'];
+    final labels = [
+      LocaleService.current.week,
+      LocaleService.current.month,
+      LocaleService.current.year,
+    ];
     return Container(
       height: 44,
       decoration: BoxDecoration(
@@ -295,20 +298,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
 
   Widget _buildMonthNav() {
-    final months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
+    final months = LocaleService.current.fullMonths;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -359,7 +349,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           child: Row(
             children: [
               Text(
-                'Moods',
+                LocaleService.current.moods,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -468,7 +458,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         if (stats.isNotEmpty) _buildStatsBar(stats),
 
         const SizedBox(height: 16),
-        
+
         // Analytics (trend & average)
         if (entries.isNotEmpty) _buildAnalytics(entries),
       ],
@@ -501,7 +491,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   }) {
     final now = DateTime.now();
     final weekStart = DateTime(now.year, now.month, now.day - now.weekday + 1);
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayNames = LocaleService.current.shortWeekdays;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -561,7 +551,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     final startWeekday = first.weekday; // 1=Mon
     final now = DateTime.now();
 
-    const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final dayNames = LocaleService.current.shortWeekdaysSingleChar;
 
     return Column(
       children: [
@@ -633,20 +623,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     return Column(
       children: List.generate(12, (month) {
         final daysInMonth = DateTime(year, month + 2, 0).day;
-        final months = [
-          'Jan',
-          'Feb',
-          'Mar',
-          'Apr',
-          'May',
-          'Jun',
-          'Jul',
-          'Aug',
-          'Sep',
-          'Oct',
-          'Nov',
-          'Dec',
-        ];
+        final months = LocaleService.current.shortMonths;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -696,7 +673,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
-          border: isToday ? Border.all(color: widget.theme.primary, width: 2) : null,
+          border: isToday
+              ? Border.all(color: widget.theme.primary, width: 2)
+              : null,
         ),
       );
     }
@@ -801,7 +780,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     }
 
     final sortedDays = byDay.keys.toList()..sort();
-    
+
     // Overall average
     double totalScore = 0;
     for (final e in entries) {
@@ -812,20 +791,27 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     // Chart data
     final spots = <FlSpot>[];
     for (int i = 0; i < sortedDays.length; i++) {
-        final day = sortedDays[i];
-        final dayEntries = byDay[day]!;
-        final dayAvg = dayEntries.map((e) => e.score).reduce((a, b) => a + b) / dayEntries.length;
-        spots.add(FlSpot(i.toDouble(), dayAvg));
+      final day = sortedDays[i];
+      final dayEntries = byDay[day]!;
+      final dayAvg =
+          dayEntries.map((e) => e.score).reduce((a, b) => a + b) /
+          dayEntries.length;
+      spots.add(FlSpot(i.toDouble(), dayAvg));
     }
 
     // Determine the text equivalent for the average score
     String avgText = '';
     final numAvg = totalScore / entries.length;
-    if (numAvg >= 4.5) avgText = 'Great';
-    else if (numAvg >= 3.5) avgText = 'Good';
-    else if (numAvg >= 2.5) avgText = 'Okay';
-    else if (numAvg >= 1.5) avgText = 'Bad';
-    else avgText = 'Awful';
+    if (numAvg >= 4.5)
+      avgText = LocaleService.current.great;
+    else if (numAvg >= 3.5)
+      avgText = LocaleService.current.good;
+    else if (numAvg >= 2.5)
+      avgText = LocaleService.current.okay;
+    else if (numAvg >= 1.5)
+      avgText = LocaleService.current.bad;
+    else
+      avgText = LocaleService.current.awful;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -847,7 +833,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Average Mood',
+                LocaleService.current.averageMood,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -893,8 +879,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       ),
                       titlesData: FlTitlesData(
                         show: true,
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
@@ -921,7 +911,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             reservedSize: 22,
                             interval: 1,
                             getTitlesWidget: (value, meta) {
-                              if (value.toInt() >= 0 && value.toInt() < sortedDays.length) {
+                              if (value.toInt() >= 0 &&
+                                  value.toInt() < sortedDays.length) {
                                 final date = sortedDays[value.toInt()];
                                 return Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
@@ -956,11 +947,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             show: true,
                             getDotPainter: (spot, percent, barData, index) =>
                                 FlDotCirclePainter(
-                              radius: 4,
-                              color: Colors.white,
-                              strokeWidth: 2,
-                              strokeColor: widget.theme.primary,
-                            ),
+                                  radius: 4,
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                  strokeColor: widget.theme.primary,
+                                ),
                           ),
                           belowBarData: BarAreaData(
                             show: true,
@@ -972,7 +963,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   )
                 : Center(
                     child: Text(
-                      'Not enough data for chart',
+                      LocaleService.current.notEnoughData,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade400,
@@ -1028,7 +1019,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'How are you feeling?',
+                LocaleService.current.howAreYouFeeling,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -1069,7 +1060,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('${m.label} записано!'),
+                            content: Text(
+                              LocaleService.current.moodRecorded(m.label),
+                            ),
                             behavior: SnackBarBehavior.floating,
                             duration: const Duration(seconds: 2),
                           ),
@@ -1172,7 +1165,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             const SizedBox(height: 16),
             if (moods.isEmpty)
               Text(
-                'No mood recorded',
+                LocaleService.current.noMoodRecorded,
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               )
             else
@@ -1180,66 +1173,72 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: moods.map(
-                      (m) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: m.color.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: m.imagePath.isNotEmpty
-                                  ? Center(
-                                      child: Image.asset(
-                                        m.imagePath,
-                                        width: 34,
-                                        height: 34,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const SizedBox(width: 34, height: 34),
-                                      ),
-                                    )
-                                  : const SizedBox(width: 34, height: 34),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                m.label,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
+                    children: moods
+                        .map(
+                          (m) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: m.color.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: m.imagePath.isNotEmpty
+                                      ? Center(
+                                          child: Image.asset(
+                                            m.imagePath,
+                                            width: 34,
+                                            height: 34,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const SizedBox(
+                                                      width: 34,
+                                                      height: 34,
+                                                    ),
+                                          ),
+                                        )
+                                      : const SizedBox(width: 34, height: 34),
                                 ),
-                              ),
-                            ),
-                            Text(
-                              '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                            if (!isPartner) ...[
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  _mood.deleteMoodEntry(m.id);
-                                  Navigator.pop(context);
-                                },
-                                child: Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 18,
-                                  color: Colors.grey.shade400,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    m.label,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey.shade800,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ).toList(),
+                                Text(
+                                  '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                                if (!isPartner) ...[
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () {
+                                      _mood.deleteMoodEntry(m.id);
+                                      Navigator.pop(context);
+                                    },
+                                    child: Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                 ),
               ),

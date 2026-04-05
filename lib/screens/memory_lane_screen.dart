@@ -152,73 +152,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final date = DateTime(dt.year, dt.month, dt.day);
     final diff = today.difference(date).inDays;
 
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    if (diff < 7) return _weekdayName(dt.weekday);
+    final s = LocaleService.current;
+    if (diff == 0) return s.todayDate;
+    if (diff == 1) return s.yesterday;
+    if (diff < 7) return s.shortWeekdays[dt.weekday - 1];
 
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    final months = s.shortMonths;
     if (dt.year == now.year) {
-      return '${months[dt.month]} ${dt.day}';
+      return '${months[dt.month - 1]} ${dt.day}';
     }
-    return '${months[dt.month]} ${dt.day}, ${dt.year}';
-  }
-
-  String _weekdayName(int weekday) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[weekday - 1];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   String _fmtToday() {
     final n = DateTime.now();
-    const m = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${m[n.month]} ${n.day}';
+    final m = LocaleService.current.shortMonths;
+    return '${m[n.month - 1]} ${n.day}';
   }
 
   String _fmtMonth() {
-    const m = [
-      '',
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return m[DateTime.now().month];
+    return LocaleService.current.fullMonths[DateTime.now().month];
   }
 
   String _timeStr(DateTime dt) {
@@ -465,7 +418,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No memories yet',
+              LocaleService.current.noMemoriesYet,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -474,7 +427,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap "Add Memory" to create your first\nshared memory together',
+              LocaleService.current.noMemoriesYetDesc,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
@@ -1002,7 +955,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          memory.locationName ?? 'Location',
+                          memory.locationName ?? LocaleService.current.location,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -1370,7 +1323,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     Text(
                       memory.title?.isNotEmpty == true
                           ? memory.title!
-                          : 'Video',
+                          : LocaleService.current.video,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -1469,7 +1422,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 color: Colors.white,
               ),
               label: Text(
-                'Открыть в $platformName',
+                LocaleService.current.openIn(platformName),
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -1527,7 +1480,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   color: Colors.black.withOpacity(0.18),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -1547,7 +1500,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       ),
                                       SizedBox(height: 2),
                                       Text(
-                                        'Нажмите, чтобы открыть',
+                                        LocaleService.current.tapToOpen,
                                         style: TextStyle(
                                           color: Colors.white70,
                                           fontSize: 11,
@@ -1629,7 +1582,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     } else if (lower.contains('vk.com') || lower.contains('vkvideo.ru')) {
       return {'name': 'VK Video', 'color': const Color(0xFF0077FF)};
     } else {
-      return {'name': 'Video', 'color': const Color(0xFF6B7280)};
+      return {
+        'name': LocaleService.current.video,
+        'color': const Color(0xFF6B7280),
+      };
     }
   }
 
@@ -2100,7 +2056,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     );
                                   },
                                   icon: const Icon(Icons.map_rounded, size: 18),
-                                  label: const Text('Open in Google Maps'),
+                                  label: Text(
+                                    LocaleService.current.openInGoogleMaps,
+                                  ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: const Color(0xFF22C55E),
                                     side: const BorderSide(
@@ -2207,7 +2165,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       : Icons.push_pin_outlined,
                                   size: 16,
                                 ),
-                                label: Text(memory.isPinned ? 'Unpin' : 'Pin'),
+                                label: Text(
+                                  memory.isPinned
+                                      ? LocaleService.current.unpinMemory
+                                      : LocaleService.current.pinMemory,
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: primary,
                                   side: BorderSide(
@@ -2232,7 +2194,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     Icons.download_rounded,
                                     size: 16,
                                   ),
-                                  label: const Text('Save'),
+                                  label: Text(
+                                    LocaleService.current.saveToDevice,
+                                  ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.blue.shade600,
                                     side: BorderSide(
@@ -2263,7 +2227,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     Icons.edit_rounded,
                                     size: 16,
                                   ),
-                                  label: const Text('Edit'),
+                                  label: Text(LocaleService.current.editMemory),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.grey.shade700,
                                     side: BorderSide(
@@ -2287,7 +2251,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     Icons.delete_outline_rounded,
                                     size: 16,
                                   ),
-                                  label: const Text('Delete'),
+                                  label: Text(
+                                    LocaleService.current.deleteMemory,
+                                  ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red.shade400,
                                     side: BorderSide(
@@ -2343,22 +2309,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   String _formatFullDate(DateTime dt) {
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[dt.month]} ${dt.day}, ${dt.year} at ${_timeStr(dt)}';
+    final s = LocaleService.current;
+    return s.formatDateAt(
+      s.shortMonths[dt.month],
+      dt.day,
+      dt.year,
+      _timeStr(dt),
+    );
   }
 
   // ═══════════════════════════════════════════════════
@@ -2392,7 +2349,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     : Icons.push_pin_outlined,
                 color: primary,
               ),
-              title: Text(memory.isPinned ? 'Unpin memory' : 'Pin memory'),
+              title: Text(
+                memory.isPinned
+                    ? LocaleService.current.unpinMemory
+                    : LocaleService.current.pinMemory,
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _togglePin(memory);
@@ -2404,7 +2365,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   Icons.download_rounded,
                   color: Colors.blue.shade600,
                 ),
-                title: const Text('Save to device'),
+                title: Text(LocaleService.current.saveToDevice),
                 onTap: () {
                   Navigator.pop(context);
                   _downloadMemoryMedia(memory);
@@ -2413,7 +2374,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             if (memory.authorUid == _fb.uid) ...[
               ListTile(
                 leading: Icon(Icons.edit_rounded, color: Colors.grey.shade700),
-                title: const Text('Edit memory'),
+                title: Text(LocaleService.current.editMemory),
                 onTap: () {
                   Navigator.pop(context);
                   _editMemory(memory);
@@ -2425,7 +2386,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   color: Colors.red.shade400,
                 ),
                 title: Text(
-                  'Delete memory',
+                  LocaleService.current.deleteMemory,
                   style: TextStyle(color: Colors.red.shade400),
                 ),
                 onTap: () {
@@ -2478,8 +2439,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     if (url == null || url.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No media URL available'),
+          SnackBar(
+            content: Text(LocaleService.current.noMediaUrl),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -2498,8 +2459,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     try {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Downloading...'),
+          SnackBar(
+            content: Text(LocaleService.current.downloading),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 1),
           ),
@@ -2531,7 +2492,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Saved to ${file.path}'),
+            content: Text(LocaleService.current.savedToPath(file.path)),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
@@ -2542,7 +2503,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Download failed: $e'),
+            content: Text(LocaleService.current.downloadFailed(e.toString())),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -2566,12 +2527,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete memory?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text(LocaleService.current.deleteMemoryQuestion),
+        content: Text(LocaleService.current.actionCannotBeUndone),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -2593,7 +2554,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 );
               }
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
+            child: Text(
+              LocaleService.current.delete,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
           ),
         ],
       ),
@@ -2640,7 +2604,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Edit Memory',
+                  LocaleService.current.editMemoryTitle,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -2652,7 +2616,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   controller: titleCtrl,
                   maxLines: 1,
                   decoration: InputDecoration(
-                    hintText: 'Title (optional)',
+                    hintText: LocaleService.current.titleOptional,
                     prefixIcon: const Icon(Icons.title_rounded, size: 20),
                     filled: true,
                     fillColor: Colors.grey.shade50,
@@ -2671,7 +2635,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   controller: captionCtrl,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Description...',
+                    hintText: LocaleService.current.description,
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
@@ -2738,7 +2702,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'Spoiler',
+                                LocaleService.current.spoiler,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: primary,
@@ -2751,7 +2715,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Выдели текст и нажми',
+                        LocaleService.current.selectTextAndPress,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade400,
@@ -2766,7 +2730,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   TextField(
                     controller: locationCtrl,
                     decoration: InputDecoration(
-                      hintText: 'Location name...',
+                      hintText: LocaleService.current.locationNameHint,
                       prefixIcon: const Icon(Icons.location_on_rounded),
                       filled: true,
                       fillColor: Colors.grey.shade50,
@@ -2806,8 +2770,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       icon: const Icon(Icons.map_rounded),
                       label: Text(
                         editLat != null && editLng != null
-                            ? 'Change Location on Map'
-                            : 'Pick Location on Map',
+                            ? LocaleService.current.changeLocationOnMap
+                            : LocaleService.current.pickLocationOnMap,
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF22C55E),
@@ -2854,7 +2818,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Контент 18+',
+                                  LocaleService.current.adultContent,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -2864,7 +2828,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Фото будет скрыто под блюром',
+                                  LocaleService.current.photoBlurred,
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: isAdultEdit
@@ -2914,8 +2878,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
-                      'Save Changes',
+                    child: Text(
+                      LocaleService.current.saveChanges,
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -2957,7 +2921,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Add Memory',
+                LocaleService.current.addMemoryTitle,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -2966,37 +2930,37 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Choose what you want to share',
+                LocaleService.current.chooseWhatToShare,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 24),
               _addMemoryOption(
                 icon: Icons.photo_rounded,
-                label: 'Photo',
+                label: LocaleService.current.photo,
                 color: const Color(0xFF3B82F6),
                 type: MemoryType.photo,
               ),
               _addMemoryOption(
                 icon: Icons.videocam_rounded,
-                label: 'Video',
+                label: LocaleService.current.video,
                 color: const Color(0xFFEC4899),
                 type: MemoryType.video,
               ),
               _addMemoryOption(
                 icon: Icons.location_on_rounded,
-                label: 'Location',
+                label: LocaleService.current.location,
                 color: const Color(0xFF22C55E),
                 type: MemoryType.location,
               ),
               _addMemoryOption(
                 icon: Icons.music_note_rounded,
-                label: 'Music',
+                label: LocaleService.current.music,
                 color: const Color(0xFF8B5CF6),
                 type: MemoryType.music,
               ),
               _addMemoryOption(
                 icon: Icons.edit_note_rounded,
-                label: 'Note',
+                label: LocaleService.current.note,
                 color: const Color(0xFFFBBF24),
                 type: MemoryType.text,
               ),
@@ -3241,7 +3205,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Поддерживаемые платформы',
+                LocaleService.current.supportedPlatforms,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -3251,7 +3215,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Вставьте ссылку с любой поддерживаемой платформы',
+                LocaleService.current.pasteLinkSupported,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 textAlign: TextAlign.center,
               ),
@@ -3344,8 +3308,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Понятно',
+                  child: Text(
+                    LocaleService.current.gotIt,
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -3388,7 +3352,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Supported Services',
+                LocaleService.current.supportedServices,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -3397,7 +3361,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Paste a link from any supported service',
+                LocaleService.current.pasteLinkFromService,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
               ),
               const SizedBox(height: 18),
@@ -3459,8 +3423,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Got it',
+                  child: Text(
+                    LocaleService.current.gotIt,
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -3858,7 +3822,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        'New ${_typeName(type)}',
+                        LocaleService.current.newMemory(_typeName(type)),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -4008,7 +3972,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to select photos: $e'),
+                                content: Text(
+                                  LocaleService.current.failedSelectPhotos(
+                                    e.toString(),
+                                  ),
+                                ),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -4034,7 +4002,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Tap to select photos',
+                                LocaleService.current.tapToSelectPhotos,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade400,
@@ -4082,7 +4050,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Контент 18+',
+                                  LocaleService.current.adultContent,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -4092,7 +4060,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Фото будет скрыто под блюром',
+                                  LocaleService.current.photoBlurred,
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: isAdultPhoto
@@ -4148,7 +4116,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Из галереи',
+                                  LocaleService.current.fromGallery,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: !useVideoUrl
@@ -4196,7 +4164,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'По ссылке',
+                                  LocaleService.current.byLink,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: useVideoUrl
@@ -4232,7 +4200,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Failed to select video: $e'),
+                                content: Text(
+                                  LocaleService.current.failedSelectVideo(
+                                    e.toString(),
+                                  ),
+                                ),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -4265,7 +4237,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Tap to select video',
+                                      LocaleService.current.tapToSelectVideo,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey.shade400,
@@ -4324,7 +4296,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Ссылка на видео',
+                                LocaleService.current.videoLink,
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -4358,7 +4330,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     )
                                   : IconButton(
                                       icon: const Icon(Icons.search_rounded),
-                                      tooltip: 'Получить данные',
+                                      tooltip: LocaleService.current.fetchData,
                                       onPressed: () async {
                                         final url = videoLinkCtrl.text.trim();
                                         if (url.isEmpty) return;
@@ -4459,7 +4431,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           ],
                           const SizedBox(height: 8),
                           Text(
-                            'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие',
+                            LocaleService.current.supportedPlatformsHint,
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade400,
@@ -4508,7 +4480,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'Memory Details',
+                            LocaleService.current.memoryDetails,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -4523,7 +4495,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         maxLines: 1,
                         style: const TextStyle(fontSize: 15),
                         decoration: InputDecoration(
-                          hintText: 'Title (optional)',
+                          hintText: LocaleService.current.titleOptional,
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           prefixIcon: Icon(
                             Icons.title_rounded,
@@ -4553,8 +4525,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         style: const TextStyle(fontSize: 15),
                         decoration: InputDecoration(
                           hintText: type == MemoryType.text
-                              ? 'Write your note...'
-                              : 'Description (optional)',
+                              ? LocaleService.current.writeYourNote
+                              : LocaleService.current.descriptionOptional,
                           hintStyle: TextStyle(color: Colors.grey.shade400),
                           prefixIcon: Padding(
                             padding: const EdgeInsets.only(bottom: 40),
@@ -4638,7 +4610,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Spoiler',
+                                      LocaleService.current.spoiler,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: primary,
@@ -4651,7 +4623,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'Выдели текст и нажми',
+                              LocaleService.current.selectTextAndPress,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey.shade400,
@@ -4670,7 +4642,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   TextField(
                     controller: locationCtrl,
                     decoration: InputDecoration(
-                      hintText: 'Location name (e.g. Central Park)',
+                      hintText: LocaleService.current.locationNameHint,
                       prefixIcon: const Icon(Icons.location_on_rounded),
                       filled: true,
                       fillColor: Colors.grey.shade50,
@@ -4701,9 +4673,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          const SnackBar(
+                                          SnackBar(
                                             content: Text(
-                                              'Location services are disabled',
+                                              LocaleService
+                                                  .current
+                                                  .locationServicesDisabled,
                                             ),
                                           ),
                                         );
@@ -4727,9 +4701,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          const SnackBar(
+                                          SnackBar(
                                             content: Text(
-                                              'Location permission denied',
+                                              LocaleService
+                                                  .current
+                                                  .locationPermissionDenied,
                                             ),
                                           ),
                                         );
@@ -4772,7 +4748,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       ).showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            'Failed to get location',
+                                            LocaleService
+                                                .current
+                                                .failedGetLocation,
                                           ),
                                         ),
                                       );
@@ -4793,8 +4771,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               : const Icon(Icons.my_location_rounded),
                           label: Text(
                             lat != null && lng != null
-                                ? 'Location set ✓'
-                                : 'Use Current',
+                                ? LocaleService.current.locationSet
+                                : LocaleService.current.useCurrent,
                             style: const TextStyle(fontSize: 12),
                           ),
                           style: OutlinedButton.styleFrom(
@@ -4826,9 +4804,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             }
                           },
                           icon: const Icon(Icons.map_rounded),
-                          label: const Text(
-                            'Pick on Map',
-                            style: TextStyle(fontSize: 12),
+                          label: Text(
+                            LocaleService.current.pickOnMap,
+                            style: const TextStyle(fontSize: 12),
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFF22C55E),
@@ -4877,7 +4855,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                             const SizedBox(width: 10),
                             Text(
-                              'Song Details',
+                              LocaleService.current.songDetails,
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -4891,7 +4869,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           controller: musicTitleCtrl,
                           style: const TextStyle(fontSize: 15),
                           decoration: InputDecoration(
-                            hintText: 'Song name',
+                            hintText: LocaleService.current.songName,
                             hintStyle: TextStyle(color: Colors.grey.shade400),
                             prefixIcon: Icon(
                               Icons.audiotrack_rounded,
@@ -4922,8 +4900,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           controller: musicArtistCtrl,
                           style: const TextStyle(fontSize: 15),
                           decoration: InputDecoration(
-                            hintText: 'Artists (comma separated)',
-                            helperText: 'e.g. Drake, The Weeknd',
+                            hintText:
+                                LocaleService.current.artistsCommaSeparated,
+                            helperText: LocaleService.current.egArtists,
                             helperStyle: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade400,
@@ -4989,7 +4968,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Source',
+                                  LocaleService.current.source,
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -5038,7 +5017,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Streaming Link',
+                                LocaleService.current.streamingLink,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -5058,17 +5037,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.check_circle_rounded,
                                       size: 12,
                                       color: Color(0xFF22C55E),
                                     ),
                                     SizedBox(width: 4),
                                     Text(
-                                      'Fetched',
+                                      LocaleService.current.fetched,
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -5105,7 +5084,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             });
                           },
                           decoration: InputDecoration(
-                            hintText: 'Paste link from any service...',
+                            hintText:
+                                LocaleService.current.pasteLinkFromService,
                             hintStyle: TextStyle(
                               color: Colors.grey.shade400,
                               fontSize: 13,
@@ -5133,7 +5113,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       Icons.manage_search_rounded,
                                       color: primary,
                                     ),
-                                    tooltip: 'Auto-fetch song info from link',
+                                    tooltip:
+                                        LocaleService.current.autoFetchSongInfo,
                                     onPressed: () async {
                                       final url = musicUrlCtrl.text.trim();
                                       if (url.isEmpty) return;
@@ -5193,7 +5174,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 horizontal: 12,
                               ),
                               child: Text(
-                                'OR',
+                                LocaleService.current.orDivider,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade400,
@@ -5237,8 +5218,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                             label: Text(
                               selectedMusicPath != null
-                                  ? 'File selected ✓'
-                                  : 'Pick audio from device',
+                                  ? '${LocaleService.current.fileSelected} ✓'
+                                  : LocaleService.current.pickAudioFromDevice,
                               style: const TextStyle(fontSize: 13),
                             ),
                             style: OutlinedButton.styleFrom(
@@ -5308,9 +5289,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       elevation: 8,
                       shadowColor: primary.withOpacity(0.3),
                     ),
-                    child: const Text(
-                      'Add Memory',
-                      style: TextStyle(
+                    child: Text(
+                      LocaleService.current.addMemoryTitle,
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
@@ -5326,19 +5307,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   String _typeName(MemoryType type) {
+    final s = LocaleService.current;
     switch (type) {
       case MemoryType.photo:
-        return 'Photo';
+        return s.photo;
       case MemoryType.video:
-        return 'Video';
+        return s.video;
       case MemoryType.videoLink:
-        return 'Video Link';
+        return s.video;
       case MemoryType.location:
-        return 'Location';
+        return s.location;
       case MemoryType.music:
-        return 'Music';
+        return s.music;
       case MemoryType.text:
-        return 'Note';
+        return s.note;
     }
   }
 
@@ -5377,7 +5359,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 child: M3LoadingDots(color: Colors.white, dotSize: 5, gap: 2),
               ),
               const SizedBox(width: 12),
-              const Text('Uploading memory...'),
+              Text(LocaleService.current.uploadingMemory),
             ],
           ),
           duration: const Duration(seconds: 30),
@@ -5407,12 +5389,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Failed to upload photos. Make sure Firebase Storage is enabled.',
-                ),
+              SnackBar(
+                content: Text(LocaleService.current.failedUploadPhotos),
                 backgroundColor: Colors.orange,
-                duration: Duration(seconds: 5),
+                duration: const Duration(seconds: 5),
               ),
             );
           }
@@ -5434,12 +5414,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Failed to upload video. Make sure Firebase Storage is enabled.',
-                ),
+              SnackBar(
+                content: Text(LocaleService.current.failedUploadVideo),
                 backgroundColor: Colors.orange,
-                duration: Duration(seconds: 5),
+                duration: const Duration(seconds: 5),
               ),
             );
           }
@@ -5493,10 +5471,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Memory added successfully!'),
+          SnackBar(
+            content: Text(LocaleService.current.memoryAddedSuccess),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -5506,7 +5484,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to add memory: $e'),
+            content: Text(LocaleService.current.failedAddMemory(e.toString())),
             backgroundColor: Colors.red,
           ),
         );
@@ -7122,14 +7100,18 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 color: Colors.black.withOpacity(0.55),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.videocam_rounded, size: 12, color: Colors.white),
-                  SizedBox(width: 4),
+                  const Icon(
+                    Icons.videocam_rounded,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 4),
                   Text(
-                    'VIDEO',
-                    style: TextStyle(
+                    LocaleService.current.videoBadge,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -7300,7 +7282,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     color: Colors.white,
                   ),
                   label: Text(
-                    'Открыть в $platformName',
+                    LocaleService.current.openIn(platformName),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -7448,7 +7430,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   );
                 },
                 icon: const Icon(Icons.map_rounded, size: 18),
-                label: const Text('Open in Google Maps'),
+                label: Text(LocaleService.current.openInGoogleMaps),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: p,
                   foregroundColor: Colors.white,
@@ -7496,7 +7478,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ),
               const SizedBox(width: 8),
               Text(
-                'NOTE',
+                LocaleService.current.noteBadge,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -7551,7 +7533,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 icon: memory.isPinned
                     ? Icons.push_pin_rounded
                     : Icons.push_pin_outlined,
-                label: memory.isPinned ? 'Unpin' : 'Pin',
+                label: memory.isPinned
+                    ? LocaleService.current.unpinMemory
+                    : LocaleService.current.pinMemory,
                 color: p,
                 onTap: () {
                   Navigator.pop(context);
@@ -7564,7 +7548,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               Expanded(
                 child: _actionBtn(
                   icon: Icons.download_rounded,
-                  label: 'Save',
+                  label: LocaleService.current.saveToDevice,
                   color: const Color(0xFF3B82F6),
                   onTap: () {
                     Navigator.pop(context);
@@ -7582,7 +7566,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               Expanded(
                 child: _actionBtn(
                   icon: Icons.edit_rounded,
-                  label: 'Edit',
+                  label: LocaleService.current.editMemory,
                   color: Colors.grey.shade700,
                   onTap: () {
                     Navigator.pop(context);
@@ -7594,7 +7578,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               Expanded(
                 child: _actionBtn(
                   icon: Icons.delete_outline_rounded,
-                  label: 'Delete',
+                  label: LocaleService.current.deleteMemory,
                   color: const Color(0xFFEF4444),
                   onTap: () {
                     Navigator.pop(context);
@@ -7739,7 +7723,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
             ),
             const SizedBox(width: 6),
             Text(
-              'Comments',
+              LocaleService.current.comments,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -7762,7 +7746,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'No comments yet — be the first!',
+                  LocaleService.current.noCommentsYet,
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.grey.shade400,
@@ -7795,7 +7779,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                 onSubmitted: (_) => _send(),
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Write a comment…',
+                  hintText: LocaleService.current.writeAComment,
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
@@ -7938,12 +7922,12 @@ class _CommentsSectionState extends State<_CommentsSection> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete comment?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text(LocaleService.current.deleteCommentQuestion),
+        content: Text(LocaleService.current.actionCannotBeUndone),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -7954,7 +7938,10 @@ class _CommentsSectionState extends State<_CommentsSection> {
                 commentId: comment.id,
               );
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red.shade400)),
+            child: Text(
+              LocaleService.current.delete,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
           ),
         ],
       ),
@@ -8423,15 +8410,8 @@ class _WaveProgressPainter extends CustomPainter {
 class _M3WaveBars extends StatefulWidget {
   final bool isPlaying;
   final Color color;
-  final double width;
-  final double height;
 
-  const _M3WaveBars({
-    required this.isPlaying,
-    required this.color,
-    this.width = 28,
-    this.height = 18,
-  });
+  const _M3WaveBars({required this.isPlaying, required this.color});
 
   @override
   State<_M3WaveBars> createState() => _M3WaveBarsState();
@@ -8476,7 +8456,7 @@ class _M3WaveBarsState extends State<_M3WaveBars>
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) => CustomPaint(
-        size: Size(widget.width, widget.height),
+        size: const Size(28, 18),
         painter: _WaveBarsPainter(
           phase: _ctrl.value * 2 * pi,
           color: widget.color,
@@ -8681,7 +8661,9 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
           const SizedBox(height: 10),
           // ── Title ──
           Text(
-            memory.title?.isNotEmpty == true ? memory.title! : 'Video',
+            memory.title?.isNotEmpty == true
+                ? memory.title!
+                : LocaleService.current.video,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -8733,7 +8715,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
                 color: Colors.white,
               ),
               label: Text(
-                'Открыть в $platformName',
+                LocaleService.current.openIn(platformName),
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,

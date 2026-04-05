@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
+import '../services/locale_service.dart';
 import '../widgets/petal_timer_dial.dart';
 
 /// Карусель таймеров с ИДЕАЛЬНОЙ геометрией радиального меню, адаптированной под размеры контейнера.
@@ -97,9 +98,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   Widget build(BuildContext context) {
     final timers = widget.timerService.timers;
     if (timers.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 300,
-        child: Center(child: Text('No timers')),
+        child: Center(child: Text(LocaleService.current.noTimers)),
       );
     }
 
@@ -227,7 +228,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
 
   void _showCreateDialog() {
     _showTimerSettingsDialog(
-      title: 'Create Timer',
+      title: LocaleService.current.createTimer,
       initialTitle: '',
       initialDate: DateTime.now(),
       initialEmoji: '❤️',
@@ -245,7 +246,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
 
   void _showEditDialog(TimerItem timer) {
     _showTimerSettingsDialog(
-      title: 'Edit Timer',
+      title: LocaleService.current.editTimer,
       initialTitle: timer.title,
       initialDate: timer.startDate,
       initialEmoji: timer.emoji,
@@ -320,20 +321,28 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _dialogLabel('NAME'),
+                  _dialogLabel(LocaleService.current.timerNameLabel),
                   TextField(
                     controller: titleCtrl,
-                    decoration: _dialogInputDeco('e.g. Anniversary'),
+                    decoration: _dialogInputDeco(
+                      LocaleService.current.egAnniversary,
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  _dialogLabel(isCountdown ? 'TARGET DATE' : 'START DATE'),
+                  _dialogLabel(
+                    isCountdown
+                        ? LocaleService.current.targetDate
+                        : LocaleService.current.startDate,
+                  ),
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: dateCtrl,
                           keyboardType: TextInputType.datetime,
-                          decoration: _dialogInputDeco('dd.mm.yyyy'),
+                          decoration: _dialogInputDeco(
+                            LocaleService.current.dateFormatHint,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -368,7 +377,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  _dialogLabel('SYMBOL'),
+                  _dialogLabel(LocaleService.current.symbolLabel),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
@@ -418,12 +427,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                   ),
                   const SizedBox(height: 32),
                   _dialogSwitch(
-                    'Countdown Mode',
+                    LocaleService.current.countdownMode,
                     isCountdown,
                     (v) => setSheetState(() => isCountdown = v),
                   ),
                   _dialogSwitch(
-                    'Set as Main',
+                    LocaleService.current.setAsMain,
                     isDefault,
                     (v) => setSheetState(() => isDefault = v),
                   ),
@@ -453,9 +462,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'SAVE SETTINGS',
-                        style: TextStyle(
+                      child: Text(
+                        LocaleService.current.saveSettings,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                         ),
@@ -477,16 +486,16 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: const Text(
-          'Delete Timer?',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        title: Text(
+          LocaleService.current.deleteTimerQuestion,
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
-        content: Text('"${timer.title}" will be gone forever.'),
+        content: Text(LocaleService.current.timerDeleteConfirm(timer.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              'CANCEL',
+              LocaleService.current.cancel,
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontWeight: FontWeight.w800,
@@ -514,9 +523,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                 });
               }
             },
-            child: const Text(
-              'DELETE',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900),
+            child: Text(
+              LocaleService.current.delete,
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],

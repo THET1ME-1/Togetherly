@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/pair_data.dart';
 import '../models/relationship_status.dart';
+import '../services/locale_service.dart';
 import '../widgets/common/m3_loading.dart';
 
 class RelationshipStatusScreen extends StatefulWidget {
@@ -37,8 +38,8 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     final connection = widget.pairData.manager.activeConnection;
     if (connection == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Relationship Status')),
-        body: const Center(child: Text('No active connection')),
+        appBar: AppBar(title: Text(LocaleService.current.relationshipStatus)),
+        body: Center(child: Text(LocaleService.current.noActiveConnection)),
       );
     }
 
@@ -53,9 +54,12 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Relationship Status',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
+        title: Text(
+          LocaleService.current.relationshipStatus,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: _loading
@@ -70,7 +74,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
                   const SizedBox(height: 24),
 
                   // Predefined Statuses
-                  _buildSectionTitle('Choose a Status'),
+                  _buildSectionTitle(LocaleService.current.chooseAStatus),
                   const SizedBox(height: 12),
                   ...RelationshipStatus.predefinedStatuses.map(
                     (status) => _buildStatusTile(
@@ -83,7 +87,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
                   const SizedBox(height: 24),
 
                   // Custom Statuses
-                  _buildSectionTitle('Custom Statuses'),
+                  _buildSectionTitle(LocaleService.current.customStatuses),
                   const SizedBox(height: 12),
                   ...connection.customStatuses.map(
                     (status) => _buildStatusTile(
@@ -126,9 +130,9 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
       ),
       child: Column(
         children: [
-          const Text(
-            'Current Status',
-            style: TextStyle(
+          Text(
+            LocaleService.current.currentStatus,
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: Colors.black54,
@@ -138,7 +142,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
           Text(status?.emoji ?? '—', style: const TextStyle(fontSize: 48)),
           const SizedBox(height: 8),
           Text(
-            status?.label ?? 'Not Set',
+            status?.label ?? LocaleService.current.notSet,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -219,7 +223,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     return OutlinedButton.icon(
       onPressed: _addCustomStatus,
       icon: const Icon(Icons.add),
-      label: const Text('Add Custom Status'),
+      label: Text(LocaleService.current.addCustomStatus),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 16),
         side: BorderSide(color: Colors.grey.shade300, width: 2),
@@ -237,9 +241,9 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      child: const Text(
-        'Clear Status',
-        style: TextStyle(fontWeight: FontWeight.w600),
+      child: Text(
+        LocaleService.current.clearStatus,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -251,7 +255,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Status set to: ${status.label}'),
+            content: Text(LocaleService.current.statusSetTo(status.label)),
             backgroundColor: Colors.green,
           ),
         );
@@ -260,7 +264,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to set status: $e'),
+            content: Text(LocaleService.current.failedSetStatus('$e')),
             backgroundColor: Colors.red,
           ),
         );
@@ -276,8 +280,8 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
       await widget.pairData.manager.activeConnection?.clearStatus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Status cleared'),
+          SnackBar(
+            content: Text(LocaleService.current.statusCleared),
             backgroundColor: Colors.green,
           ),
         );
@@ -286,7 +290,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to clear status: $e'),
+            content: Text(LocaleService.current.failedClearStatus('$e')),
             backgroundColor: Colors.red,
           ),
         );
@@ -311,8 +315,8 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Custom status added'),
+            SnackBar(
+              content: Text(LocaleService.current.customStatusAdded),
               backgroundColor: Colors.green,
             ),
           );
@@ -321,7 +325,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to add status: $e'),
+              content: Text(LocaleService.current.failedAddStatus('$e')),
               backgroundColor: Colors.red,
             ),
           );
@@ -352,8 +356,8 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Status updated'),
+            SnackBar(
+              content: Text(LocaleService.current.statusUpdated),
               backgroundColor: Colors.green,
             ),
           );
@@ -362,7 +366,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to update status: $e'),
+              content: Text(LocaleService.current.failedUpdateStatus('$e')),
               backgroundColor: Colors.red,
             ),
           );
@@ -377,16 +381,19 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Status'),
-        content: Text('Are you sure you want to delete "${status.label}"?'),
+        title: Text(LocaleService.current.deleteStatus),
+        content: Text(LocaleService.current.deleteStatusConfirm(status.label)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              LocaleService.current.delete,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -400,8 +407,8 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Status deleted'),
+            SnackBar(
+              content: Text(LocaleService.current.statusDeleted),
               backgroundColor: Colors.green,
             ),
           );
@@ -410,7 +417,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to delete status: $e'),
+              content: Text(LocaleService.current.failedDeleteStatus('$e')),
               backgroundColor: Colors.red,
             ),
           );
@@ -459,24 +466,28 @@ class _CustomStatusDialogState extends State<_CustomStatusDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.isEdit ? 'Edit Status' : 'Add Custom Status'),
+      title: Text(
+        widget.isEdit
+            ? LocaleService.current.editStatus
+            : LocaleService.current.addCustomStatus,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _emojiController,
-            decoration: const InputDecoration(
-              labelText: 'Emoji',
-              hintText: '💕',
+            decoration: InputDecoration(
+              labelText: LocaleService.current.emojiLabel,
+              hintText: LocaleService.current.emojiHint,
             ),
             maxLength: 2,
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _labelController,
-            decoration: const InputDecoration(
-              labelText: 'Label',
-              hintText: 'e.g., Living Together',
+            decoration: InputDecoration(
+              labelText: LocaleService.current.labelField,
+              hintText: LocaleService.current.egLivingTogether,
             ),
             maxLength: 30,
             textCapitalization: TextCapitalization.words,
@@ -486,7 +497,7 @@ class _CustomStatusDialogState extends State<_CustomStatusDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(LocaleService.current.cancel),
         ),
         ElevatedButton(
           onPressed: () {
@@ -496,7 +507,11 @@ class _CustomStatusDialogState extends State<_CustomStatusDialog> {
               Navigator.pop(context, {'label': label, 'emoji': emoji});
             }
           },
-          child: Text(widget.isEdit ? 'Update' : 'Add'),
+          child: Text(
+            widget.isEdit
+                ? LocaleService.current.update
+                : LocaleService.current.add,
+          ),
         ),
       ],
     );

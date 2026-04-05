@@ -1620,9 +1620,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _divider(),
           _settingsTile(
             icon: Icons.archive_outlined,
-            label: LocaleService.instance.language == AppLanguage.ru
-                ? 'Экспорт воспоминаний'
-                : 'Export Memories',
+            label: _s.exportMemories,
             onTap: () => _handleExportConfig(context),
           ),
           _divider(),
@@ -1776,11 +1774,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            LocaleService.instance.language == AppLanguage.ru
-                ? 'Нет активной группы для экспорта'
-                : 'No active group for export',
-          ),
+          content: Text(_s.noActiveGroupForExport),
           backgroundColor: _accent,
         ),
       );
@@ -1806,9 +1800,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 M3LoadingDots(color: _accent),
                 const SizedBox(height: 16),
                 Text(
-                  LocaleService.instance.language == AppLanguage.ru
-                      ? 'Создаём архив...\nЭто займет немного времени.'
-                      : 'Creating archive...\nThis will take a moment.',
+                  _s.creatingArchive,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -1843,11 +1835,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pop(context); // close dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              LocaleService.instance.language == AppLanguage.ru
-                  ? 'Ошибка при экспорте: \$e'
-                  : 'Error during export: \$e',
-            ),
+            content: Text(_s.exportError(e.toString())),
             backgroundColor: Colors.red.shade400,
           ),
         );

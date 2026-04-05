@@ -478,6 +478,230 @@ abstract class AppStrings {
   String get isListening;
   String get playTrack;
   String get note;
+
+  // ── Memory Lane (extended) ──
+  String get noMemoriesYetDesc;
+  String get unpinMemory;
+  String get pinMemory;
+  String get saveToDevice;
+  String get editMemory;
+  String get deleteMemory;
+  String get deleteMemoryQuestion;
+  String get actionCannotBeUndone;
+  String get editMemoryTitle;
+  String get titleOptional;
+  String get description;
+  String get locationName;
+  String get changeLocationOnMap;
+  String get pickLocationOnMap;
+  String get saveChanges;
+  String get addMemoryTitle;
+  String get chooseWhatToShare;
+  String newMemory(String type);
+  String get memoryDetails;
+  String get writeYourNote;
+  String get descriptionOptional;
+  String get locationNameHint;
+  String get locationSet;
+  String get useCurrent;
+  String get pickOnMap;
+  String get songDetails;
+  String get songName;
+  String get artistsCommaSeparated;
+  String get egArtists;
+  String get source;
+  String get streamingLink;
+  String get fetched;
+  String get pasteLinkFromService;
+  String get autoFetchSongInfo;
+  String get orDivider;
+  String get fileSelected;
+  String get pickAudioFromDevice;
+  String get uploadingMemory;
+  String get failedUploadPhotos;
+  String get failedUploadVideo;
+  String get memoryAddedSuccess;
+  String failedAddMemory(String e);
+  String get noMediaUrl;
+  String get downloading;
+  String savedToPath(String path);
+  String downloadFailed(String e);
+  String failedSelectPhotos(String e);
+  String failedSelectVideo(String e);
+  String get locationServicesDisabled;
+  String get locationPermissionDenied;
+  String get failedGetLocation;
+  String get tapToSelectPhotos;
+  String get tapToSelectVideo;
+  String get adultContent;
+  String get photoBlurred;
+  String get fromGallery;
+  String get byLink;
+  String get videoLink;
+  String get fetchData;
+  String get supportedPlatformsHint;
+  String get supportedPlatforms;
+  String get pasteLinkSupported;
+  String get gotIt;
+  String get supportedServices;
+  String get pasteLinkFromSupported;
+  String get selectTextAndPress;
+  String get spoiler;
+  String get deleteComment;
+  String get deleteCommentQuestion;
+  String get comments;
+  String get writeAComment;
+  String get noCommentsYet;
+  String nPhotos(int count);
+  String get noPhotoAttached;
+  String get unknownLocation;
+  String get openInGoogleMaps;
+  String get audioFile;
+  String get unknownTrack;
+  String get noAudioUrl;
+  String get cannotPlayAudio;
+  String openIn(String name);
+  String get tapToOpen;
+  String get videoBadge;
+  String get noteBadge;
+  String get youtubeBadge;
+  String get photoNotUploaded;
+  List<String> get fullMonths;
+  String formatDateAt(String month, int day, int year, String time);
+
+  // ── Relationship Status Screen ──
+  String get noActiveConnection;
+  String get chooseAStatus;
+  String get customStatuses;
+  String get currentStatus;
+  String get notSet;
+  String get clearStatus;
+  String statusSetTo(String status);
+  String failedSetStatus(String e);
+  String get statusCleared;
+  String failedClearStatus(String e);
+  String get customStatusAdded;
+  String failedAddStatus(String e);
+  String get statusUpdated;
+  String failedUpdateStatus(String e);
+  String get deleteStatus;
+  String deleteStatusConfirm(String label);
+  String get statusDeleted;
+  String failedDeleteStatus(String e);
+  String get editStatus;
+  String get emojiLabel;
+  String get emojiHint;
+  String get labelField;
+  String get egLivingTogether;
+  String get update;
+
+  // ── Map Picker Screen ──
+  String get selectLocationOnMap;
+  String get selectedLocation;
+  String get selectLocation;
+  String get confirm;
+  String get gettingAddress;
+  String get tapOnMapToSelect;
+  String get failedGetCurrentLocation;
+
+  // ── Mood Calendar (extended) ──
+  String get averageMood;
+  String get great;
+  String get good;
+  String get okay;
+  String get bad;
+  String get awful;
+  String get notEnoughData;
+  String moodRecorded(String label);
+  String get noMoodRecorded;
+  List<String> get shortWeekdaysSingleChar;
+  List<String> get longWeekdays;
+
+  // ── Timer / Expandable Timer Card ──
+  String get noTimers;
+  String get createTimer;
+  String get editTimer;
+  String get timerNameLabel;
+  String get egAnniversary;
+  String get targetDate;
+  String get startDate;
+  String get dateFormatHint;
+  String get symbolLabel;
+  String get countdownMode;
+  String get setAsMain;
+  String get saveSettings;
+  String get deleteTimerQuestion;
+  String timerDeleteConfirm(String name);
+
+  // ── Petal Timer Dial ──
+  String get yearsLabel;
+  String get monthsShortLabel;
+  String get daysShortLabel;
+  String get hoursLabel;
+  String get minLabel;
+  String get secLabel;
+
+  // ── Widget Screen (extended) ──
+  String get homeScreenWidgets;
+  String get addToHomeScreen;
+  String get setAsPhotoOfDay;
+  String get widgetAddedToHome;
+  String failedAddWidget(String e);
+  String get daysTogetherStat;
+  String get memoriesStat;
+  String get drawingsStat;
+  String get missYousStat;
+  String get daysLeft;
+  String get daysElapsed;
+  String get noTimersWidget;
+  String get photoOfDay;
+  String get mine;
+  String get onWidget;
+  String get randomSource;
+  String get ownPhoto;
+  String get saveToMemoryLane;
+  String get regenerate;
+  String get none;
+  String yearsAlready(int years);
+  String get pairWidgetTitle;
+  String get pairWidgetSubtitle;
+  String get daysCounterSubtitle;
+  String get timerWidgetTitle;
+  String get timerWidgetSubtitle;
+  String get photoDayRandomSubtitle;
+  String get photoDayCustomSubtitle;
+  String get moodWidgetSubtitle;
+  String get relationshipStatsSubtitle;
+  String get daysCounterLabel;
+  String get addTimerHint;
+  String get noTimersAddHint;
+  String get selectTimerForWidget;
+  String get daysShortLeft;
+  String get daysShortElapsed;
+  String get partnerPhotoWillAppear;
+  String get choosePhotoBelow;
+  String get randomPhotoFromMemories;
+  String get photoSource;
+  String get fromMemories;
+  String get fromGalleryLabel;
+
+  // ── Profile (extended) ──
+  String get exportMemories;
+  String get noActiveGroupForExport;
+  String get creatingArchive;
+  String exportError(String e);
+  String get relationshipStats;
+
+  // ── Home Screen (extended) ──
+  String get startWithBlankCanvas;
+  String get openSavedDrawing;
+  String get newPhoto;
+  String get titleHint;
+  String get descriptionOptionalHint;
+  String get setAsWidgetPhoto;
+
+  // ── Mini Mood Calendar (extended) ──
+  List<String> get shortWeekdaysUpper;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1317,6 +1541,497 @@ class _RuStrings extends AppStrings {
   String get playTrack => 'Включить';
   @override
   String get note => 'Заметка';
+
+  // ── Memory Lane (extended) ──
+  @override
+  String get noMemoriesYetDesc =>
+      'Нажмите «Добавить», чтобы создать\nпервое общее воспоминание';
+  @override
+  String get unpinMemory => 'Открепить';
+  @override
+  String get pinMemory => 'Закрепить';
+  @override
+  String get saveToDevice => 'Сохранить на устройство';
+  @override
+  String get editMemory => 'Редактировать';
+  @override
+  String get deleteMemory => 'Удалить';
+  @override
+  String get deleteMemoryQuestion => 'Удалить воспоминание?';
+  @override
+  String get actionCannotBeUndone => 'Это действие нельзя отменить.';
+  @override
+  String get editMemoryTitle => 'Редактировать';
+  @override
+  String get titleOptional => 'Заголовок (необязательно)';
+  @override
+  String get description => 'Описание...';
+  @override
+  String get locationName => 'Название места...';
+  @override
+  String get changeLocationOnMap => 'Изменить место на карте';
+  @override
+  String get pickLocationOnMap => 'Выбрать место на карте';
+  @override
+  String get saveChanges => 'Сохранить изменения';
+  @override
+  String get addMemoryTitle => 'Добавить воспоминание';
+  @override
+  String get chooseWhatToShare => 'Выберите, чем поделиться';
+  @override
+  String newMemory(String type) => 'Новое: $type';
+  @override
+  String get memoryDetails => 'Детали';
+  @override
+  String get writeYourNote => 'Напишите заметку...';
+  @override
+  String get descriptionOptional => 'Описание (необязательно)';
+  @override
+  String get locationNameHint => 'Название места (напр. Парк Горького)';
+  @override
+  String get locationSet => 'Место выбрано ✓';
+  @override
+  String get useCurrent => 'Текущее';
+  @override
+  String get pickOnMap => 'На карте';
+  @override
+  String get songDetails => 'Детали трека';
+  @override
+  String get songName => 'Название песни';
+  @override
+  String get artistsCommaSeparated => 'Исполнители (через запятую)';
+  @override
+  String get egArtists => 'напр. Drake, The Weeknd';
+  @override
+  String get source => 'Источник';
+  @override
+  String get streamingLink => 'Ссылка на стриминг';
+  @override
+  String get fetched => 'Получено';
+  @override
+  String get pasteLinkFromService => 'Вставьте ссылку с любого сервиса...';
+  @override
+  String get autoFetchSongInfo => 'Авто-получение данных по ссылке';
+  @override
+  String get orDivider => 'ИЛИ';
+  @override
+  String get fileSelected => 'Файл выбран ✓';
+  @override
+  String get pickAudioFromDevice => 'Выбрать аудио с устройства';
+  @override
+  String get uploadingMemory => 'Загружаем воспоминание...';
+  @override
+  String get failedUploadPhotos =>
+      'Не удалось загрузить фото. Убедитесь, что Firebase Storage включён.';
+  @override
+  String get failedUploadVideo =>
+      'Не удалось загрузить видео. Убедитесь, что Firebase Storage включён.';
+  @override
+  String get memoryAddedSuccess => 'Воспоминание добавлено!';
+  @override
+  String failedAddMemory(String e) => 'Не удалось добавить: $e';
+  @override
+  String get noMediaUrl => 'Нет доступной ссылки на медиа';
+  @override
+  String get downloading => 'Скачиваем...';
+  @override
+  String savedToPath(String path) => 'Сохранено: $path';
+  @override
+  String downloadFailed(String e) => 'Ошибка скачивания: $e';
+  @override
+  String failedSelectPhotos(String e) => 'Не удалось выбрать фото: $e';
+  @override
+  String failedSelectVideo(String e) => 'Не удалось выбрать видео: $e';
+  @override
+  String get locationServicesDisabled => 'Геолокация отключена';
+  @override
+  String get locationPermissionDenied => 'Доступ к геолокации запрещён';
+  @override
+  String get failedGetLocation => 'Не удалось определить местоположение';
+  @override
+  String get tapToSelectPhotos => 'Нажмите, чтобы выбрать фото';
+  @override
+  String get tapToSelectVideo => 'Нажмите, чтобы выбрать видео';
+  @override
+  String get adultContent => 'Контент 18+';
+  @override
+  String get photoBlurred => 'Фото будет скрыто под блюром';
+  @override
+  String get fromGallery => 'Из галереи';
+  @override
+  String get byLink => 'По ссылке';
+  @override
+  String get videoLink => 'Ссылка на видео';
+  @override
+  String get fetchData => 'Получить данные';
+  @override
+  String get supportedPlatformsHint =>
+      'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие';
+  @override
+  String get supportedPlatforms => 'Поддерживаемые платформы';
+  @override
+  String get pasteLinkSupported =>
+      'Вставьте ссылку с любой поддерживаемой платформы';
+  @override
+  String get gotIt => 'Понятно';
+  @override
+  String get supportedServices => 'Поддерживаемые сервисы';
+  @override
+  String get pasteLinkFromSupported =>
+      'Вставьте ссылку с любого поддерживаемого сервиса';
+  @override
+  String get selectTextAndPress => 'Выдели текст и нажми';
+  @override
+  String get spoiler => 'Spoiler';
+  @override
+  String get deleteComment => 'Удалить комментарий?';
+  @override
+  String get deleteCommentQuestion => 'Удалить этот комментарий?';
+  @override
+  String get comments => 'Комментарии';
+  @override
+  String get writeAComment => 'Написать комментарий…';
+  @override
+  String get noCommentsYet => 'Нет комментариев — будьте первым!';
+  @override
+  String nPhotos(int count) => '$count фото';
+  @override
+  String get noPhotoAttached => 'Фото не прикреплено';
+  @override
+  String get unknownLocation => 'Неизвестная локация';
+  @override
+  String get openInGoogleMaps => 'Открыть в Google Картах';
+  @override
+  String get audioFile => 'Аудиофайл';
+  @override
+  String get unknownTrack => 'Неизвестный трек';
+  @override
+  String get noAudioUrl => 'Нет ссылки на аудио';
+  @override
+  String get cannotPlayAudio => 'Невозможно воспроизвести аудио';
+  @override
+  String openIn(String name) => 'Открыть в $name';
+  @override
+  String get tapToOpen => 'Нажмите, чтобы открыть';
+  @override
+  String get videoBadge => 'ВИДЕО';
+  @override
+  String get noteBadge => 'ЗАМЕТКА';
+  @override
+  String get youtubeBadge => 'YouTube';
+  @override
+  String get photoNotUploaded => 'Фото ещё не загружено';
+  @override
+  List<String> get fullMonths => [
+    '',
+    'Январь',
+    'Февраль',
+    'Март',
+    'Апрель',
+    'Май',
+    'Июнь',
+    'Июль',
+    'Август',
+    'Сентябрь',
+    'Октябрь',
+    'Ноябрь',
+    'Декабрь',
+  ];
+  @override
+  String formatDateAt(String month, int day, int year, String time) =>
+      '$day $month $year в $time';
+
+  // ── Relationship Status Screen ──
+  @override
+  String get noActiveConnection => 'Нет активного подключения';
+  @override
+  String get chooseAStatus => 'Выберите статус';
+  @override
+  String get customStatuses => 'Пользовательские статусы';
+  @override
+  String get currentStatus => 'Текущий статус';
+  @override
+  String get notSet => 'Не установлен';
+  @override
+  String get clearStatus => 'Очистить статус';
+  @override
+  String statusSetTo(String status) => 'Статус: $status';
+  @override
+  String failedSetStatus(String e) => 'Ошибка установки статуса: $e';
+  @override
+  String get statusCleared => 'Статус очищен';
+  @override
+  String failedClearStatus(String e) => 'Ошибка очистки статуса: $e';
+  @override
+  String get customStatusAdded => 'Статус добавлен';
+  @override
+  String failedAddStatus(String e) => 'Ошибка добавления статуса: $e';
+  @override
+  String get statusUpdated => 'Статус обновлён';
+  @override
+  String failedUpdateStatus(String e) => 'Ошибка обновления статуса: $e';
+  @override
+  String get deleteStatus => 'Удалить статус';
+  @override
+  String deleteStatusConfirm(String label) =>
+      'Вы уверены, что хотите удалить «$label»?';
+  @override
+  String get statusDeleted => 'Статус удалён';
+  @override
+  String failedDeleteStatus(String e) => 'Ошибка удаления статуса: $e';
+  @override
+  String get editStatus => 'Редактировать статус';
+  @override
+  String get emojiLabel => 'Эмодзи';
+  @override
+  String get emojiHint => '💕';
+  @override
+  String get labelField => 'Название';
+  @override
+  String get egLivingTogether => 'напр., Живём вместе';
+  @override
+  String get update => 'Обновить';
+
+  // ── Map Picker Screen ──
+  @override
+  String get selectLocationOnMap => 'Выберите место на карте';
+  @override
+  String get selectedLocation => 'Выбранная локация';
+  @override
+  String get selectLocation => 'Выбрать место';
+  @override
+  String get confirm => 'Подтвердить';
+  @override
+  String get gettingAddress => 'Определяем адрес...';
+  @override
+  String get tapOnMapToSelect => 'Нажмите на карту, чтобы выбрать другое место';
+  @override
+  String get failedGetCurrentLocation =>
+      'Не удалось определить текущее местоположение';
+
+  // ── Mood Calendar (extended) ──
+  @override
+  String get averageMood => 'Среднее настроение';
+  @override
+  String get great => 'Отлично';
+  @override
+  String get good => 'Хорошо';
+  @override
+  String get okay => 'Нормально';
+  @override
+  String get bad => 'Плохо';
+  @override
+  String get awful => 'Ужасно';
+  @override
+  String get notEnoughData => 'Недостаточно данных для графика';
+  @override
+  String moodRecorded(String label) => '$label записано!';
+  @override
+  String get noMoodRecorded => 'Настроение не отмечено';
+  @override
+  List<String> get shortWeekdaysSingleChar => [
+    'П',
+    'В',
+    'С',
+    'Ч',
+    'П',
+    'С',
+    'В',
+  ];
+  @override
+  List<String> get longWeekdays => [
+    'Понедельник',
+    'Вторник',
+    'Среда',
+    'Четверг',
+    'Пятница',
+    'Суббота',
+    'Воскресенье',
+  ];
+
+  // ── Timer / Expandable Timer Card ──
+  @override
+  String get noTimers => 'Нет таймеров';
+  @override
+  String get createTimer => 'Создать таймер';
+  @override
+  String get editTimer => 'Редактировать таймер';
+  @override
+  String get timerNameLabel => 'НАЗВАНИЕ';
+  @override
+  String get egAnniversary => 'напр. Годовщина';
+  @override
+  String get targetDate => 'ЦЕЛЕВАЯ ДАТА';
+  @override
+  String get startDate => 'ДАТА НАЧАЛА';
+  @override
+  String get dateFormatHint => 'дд.мм.гггг';
+  @override
+  String get symbolLabel => 'СИМВОЛ';
+  @override
+  String get countdownMode => 'Режим отсчёта';
+  @override
+  String get setAsMain => 'Сделать основным';
+  @override
+  String get saveSettings => 'СОХРАНИТЬ';
+  @override
+  String get deleteTimerQuestion => 'Удалить таймер?';
+  @override
+  String timerDeleteConfirm(String name) => '«$name» будет удалён навсегда.';
+
+  // ── Petal Timer Dial ──
+  @override
+  String get yearsLabel => 'Лет';
+  @override
+  String get monthsShortLabel => 'Мес';
+  @override
+  String get daysShortLabel => 'Дней';
+  @override
+  String get hoursLabel => 'Час';
+  @override
+  String get minLabel => 'Мин';
+  @override
+  String get secLabel => 'Сек';
+
+  // ── Widget Screen (extended) ──
+  @override
+  String get homeScreenWidgets => 'Виджеты рабочего стола';
+  @override
+  String get addToHomeScreen => 'Добавить на рабочий стол';
+  @override
+  String get setAsPhotoOfDay => 'Установлено как фото дня';
+  @override
+  String get widgetAddedToHome => 'Виджет добавлен на рабочий стол';
+  @override
+  String failedAddWidget(String e) => 'Не удалось добавить виджет: $e';
+  @override
+  String get daysTogetherStat => 'Дней вместе';
+  @override
+  String get memoriesStat => 'Воспоминаний';
+  @override
+  String get drawingsStat => 'Рисунков';
+  @override
+  String get missYousStat => 'Скучаю';
+  @override
+  String get daysLeft => 'дней осталось';
+  @override
+  String get daysElapsed => 'дней прошло';
+  @override
+  String get noTimersWidget => 'Нет таймеров';
+  @override
+  String get photoOfDay => 'Фото дня';
+  @override
+  String get mine => 'Моё';
+  @override
+  String get onWidget => 'На виджете';
+  @override
+  String get randomSource => 'Случайное';
+  @override
+  String get ownPhoto => 'Своё фото';
+  @override
+  String get saveToMemoryLane => 'Добавить в ленту воспоминаний';
+  @override
+  String get regenerate => 'Повторная генерация';
+  @override
+  String get none => 'Нет';
+  @override
+  String yearsAlready(int years) {
+    String form;
+    if (years % 10 == 1 && years % 100 != 11) {
+      form = '$years год уже ❤️';
+    } else if (years % 10 >= 2 &&
+        years % 10 <= 4 &&
+        (years % 100 < 10 || years % 100 >= 20)) {
+      form = '$years года уже ❤️';
+    } else {
+      form = '$years лет уже ❤️';
+    }
+    return form;
+  }
+
+  @override
+  String get pairWidgetTitle => 'Парный виджет';
+  @override
+  String get pairWidgetSubtitle => 'Настроение, статус, сообщения и фото';
+  @override
+  String get daysCounterSubtitle => 'Системный счётчик дней отношений';
+  @override
+  String get timerWidgetTitle => 'Таймер';
+  @override
+  String get timerWidgetSubtitle => 'Выберите таймер для виджета';
+  @override
+  String get photoDayRandomSubtitle => 'Случайное фото из ленты';
+  @override
+  String get photoDayCustomSubtitle => 'Своё установленное фото';
+  @override
+  String get moodWidgetSubtitle => 'Горизонтальный виджет: моё и партнёра';
+  @override
+  String get relationshipStatsSubtitle =>
+      'Важные цифры: дни, фото, рисунки и «скучаю»';
+  @override
+  String get daysCounterLabel => 'дней';
+  @override
+  String get addTimerHint => 'Добавьте таймер в разделе «Таймеры»';
+  @override
+  String get noTimersAddHint =>
+      'Нет таймеров. Добавьте таймер в разделе «Таймеры».';
+  @override
+  String get selectTimerForWidget => 'Выберите таймер для виджета:';
+  @override
+  String get daysShortLeft => 'дн. осталось';
+  @override
+  String get daysShortElapsed => 'дн. прошло';
+  @override
+  String get partnerPhotoWillAppear =>
+      'Фото партнёра появится\nпосле его выбора';
+  @override
+  String get choosePhotoBelow => 'Выберите фото ниже';
+  @override
+  String get randomPhotoFromMemories => 'Случайное фото\nиз воспоминаний';
+  @override
+  String get photoSource => 'Источник фото:';
+  @override
+  String get fromMemories => 'из воспоминаний';
+  @override
+  String get fromGalleryLabel => 'из галереи';
+
+  // ── Profile (extended) ──
+  @override
+  String get exportMemories => 'Экспорт воспоминаний';
+  @override
+  String get noActiveGroupForExport => 'Нет активной группы для экспорта';
+  @override
+  String get creatingArchive => 'Создаём архив...\nЭто займёт немного времени.';
+  @override
+  String exportError(String e) => 'Ошибка при экспорте: $e';
+  @override
+  String get relationshipStats => 'СТАТИСТИКА ОТНОШЕНИЙ';
+
+  // ── Home Screen (extended) ──
+  @override
+  String get startWithBlankCanvas => 'Начать с чистого холста';
+  @override
+  String get openSavedDrawing => 'Открыть сохранённый рисунок';
+  @override
+  String get newPhoto => 'Новое фото';
+  @override
+  String get titleHint => 'Заголовок…';
+  @override
+  String get descriptionOptionalHint => 'Описание (необязательно)…';
+  @override
+  String get setAsWidgetPhoto => 'Фото дня на виджете';
+
+  // ── Mini Mood Calendar (extended) ──
+  @override
+  List<String> get shortWeekdaysUpper => [
+    'ПН',
+    'ВТ',
+    'СР',
+    'ЧТ',
+    'ПТ',
+    'СБ',
+    'ВС',
+  ];
 }
 
 class _EnStrings extends AppStrings {
@@ -2158,4 +2873,480 @@ class _EnStrings extends AppStrings {
   String get note => 'Note';
   @override
   String get sharedAVideoLink => 'Shared a video link';
+
+  // ── Memory Lane (extended) ──
+  @override
+  String get noMemoriesYetDesc =>
+      'Tap "Add Memory" to create your first\nshared memory together';
+  @override
+  String get unpinMemory => 'Unpin memory';
+  @override
+  String get pinMemory => 'Pin memory';
+  @override
+  String get saveToDevice => 'Save to device';
+  @override
+  String get editMemory => 'Edit memory';
+  @override
+  String get deleteMemory => 'Delete memory';
+  @override
+  String get deleteMemoryQuestion => 'Delete memory?';
+  @override
+  String get actionCannotBeUndone => 'This action cannot be undone.';
+  @override
+  String get editMemoryTitle => 'Edit Memory';
+  @override
+  String get titleOptional => 'Title (optional)';
+  @override
+  String get description => 'Description...';
+  @override
+  String get locationName => 'Location name...';
+  @override
+  String get changeLocationOnMap => 'Change Location on Map';
+  @override
+  String get pickLocationOnMap => 'Pick Location on Map';
+  @override
+  String get saveChanges => 'Save Changes';
+  @override
+  String get addMemoryTitle => 'Add Memory';
+  @override
+  String get chooseWhatToShare => 'Choose what you want to share';
+  @override
+  String newMemory(String type) => 'New $type';
+  @override
+  String get memoryDetails => 'Memory Details';
+  @override
+  String get writeYourNote => 'Write your note...';
+  @override
+  String get descriptionOptional => 'Description (optional)';
+  @override
+  String get locationNameHint => 'Location name (e.g. Central Park)';
+  @override
+  String get locationSet => 'Location set ✓';
+  @override
+  String get useCurrent => 'Use Current';
+  @override
+  String get pickOnMap => 'Pick on Map';
+  @override
+  String get songDetails => 'Song Details';
+  @override
+  String get songName => 'Song name';
+  @override
+  String get artistsCommaSeparated => 'Artists (comma separated)';
+  @override
+  String get egArtists => 'e.g. Drake, The Weeknd';
+  @override
+  String get source => 'Source';
+  @override
+  String get streamingLink => 'Streaming Link';
+  @override
+  String get fetched => 'Fetched';
+  @override
+  String get pasteLinkFromService => 'Paste link from any service...';
+  @override
+  String get autoFetchSongInfo => 'Auto-fetch song info from link';
+  @override
+  String get orDivider => 'OR';
+  @override
+  String get fileSelected => 'File selected ✓';
+  @override
+  String get pickAudioFromDevice => 'Pick audio from device';
+  @override
+  String get uploadingMemory => 'Uploading memory...';
+  @override
+  String get failedUploadPhotos =>
+      'Failed to upload photos. Make sure Firebase Storage is enabled.';
+  @override
+  String get failedUploadVideo =>
+      'Failed to upload video. Make sure Firebase Storage is enabled.';
+  @override
+  String get memoryAddedSuccess => 'Memory added successfully!';
+  @override
+  String failedAddMemory(String e) => 'Failed to add memory: $e';
+  @override
+  String get noMediaUrl => 'No media URL available';
+  @override
+  String get downloading => 'Downloading...';
+  @override
+  String savedToPath(String path) => 'Saved to $path';
+  @override
+  String downloadFailed(String e) => 'Download failed: $e';
+  @override
+  String failedSelectPhotos(String e) => 'Failed to select photos: $e';
+  @override
+  String failedSelectVideo(String e) => 'Failed to select video: $e';
+  @override
+  String get locationServicesDisabled => 'Location services are disabled';
+  @override
+  String get locationPermissionDenied => 'Location permission denied';
+  @override
+  String get failedGetLocation => 'Failed to get location';
+  @override
+  String get tapToSelectPhotos => 'Tap to select photos';
+  @override
+  String get tapToSelectVideo => 'Tap to select video';
+  @override
+  String get adultContent => '18+ Content';
+  @override
+  String get photoBlurred => 'Photo will be blurred';
+  @override
+  String get fromGallery => 'From gallery';
+  @override
+  String get byLink => 'By link';
+  @override
+  String get videoLink => 'Video link';
+  @override
+  String get fetchData => 'Fetch data';
+  @override
+  String get supportedPlatformsHint =>
+      'Supported: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub and more';
+  @override
+  String get supportedPlatforms => 'Supported Platforms';
+  @override
+  String get pasteLinkSupported => 'Paste a link from any supported platform';
+  @override
+  String get gotIt => 'Got it';
+  @override
+  String get supportedServices => 'Supported Services';
+  @override
+  String get pasteLinkFromSupported =>
+      'Paste a link from any supported service';
+  @override
+  String get selectTextAndPress => 'Select text and press';
+  @override
+  String get spoiler => 'Spoiler';
+  @override
+  String get deleteComment => 'Delete comment?';
+  @override
+  String get deleteCommentQuestion => 'Delete this comment?';
+  @override
+  String get comments => 'Comments';
+  @override
+  String get writeAComment => 'Write a comment…';
+  @override
+  String get noCommentsYet => 'No comments yet — be the first!';
+  @override
+  String nPhotos(int count) => '$count photos';
+  @override
+  String get noPhotoAttached => 'No photo attached';
+  @override
+  String get unknownLocation => 'Unknown location';
+  @override
+  String get openInGoogleMaps => 'Open in Google Maps';
+  @override
+  String get audioFile => 'Audio file';
+  @override
+  String get unknownTrack => 'Unknown Track';
+  @override
+  String get noAudioUrl => 'No audio URL';
+  @override
+  String get cannotPlayAudio => 'Cannot play this audio';
+  @override
+  String openIn(String name) => 'Open in $name';
+  @override
+  String get tapToOpen => 'Tap to open';
+  @override
+  String get videoBadge => 'VIDEO';
+  @override
+  String get noteBadge => 'NOTE';
+  @override
+  String get youtubeBadge => 'YouTube';
+  @override
+  String get photoNotUploaded => 'Photo not uploaded yet';
+  @override
+  List<String> get fullMonths => [
+    '',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  @override
+  String formatDateAt(String month, int day, int year, String time) =>
+      '$month $day, $year at $time';
+
+  // ── Relationship Status Screen ──
+  @override
+  String get noActiveConnection => 'No active connection';
+  @override
+  String get chooseAStatus => 'Choose a Status';
+  @override
+  String get customStatuses => 'Custom Statuses';
+  @override
+  String get currentStatus => 'Current Status';
+  @override
+  String get notSet => 'Not Set';
+  @override
+  String get clearStatus => 'Clear Status';
+  @override
+  String statusSetTo(String status) => 'Status set to: $status';
+  @override
+  String failedSetStatus(String e) => 'Failed to set status: $e';
+  @override
+  String get statusCleared => 'Status cleared';
+  @override
+  String failedClearStatus(String e) => 'Failed to clear status: $e';
+  @override
+  String get customStatusAdded => 'Custom status added';
+  @override
+  String failedAddStatus(String e) => 'Failed to add status: $e';
+  @override
+  String get statusUpdated => 'Status updated';
+  @override
+  String failedUpdateStatus(String e) => 'Failed to update status: $e';
+  @override
+  String get deleteStatus => 'Delete Status';
+  @override
+  String deleteStatusConfirm(String label) =>
+      'Are you sure you want to delete "$label"?';
+  @override
+  String get statusDeleted => 'Status deleted';
+  @override
+  String failedDeleteStatus(String e) => 'Failed to delete status: $e';
+  @override
+  String get editStatus => 'Edit Status';
+  @override
+  String get emojiLabel => 'Emoji';
+  @override
+  String get emojiHint => '💕';
+  @override
+  String get labelField => 'Label';
+  @override
+  String get egLivingTogether => 'e.g., Living Together';
+  @override
+  String get update => 'Update';
+
+  // ── Map Picker Screen ──
+  @override
+  String get selectLocationOnMap => 'Select a location on the map';
+  @override
+  String get selectedLocation => 'Selected location';
+  @override
+  String get selectLocation => 'Select Location';
+  @override
+  String get confirm => 'Confirm';
+  @override
+  String get gettingAddress => 'Getting address...';
+  @override
+  String get tapOnMapToSelect =>
+      'Tap on the map to select a different location';
+  @override
+  String get failedGetCurrentLocation => 'Failed to get current location';
+
+  // ── Mood Calendar (extended) ──
+  @override
+  String get averageMood => 'Average Mood';
+  @override
+  String get great => 'Great';
+  @override
+  String get good => 'Good';
+  @override
+  String get okay => 'Okay';
+  @override
+  String get bad => 'Bad';
+  @override
+  String get awful => 'Awful';
+  @override
+  String get notEnoughData => 'Not enough data for chart';
+  @override
+  String moodRecorded(String label) => '$label recorded!';
+  @override
+  String get noMoodRecorded => 'No mood recorded';
+  @override
+  List<String> get shortWeekdaysSingleChar => [
+    'M',
+    'T',
+    'W',
+    'T',
+    'F',
+    'S',
+    'S',
+  ];
+  @override
+  List<String> get longWeekdays => [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  // ── Timer / Expandable Timer Card ──
+  @override
+  String get noTimers => 'No timers';
+  @override
+  String get createTimer => 'Create Timer';
+  @override
+  String get editTimer => 'Edit Timer';
+  @override
+  String get timerNameLabel => 'NAME';
+  @override
+  String get egAnniversary => 'e.g. Anniversary';
+  @override
+  String get targetDate => 'TARGET DATE';
+  @override
+  String get startDate => 'START DATE';
+  @override
+  String get dateFormatHint => 'dd.mm.yyyy';
+  @override
+  String get symbolLabel => 'SYMBOL';
+  @override
+  String get countdownMode => 'Countdown Mode';
+  @override
+  String get setAsMain => 'Set as Main';
+  @override
+  String get saveSettings => 'SAVE SETTINGS';
+  @override
+  String get deleteTimerQuestion => 'Delete Timer?';
+  @override
+  String timerDeleteConfirm(String name) => '"$name" will be gone forever.';
+
+  // ── Petal Timer Dial ──
+  @override
+  String get yearsLabel => 'Years';
+  @override
+  String get monthsShortLabel => 'Months';
+  @override
+  String get daysShortLabel => 'Days';
+  @override
+  String get hoursLabel => 'Hours';
+  @override
+  String get minLabel => 'Min';
+  @override
+  String get secLabel => 'Sec';
+
+  // ── Widget Screen (extended) ──
+  @override
+  String get homeScreenWidgets => 'Home Screen Widgets';
+  @override
+  String get addToHomeScreen => 'Add to Home Screen';
+  @override
+  String get setAsPhotoOfDay => 'Set as Photo of the Day';
+  @override
+  String get widgetAddedToHome => 'Widget added to home screen';
+  @override
+  String failedAddWidget(String e) => 'Failed to add widget: $e';
+  @override
+  String get daysTogetherStat => 'Days Together';
+  @override
+  String get memoriesStat => 'Memories';
+  @override
+  String get drawingsStat => 'Drawings';
+  @override
+  String get missYousStat => 'Miss Yous';
+  @override
+  String get daysLeft => 'days left';
+  @override
+  String get daysElapsed => 'days elapsed';
+  @override
+  String get noTimersWidget => 'No timers';
+  @override
+  String get photoOfDay => 'Photo of the Day';
+  @override
+  String get mine => 'Mine';
+  @override
+  String get onWidget => 'On widget';
+  @override
+  String get randomSource => 'Random';
+  @override
+  String get ownPhoto => 'Own Photo';
+  @override
+  String get saveToMemoryLane => 'Save to Memory Lane';
+  @override
+  String get regenerate => 'Regenerate';
+  @override
+  String get none => 'None';
+  @override
+  String yearsAlready(int years) => '$years years already ❤️';
+  @override
+  String get pairWidgetTitle => 'Pair Widget';
+  @override
+  String get pairWidgetSubtitle => 'Mood, status, messages & photos';
+  @override
+  String get daysCounterSubtitle => 'Relationship day counter';
+  @override
+  String get timerWidgetTitle => 'Timer';
+  @override
+  String get timerWidgetSubtitle => 'Choose a timer for the widget';
+  @override
+  String get photoDayRandomSubtitle => 'Random photo from Memory Lane';
+  @override
+  String get photoDayCustomSubtitle => 'Custom set photo';
+  @override
+  String get moodWidgetSubtitle => 'Horizontal widget: mine & partner\'s';
+  @override
+  String get relationshipStatsSubtitle =>
+      'Important stats: days, photos, drawings & miss yous';
+  @override
+  String get daysCounterLabel => 'days';
+  @override
+  String get addTimerHint => 'Add a timer in the Timers section';
+  @override
+  String get noTimersAddHint => 'No timers. Add a timer in the Timers section.';
+  @override
+  String get selectTimerForWidget => 'Select timer for widget:';
+  @override
+  String get daysShortLeft => 'd. left';
+  @override
+  String get daysShortElapsed => 'd. elapsed';
+  @override
+  String get partnerPhotoWillAppear =>
+      'Partner\'s photo will appear\nafter they choose one';
+  @override
+  String get choosePhotoBelow => 'Choose a photo below';
+  @override
+  String get randomPhotoFromMemories => 'Random photo\nfrom memories';
+  @override
+  String get photoSource => 'Photo source:';
+  @override
+  String get fromMemories => 'from memories';
+  @override
+  String get fromGalleryLabel => 'from gallery';
+
+  // ── Profile (extended) ──
+  @override
+  String get exportMemories => 'Export Memories';
+  @override
+  String get noActiveGroupForExport => 'No active group for export';
+  @override
+  String get creatingArchive => 'Creating archive...\nThis will take a moment.';
+  @override
+  String exportError(String e) => 'Error during export: $e';
+  @override
+  String get relationshipStats => 'RELATIONSHIP STATS';
+
+  // ── Home Screen (extended) ──
+  @override
+  String get startWithBlankCanvas => 'Start with a blank canvas';
+  @override
+  String get openSavedDrawing => 'Open a saved drawing';
+  @override
+  String get newPhoto => 'New Photo';
+  @override
+  String get titleHint => 'Title…';
+  @override
+  String get descriptionOptionalHint => 'Description (optional)…';
+  @override
+  String get setAsWidgetPhoto => 'Set as widget photo';
+
+  // ── Mini Mood Calendar (extended) ──
+  @override
+  List<String> get shortWeekdaysUpper => [
+    'MON',
+    'TUE',
+    'WED',
+    'THU',
+    'FRI',
+    'SAT',
+    'SUN',
+  ];
 }

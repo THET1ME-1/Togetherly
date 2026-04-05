@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import '../services/locale_service.dart';
 import '../widgets/common/m3_loading.dart';
 
 class MapPickerScreen extends StatefulWidget {
@@ -22,13 +23,14 @@ class MapPickerScreen extends StatefulWidget {
 class _MapPickerScreenState extends State<MapPickerScreen> {
   late MapController _mapController;
   LatLng _selectedLocation = const LatLng(47.0105, 28.8638); // Chisinau default
-  String _address = 'Select a location on the map';
+  String _address = '';
   bool _isLoadingAddress = false;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    _address = LocaleService.current.selectLocationOnMap;
 
     if (widget.initialLatitude != null && widget.initialLongitude != null) {
       _selectedLocation = LatLng(
@@ -74,14 +76,16 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         }
 
         setState(() {
-          _address = address.isNotEmpty ? address : 'Selected location';
+          _address = address.isNotEmpty
+              ? address
+              : LocaleService.current.selectedLocation;
         });
       }
     } catch (e) {
       debugPrint('Geocoding failed: $e');
       if (mounted) {
         setState(() {
-          _address = 'Selected location';
+          _address = LocaleService.current.selectedLocation;
         });
       }
     }
@@ -108,9 +112,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Select Location',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          LocaleService.current.selectLocation,
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -122,7 +126,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           TextButton(
             onPressed: _confirmLocation,
             child: Text(
-              'Confirm',
+              LocaleService.current.confirm,
               style: TextStyle(
                 color: Theme.of(context).primaryColor,
                 fontWeight: FontWeight.w700,
@@ -220,7 +224,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Getting address...',
+                                    LocaleService.current.gettingAddress,
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
@@ -243,7 +247,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap on the map to select a different location',
+                    LocaleService.current.tapOnMapToSelect,
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ],
@@ -274,8 +278,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   debugPrint('Failed to get current location: $e');
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Failed to get current location'),
+                      SnackBar(
+                        content: Text(
+                          LocaleService.current.failedGetCurrentLocation,
+                        ),
                       ),
                     );
                   }

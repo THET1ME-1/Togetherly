@@ -9,11 +9,11 @@ class WelcomeScreen extends StatelessWidget {
   final UserData userData;
   const WelcomeScreen({super.key, required this.userData});
 
-
   static const Color _btnColor = Color(0xFFFF7E8B);
 
   @override
   Widget build(BuildContext context) {
+    final s = LocaleService.current;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -67,11 +67,11 @@ class WelcomeScreen extends StatelessWidget {
                         color: Colors.grey.shade900,
                         height: 1.25,
                       ),
-                      children: const [
-                        TextSpan(text: 'This space is just\nfor the '),
+                      children: [
+                        TextSpan(text: s.welcomeTitle1),
                         TextSpan(
-                          text: 'two of you',
-                          style: TextStyle(color: _btnColor),
+                          text: s.welcomeTitle2,
+                          style: const TextStyle(color: _btnColor),
                         ),
                       ],
                     ),
@@ -80,7 +80,7 @@ class WelcomeScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   // Subtitle
                   Text(
-                    'Moments, feelings, connection',
+                    s.welcomeSubtitle,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
@@ -174,7 +174,7 @@ class WelcomeScreen extends StatelessWidget {
                   const SizedBox(height: 28),
                   // Privacy text
                   Text(
-                    'PRIVATE & SECURE',
+                    s.privateSecure,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

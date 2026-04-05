@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// Data for a single petal segment.
@@ -200,37 +201,37 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 
     return [
       _PetalData(
-        label: 'Years',
+        label: LocaleService.current.yearsLabel,
         value: yearsInt,
         maxValue: 100,
         exactValue: exactYears,
       ),
       _PetalData(
-        label: 'Months',
+        label: LocaleService.current.monthsShortLabel,
         value: monthsInt,
         maxValue: 12,
         exactValue: exactMonths,
       ),
       _PetalData(
-        label: 'Days',
+        label: LocaleService.current.daysShortLabel,
         value: daysInt,
         maxValue: 30,
         exactValue: exactDays,
       ),
       _PetalData(
-        label: 'Hours',
+        label: LocaleService.current.hoursLabel,
         value: hoursInt,
         maxValue: 24,
         exactValue: exactHours,
       ),
       _PetalData(
-        label: 'Min',
+        label: LocaleService.current.minLabel,
         value: minutesInt,
         maxValue: 60,
         exactValue: exactMinutes,
       ),
       _PetalData(
-        label: 'Sec',
+        label: LocaleService.current.secLabel,
         value: secondsInt,
         maxValue: 60,
         exactValue: exactSeconds,
@@ -286,7 +287,8 @@ class _PetalTimerDialState extends State<PetalTimerDial>
       final idx = _petalIndexAt(localPos);
       if (idx >= 0 && _presenceFactors[idx] > 0.5) {
         final label = _currentPetals[idx].label;
-        if (label == 'Days' || label == 'Months') {
+        if (label == LocaleService.current.daysShortLabel ||
+            label == LocaleService.current.monthsShortLabel) {
           HapticFeedback.lightImpact();
           widget.onPetalTap?.call(label);
         }
@@ -328,6 +330,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
       });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     _currentPetals = _computePetals();
@@ -435,7 +438,7 @@ class _PetalDialPainter extends CustomPainter {
         ..color = theme.navActiveIcon.withValues(alpha: 0.3 * restoreAlpha)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset.zero, innerR * 0.8, restorePaint);
-      
+
       _drawText(
         canvas,
         text: '↺',
@@ -468,7 +471,12 @@ class _PetalDialPainter extends CustomPainter {
 
       // ── 1. Draw Background Track (the placeholder for max value) ──
       // Фон лепестков берётся из новой настройки темы
-      final bgPath = _buildParallelRigidSector(rigidOuter, rigidInner, h, sweepHalf);
+      final bgPath = _buildParallelRigidSector(
+        rigidOuter,
+        rigidInner,
+        h,
+        sweepHalf,
+      );
 
       // Квадратичное (и даже кубическое) затухание прозрачности для лепестка,
       // чтобы он исчезал быстрее, чем текст
@@ -495,7 +503,12 @@ class _PetalDialPainter extends CustomPainter {
         final currentOuterR = innerR + (outerR - innerR) * factor;
         final rigidFgOuter = math.max(rigidInner + 0.1, currentOuterR - cr);
 
-        final fgPath = _buildParallelRigidSector(rigidFgOuter, rigidInner, h, sweepHalf);
+        final fgPath = _buildParallelRigidSector(
+          rigidFgOuter,
+          rigidInner,
+          h,
+          sweepHalf,
+        );
 
         // Цвет заполнения с учетом прозрачности при анимации
         final fgColor = theme.navActiveIcon.withValues(alpha: petalAlpha);
@@ -550,7 +563,7 @@ class _PetalDialPainter extends CustomPainter {
       canvas.restore();
 
       canvas.restore();
-      
+
       currentStartAngle += sweep;
     }
 
@@ -558,7 +571,11 @@ class _PetalDialPainter extends CustomPainter {
   }
 
   Path _buildParallelRigidSector(
-      double outer, double inner, double h, double sweepHalf) {
+    double outer,
+    double inner,
+    double h,
+    double sweepHalf,
+  ) {
     final path = Path();
 
     // Bounds for segments based on total count.

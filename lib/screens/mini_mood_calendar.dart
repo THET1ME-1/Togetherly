@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../services/mood_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// Горизонтальный мини-календарь с настроениями по дням.
@@ -25,7 +26,7 @@ class MiniMoodCalendar extends StatefulWidget {
     this.onTodayButtonVisibilityChanged,
   });
 
-  static const _dayNames = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  static List<String> get _dayNames => LocaleService.current.shortWeekdaysUpper;
 
   @override
   State<MiniMoodCalendar> createState() => _MiniMoodCalendarState();
@@ -227,7 +228,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            'Today',
+                            LocaleService.current.todayLabel,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,

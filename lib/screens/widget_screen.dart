@@ -269,9 +269,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             groupId: _pair.pairId,
             type: MemoryType.photo,
             imageUrl: uploadedUrl,
-            caption: LocaleService.instance.isRussian
-                ? 'Установлено как фото дня'
-                : 'Set as Photo of the Day',
+            caption: LocaleService.current.setAsPhotoOfDay,
           );
           _loadStats();
         }
@@ -350,11 +348,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              LocaleService.instance.isRussian
-                  ? 'Виджет добавлен на рабочий стол'
-                  : 'Widget added to home screen',
-            ),
+            content: Text(LocaleService.current.widgetAddedToHome),
             backgroundColor: Colors.green.shade400,
             duration: const Duration(seconds: 2),
           ),
@@ -366,11 +360,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              LocaleService.instance.isRussian
-                  ? 'Не удалось добавить виджет: $e'
-                  : 'Failed to add widget: $e',
-            ),
+            content: Text(LocaleService.current.failedAddWidget('$e')),
             backgroundColor: Colors.red.shade400,
             duration: const Duration(seconds: 4),
           ),
@@ -439,7 +429,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
       case 'relationship_stats':
         final sysTimer = _timerService.systemTimer;
         final start = sysTimer?.startDate ?? _pair.startDate;
-        final isRu = LocaleService.instance.isRussian;
         await hws.syncRelationshipStats(
           daysTogether: start != null
               ? DateTime.now().difference(start).inDays
@@ -447,10 +436,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
           memoriesCount: _memoriesCount ?? 0,
           drawingsCount: _drawingsCount ?? 0,
           missYouCount: _missYouCount ?? 0,
-          daysLabel: isRu ? 'Дней вместе' : 'Days Together',
-          memoriesLabel: isRu ? 'Воспоминаний' : 'Memories',
-          drawingsLabel: isRu ? 'Рисунков' : 'Drawings',
-          missYouLabel: isRu ? 'Скучаю' : 'Miss Yous',
+          daysLabel: LocaleService.current.daysTogetherStat,
+          memoriesLabel: LocaleService.current.memoriesStat,
+          drawingsLabel: LocaleService.current.drawingsStat,
+          missYouLabel: LocaleService.current.missYousStat,
         );
         break;
     }
@@ -826,8 +815,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildWidgetGallery() {
-    final isRu = LocaleService.instance.isRussian;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -842,7 +829,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ),
               const SizedBox(width: 6),
               Text(
-                isRu ? 'Виджеты рабочего стола' : 'Home Screen Widgets',
+                LocaleService.current.homeScreenWidgets,
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -855,10 +842,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 1. Парный виджет ──
         _buildGalleryItem(
-          title: isRu ? 'Парный виджет' : 'Pair Widget',
-          subtitle: isRu
-              ? 'Настроение, статус, сообщения и фото'
-              : 'Mood, status, messages & photos',
+          title: LocaleService.current.pairWidgetTitle,
+          subtitle: LocaleService.current.pairWidgetSubtitle,
           svgString: _heartSvg,
           qualifiedName: 'com.example.love_app.LoveWidgetProvider',
           preview: _buildWidgetPreview(),
@@ -872,10 +857,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 2. Счётчик дней вместе ──
         _buildGalleryItem(
-          title: isRu ? 'Дни вместе' : 'Days Together',
-          subtitle: isRu
-              ? 'Системный счётчик дней отношений'
-              : 'Relationship day counter',
+          title: LocaleService.current.daysTogetherStat,
+          subtitle: LocaleService.current.daysCounterSubtitle,
           svgString: _calendarSvg,
           qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
           preview: _buildDaysCounterPreview(),
@@ -885,10 +868,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 3. Таймер ──
         _buildGalleryItem(
-          title: isRu ? 'Таймер' : 'Timer',
-          subtitle: isRu
-              ? 'Выберите таймер для виджета'
-              : 'Choose a timer for the widget',
+          title: LocaleService.current.timerWidgetTitle,
+          subtitle: LocaleService.current.timerWidgetSubtitle,
           svgString: _timerSvg,
           qualifiedName: 'com.example.love_app.TimerWidgetProvider',
           preview: _buildTimerPreview(),
@@ -902,14 +883,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 4. Фото дня ──
         _buildGalleryItem(
-          title: isRu ? 'Фото дня' : 'Photo of the Day',
-          subtitle: isRu
-              ? (_photoDayMode == 'random'
-                    ? 'Случайное фото из ленты'
-                    : 'Своё установленное фото')
-              : (_photoDayMode == 'random'
-                    ? 'Random photo from Memory Lane'
-                    : 'Custom set photo'),
+          title: LocaleService.current.photoOfDay,
+          subtitle: _photoDayMode == 'random'
+              ? LocaleService.current.photoDayRandomSubtitle
+              : LocaleService.current.photoDayCustomSubtitle,
           svgString: _photoSvg,
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
           preview: _buildPhotoDayPreview(),
@@ -923,10 +900,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 5. Настроение ──
         _buildGalleryItem(
-          title: isRu ? 'Настроение' : 'Mood',
-          subtitle: isRu
-              ? 'Горизонтальный виджет: моё и партнёра'
-              : 'Horizontal widget: mine & partner\'s',
+          title: LocaleService.current.mood,
+          subtitle: LocaleService.current.moodWidgetSubtitle,
           svgString: _moodSvg,
           qualifiedName: 'com.example.love_app.MoodWidgetProvider',
           preview: _buildMoodPreview(),
@@ -936,10 +911,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 6. Статистика отношений ──
         _buildGalleryItem(
-          title: isRu ? 'Статистика отношений' : 'Relationship Stats',
-          subtitle: isRu
-              ? 'Важные цифры: дни, фото, рисунки и «скучаю»'
-              : 'Important stats: days, photos, drawings & miss yous',
+          title: LocaleService.current.relationshipStats,
+          subtitle: LocaleService.current.relationshipStatsSubtitle,
           svgString: _statsSvg,
           qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
           preview: _buildRelationshipStatsPreview(),
@@ -960,7 +933,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     bool isExpanded = false,
     VoidCallback? onToggleExpand,
   }) {
-    final isRu = LocaleService.instance.isRussian;
     final iconColor = _t.primary;
 
     return _buildGlassCard(
@@ -1039,7 +1011,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                     _pinWidget(qualifiedName, widgetType: widgetType),
                 icon: const Icon(Icons.add_to_home_screen_rounded, size: 18),
                 label: Text(
-                  isRu ? 'Добавить на рабочий стол' : 'Add to Home Screen',
+                  LocaleService.current.addToHomeScreen,
                   style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1082,7 +1054,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildDaysCounterPreview() {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
     // Данные берём ИЗ системного таймера (isSystem == true)
     final sysTimer = _timerService.systemTimer;
     final start = sysTimer?.startDate ?? _pair.startDate;
@@ -1106,20 +1078,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     }
 
     final years = totalDays ~/ 365;
-    String yearsText;
-    if (years % 10 == 1 && years % 100 != 11) {
-      yearsText = '$years год уже ❤️';
-    } else if (years % 10 >= 2 &&
-        years % 10 <= 4 &&
-        (years % 100 < 10 || years % 100 >= 20)) {
-      yearsText = '$years года уже ❤️';
-    } else {
-      yearsText = '$years лет уже ❤️';
-    }
-
-    if (!isRu) {
-      yearsText = '$years years already ❤️';
-    }
+    final yearsText = s.yearsAlready(years);
 
     return Container(
       width: double.infinity,
@@ -1174,7 +1133,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   ),
                 ),
                 Text(
-                  isRu ? 'дней' : 'Days',
+                  LocaleService.current.daysCounterLabel,
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -1204,7 +1163,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Widget _buildTimerPreview() {
     final timer = _widgetTimer;
-    final isRu = LocaleService.instance.isRussian;
 
     if (timer == null) {
       return Container(
@@ -1224,7 +1182,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              isRu ? 'Нет таймеров' : 'No timers',
+              LocaleService.current.noTimersWidget,
               style: GoogleFonts.rubik(
                 fontSize: 13,
                 color: Colors.grey.shade500,
@@ -1232,9 +1190,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              isRu
-                  ? 'Добавьте таймер в разделе «Таймеры»'
-                  : 'Add a timer in the Timers section',
+              LocaleService.current.addTimerHint,
               style: GoogleFonts.rubik(
                 fontSize: 11,
                 color: Colors.grey.shade400,
@@ -1251,8 +1207,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final days = timer.daysElapsed.abs();
     final isCountdown = timer.isCountdown;
     final daysLabel = isCountdown
-        ? (isRu ? 'дней осталось' : 'days left')
-        : (isRu ? 'дней прошло' : 'days elapsed');
+        ? LocaleService.current.daysLeft
+        : LocaleService.current.daysElapsed;
     final date = timer.formattedStartDate;
 
     return Container(
@@ -1322,16 +1278,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildTimerSelector() {
-    final isRu = LocaleService.instance.isRussian;
     final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
 
     if (nonSystem.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
-          isRu
-              ? 'Нет таймеров. Добавьте таймер в разделе «Таймеры».'
-              : 'No timers. Add a timer in the Timers section.',
+          LocaleService.current.noTimersAddHint,
           style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade500),
         ),
       );
@@ -1341,7 +1294,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          isRu ? 'Выберите таймер для виджета:' : 'Select timer for widget:',
+          LocaleService.current.selectTimerForWidget,
           style: GoogleFonts.rubik(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -1391,7 +1344,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                         ),
                         Text(
                           '${timer.daysElapsed.abs()} '
-                          '${timer.isCountdown ? (isRu ? 'дн. осталось' : 'd. left') : (isRu ? 'дн. прошло' : 'd. elapsed')} • ${timer.formattedStartDate}',
+                          '${timer.isCountdown ? LocaleService.current.daysShortLeft : LocaleService.current.daysShortElapsed} • ${timer.formattedStartDate}',
                           style: GoogleFonts.rubik(
                             fontSize: 11,
                             color: Colors.grey.shade500,
@@ -1420,7 +1373,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildPhotoDayPreview() {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
 
     // Определяем какое фото показывать в превью
     final displayPath = _previewShowsPartner
@@ -1429,14 +1382,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     // Превью-заголовок для пустого состояния
     final emptyLabel = _previewShowsPartner
-        ? (isRu
-              ? 'Фото партнёра появится\nпосле его выбора'
-              : 'Partner\'s photo will appear\nafter they choose one')
+        ? s.partnerPhotoWillAppear
         : (_photoDayMode == 'custom'
-              ? (isRu ? 'Выберите фото \u043dиже' : 'Choose a photo below')
-              : (isRu
-                    ? 'Случайное фото\nиз воспоминаний'
-                    : 'Random photo\nfrom memories'));
+              ? s.choosePhotoBelow
+              : s.randomPhotoFromMemories);
 
     return Column(
       children: [
@@ -1477,7 +1426,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          isRu ? 'Моё' : 'Mine',
+                          s.mine,
                           style: GoogleFonts.rubik(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1523,7 +1472,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          isRu ? 'На виджете' : 'On widget',
+                          s.onWidget,
                           style: GoogleFonts.rubik(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1625,13 +1574,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildPhotoDayExpandedContent() {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          isRu ? 'Источник фото:' : 'Photo source:',
+          s.photoSource,
           style: GoogleFonts.rubik(
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -1643,21 +1592,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
           children: [
             Expanded(
               child: _buildModeButton(
-                label: isRu ? 'Случайное' : 'Random',
+                label: s.randomSource,
                 icon: Icons.shuffle_rounded,
                 isSelected: _photoDayMode == 'random',
                 showRefresh: _photoDayMode == 'random',
-                subtitle: isRu ? 'из воспоминаний' : 'from memories',
+                subtitle: s.fromMemories,
                 onTap: () => _selectPhotoDayMode('random'),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _buildModeButton(
-                label: isRu ? 'Своё фото' : 'Own Photo',
+                label: s.ownPhoto,
                 icon: Icons.image_rounded,
                 isSelected: _photoDayMode == 'custom',
-                subtitle: isRu ? 'из галереи' : 'from gallery',
+                subtitle: s.fromGalleryLabel,
                 onTap: () => _selectPhotoDayMode('custom'),
               ),
             ),
@@ -1674,10 +1623,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () => _pickCustomPhoto(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_rounded, size: 16),
-                        label: Text(
-                          isRu ? 'Галерея' : 'Gallery',
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        label: Text(s.gallery, overflow: TextOverflow.ellipsis),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _t.primaryLight,
                           foregroundColor: _t.primary,
@@ -1694,10 +1640,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () => _pickCustomPhoto(ImageSource.camera),
                         icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                        label: Text(
-                          isRu ? 'Камера' : 'Camera',
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        label: Text(s.camera, overflow: TextOverflow.ellipsis),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _t.primaryLight,
                           foregroundColor: _t.primary,
@@ -1716,9 +1659,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        isRu
-                            ? 'Добавить в ленту воспоминаний'
-                            : 'Save to Memory Lane',
+                        s.saveToMemoryLane,
                         style: GoogleFonts.rubik(
                           fontSize: 12,
                           color: Colors.grey.shade700,
@@ -1749,12 +1690,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
     String? subtitle,
     bool showRefresh = false,
   }) {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
     // Подсказка: если активна и есть showRefresh — показываем «Повторная генерация»;
     // иначе — subtitle (нужен чтобы обе кнопки имели одинаковую высоту)
     final String resolvedSubtitle;
     if (isSelected && showRefresh) {
-      resolvedSubtitle = isRu ? 'Повторная генерация' : 'Regenerate';
+      resolvedSubtitle = s.regenerate;
     } else {
       resolvedSubtitle = subtitle ?? '';
     }
@@ -1808,7 +1749,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildMoodPreview() {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
     final today = DateTime.now();
 
     // Моё настроение из Mood Calendar за сегодня
@@ -1828,10 +1769,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     final myName = _ws.myData?.displayName.isNotEmpty == true
         ? _ws.myData!.displayName
-        : (isRu ? 'Я' : 'Me');
+        : s.me;
     final partnerName = _pair.partnerName.isNotEmpty
         ? _pair.partnerName
-        : (isRu ? 'Партнёр' : 'Partner');
+        : s.partner;
 
     return Container(
       width: double.infinity,
@@ -1849,12 +1790,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         children: [
           // ── Левая часть: Моё настроение ──
           Expanded(
-            child: _buildMoodHalf(
-              entry: myEntry,
-              name: myName,
-              isLeft: true,
-              isRu: isRu,
-            ),
+            child: _buildMoodHalf(entry: myEntry, name: myName, isLeft: true),
           ),
           // ── Разделитель ──
           Container(
@@ -1879,7 +1815,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
               entry: partnerEntry,
               name: partnerName,
               isLeft: false,
-              isRu: isRu,
             ),
           ),
         ],
@@ -1891,7 +1826,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required MoodEntry? entry,
     required String name,
     required bool isLeft,
-    required bool isRu,
   }) {
     return Column(
       crossAxisAlignment: isLeft
@@ -1933,7 +1867,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
           const Text('😶', style: TextStyle(fontSize: 36)),
           const SizedBox(height: 4),
           Text(
-            isRu ? 'Нет' : 'None',
+            LocaleService.current.none,
             style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade400),
           ),
         ],
@@ -1946,7 +1880,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildRelationshipStatsPreview() {
-    final isRu = LocaleService.instance.isRussian;
+    final s = LocaleService.current;
     final sysTimer = _timerService.systemTimer;
     final start = sysTimer?.startDate ?? _pair.startDate;
     final daysNum = start != null ? DateTime.now().difference(start).inDays : 0;
@@ -1968,7 +1902,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   icon: Icons.calendar_today_rounded,
                   color: _t.iconCalendar,
                   value: '$daysNum',
-                  label: isRu ? 'Дней вместе' : 'Days Together',
+                  label: s.daysTogetherStat,
                   bg: _t.iconCalendar.withOpacity(0.08),
                 ),
               ),
@@ -1978,7 +1912,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   icon: Icons.photo_library_rounded,
                   color: _t.iconPost,
                   value: '${_memoriesCount ?? 0}',
-                  label: isRu ? 'Воспоминаний' : 'Memories',
+                  label: s.memoriesStat,
                   bg: _t.iconPost.withOpacity(0.08),
                 ),
               ),
@@ -1992,7 +1926,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   icon: Icons.brush_rounded,
                   color: _t.iconDraw,
                   value: '${_drawingsCount ?? 0}',
-                  label: isRu ? 'Рисунков' : 'Drawings',
+                  label: s.drawingsStat,
                   bg: _t.iconDraw.withOpacity(0.08),
                 ),
               ),
@@ -2002,7 +1936,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   icon: Icons.favorite_rounded,
                   color: _t.primary,
                   value: '${_missYouCount ?? 0}',
-                  label: isRu ? 'Скучаю' : 'Miss Yous',
+                  label: s.missYousStat,
                   bg: _t.primary.withOpacity(0.08),
                 ),
               ),

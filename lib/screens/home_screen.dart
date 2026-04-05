@@ -618,9 +618,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.add_circle_outline_rounded,
                 color: t.primary,
                 title: s.newCanvas,
-                subtitle: LocaleService.instance.isRussian
-                    ? 'Начать с чистого холста'
-                    : 'Start with a blank canvas',
+                subtitle: s.startWithBlankCanvas,
                 onTap: () {
                   Navigator.pop(ctx);
                   _openNewCanvas();
@@ -631,9 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.collections_rounded,
                 color: const Color(0xFF8B5CF6),
                 title: s.myDrawings,
-                subtitle: LocaleService.instance.isRussian
-                    ? 'Открыть сохранённый рисунок'
-                    : 'Open a saved drawing',
+                subtitle: s.openSavedDrawing,
                 onTap: () {
                   Navigator.pop(ctx);
                   _openDrawGallery();
@@ -973,9 +969,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          LocaleService.instance.isRussian
-                              ? 'Новое фото'
-                              : 'New Photo',
+                          LocaleService.current.newPhoto,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -991,9 +985,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: 60,
                       decoration: InputDecoration(
-                        hintText: LocaleService.instance.isRussian
-                            ? 'Заголовок…'
-                            : 'Title…',
+                        hintText: LocaleService.current.titleHint,
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1020,9 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLength: 200,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
-                        hintText: LocaleService.instance.isRussian
-                            ? 'Описание (необязательно)…'
-                            : 'Description (optional)…',
+                        hintText: LocaleService.current.descriptionOptionalHint,
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -1043,9 +1033,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            LocaleService.instance.isRussian
-                                ? 'Фото дня на виджете'
-                                : 'Set as widget photo',
+                            LocaleService.current.setAsWidgetPhoto,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
