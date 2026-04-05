@@ -1563,7 +1563,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ],
                     ),
                   )
-                : buildSubCard(),
+                : (platformName == 'YouTube'
+                      ? _YouTubeInlineCard(
+                          memory: memory,
+                          platformColor: platformColor,
+                          platformName: platformName,
+                        )
+                      : buildSubCard()),
           ),
           const SizedBox(height: 12),
         ],
@@ -8476,6 +8482,276 @@ class _M3WaveBarsState extends State<_M3WaveBars>
           color: widget.color,
           isPlaying: widget.isPlaying,
         ),
+      ),
+    );
+  }
+}
+
+/// Inline YouTube player card — shows thumbnail initially,
+/// then plays the video inline when the user taps the play button.
+class _YouTubeInlineCard extends StatefulWidget {
+  final Memory memory;
+  final Color platformColor;
+  final String platformName;
+
+  const _YouTubeInlineCard({
+    required this.memory,
+    required this.platformColor,
+    required this.platformName,
+  });
+
+  @override
+  State<_YouTubeInlineCard> createState() => _YouTubeInlineCardState();
+}
+
+class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
+  YoutubePlayerController? _controller;
+  bool _isPlaying = false;
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  void _startInlinePlay() {
+    final videoId = YoutubePlayer.convertUrlToId(widget.memory.videoUrl ?? '');
+    if (videoId == null) {
+      final url = widget.memory.videoUrl;
+      if (url != null && url.isNotEmpty) {
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+    setState(() {
+      _controller = YoutubePlayerController(
+        initialVideoId: videoId,
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
+          enableCaption: false,
+          hideControls: false,
+        ),
+      );
+      _isPlaying = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final memory = widget.memory;
+    final platformColor = widget.platformColor;
+    final platformName = widget.platformName;
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Inline player or thumbnail preview ──
+          if (_isPlaying && _controller != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: YoutubePlayer(
+                controller: _controller!,
+                showVideoProgressIndicator: true,
+                progressIndicatorColor: platformColor,
+                progressColors: ProgressBarColors(
+                  playedColor: platformColor,
+                  handleColor: platformColor,
+                ),
+              ),
+            )
+          else
+            GestureDetector(
+              onTap: _startInlinePlay,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasThumb)
+                        CachedNetworkImage(
+                          imageUrl: memory.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  platformColor.withValues(alpha: 0.85),
+                                  platformColor.withValues(alpha: 0.55),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                platformColor.withValues(alpha: 0.85),
+                                platformColor.withValues(alpha: 0.55),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                        ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.4),
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            size: 34,
+                            color: platformColor,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: platformColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.smart_display_rounded,
+                                size: 10,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'YouTube',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          // ── Title ──
+          Text(
+            memory.title?.isNotEmpty == true ? memory.title! : 'Video',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade900,
+              height: 1.3,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (memory.musicArtist?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                memory.musicArtist!,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          if (memory.caption?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Text(
+              memory.caption!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                final url = memory.videoUrl;
+                if (url != null && url.isNotEmpty) {
+                  launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  );
+                }
+              },
+              icon: const Icon(
+                Icons.open_in_new_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              label: Text(
+                'Открыть в $platformName',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: platformColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
