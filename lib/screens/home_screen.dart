@@ -644,7 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openMemoryLaneForPetal(String petalLabel) {
     if (!_pairData.isPaired) return;
-    final mode = petalLabel == 'Days'
+    final mode = petalLabel == LocaleService.current.daysShortLabel
         ? MemoryFilterMode.day
         : MemoryFilterMode.month;
     Navigator.of(context).push(

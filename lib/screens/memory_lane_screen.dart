@@ -117,24 +117,39 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ── Organize memories ──
   List<Memory> get _pinnedMemories {
     final pinned = _memories.where((m) => m.isPinned).toList();
+    if (widget.filterMode != MemoryFilterMode.none) return [];
+    return pinned;
+  }
+
+  /// Memories filtered by current day/month across all years, grouped by year
+  Map<String, List<Memory>> get _filteredByDateAcrossYears {
     final now = DateTime.now();
-    switch (widget.filterMode) {
-      case MemoryFilterMode.day:
-        return pinned
-            .where(
-              (m) =>
-                  m.createdAt.month == now.month && m.createdAt.day == now.day,
-            )
-            .toList();
-      case MemoryFilterMode.month:
-        return pinned.where((m) => m.createdAt.month == now.month).toList();
-      case MemoryFilterMode.none:
-        return pinned;
+    List<Memory> filtered;
+    if (widget.filterMode == MemoryFilterMode.day) {
+      filtered = _memories
+          .where(
+            (m) => m.createdAt.month == now.month && m.createdAt.day == now.day,
+          )
+          .toList();
+    } else if (widget.filterMode == MemoryFilterMode.month) {
+      filtered = _memories
+          .where((m) => m.createdAt.month == now.month)
+          .toList();
+    } else {
+      return {};
     }
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final Map<String, List<Memory>> grouped = {};
+    for (var m in filtered) {
+      final key = '${m.createdAt.year}';
+      grouped.putIfAbsent(key, () => []).add(m);
+    }
+    return grouped;
   }
 
   /// Group non-pinned memories by date, newest first
   Map<String, List<Memory>> get _groupedByDate {
+    if (widget.filterMode != MemoryFilterMode.none) return {};
     final nonPinned = _memories.where((m) => !m.isPinned).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -241,7 +256,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 _buildEmpty()
               else ...[
                 const SliverToBoxAdapter(child: SizedBox(height: 6)),
-                // Pinned section
+                // Pinned section (only in normal mode)
                 if (_pinnedMemories.isNotEmpty) ...[
                   _sectionHeader('📌  ${LocaleService.current.pinned}'),
                   SliverPadding(
@@ -254,7 +269,27 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ),
                 ],
-                // Date-grouped sections
+                // Day/Month filter — grouped by year across all years
+                if (widget.filterMode != MemoryFilterMode.none) ...[
+                  if (_filteredByDateAcrossYears.isEmpty)
+                    _buildEmpty()
+                  else
+                    ..._filteredByDateAcrossYears.entries.expand((entry) {
+                      return [
+                        _sectionHeader(entry.key),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (_, i) => _memoryTile(entry.value[i]),
+                              childCount: entry.value.length,
+                            ),
+                          ),
+                        ),
+                      ];
+                    }),
+                ],
+                // Date-grouped sections (normal mode)
                 ..._groupedByDate.entries.expand((entry) {
                   return [
                     _sectionHeader(entry.key),
