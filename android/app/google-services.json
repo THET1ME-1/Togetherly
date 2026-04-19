@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:941141989934:android:25418ba41e028faef71dbf",
         "android_client_info": {
-          "package_name": "com.example.love_app"
+          "package_name": "com.togetherly.love"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "941141989934-87g12sgiej0e0kddaj7qt5a2vneoio30.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.love_app",
+            "package_name": "com.togetherly.love",
             "certificate_hash": "be73225e32b148747169c909e7366d661d7ea2a6"
           }
         },
@@ -25,7 +25,7 @@
           "client_id": "941141989934-en8hh59mp01rkdcep79j47rnrp14iu16.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.love_app",
+            "package_name": "com.togetherly.love",
             "certificate_hash": "e77d82128a3f4f2dcf50680abd62ab26f2819dd3"
           }
         },
@@ -33,7 +33,7 @@
           "client_id": "941141989934-og5gm90uqhfnlq81csv5nt01eg8cp9k5.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.love_app",
+            "package_name": "com.togetherly.love",
             "certificate_hash": "b6267490e8046b930a0da79d8db4bb678c6f8d88"
           }
         },
@@ -41,7 +41,7 @@
           "client_id": "941141989934-ppddl6f9j1es4kqtoem0viu25d5j51vp.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.love_app",
+            "package_name": "com.togetherly.love",
             "certificate_hash": "d21a870173efca0a01c1c2ae22b80f37a074b3da"
           }
         },
