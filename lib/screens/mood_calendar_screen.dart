@@ -399,7 +399,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       ),
                     const SizedBox(width: 4),
                     Text(
-                      m.label,
+                      m.localizedLabel,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
@@ -1041,7 +1041,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         _mood.addMood(
                           moodId: m.id,
                           imagePath: m.imagePath,
-                          label: m.label,
+                          label: m.localizedLabel,
                           date: day,
                         );
                         // Синхронизуем live-настроение если выбран сегодняшний день
@@ -1049,11 +1049,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         if (day.year == now.year &&
                             day.month == now.month &&
                             day.day == now.day) {
-                          _pair.setMood(m.imagePath, m.label);
+                          _pair.setMood(m.imagePath, m.localizedLabel);
                           // skipCalendar: moodService уже добавил запись
                           _ws.updateMood(
                             m.imagePath,
-                            m.label,
+                            m.localizedLabel,
                             skipCalendar: true,
                           );
                         }
@@ -1061,7 +1061,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              LocaleService.current.moodRecorded(m.label),
+                              LocaleService.current.moodRecorded(
+                                m.localizedLabel,
+                              ),
                             ),
                             behavior: SnackBarBehavior.floating,
                             duration: const Duration(seconds: 2),
@@ -1099,7 +1101,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            m.label,
+                            m.localizedLabel,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,

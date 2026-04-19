@@ -2844,15 +2844,19 @@ class _WidgetScreenState extends State<WidgetScreen> {
         theme: _t,
         onSelect: (option) async {
           Navigator.pop(ctx);
-          _pair.setMood(option.imagePath, option.label);
+          _pair.setMood(option.imagePath, option.localizedLabel);
           // Добавляем в календарь с корректным id
           _moodService.addMood(
             moodId: option.id,
             imagePath: option.imagePath,
-            label: option.label,
+            label: option.localizedLabel,
           );
           // skipCalendar: moodService уже добавил запись — не дублируем
-          _ws.updateMood(option.imagePath, option.label, skipCalendar: true);
+          _ws.updateMood(
+            option.imagePath,
+            option.localizedLabel,
+            skipCalendar: true,
+          );
         },
       ),
     );
@@ -3141,7 +3145,7 @@ class _MoodPickerSheet extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Text(
-                            mood.label,
+                            mood.localizedLabel,
                             style: GoogleFonts.rubik(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,

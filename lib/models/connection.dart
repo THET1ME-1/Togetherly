@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../services/firebase_service.dart';
+import '../services/locale_service.dart';
 import 'relationship_status.dart';
 
 enum RelationshipType {
@@ -41,8 +42,8 @@ class MemberMood {
     if (updatedAt == null) return false;
     final now = DateTime.now();
     return updatedAt!.year == now.year &&
-           updatedAt!.month == now.month &&
-           updatedAt!.day == now.day;
+        updatedAt!.month == now.month &&
+        updatedAt!.day == now.day;
   }
 
   bool get isEmpty => imagePath.isEmpty || !isToday;
@@ -170,19 +171,20 @@ class Connection {
 
   // ── Relationship Type Helpers ──
   String get relationshipLabel {
+    final s = LocaleService.current;
     switch (relationshipType) {
       case RelationshipType.couple:
-        return 'In Love';
+        return s.inLoveStatus;
       case RelationshipType.married:
-        return 'Married';
+        return s.married;
       case RelationshipType.friends:
-        return 'Friends';
+        return s.friends;
       case RelationshipType.buddies:
-        return 'Best Buddies';
+        return s.bestBuddies;
       case RelationshipType.custom:
         return customRelationshipLabel.isNotEmpty
             ? customRelationshipLabel
-            : 'Custom';
+            : s.customStatus;
     }
   }
 

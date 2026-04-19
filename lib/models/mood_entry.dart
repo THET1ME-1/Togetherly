@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../services/locale_service.dart';
 
 /// Предустановленные настроения с цветами.
 class MoodOption {
@@ -15,17 +16,171 @@ class MoodOption {
     required this.color,
   });
 
+  /// Возвращает метку настроения на текущем языке приложения.
+  String get localizedLabel {
+    if (LocaleService.instance.isRussian) return label;
+    switch (id) {
+      case 'sad':
+        return 'Sad';
+      case 'winking':
+        return 'Winking';
+      case 'liar':
+        return 'Liar';
+      case 'greed':
+        return 'Greedy';
+      case 'crying':
+        return 'Crying';
+      case 'starstruck':
+        return 'Starstruck';
+      case 'happy':
+        return 'Happy';
+      case 'no_expression':
+        return 'No Mood';
+      case 'disappointment':
+        return 'Disappointed';
+      case 'disappointed':
+        return 'Upset';
+      case 'yummy':
+        return 'Yummy';
+      case 'crying_hard':
+        return 'Sobbing';
+      case 'angry':
+        return 'Angry';
+      case 'blush':
+        return 'Blushing';
+      case 'dead':
+        return 'Dead';
+      case 'crazy':
+        return 'Crazy';
+      case 'cool':
+        return 'Cool';
+      case 'angry_rage':
+        return 'Rage';
+      case 'disappointed_bad':
+        return 'Very Upset';
+      case 'laughing':
+        return 'Laughing';
+      case 'surprised':
+        return 'Surprised';
+      case 'devil':
+        return 'Devil';
+      case 'dizzy':
+        return 'Dizzy';
+      case 'drooling':
+        return 'Drooling';
+      case 'flush':
+        return 'Flushed';
+      case 'grimacing':
+        return 'Grimacing';
+      case 'grin':
+        return 'Grinning';
+      case 'kiss':
+        return 'Kiss';
+      case 'secret':
+        return 'Secret';
+      case 'scared':
+        return 'Scared';
+      case 'rolling_eyes':
+        return 'Eye Roll';
+      case 'mute':
+        return 'Silent';
+      case 'love':
+        return 'In Love';
+      case 'angry_furious':
+        return 'Furious';
+      case 'laughing_hard':
+        return 'ROFL';
+      case 'shy':
+        return 'Shy';
+      case 'sick':
+        return 'Sick';
+      case 'sick_fever':
+        return 'Fever';
+      case 'annoyed':
+        return 'Annoyed';
+      case 'sleepy':
+        return 'Sleepy';
+      case 'smirking':
+        return 'Smirking';
+      case 'surprised_shock':
+        return 'Shocked';
+      case 'cold':
+        return 'Cold';
+      case 'blessed':
+        return 'Blessed';
+      case 'astonished':
+        return 'Astonished';
+      case 'vomiting':
+        return 'Nauseous';
+      case 'unamused':
+        return 'Unamused';
+      case 'tired':
+        return 'Tired';
+      case 'sweating':
+        return 'Sweating';
+      case 'confused':
+        return 'Confused';
+      default:
+        return label;
+    }
+  }
+
   int get score {
     switch (id) {
-      case 'happy': case 'starstruck': case 'yummy': case 'laughing': case 'grin': case 'kiss': case 'love': case 'blessed': case 'laughing_hard':
+      case 'happy':
+      case 'starstruck':
+      case 'yummy':
+      case 'laughing':
+      case 'grin':
+      case 'kiss':
+      case 'love':
+      case 'blessed':
+      case 'laughing_hard':
         return 5;
-      case 'winking': case 'flush': case 'smirking': case 'cool': case 'blush':
+      case 'winking':
+      case 'flush':
+      case 'smirking':
+      case 'cool':
+      case 'blush':
         return 4;
-      case 'no_expression': case 'secret': case 'mute': case 'sleepy': case 'surprised': case 'shy':
+      case 'no_expression':
+      case 'secret':
+      case 'mute':
+      case 'sleepy':
+      case 'surprised':
+      case 'shy':
         return 3;
-      case 'sad': case 'liar': case 'greed': case 'disappointment': case 'disappointed': case 'sick': case 'tired': case 'sweating': case 'confused': case 'grimacing': case 'rolling_eyes': case 'unamused': case 'cold': case 'annoyed': case 'astonished':
+      case 'sad':
+      case 'liar':
+      case 'greed':
+      case 'disappointment':
+      case 'disappointed':
+      case 'sick':
+      case 'tired':
+      case 'sweating':
+      case 'confused':
+      case 'grimacing':
+      case 'rolling_eyes':
+      case 'unamused':
+      case 'cold':
+      case 'annoyed':
+      case 'astonished':
         return 2;
-      case 'crying': case 'crying_hard': case 'angry': case 'dead': case 'crazy': case 'angry_rage': case 'disappointed_bad': case 'devil': case 'dizzy': case 'drooling': case 'scared': case 'angry_furious': case 'sick_fever': case 'vomiting': case 'surprised_shock':
+      case 'crying':
+      case 'crying_hard':
+      case 'angry':
+      case 'dead':
+      case 'crazy':
+      case 'angry_rage':
+      case 'disappointed_bad':
+      case 'devil':
+      case 'dizzy':
+      case 'drooling':
+      case 'scared':
+      case 'angry_furious':
+      case 'sick_fever':
+      case 'vomiting':
+      case 'surprised_shock':
         return 1;
       default:
         return 3;

@@ -84,15 +84,15 @@ void showMoodPicker({
                       for (final e in moodService.myEntriesForDay(today)) {
                         moodService.deleteMoodEntry(e.id);
                       }
-                      pairData.setMood(mood.imagePath, mood.label);
+                      pairData.setMood(mood.imagePath, mood.localizedLabel);
                       moodService.addMood(
                         moodId: mood.id,
                         imagePath: mood.imagePath,
-                        label: mood.label,
+                        label: mood.localizedLabel,
                       );
                       widgetService.updateMood(
                         mood.imagePath,
-                        mood.label,
+                        mood.localizedLabel,
                         skipCalendar: true,
                       );
                     },
@@ -121,7 +121,7 @@ void showMoodPicker({
                             ),
                           const SizedBox(height: 4),
                           Text(
-                            mood.label,
+                            mood.localizedLabel,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
@@ -263,17 +263,17 @@ void showMoodPickerForDate({
                       HapticFeedback.lightImpact();
                       Navigator.pop(ctx2);
                       if (isToday) {
-                        pairData.setMood(mood.imagePath, mood.label);
+                        pairData.setMood(mood.imagePath, mood.localizedLabel);
                         widgetService.updateMood(
                           mood.imagePath,
-                          mood.label,
+                          mood.localizedLabel,
                           skipCalendar: true,
                         );
                       }
                       moodService.addMood(
                         moodId: mood.id,
                         imagePath: mood.imagePath,
-                        label: mood.label,
+                        label: mood.localizedLabel,
                         date: date,
                       );
                     },
@@ -302,7 +302,7 @@ void showMoodPickerForDate({
                             ),
                           const SizedBox(height: 4),
                           Text(
-                            mood.label,
+                            mood.localizedLabel,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
