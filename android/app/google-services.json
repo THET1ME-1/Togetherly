@@ -38,6 +38,14 @@
           }
         },
         {
+          "client_id": "941141989934-ppddl6f9j1es4kqtoem0viu25d5j51vp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.love_app",
+            "certificate_hash": "d21a870173efca0a01c1c2ae22b80f37a074b3da"
+          }
+        },
+        {
           "client_id": "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -62,7 +70,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:941141989934:android:7b8c419d4e3c8d14f71dbf",
         "android_client_info": {
-          "package_name": "com.togetherly.love"
+          "package_name": "com.togetherly.app"
         }
       },
       "oauth_client": [
