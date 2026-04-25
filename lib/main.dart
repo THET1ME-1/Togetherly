@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
@@ -11,11 +12,21 @@ import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'widgets/common/m3_loading.dart';
 
+/// Top-level background handler — должен быть функцией верхнего уровня.
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('FCM background: ${message.notification?.title}');
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase — инициализация
   await Firebase.initializeApp();
+
+  // FCM background handler — регистрируем до чего угодно
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // Включаем офлайн-кеш Firestore
   FirebaseFirestore.instance.settings = const Settings(

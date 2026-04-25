@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -501,12 +502,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final picker = ImagePicker();
     final image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 512,
-      maxHeight: 512,
+      imageQuality: 90,
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
 
     if (image == null || !mounted) return;
+
+    // Обрезаем до квадрата
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Обрезка фото',
+          toolbarColor: _accent,
+          toolbarWidgetColor: Colors.white,
+          statusBarColor: _accent,
+          backgroundColor: Colors.black,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Обрезка фото',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+        ),
+      ],
+    );
+
+    if (croppedFile == null || !mounted) return;
 
     // Show loading
     showDialog(
@@ -551,9 +576,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      final ext = image.path.split('.').last;
+      final ext = croppedFile.path.split('.').last;
       final destination = 'avatars/$userId/profile.$ext';
-      final downloadUrl = await fb.uploadFile(image.path, destination);
+      final downloadUrl = await fb.uploadFile(croppedFile.path, destination);
 
       if (mounted) Navigator.of(context).pop();
 

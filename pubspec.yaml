@@ -49,6 +49,8 @@ dependencies:
   
   # Медиа и локация
   image_picker: ^1.1.2            # Фото/видео пикер
+  image_cropper: ^12.2.1           # Обрезка аватарок
+  flutter_local_notifications: ^21.0.0  # Локальные уведомления (foreground FCM)
   file_picker: ^8.0.7             # Файл пикер (музыка)
   geolocator: ^13.0.2             # GPS локация
   geocoding: ^3.0.0               # Координаты → адрес

@@ -4,15 +4,14 @@
  * Срабатывает при добавлении документа в groups/{groupId}/missYouEvents/{eventId}.
  * Отправляет push-уведомление всем участникам группы, кроме отправителя.
  *
- * Для работы нужно:
- * 1. `firebase deploy --only functions`
- * 2. У каждого пользователя в Firestore (users/{uid}) должно быть поле `fcmToken`
- * 3. В приложении при старте нужно сохранять FCM-токен в Firestore
+ * Поддерживает:
+ *  - fcmTokens (array) — несколько устройств / переустановка приложения
+ *  - fcmToken  (string) — обратная совместимость
  */
 
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
 initializeApp();
@@ -30,29 +29,42 @@ exports.onMissYouEvent = onDocumentCreated(
 
     const db = getFirestore();
 
-    // Get group members
+    // Получаем участников группы
     const groupDoc = await db.collection("groups").doc(groupId).get();
     if (!groupDoc.exists) return;
 
     const members = groupDoc.data().members || [];
-    // Send to everyone except the sender
+    // Отправляем всем, кроме отправителя
     const recipients = members.filter((uid) => uid !== senderUid);
 
     if (recipients.length === 0) return;
 
-    // Get FCM tokens for all recipients
-    const tokens = [];
+    // Собираем FCM-токены всех получателей (поддержка массива и одиночного поля)
+    const tokenToUid = {}; // token → uid (для очистки устаревших)
     for (const uid of recipients) {
       const userDoc = await db.collection("users").doc(uid).get();
-      if (userDoc.exists) {
-        const token = userDoc.data().fcmToken;
-        if (token) tokens.push(token);
+      if (!userDoc.exists) continue;
+
+      const userData = userDoc.data();
+
+      // Приоритет: массив fcmTokens, затем одиночный fcmToken
+      const tokensList = userData.fcmTokens;
+      if (Array.isArray(tokensList) && tokensList.length > 0) {
+        for (const t of tokensList) {
+          if (t) tokenToUid[t] = uid;
+        }
+      } else if (userData.fcmToken) {
+        tokenToUid[userData.fcmToken] = uid;
       }
     }
 
-    if (tokens.length === 0) return;
+    const tokens = Object.keys(tokenToUid);
+    if (tokens.length === 0) {
+      console.log(`MissYou [${groupId}]: no FCM tokens found for recipients`);
+      return;
+    }
 
-    // Send push notification
+    // Формируем push-сообщение
     const message = {
       notification: {
         title: `${senderName} скучает по вам 💕`,
@@ -65,6 +77,7 @@ exports.onMissYouEvent = onDocumentCreated(
         senderName: senderName,
       },
       android: {
+        priority: "high",
         notification: {
           channelId: "miss_you",
           priority: "high",
@@ -73,10 +86,14 @@ exports.onMissYouEvent = onDocumentCreated(
         },
       },
       apns: {
+        headers: {
+          "apns-priority": "10",
+        },
         payload: {
           aps: {
             sound: "default",
             badge: 1,
+            contentAvailable: true,
           },
         },
       },
@@ -84,35 +101,47 @@ exports.onMissYouEvent = onDocumentCreated(
 
     const messaging = getMessaging();
     const results = await Promise.allSettled(
-      tokens.map((token) =>
-        messaging.send({ ...message, token })
-      )
+      tokens.map((token) => messaging.send({ ...message, token }))
     );
 
-    // Clean up stale tokens
+    // Находим устаревшие токены
     const staleTokens = [];
     results.forEach((result, i) => {
       if (
         result.status === "rejected" &&
-        result.reason?.code === "messaging/registration-token-not-registered"
+        (result.reason?.code ===
+          "messaging/registration-token-not-registered" ||
+          result.reason?.code === "messaging/invalid-registration-token")
       ) {
         staleTokens.push(tokens[i]);
       }
     });
 
-    // Remove stale tokens from Firestore
+    // Удаляем устаревшие токены из Firestore (и из массива, и из одиночного поля)
     for (const staleToken of staleTokens) {
-      const usersSnap = await db
-        .collection("users")
-        .where("fcmToken", "==", staleToken)
-        .get();
-      for (const doc of usersSnap.docs) {
-        await doc.ref.update({ fcmToken: "" });
+      const uid = tokenToUid[staleToken];
+      if (!uid) continue;
+      try {
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) continue;
+
+        const updates = {
+          fcmTokens: FieldValue.arrayRemove(staleToken),
+        };
+        // Если одиночный fcmToken совпадает — тоже очищаем
+        if (userSnap.data().fcmToken === staleToken) {
+          updates.fcmToken = "";
+        }
+        await userRef.update(updates);
+      } catch (e) {
+        console.warn(`Failed to remove stale token for uid=${uid}: ${e}`);
       }
     }
 
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
     console.log(
-      `MissYou: sent to ${tokens.length} devices, ${staleTokens.length} stale`
+      `MissYou [${groupId}]: sent=${successCount}/${tokens.length}, stale=${staleTokens.length}`
     );
   }
 );

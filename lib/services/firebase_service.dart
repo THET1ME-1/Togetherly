@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -177,19 +178,99 @@ class FirebaseService {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // Local notifications plugin (for foreground FCM)
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  static bool _localNotificationsInitialized = false;
+  static const String _kChannelId = 'miss_you';
+  static const String _kChannelName = 'Скучаю';
+  // ─────────────────────────────────────────────
+
   /// Инициализация FCM: запрашиваем разрешение и сохраняем токен.
   Future<void> initFCM() async {
     try {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
+
+      // Настраиваем локальные уведомления и канал Android
+      await _initLocalNotifications();
+
       final token = await messaging.getToken();
       if (token != null) await _saveFcmToken(token);
 
       // Обновляем токен при ротации
       messaging.onTokenRefresh.listen(_saveFcmToken);
+
+      // Сохраняем токен после входа (для новых пользователей, у которых токен ещё не сохранён)
+      _auth.authStateChanges().listen((user) async {
+        if (user != null) {
+          final t = await messaging.getToken();
+          if (t != null) await _saveFcmToken(t);
+        }
+      });
+
+      // Обрабатываем сообщения пока приложение открыто (foreground)
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     } catch (e) {
       debugPrint('initFCM failed: $e');
     }
+  }
+
+  Future<void> _initLocalNotifications() async {
+    if (_localNotificationsInitialized) return;
+
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/launcher_icon',
+    );
+    const iosSettings = DarwinInitializationSettings();
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+    await _localNotifications.initialize(initSettings);
+
+    // Создаём канал уведомлений для Android 8+
+    const channel = AndroidNotificationChannel(
+      _kChannelId,
+      _kChannelName,
+      description: 'Уведомления от партнёра',
+      importance: Importance.high,
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
+
+    _localNotificationsInitialized = true;
+  }
+
+  void _handleForegroundMessage(RemoteMessage message) {
+    final notification = message.notification;
+    if (notification == null) return;
+
+    final channelId = message.notification?.android?.channelId ?? _kChannelId;
+    _localNotifications.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          _kChannelName,
+          channelDescription: 'Уведомления от партнёра',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/launcher_icon',
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
   }
 
   Future<void> _saveFcmToken(String token) async {
@@ -197,7 +278,10 @@ class FirebaseService {
     if (u == null) return;
     try {
       await _db.collection('users').doc(u.uid).set({
+        // Храним актуальный токен в одном поле (для обратной совместимости)
         'fcmToken': token,
+        // И в массиве — для поддержки нескольких устройств
+        'fcmTokens': FieldValue.arrayUnion([token]),
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('_saveFcmToken failed: $e');
@@ -316,6 +400,43 @@ class FirebaseService {
           .timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('saveUserProfile failed: $e');
+    }
+  }
+
+  /// Updates the user's avatar URL in all groups they belong to.
+  /// This ensures that partner devices receive the new avatar via the group listener.
+  Future<void> updateAvatarInGroups(String avatarUrl) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      final userDoc = await _db.collection('users').doc(u.uid).get();
+      if (!userDoc.exists) return;
+      final userData = userDoc.data()!;
+
+      final pairIds = <String>{};
+      final legacyPairId = userData['pairId'] as String?;
+      if (legacyPairId != null && legacyPairId.isNotEmpty) {
+        pairIds.add(legacyPairId);
+      }
+      final pairIdsList = userData['pairIds'] as List<dynamic>?;
+      if (pairIdsList != null) {
+        pairIds.addAll(
+          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
+        );
+      }
+
+      for (final groupId in pairIds) {
+        await _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memberAvatars.${u.uid}': avatarUrl})
+            .timeout(const Duration(seconds: 10))
+            .catchError(
+              (e) => debugPrint('updateAvatarInGroups[$groupId] failed: $e'),
+            );
+      }
+    } catch (e) {
+      debugPrint('updateAvatarInGroups failed: $e');
     }
   }
 

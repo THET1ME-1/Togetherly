@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import 'home_screen.dart';
@@ -317,16 +318,40 @@ class _SetupScreenState extends State<SetupScreen>
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 512,
-      maxHeight: 512,
+      imageQuality: 90,
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
 
     if (image == null || !mounted) return;
 
+    // Обрезаем до квадрата
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Обрезка фото',
+          toolbarColor: _accent,
+          toolbarWidgetColor: Colors.white,
+          statusBarColor: _accent,
+          backgroundColor: Colors.black,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Обрезка фото',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+        ),
+      ],
+    );
+
+    if (croppedFile == null || !mounted) return;
+
     // Сохраняем локально для превью и последующей загрузки после регистрации
     setState(() {
-      _selectedAvatarFile = image;
+      _selectedAvatarFile = XFile(croppedFile.path);
       _avatarUrl = ''; // Очищаем URL, так как показываем локальный файл
     });
   }
