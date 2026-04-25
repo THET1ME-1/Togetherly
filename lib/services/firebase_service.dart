@@ -228,7 +228,7 @@ class FirebaseService {
       android: androidSettings,
       iOS: iosSettings,
     );
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(settings: initSettings);
 
     // Создаём канал уведомлений для Android 8+
     const channel = AndroidNotificationChannel(
@@ -252,10 +252,10 @@ class FirebaseService {
 
     final channelId = message.notification?.android?.channelId ?? _kChannelId;
     _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
           _kChannelName,
