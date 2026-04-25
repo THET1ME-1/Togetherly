@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "941141989934-pgflq5q5bnveut56ljl62e1q2kb2e18q.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.togetherly.love",
-            "certificate_hash": "f615fd77c48e1609407966d734634476d53eba51"
-          }
-        },
-        {
           "client_id": "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com",
           "client_type": 3
         }
