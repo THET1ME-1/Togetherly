@@ -725,6 +725,14 @@ abstract class AppStrings {
   String get lockScreenMoodToggleSub;
   String get lockScreenMoodNoMood;
   String get lockScreenMoodSetHint;
+
+  // ── Photo Grid Widget ──
+  String get photoGridWidget;
+  String get photoGridWidgetSubtitle;
+  String get photoGridCount;
+  String get photoGridSelectPhotos;
+  String get photoGridAddPhoto;
+  String get photoGridCountLabel;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2098,6 +2106,18 @@ class _RuStrings extends AppStrings {
   @override
   String get lockScreenMoodSetHint =>
       'Установите настроение в календаре настроений';
+  @override
+  String get photoGridWidget => 'Сетка фото';
+  @override
+  String get photoGridWidgetSubtitle => 'Несколько фото из воспоминаний';
+  @override
+  String get photoGridCount => 'Количество фото';
+  @override
+  String get photoGridSelectPhotos => 'Выберите фото';
+  @override
+  String get photoGridAddPhoto => 'Добавить фото';
+  @override
+  String get photoGridCountLabel => 'фото на виджете';
 }
 
 class _EnStrings extends AppStrings {
@@ -3456,4 +3476,16 @@ class _EnStrings extends AppStrings {
   String get lockScreenMoodNoMood => 'No mood set';
   @override
   String get lockScreenMoodSetHint => 'Set mood in the mood calendar';
+  @override
+  String get photoGridWidget => 'Photo Grid';
+  @override
+  String get photoGridWidgetSubtitle => 'Multiple photos from memories';
+  @override
+  String get photoGridCount => 'Number of photos';
+  @override
+  String get photoGridSelectPhotos => 'Select photos';
+  @override
+  String get photoGridAddPhoto => 'Add photo';
+  @override
+  String get photoGridCountLabel => 'photos on widget';
 }

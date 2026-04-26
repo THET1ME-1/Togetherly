@@ -927,6 +927,35 @@ class HomeWidgetService {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ── 7. Фото-сетка ──
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Сохраняет количество и пути для виджета «Фото-сетка».
+  /// [count] — 1, 2 или 4.
+  /// [photoPaths] — локальные пути к файлам (от 1 до 4 элементов).
+  Future<void> syncPhotoGrid({
+    required int count,
+    required List<String> photoPaths,
+  }) async {
+    try {
+      await HomeWidget.saveWidgetData<int>('photo_grid_count', count);
+      for (int i = 0; i < 4; i++) {
+        final path = i < photoPaths.length ? photoPaths[i] : '';
+        await HomeWidget.saveWidgetData<String>('photo_grid_$i', path);
+      }
+      await HomeWidget.updateWidget(
+        name: 'PhotoGridWidgetProvider',
+        androidName: 'PhotoGridWidgetProvider',
+      );
+      debugPrint(
+        'HomeWidgetService.syncPhotoGrid: count=$count, paths=$photoPaths',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncPhotoGrid failed: $e');
+    }
+  }
+
   // ── Скопировать Flutter-ассет (emoji PNG) в локальный файл ──
   Future<String> _copyAssetToLocal(String assetPath) async {
     if (assetPath.isEmpty) return '';

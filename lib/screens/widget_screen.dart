@@ -67,6 +67,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // Экран блокировки: настроение
   bool _lockScreenMoodEnabled = false;
 
+  // Фото-сетка
+  bool _photoGridExpanded = false;
+  int _photoGridCount = 1;
+  List<String> _photoGridPaths = [];
+  bool _isLoadingPhotoGrid = false;
+
   // Фото дня
   bool _photoDayExpanded = true;
   String _photoDayMode = 'random'; // 'random' | 'custom'
@@ -978,6 +984,21 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
         // ── 5б. Настроение на экране блокировки ──
         _buildLockScreenMoodCard(),
+        const SizedBox(height: 16),
+
+        // ── 5в. Фото-сетка ──
+        _buildGalleryItem(
+          title: LocaleService.current.photoGridWidget,
+          subtitle: LocaleService.current.photoGridWidgetSubtitle,
+          svgString: _photoSvg,
+          qualifiedName: 'com.example.love_app.PhotoGridWidgetProvider',
+          preview: _buildPhotoGridPreview(),
+          widgetType: 'photo_grid',
+          expandedContent: _buildPhotoGridExpandedContent(),
+          isExpanded: _photoGridExpanded,
+          onToggleExpand: () =>
+              setState(() => _photoGridExpanded = !_photoGridExpanded),
+        ),
         const SizedBox(height: 16),
 
         // ── 6. Статистика отношений ──
@@ -2992,6 +3013,320 @@ class _WidgetScreenState extends State<WidgetScreen> {
         ],
       ),
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ФОТО-СЕТКА
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPhotoGridPreview() {
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _t.primary.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _t.primary.withOpacity(0.1)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: _buildPhotoGridMockup(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoGridMockup() {
+    final slots = _photoGridCount;
+    if (slots == 1) {
+      return _photoGridPaths.isNotEmpty
+          ? Image.file(File(_photoGridPaths[0]), fit: BoxFit.cover)
+          : _photoGridPlaceholder('📷');
+    }
+    if (slots == 2) {
+      return Row(
+        children: [
+          Expanded(child: _photoGridCell(0)),
+          const SizedBox(width: 2),
+          Expanded(child: _photoGridCell(1)),
+        ],
+      );
+    }
+    // 4
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _photoGridCell(0)),
+              const SizedBox(width: 2),
+              Expanded(child: _photoGridCell(1)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _photoGridCell(2)),
+              const SizedBox(width: 2),
+              Expanded(child: _photoGridCell(3)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _photoGridCell(int index) {
+    if (index < _photoGridPaths.length && _photoGridPaths[index].isNotEmpty) {
+      return Image.file(File(_photoGridPaths[index]), fit: BoxFit.cover);
+    }
+    return _photoGridPlaceholder('📷');
+  }
+
+  Widget _photoGridPlaceholder(String emoji) {
+    return Container(
+      color: _t.primary.withOpacity(0.07),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
+    );
+  }
+
+  Widget _buildPhotoGridExpandedContent() {
+    final s = LocaleService.current;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Выбор количества фото
+        Text(
+          s.photoGridCount,
+          style: GoogleFonts.rubik(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _t.primary.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [1, 2, 4].map((count) {
+            final selected = _photoGridCount == count;
+            final label = count == 1
+                ? '1 ${s.photoGridCountLabel}'
+                : count == 2
+                ? '2 ${s.photoGridCountLabel}'
+                : '4 ${s.photoGridCountLabel}';
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _photoGridCount = count;
+                    // Обрезаем список если нужно
+                    if (_photoGridPaths.length > count) {
+                      _photoGridPaths = _photoGridPaths.sublist(0, count);
+                    }
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? _t.primary.withOpacity(0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected ? _t.primary : _t.cardBorder,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: GoogleFonts.rubik(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? _t.primary : Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+
+        // Ячейки фото
+        Text(
+          s.photoGridSelectPhotos,
+          style: GoogleFonts.rubik(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _t.primary.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildPhotoGridSlots(),
+        const SizedBox(height: 16),
+
+        // Кнопка «Обновить виджет»
+        if (_isLoadingPhotoGrid)
+          const Center(child: CircularProgressIndicator())
+        else
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _photoGridPaths.isNotEmpty ? _syncPhotoGrid : null,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: Text(LocaleService.current.photoGridSelectPhotos),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _t.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPhotoGridSlots() {
+    final s = LocaleService.current;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: _photoGridCount == 1 ? 1 : 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: _photoGridCount,
+      itemBuilder: (context, index) {
+        final hasPhoto =
+            index < _photoGridPaths.length && _photoGridPaths[index].isNotEmpty;
+        return GestureDetector(
+          onTap: () => _pickPhotoGridSlot(index),
+          child: Container(
+            decoration: BoxDecoration(
+              color: _t.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: hasPhoto ? _t.primary.withOpacity(0.3) : _t.cardBorder,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: hasPhoto
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(
+                          File(_photoGridPaths[index]),
+                          fit: BoxFit.cover,
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                final paths = List<String>.from(
+                                  _photoGridPaths,
+                                );
+                                paths[index] = '';
+                                _photoGridPaths = paths;
+                              });
+                            },
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_rounded,
+                          size: 28,
+                          color: _t.primary.withOpacity(0.4),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          s.photoGridAddPhoto,
+                          style: GoogleFonts.rubik(
+                            fontSize: 10,
+                            color: _t.primary.withOpacity(0.4),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickPhotoGridSlot(int index) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoSourceSheet(theme: _t),
+    );
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 85);
+    if (picked == null) return;
+
+    setState(() {
+      final paths = List<String>.from(_photoGridPaths);
+      while (paths.length <= index) {
+        paths.add('');
+      }
+      paths[index] = picked.path;
+      _photoGridPaths = paths;
+    });
+  }
+
+  Future<void> _syncPhotoGrid() async {
+    if (_isLoadingPhotoGrid) return;
+    setState(() => _isLoadingPhotoGrid = true);
+    try {
+      final hws = HomeWidgetService.instance;
+      await hws.syncPhotoGrid(
+        count: _photoGridCount,
+        photoPaths: _photoGridPaths.where((p) => p.isNotEmpty).toList(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(LocaleService.current.widgetAddedToHome),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingPhotoGrid = false);
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
