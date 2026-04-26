@@ -717,6 +717,14 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get openSystemSettings;
   String get notifSystemSettingsHint;
+
+  // ── Lock Screen Mood ──
+  String get lockScreenMood;
+  String get lockScreenMoodSubtitle;
+  String get lockScreenMoodToggle;
+  String get lockScreenMoodToggleSub;
+  String get lockScreenMoodNoMood;
+  String get lockScreenMoodSetHint;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2076,6 +2084,20 @@ class _RuStrings extends AppStrings {
   String get openSystemSettings => 'Системные настройки';
   @override
   String get notifSystemSettingsHint => 'Настройки хранятся на устройстве';
+  @override
+  String get lockScreenMood => 'Настроение на экране блокировки';
+  @override
+  String get lockScreenMoodSubtitle => 'Моё и партнёра — на экране блокировки';
+  @override
+  String get lockScreenMoodToggle => 'Показывать на экране блокировки';
+  @override
+  String get lockScreenMoodToggleSub =>
+      'Настроение отображается при блокировке телефона';
+  @override
+  String get lockScreenMoodNoMood => 'Настроение не задано';
+  @override
+  String get lockScreenMoodSetHint =>
+      'Установите настроение в календаре настроений';
 }
 
 class _EnStrings extends AppStrings {
@@ -3421,4 +3443,17 @@ class _EnStrings extends AppStrings {
   String get openSystemSettings => 'System Settings';
   @override
   String get notifSystemSettingsHint => 'Settings are stored on this device';
+  @override
+  String get lockScreenMood => 'Lock Screen Mood';
+  @override
+  String get lockScreenMoodSubtitle => 'Mine & partner\'s on the lock screen';
+  @override
+  String get lockScreenMoodToggle => 'Show on lock screen';
+  @override
+  String get lockScreenMoodToggleSub =>
+      'Mood is displayed when phone is locked';
+  @override
+  String get lockScreenMoodNoMood => 'No mood set';
+  @override
+  String get lockScreenMoodSetHint => 'Set mood in the mood calendar';
 }

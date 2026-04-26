@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
@@ -302,6 +303,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _emailController,
                           hint: _s.yourEmail,
                           keyboardType: TextInputType.emailAddress,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(
+                              RegExp(r'[а-яёА-ЯЁ]'),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         // Password field
@@ -471,10 +477,12 @@ class _LoginScreenState extends State<LoginScreen> {
     required TextEditingController controller,
     required String hint,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,

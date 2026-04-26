@@ -68,6 +68,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const _kNotifNewMemory = 'notif_new_memory';
   static const _kNotifMood = 'notif_mood';
 
+  // Lock screen mood
+  bool _lockScreenMood = false;
+  static const _kLockScreenMood = 'lock_screen_mood_enabled';
+
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
@@ -101,6 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifMissYou = prefs.getBool(_kNotifMissYou) ?? true;
       _notifNewMemory = prefs.getBool(_kNotifNewMemory) ?? true;
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
+      _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
     });
   }
 
@@ -1626,6 +1631,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.notifications_outlined,
             label: _s.notifications,
             onTap: () => _showNotificationSettings(context),
+          ),
+          _divider(),
+          _settingsTile(
+            icon: Icons.lock_clock_outlined,
+            label: _s.lockScreenMoodToggle,
+            onTap: () {},
+            trailing: Switch(
+              value: _lockScreenMood,
+              activeColor: _accent,
+              onChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool(_kLockScreenMood, v);
+                if (mounted) setState(() => _lockScreenMood = v);
+              },
+            ),
           ),
           _divider(),
           _settingsTile(

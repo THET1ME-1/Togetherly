@@ -17,6 +17,7 @@ import '../models/memory.dart';
 import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
+import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
@@ -62,6 +63,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
+
+  // Экран блокировки: настроение
+  bool _lockScreenMoodEnabled = false;
 
   // Фото дня
   bool _photoDayExpanded = true;
@@ -111,6 +115,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _loadWidgetTimerId();
     _loadStats();
     _loadPhotoDayPrefs();
+    _loadLockScreenMoodPref();
     // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
@@ -235,6 +240,64 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     await hws.setPhotoDaySaveMemory(_pair.pairId, value);
     setState(() => _savePhotoAsMemory = value);
+  }
+
+  Future<void> _loadLockScreenMoodPref() async {
+    final enabled = await HomeWidgetService.instance.getLockScreenMoodEnabled();
+    if (mounted) setState(() => _lockScreenMoodEnabled = enabled);
+    // Инициализируем сервис уведомлений заранее
+    await MoodNotificationService.instance.init();
+    // Если был включён — восстанавливаем уведомление после перезапуска приложения
+    if (enabled) await _syncLockScreenMoodWidget(true);
+  }
+
+  Future<void> _toggleLockScreenMood(bool value) async {
+    final hws = HomeWidgetService.instance;
+    await hws.setLockScreenMoodEnabled(value);
+    setState(() => _lockScreenMoodEnabled = value);
+    await _syncLockScreenMoodWidget(value);
+  }
+
+  Future<void> _syncLockScreenMoodWidget(bool enabled) async {
+    final hws = HomeWidgetService.instance;
+    final mns = MoodNotificationService.instance;
+    final today = DateTime.now();
+    final myEntries = _moodService.myEntriesForDay(today);
+    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+    final partnerUid = _pair.partners.isNotEmpty
+        ? _pair.partners.first.uid
+        : '';
+    final partnerEntries = partnerUid.isNotEmpty
+        ? _moodService.partnerEntriesForDay(partnerUid, today)
+        : <MoodEntry>[];
+    final partnerEntry = partnerEntries.isNotEmpty
+        ? partnerEntries.first
+        : null;
+    final myName = _ws.myData?.displayName ?? '';
+    final partnerName = _pair.partnerName;
+
+    // iOS: HomeWidget (LockScreenMoodWidgetProvider)
+    await hws.syncLockScreenMood(
+      enabled: enabled,
+      moodEmojiAssetPath: myEntry?.imagePath ?? '',
+      moodLabel: myEntry?.localizedLabel ?? '',
+      userName: myName,
+      partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
+      partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+      partnerUserName: partnerName,
+    );
+
+    // Android: постоянное уведомление на шторке / экране блокировки
+    if (enabled) {
+      await mns.show(
+        myMood: myEntry?.localizedLabel ?? '',
+        myName: myName,
+        partnerMood: partnerEntry?.localizedLabel ?? '',
+        partnerName: partnerName,
+      );
+    } else {
+      await mns.hide();
+    }
   }
 
   Future<void> _pickCustomPhoto(ImageSource source) async {
@@ -418,10 +481,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
               : null;
           await hws.syncMood(
             moodEmojiAssetPath: myEntry?.imagePath ?? '',
-            moodLabel: myEntry?.label ?? '',
+            moodLabel: myEntry?.localizedLabel ?? '',
             userName: _ws.myData?.displayName ?? '',
             partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-            partnerMoodLabel: partnerEntry?.label ?? '',
+            partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
             partnerUserName: _pair.partnerName,
           );
         }
@@ -465,6 +528,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   void _onDataChanged() {
     if (mounted) setState(() {});
+    // Обновляем уведомление при изменении настроения
+    if (_lockScreenMoodEnabled) {
+      _syncLockScreenMoodWidget(true);
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -738,7 +805,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  data.moodLabel,
+                  data.localizedMoodLabel,
                   style: GoogleFonts.rubik(fontSize: 10, color: Colors.white),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -907,6 +974,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
           preview: _buildMoodPreview(),
           widgetType: 'mood',
         ),
+        const SizedBox(height: 16),
+
+        // ── 5б. Настроение на экране блокировки ──
+        _buildLockScreenMoodCard(),
         const SizedBox(height: 16),
 
         // ── 6. Статистика отношений ──
@@ -1745,6 +1816,241 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // КАРТОЧКА: Настроение на экране блокировки
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildLockScreenMoodCard() {
+    final s = LocaleService.current;
+    final today = DateTime.now();
+    final myEntries = _moodService.myEntriesForDay(today);
+    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+    final partnerUid = _pair.partners.isNotEmpty
+        ? _pair.partners.first.uid
+        : '';
+    final partnerEntries = partnerUid.isNotEmpty
+        ? _moodService.partnerEntriesForDay(partnerUid, today)
+        : <MoodEntry>[];
+    final partnerEntry = partnerEntries.isNotEmpty
+        ? partnerEntries.first
+        : null;
+    final myName = _ws.myData?.displayName.isNotEmpty == true
+        ? _ws.myData!.displayName
+        : s.me;
+    final partnerName = _pair.partnerName.isNotEmpty
+        ? _pair.partnerName
+        : s.partner;
+
+    return _buildGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Заголовок ──
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _t.primary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.lock_clock_outlined,
+                  size: 20,
+                  color: _t.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.lockScreenMood,
+                      style: GoogleFonts.rubik(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    Text(
+                      s.lockScreenMoodSubtitle,
+                      style: GoogleFonts.rubik(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Тумблер вкл/выкл
+              Switch(
+                value: _lockScreenMoodEnabled,
+                onChanged: _toggleLockScreenMood,
+                activeColor: _t.primary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // ── Превью: моё и партнёра ──
+          AnimatedOpacity(
+            opacity: _lockScreenMoodEnabled ? 1.0 : 0.4,
+            duration: const Duration(milliseconds: 250),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.blueGrey.shade50,
+                    _t.primary.withOpacity(0.06),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _t.primary.withOpacity(0.1)),
+              ),
+              child: Column(
+                children: [
+                  // Иконка телефона с замком
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.smartphone_rounded,
+                        size: 14,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                        style: GoogleFonts.rubik(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Настроения
+                  Row(
+                    children: [
+                      // Моё
+                      Expanded(
+                        child: _buildLockMoodHalf(
+                          entry: myEntry,
+                          name: myName,
+                          isLeft: true,
+                          noMoodLabel: s.lockScreenMoodNoMood,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 70,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: Colors.grey.shade200,
+                      ),
+                      // Партнёра
+                      Expanded(
+                        child: _buildLockMoodHalf(
+                          entry: partnerEntry,
+                          name: partnerName,
+                          isLeft: false,
+                          noMoodLabel: s.lockScreenMoodNoMood,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Подсказка ──
+          if (!_lockScreenMoodEnabled) ...[
+            const SizedBox(height: 10),
+            Text(
+              s.lockScreenMoodToggleSub,
+              style: GoogleFonts.rubik(
+                fontSize: 11,
+                color: Colors.grey.shade400,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ] else if (myEntry == null) ...[
+            const SizedBox(height: 10),
+            Text(
+              s.lockScreenMoodSetHint,
+              style: GoogleFonts.rubik(
+                fontSize: 11,
+                color: Colors.grey.shade400,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLockMoodHalf({
+    required MoodEntry? entry,
+    required String name,
+    required bool isLeft,
+    required String noMoodLabel,
+  }) {
+    return Column(
+      crossAxisAlignment: isLeft
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.end,
+      children: [
+        Text(
+          name,
+          style: GoogleFonts.rubik(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade500,
+            letterSpacing: 0.3,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        if (entry != null) ...[
+          Image.asset(
+            entry.imagePath,
+            width: 40,
+            height: 40,
+            errorBuilder: (_, __, ___) =>
+                const Text('😶', style: TextStyle(fontSize: 30)),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            entry.localizedLabel,
+            style: GoogleFonts.rubik(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: _t.primary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ] else ...[
+          const Text('😶', style: TextStyle(fontSize: 30)),
+          const SizedBox(height: 3),
+          Text(
+            noMoodLabel,
+            style: GoogleFonts.rubik(fontSize: 10, color: Colors.grey.shade400),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // ВИДЖЕТ-ПРЕВЬЮ: Настроение
   // ════════════════════════════════════════════════════════════════════════════
 
@@ -2073,7 +2379,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             icon: Icons.emoji_emotions_outlined,
             iconColor: _t.iconMood,
             label: _s.mood,
-            value: data.hasMood ? data.moodLabel : null,
+            value: data.hasMood ? data.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: data.hasMood
                 ? Image.asset(data.moodEmoji, width: 24, height: 24)
@@ -2293,7 +2599,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
             icon: Icons.emoji_emotions_outlined,
             iconColor: _t.iconMood,
             label: _s.mood,
-            value: partner.hasMood ? partner.moodLabel : null,
+            value: partner.hasMood ? partner.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: partner.hasMood
                 ? Image.asset(partner.moodEmoji, width: 24, height: 24)

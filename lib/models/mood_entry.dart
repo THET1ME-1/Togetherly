@@ -518,6 +518,9 @@ class MoodEntry {
   Color get color => MoodOption.byId(moodId)?.color ?? const Color(0xFF9CA3AF);
   int get score => MoodOption.byId(moodId)?.score ?? 3;
 
+  /// Метка на текущем языке приложения (перевод по id, не хранимая строка).
+  String get localizedLabel => MoodOption.byId(moodId)?.localizedLabel ?? label;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'moodId': moodId,

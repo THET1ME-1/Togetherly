@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'mood_entry.dart';
 
 /// Данные, которые пользователь делится через парный виджет.
 ///
@@ -51,6 +52,17 @@ class WidgetData {
   bool get hasStatus => status.isNotEmpty;
   bool get hasMood => moodEmoji.isNotEmpty;
   bool get hasMessage => message.isNotEmpty;
+
+  /// Метка настроения на текущем языке (берётся по imagePath из MoodOption).
+  String get localizedMoodLabel {
+    if (moodEmoji.isEmpty) return moodLabel;
+    final option = MoodOption.all.cast<MoodOption?>().firstWhere(
+      (m) => m?.imagePath == moodEmoji,
+      orElse: () => null,
+    );
+    return option?.localizedLabel ?? moodLabel;
+  }
+
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;
   bool get hasMusic => musicTitle != null && musicTitle!.isNotEmpty;
 

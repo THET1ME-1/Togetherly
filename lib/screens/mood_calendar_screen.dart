@@ -1207,7 +1207,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    m.label,
+                                    m.localizedLabel,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,

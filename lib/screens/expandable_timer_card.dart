@@ -351,7 +351,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                           final d = await showDatePicker(
                             context: ctx,
                             initialDate: pickedDate,
-                            firstDate: DateTime(2000),
+                            firstDate: DateTime(1900),
                             lastDate: DateTime(2100),
                           );
                           if (d != null)

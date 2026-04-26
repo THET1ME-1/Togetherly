@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../models/user_data.dart';
@@ -722,6 +723,9 @@ class _SetupScreenState extends State<SetupScreen>
                   controller: _emailController,
                   hint: 'your@email.com',
                   keyboardType: TextInputType.emailAddress,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'[а-яёА-ЯЁ]')),
+                  ],
                 ),
                 const SizedBox(height: 18),
                 // Password
@@ -889,10 +893,12 @@ class _SetupScreenState extends State<SetupScreen>
     required TextEditingController controller,
     required String hint,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,

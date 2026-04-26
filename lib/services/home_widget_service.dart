@@ -841,6 +841,92 @@ class HomeWidgetService {
     return '';
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  //  6. НАСТРОЕНИЕ НА ЭКРАНЕ БЛОКИРОВКИ
+  // ════════════════════════════════════════════════════════════════════════
+
+  static const _lockScreenMoodEnabledKey = 'lock_screen_mood_enabled';
+
+  Future<bool> getLockScreenMoodEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_lockScreenMoodEnabledKey) ?? false;
+  }
+
+  Future<void> setLockScreenMoodEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_lockScreenMoodEnabledKey, enabled);
+  }
+
+  /// Синхронизирует настроение для виджета экрана блокировки.
+  ///
+  /// [enabled]                   — включён ли виджет.
+  /// [moodEmojiAssetPath]        — путь к ассету моего эмодзи.
+  /// [moodLabel]                 — моё настроение.
+  /// [userName]                  — моё имя.
+  /// [partnerMoodEmojiAssetPath] — путь к ассету партнёра.
+  /// [partnerMoodLabel]          — настроение партнёра.
+  /// [partnerUserName]           — имя партнёра.
+  Future<void> syncLockScreenMood({
+    required bool enabled,
+    required String moodEmojiAssetPath,
+    required String moodLabel,
+    String userName = '',
+    String partnerMoodEmojiAssetPath = '',
+    String partnerMoodLabel = '',
+    String partnerUserName = '',
+  }) async {
+    try {
+      await HomeWidget.saveWidgetData<String>(
+        'lock_mood_enabled',
+        enabled ? '1' : '0',
+      );
+
+      // Моё настроение
+      String myLocalPath = '';
+      if (enabled && moodEmojiAssetPath.isNotEmpty) {
+        myLocalPath = await _copyAssetToLocal(moodEmojiAssetPath);
+      }
+      await HomeWidget.saveWidgetData<String>(
+        'lock_mood_emoji_path',
+        myLocalPath,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'lock_mood_label',
+        enabled ? moodLabel : '',
+      );
+      await HomeWidget.saveWidgetData<String>('lock_mood_user_name', userName);
+
+      // Настроение партнёра
+      String partnerLocalPath = '';
+      if (enabled && partnerMoodEmojiAssetPath.isNotEmpty) {
+        partnerLocalPath = await _copyAssetToLocal(partnerMoodEmojiAssetPath);
+      }
+      await HomeWidget.saveWidgetData<String>(
+        'lock_partner_mood_emoji_path',
+        partnerLocalPath,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'lock_partner_mood_label',
+        enabled ? partnerMoodLabel : '',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'lock_partner_mood_user_name',
+        partnerUserName,
+      );
+
+      await HomeWidget.updateWidget(
+        name: 'LockScreenMoodWidgetProvider',
+        androidName: 'LockScreenMoodWidgetProvider',
+      );
+      debugPrint(
+        'HomeWidgetService: lock screen mood synced — '
+        'enabled=$enabled, me=$moodLabel, partner=$partnerMoodLabel',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncLockScreenMood failed: $e');
+    }
+  }
+
   // ── Скопировать Flutter-ассет (emoji PNG) в локальный файл ──
   Future<String> _copyAssetToLocal(String assetPath) async {
     if (assetPath.isEmpty) return '';
