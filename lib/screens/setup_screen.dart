@@ -326,24 +326,36 @@ class _SetupScreenState extends State<SetupScreen>
 
     if (image == null || !mounted) return;
 
-    // Обрезаем до квадрата
+    // Обрезаем до круга (аватарка)
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: image.path,
+      compressQuality: 90,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle: 'Обрезка фото',
-          toolbarColor: _accent,
+          cropStyle: CropStyle.circle,
+          toolbarTitle: '✂️  Обрезка аватарки',
+          toolbarColor: const Color(0xFF1A1A2E),
           toolbarWidgetColor: Colors.white,
-          statusBarColor: _accent,
-          backgroundColor: Colors.black,
-          initAspectRatio: CropAspectRatioPreset.square,
+          statusBarColor: const Color(0xFF1A1A2E),
+          backgroundColor: const Color(0xFF0D0D1A),
+          activeControlsWidgetColor: _accent,
+          cropFrameColor: _accent,
+          cropGridColor: Colors.transparent,
+          dimmedLayerColor: const Color(0xCC0D0D1A),
+          showCropGrid: false,
           lockAspectRatio: true,
+          initAspectRatio: CropAspectRatioPreset.square,
           hideBottomControls: false,
         ),
         IOSUiSettings(
-          title: 'Обрезка фото',
+          cropStyle: CropStyle.circle,
+          title: 'Аватарка',
+          doneButtonTitle: 'Готово',
+          cancelButtonTitle: 'Отмена',
           aspectRatioLockEnabled: true,
           resetAspectRatioEnabled: false,
+          rotateButtonsHidden: false,
+          hidesNavigationBar: true,
         ),
       ],
     );

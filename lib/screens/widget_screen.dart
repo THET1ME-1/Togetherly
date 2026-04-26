@@ -69,8 +69,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   // Фото-сетка
   bool _photoGridExpanded = false;
-  int _photoGridCount = 1;
-  List<String> _photoGridPaths = [];
+  int _photoGridCount = 1; // МОЁ количество (для настройки)
+  List<String> _photoGridPaths = []; // локальные пути МОИХ фото (для выбора)
   bool _isLoadingPhotoGrid = false;
 
   // Фото дня
@@ -122,6 +122,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _loadStats();
     _loadPhotoDayPrefs();
     _loadLockScreenMoodPref();
+    _loadPhotoGridPrefs();
     // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
@@ -246,6 +247,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     await hws.setPhotoDaySaveMemory(_pair.pairId, value);
     setState(() => _savePhotoAsMemory = value);
+  }
+
+  /// Загружает МОИ настройки сетки (count) из Firestore, чтобы чипы отражали
+  /// что я ранее сохранил. Виджет рабочего стола показывает фото ПАРТНЁРА.
+  Future<void> _loadPhotoGridPrefs() async {
+    final myCount = _ws.myData?.photoGridCount ?? 1;
+    if (mounted) setState(() => _photoGridCount = myCount);
   }
 
   Future<void> _loadLockScreenMoodPref() async {
@@ -467,6 +475,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
       case 'photo_day':
         await hws.refreshPhotoOfDay(_pair.pairId);
         break;
+      case 'photo_grid':
+        await hws.refreshPhotoGrid(_pair.pairId);
+        break;
       case 'pair':
         // Парный виджет синхронизируется WidgetService
         break;
@@ -537,6 +548,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
     // Обновляем уведомление при изменении настроения
     if (_lockScreenMoodEnabled) {
       _syncLockScreenMoodWidget(true);
+    }
+    // Если изменились фото-сетки партнёра — обновляем нативный виджет
+    final partnerGridUrls = _ws.firstPartnerData?.photoGridUrls ?? [];
+    if (partnerGridUrls.isNotEmpty && _pair.pairId.isNotEmpty) {
+      HomeWidgetService.instance.refreshPhotoGrid(_pair.pairId);
     }
   }
 
@@ -1920,70 +1936,52 @@ class _WidgetScreenState extends State<WidgetScreen> {
             duration: const Duration(milliseconds: 250),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.blueGrey.shade50,
-                    _t.primary.withOpacity(0.06),
+                    _t.primary.withOpacity(0.05),
+                    _t.primary.withOpacity(0.1),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _t.primary.withOpacity(0.1)),
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  // Иконка телефона с замком
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.smartphone_rounded,
-                        size: 14,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-                        style: GoogleFonts.rubik(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: _buildLockMoodHalf(
+                      entry: myEntry,
+                      name: myName,
+                      isLeft: true,
+                      noMoodLabel: s.lockScreenMoodNoMood,
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  // Настроения
-                  Row(
-                    children: [
-                      // Моё
-                      Expanded(
-                        child: _buildLockMoodHalf(
-                          entry: myEntry,
-                          name: myName,
-                          isLeft: true,
-                          noMoodLabel: s.lockScreenMoodNoMood,
-                        ),
+                  Container(
+                    width: 1,
+                    height: 80,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.grey.shade200.withOpacity(0),
+                          Colors.grey.shade300,
+                          Colors.grey.shade200.withOpacity(0),
+                        ],
                       ),
-                      Container(
-                        width: 1,
-                        height: 70,
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        color: Colors.grey.shade200,
-                      ),
-                      // Партнёра
-                      Expanded(
-                        child: _buildLockMoodHalf(
-                          entry: partnerEntry,
-                          name: partnerName,
-                          isLeft: false,
-                          noMoodLabel: s.lockScreenMoodNoMood,
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildLockMoodHalf(
+                      entry: partnerEntry,
+                      name: partnerName,
+                      isLeft: false,
+                      noMoodLabel: s.lockScreenMoodNoMood,
+                    ),
                   ),
                 ],
               ),
@@ -2031,7 +2029,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
         Text(
           name,
           style: GoogleFonts.rubik(
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
             color: Colors.grey.shade500,
             letterSpacing: 0.3,
@@ -2039,20 +2037,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         if (entry != null) ...[
           Image.asset(
             entry.imagePath,
-            width: 40,
-            height: 40,
+            width: 48,
+            height: 48,
             errorBuilder: (_, __, ___) =>
-                const Text('😶', style: TextStyle(fontSize: 30)),
+                const Text('😶', style: TextStyle(fontSize: 36)),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             entry.localizedLabel,
             style: GoogleFonts.rubik(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: _t.primary,
             ),
@@ -2060,11 +2058,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ] else ...[
-          const Text('😶', style: TextStyle(fontSize: 30)),
-          const SizedBox(height: 3),
+          const Text('😶', style: TextStyle(fontSize: 36)),
+          const SizedBox(height: 4),
           Text(
             noMoodLabel,
-            style: GoogleFonts.rubik(fontSize: 10, color: Colors.grey.shade400),
+            style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade400),
           ),
         ],
       ],
@@ -3037,30 +3035,41 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   Widget _buildPhotoGridMockup() {
-    final slots = _photoGridCount;
-    if (slots == 1) {
-      return _photoGridPaths.isNotEmpty
-          ? Image.file(File(_photoGridPaths[0]), fit: BoxFit.cover)
-          : _photoGridPlaceholder('📷');
+    // Превью показывает фото ПАРТНЁРА (то, что отображается на рабочем столе)
+    final partnerUrls = _ws.firstPartnerData?.photoGridUrls ?? [];
+    final partnerCount = _ws.firstPartnerData?.photoGridCount ?? 1;
+    final slots = partnerUrls.isNotEmpty ? partnerCount : _photoGridCount;
+
+    Widget cell(int index) {
+      if (index < partnerUrls.length && partnerUrls[index].isNotEmpty) {
+        return CachedNetworkImage(
+          imageUrl: partnerUrls[index],
+          fit: BoxFit.cover,
+          placeholder: (_, __) => _photoGridPlaceholder('⏳'),
+          errorWidget: (_, __, ___) => _photoGridPlaceholder('📷'),
+        );
+      }
+      return _photoGridPlaceholder('📷');
     }
+
+    if (slots == 1) return cell(0);
     if (slots == 2) {
       return Row(
         children: [
-          Expanded(child: _photoGridCell(0)),
+          Expanded(child: cell(0)),
           const SizedBox(width: 2),
-          Expanded(child: _photoGridCell(1)),
+          Expanded(child: cell(1)),
         ],
       );
     }
-    // 4
     return Column(
       children: [
         Expanded(
           child: Row(
             children: [
-              Expanded(child: _photoGridCell(0)),
+              Expanded(child: cell(0)),
               const SizedBox(width: 2),
-              Expanded(child: _photoGridCell(1)),
+              Expanded(child: cell(1)),
             ],
           ),
         ),
@@ -3068,21 +3077,14 @@ class _WidgetScreenState extends State<WidgetScreen> {
         Expanded(
           child: Row(
             children: [
-              Expanded(child: _photoGridCell(2)),
+              Expanded(child: cell(2)),
               const SizedBox(width: 2),
-              Expanded(child: _photoGridCell(3)),
+              Expanded(child: cell(3)),
             ],
           ),
         ),
       ],
     );
-  }
-
-  Widget _photoGridCell(int index) {
-    if (index < _photoGridPaths.length && _photoGridPaths[index].isNotEmpty) {
-      return Image.file(File(_photoGridPaths[index]), fit: BoxFit.cover);
-    }
-    return _photoGridPlaceholder('📷');
   }
 
   Widget _photoGridPlaceholder(String emoji) {
@@ -3107,7 +3109,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [1, 2, 4].map((count) {
             final selected = _photoGridCount == count;
             final label = count == 1
@@ -3115,8 +3119,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 : count == 2
                 ? '2 ${s.photoGridCountLabel}'
                 : '4 ${s.photoGridCountLabel}';
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
+            return GestureDetector(
               child: GestureDetector(
                 onTap: () {
                   setState(() {
@@ -3311,11 +3314,28 @@ class _WidgetScreenState extends State<WidgetScreen> {
     if (_isLoadingPhotoGrid) return;
     setState(() => _isLoadingPhotoGrid = true);
     try {
-      final hws = HomeWidgetService.instance;
-      await hws.syncPhotoGrid(
-        count: _photoGridCount,
-        photoPaths: _photoGridPaths.where((p) => p.isNotEmpty).toList(),
-      );
+      final fb = FirebaseService();
+      final uid = fb.uid ?? '';
+      final groupId = _pair.pairId;
+
+      // 1. Загружаем каждое выбранное фото в Firebase Storage
+      final List<String> uploadedUrls = [];
+      for (int i = 0; i < _photoGridPaths.length; i++) {
+        final path = _photoGridPaths[i];
+        if (path.isEmpty) continue;
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final dest = 'widget/$groupId/${uid}_grid_${i}_$ts.jpg';
+        final url = await fb.uploadFile(path, dest);
+        if (url != null) uploadedUrls.add(url);
+      }
+
+      // 2. Сохраняем МОИ настройки в Firestore (партнёр увидит эти фото)
+      await _ws.updatePhotoGrid(_photoGridCount, uploadedUrls);
+
+      // 3. Обновляем виджет рабочего стола (показывает фото ПАРТНЁРА,
+      //    т.е. для нас самих здесь ничего не изменится, но инициализируем)
+      await HomeWidgetService.instance.refreshPhotoGrid(groupId);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3324,6 +3344,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         );
       }
+    } catch (e) {
+      debugPrint('_syncPhotoGrid failed: $e');
     } finally {
       if (mounted) setState(() => _isLoadingPhotoGrid = false);
     }

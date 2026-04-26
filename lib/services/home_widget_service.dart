@@ -931,28 +931,56 @@ class HomeWidgetService {
   // ── 7. Фото-сетка ──
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Сохраняет количество и пути для виджета «Фото-сетка».
-  /// [count] — 1, 2 или 4.
-  /// [photoPaths] — локальные пути к файлам (от 1 до 4 элементов).
-  Future<void> syncPhotoGrid({
-    required int count,
-    required List<String> photoPaths,
-  }) async {
+  /// Читает настройки ПАРТНЁРА из Firestore (photoGridCount + photoGridUrls),
+  /// скачивает/кэширует фото и отправляет их в нативный виджет.
+  Future<void> refreshPhotoGrid(String groupId) async {
+    if (groupId.isEmpty) return;
     try {
+      final currentUserUid = FirebaseService().uid ?? '';
+
+      // Ищем документ партнёра в widgetData
+      final snap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('widgetData')
+          .get();
+
+      Map<String, dynamic>? partnerRaw;
+      for (final doc in snap.docs) {
+        final uid = doc.data()['uid'] as String? ?? '';
+        if (uid.isNotEmpty && uid != currentUserUid) {
+          partnerRaw = doc.data();
+          break;
+        }
+      }
+
+      if (partnerRaw == null) {
+        debugPrint('HomeWidgetService.refreshPhotoGrid: no partner data');
+        return;
+      }
+
+      final count = (partnerRaw['photoGridCount'] as int?) ?? 1;
+      final urls = List<String>.from(partnerRaw['photoGridUrls'] ?? []);
+
       await HomeWidget.saveWidgetData<int>('photo_grid_count', count);
       for (int i = 0; i < 4; i++) {
-        final path = i < photoPaths.length ? photoPaths[i] : '';
-        await HomeWidget.saveWidgetData<String>('photo_grid_$i', path);
+        final url = i < urls.length ? urls[i] : '';
+        if (url.isNotEmpty) {
+          final localPath = await _cachePhotoFromUrl(url, 'photo_grid_$i');
+          await HomeWidget.saveWidgetData<String>('photo_grid_$i', localPath);
+        } else {
+          await HomeWidget.saveWidgetData<String>('photo_grid_$i', '');
+        }
       }
       await HomeWidget.updateWidget(
         name: 'PhotoGridWidgetProvider',
         androidName: 'PhotoGridWidgetProvider',
       );
       debugPrint(
-        'HomeWidgetService.syncPhotoGrid: count=$count, paths=$photoPaths',
+        'HomeWidgetService.refreshPhotoGrid: count=$count, urls=$urls',
       );
     } catch (e) {
-      debugPrint('HomeWidgetService.syncPhotoGrid failed: $e');
+      debugPrint('HomeWidgetService.refreshPhotoGrid failed: $e');
     }
   }
 

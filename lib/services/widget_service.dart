@@ -214,6 +214,11 @@ class WidgetService extends ChangeNotifier {
     await _updateField({'photoDayMode': mode});
   }
 
+  /// Сохранить настройки сетки фото (мои фото, которые увидит партнёр)
+  Future<void> updatePhotoGrid(int count, List<String> photoUrls) async {
+    await _updateField({'photoGridCount': count, 'photoGridUrls': photoUrls});
+  }
+
   /// Обновить музыку
   Future<void> updateMusic({
     required String title,
