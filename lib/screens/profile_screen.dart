@@ -107,11 +107,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
     });
+    // Синхронизируем текущие настройки в Firestore при открытии профиля,
+    // чтобы Cloud Functions всегда имели актуальные данные
+    FirebaseService().updateNotifPrefs(
+      missYou: prefs.getBool(_kNotifMissYou) ?? true,
+      newMemory: prefs.getBool(_kNotifNewMemory) ?? true,
+      mood: prefs.getBool(_kNotifMood) ?? true,
+    );
   }
 
   Future<void> _saveNotifPref(String key, bool value) async {
+    // Сохраняем локально
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+    // Сохраняем в Firestore, чтобы Cloud Functions проверяли настройки
+    switch (key) {
+      case _kNotifMissYou:
+        FirebaseService().updateNotifPrefs(missYou: value);
+        break;
+      case _kNotifNewMemory:
+        FirebaseService().updateNotifPrefs(newMemory: value);
+        break;
+      case _kNotifMood:
+        FirebaseService().updateNotifPrefs(mood: value);
+        break;
+    }
   }
 
   void _loadStats() {
