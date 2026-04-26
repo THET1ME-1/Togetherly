@@ -29,7 +29,7 @@ class MoodNotificationService {
     if (_initialized || !Platform.isAndroid) return;
     try {
       const androidSettings = AndroidInitializationSettings(
-        '@mipmap/launcher_icon',
+        '@drawable/ic_notification',
       );
       const initSettings = InitializationSettings(android: androidSettings);
       await _plugin.initialize(settings: initSettings);
@@ -88,7 +88,7 @@ class MoodNotificationService {
       ongoing: true, // нельзя смахнуть пальцем
       autoCancel: false, // не исчезает при нажатии
       showWhen: false, // не показывать время
-      icon: '@mipmap/launcher_icon',
+      icon: '@drawable/ic_notification',
       color: const Color(0xFFEC4899),
       // PUBLIC — контент виден без разблокировки
       visibility: NotificationVisibility.public,

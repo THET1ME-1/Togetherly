@@ -221,7 +221,7 @@ class FirebaseService {
     if (_localNotificationsInitialized) return;
 
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/launcher_icon',
+      '@drawable/ic_notification',
     );
     const iosSettings = DarwinInitializationSettings();
     const initSettings = InitializationSettings(
@@ -262,7 +262,7 @@ class FirebaseService {
           channelDescription: 'Уведомления от партнёра',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/launcher_icon',
+          icon: '@drawable/ic_notification',
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
