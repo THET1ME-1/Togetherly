@@ -279,6 +279,25 @@ class ConnectionsManager extends ChangeNotifier {
           await _saveLocal();
           notifyListeners();
         }
+
+        // Обрабатываем удалённые pairId — партнёр мог выйти из группы
+        // и groupId исчез из нашего user doc
+        bool removedAny = false;
+        for (var connection in _connections) {
+          if (connection.pairId.isNotEmpty &&
+              !remotePairIds.contains(connection.pairId) &&
+              connection.isPaired) {
+            debugPrint(
+              'Real-time: pairId ${connection.pairId} removed from user doc, marking as unpaired',
+            );
+            connection.markUnpaired();
+            removedAny = true;
+          }
+        }
+        if (removedAny) {
+          await _saveLocal();
+          notifyListeners();
+        }
       },
     );
   }

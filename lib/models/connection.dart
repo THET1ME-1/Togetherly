@@ -482,6 +482,20 @@ class Connection {
     onChanged?.call();
   }
 
+  /// Marks this connection as unpaired locally (remote event: partner left).
+  /// Does NOT write to Firestore — the partner already did that.
+  void markUnpaired() {
+    _pairSub?.cancel();
+    _pairSub = null;
+    isPaired = false;
+    startDate = null;
+    partnerName = '';
+    partnerAvatarUrl = '';
+    pairId = '';
+    members = [];
+    onChanged?.call();
+  }
+
   Future<void> regenerateCode() async {
     final oldCode = inviteCode;
     String firestoreCode;
@@ -703,7 +717,11 @@ class Connection {
             isPaired = false;
             partnerName = '';
             partnerAvatarUrl = '';
-            // Keep members list to show ourselves
+            startDate = null;
+            pairId = '';
+            members = [];
+            _pairSub?.cancel();
+            _pairSub = null;
           }
         }
 

@@ -1245,7 +1245,9 @@ class FirebaseService {
             onData(parsedData);
           } else {
             debugPrint('listenToPair: group document deleted or not found');
-            // Fallback: try legacy pairs collection
+            // Immediately notify that the group is gone
+            onData(null);
+            // Also check legacy pairs collection as a fallback
             _db
                 .collection('pairs')
                 .doc(pairId)
@@ -1253,12 +1255,10 @@ class FirebaseService {
                 .then((pairSnap) {
                   if (pairSnap.exists) {
                     onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
-                  } else {
-                    onData(null);
                   }
                 })
-                .catchError((_) {
-                  onData(null);
+                 .catchError((_) {
+                  // ignore errors from legacy fallback — onData(null) already called
                 });
           }
         }, onError: (e) => debugPrint('listenToPair error: $e'));
