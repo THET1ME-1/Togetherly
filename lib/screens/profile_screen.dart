@@ -44,6 +44,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://togetherly-d4856.web.app/privacy-policy',
+  );
+  static final Uri _aboutAppUri = Uri.parse(
+    'https://togetherly-d4856.web.app/#download',
+  );
+
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
   AppStrings get _s => LocaleService.current;
@@ -208,6 +215,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _loadStats();
       setState(() {});
     }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await _openExternalUri(_privacyPolicyUri);
+  }
+
+  Future<void> _openAboutApp() async {
+    await _openExternalUri(_aboutAppUri);
+  }
+
+  Future<void> _openExternalUri(Uri uri) async {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (!mounted) return;
+    _showError(_s.error);
   }
 
   @override
@@ -1683,7 +1708,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _settingsTile(
             icon: Icons.lock_outline_rounded,
             label: _s.privacy,
-            onTap: () {},
+            onTap: _openPrivacyPolicy,
           ),
           _divider(),
           _settingsTile(
@@ -1722,7 +1747,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _settingsTile(
             icon: Icons.info_outline_rounded,
             label: _s.aboutApp,
-            onTap: () {},
+            onTap: _openAboutApp,
           ),
         ],
       ),
