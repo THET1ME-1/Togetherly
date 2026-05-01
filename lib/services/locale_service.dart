@@ -93,6 +93,12 @@ abstract class AppStrings {
   String get welcomeTitle1;
   String get welcomeTitle2;
   String get welcomeSubtitle;
+  String get welcomeFeatureMemories;
+  String get welcomeFeatureMood;
+  String get welcomeFeatureWidgets;
+  String get welcomeStepCreateProfile;
+  String get welcomeStepConnectPartner;
+  String get welcomeStepStartTogether;
   String get createAccount;
   String get alreadyHaveAccount;
   String get privateSecure;
@@ -781,6 +787,20 @@ class _RuStrings extends AppStrings {
   String get welcomeTitle2 => 'вас двоих';
   @override
   String get welcomeSubtitle => 'Моменты, чувства, связь';
+  @override
+  String get welcomeFeatureMemories => 'Общие воспоминания, фото и заметки';
+  @override
+  String get welcomeFeatureMood => 'Настроение, статусы и маленькие ритуалы';
+  @override
+  String get welcomeFeatureWidgets => 'Таймеры, виджеты и карта ваших мест';
+  @override
+  String get welcomeStepCreateProfile => '1. Создайте профиль и войдите';
+  @override
+  String get welcomeStepConnectPartner =>
+      '2. Подключите партнёра по ссылке, коду или QR';
+  @override
+  String get welcomeStepStartTogether =>
+      '3. Добавьте первое воспоминание и настройте ваше пространство';
   @override
   String get createAccount => 'Создать аккаунт';
   @override
@@ -2162,6 +2182,20 @@ class _EnStrings extends AppStrings {
   String get welcomeTitle2 => 'two of you';
   @override
   String get welcomeSubtitle => 'Moments, feelings, connection';
+  @override
+  String get welcomeFeatureMemories => 'Shared memories, photos, and notes';
+  @override
+  String get welcomeFeatureMood => 'Mood tracking, statuses, and daily rituals';
+  @override
+  String get welcomeFeatureWidgets => 'Timers, widgets, and your places map';
+  @override
+  String get welcomeStepCreateProfile => '1. Create your profile and sign in';
+  @override
+  String get welcomeStepConnectPartner =>
+      '2. Connect your partner with a link, code, or QR';
+  @override
+  String get welcomeStepStartTogether =>
+      '3. Add your first memory and personalize the space';
   @override
   String get createAccount => 'Create Account';
   @override
