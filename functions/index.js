@@ -49,6 +49,15 @@ exports.onMissYouEvent = onDocumentCreated(
 
       // Приоритет: массив fcmTokens, затем одиночный fcmToken
       const tokensList = userData.fcmTokens;
+
+      // Проверяем настройку уведомлений пользователя.
+      // Если поле отсутствует — считаем включённым (true по умолчанию).
+      const notifEnabled = userData.notifMissYou !== false;
+      if (!notifEnabled) {
+        console.log(`MissYou [${groupId}]: notifications disabled for uid=${uid}, skipping`);
+        continue;
+      }
+
       if (Array.isArray(tokensList) && tokensList.length > 0) {
         for (const t of tokensList) {
           if (t) tokenToUid[t] = uid;

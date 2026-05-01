@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/memory.dart';
@@ -246,9 +247,58 @@ class FirebaseService {
     _localNotificationsInitialized = true;
   }
 
-  void _handleForegroundMessage(RemoteMessage message) {
+  /// Ключи SharedPreferences для настроек уведомлений (совпадают с ProfileScreen)
+  static const _kNotifMissYou = 'notif_miss_you';
+  static const _kNotifNewMemory = 'notif_new_memory';
+  static const _kNotifMood = 'notif_mood';
+
+  /// Сохраняет настройку уведомлений в Firestore, чтобы Cloud Functions
+  /// могли проверять её перед отправкой push-уведомлений.
+  Future<void> updateNotifPrefs({
+    bool? missYou,
+    bool? newMemory,
+    bool? mood,
+  }) async {
+    final u = currentUser;
+    if (u == null) return;
+    final updates = <String, dynamic>{};
+    if (missYou != null) updates['notifMissYou'] = missYou;
+    if (newMemory != null) updates['notifNewMemory'] = newMemory;
+    if (mood != null) updates['notifMood'] = mood;
+    if (updates.isEmpty) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set(updates, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('updateNotifPrefs failed: \$e');
+    }
+  }
+
+  void _handleForegroundMessage(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+
+    // Проверяем локальные настройки уведомлений
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final type = message.data['type'] ?? '';
+      if (type == 'miss_you' && !(prefs.getBool(_kNotifMissYou) ?? true)) {
+        debugPrint('FCM foreground: miss_you notification suppressed by user prefs');
+        return;
+      }
+      if (type == 'new_memory' && !(prefs.getBool(_kNotifNewMemory) ?? true)) {
+        debugPrint('FCM foreground: new_memory notification suppressed by user prefs');
+        return;
+      }
+      if (type == 'mood' && !(prefs.getBool(_kNotifMood) ?? true)) {
+        debugPrint('FCM foreground: mood notification suppressed by user prefs');
+        return;
+      }
+    } catch (e) {
+      debugPrint('FCM foreground pref check failed: \$e');
+    }
 
     final channelId = message.notification?.android?.channelId ?? _kChannelId;
     _localNotifications.show(
