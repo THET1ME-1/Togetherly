@@ -3112,6 +3112,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     },
   ];
 
+  static bool _isAdultPlatform(String name) {
+    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
+    return adultPlatforms.contains(name);
+  }
+
   static const List<Map<String, dynamic>> _supportedVideoServices = [
     {
       'name': 'YouTube',
