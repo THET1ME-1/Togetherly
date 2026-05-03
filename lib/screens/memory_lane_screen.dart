@@ -3112,11 +3112,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     },
   ];
 
-  static bool _isAdultPlatform(String name) {
-    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
-    return adultPlatforms.contains(name);
-  }
-
   static const List<Map<String, dynamic>> _supportedVideoServices = [
     {
       'name': 'YouTube',
@@ -3178,35 +3173,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       'color': Color(0xFF0077FF),
       'icon': Icons.play_circle_outline_rounded,
     },
-    // ── 18+ platforms (shown with adult tag) ──
-    {
-      'name': 'PornHub',
-      'supported': true,
-      'color': Color(0xFFFF9000),
-      'icon': Icons.play_circle_rounded,
-      'adult': true,
-    },
-    {
-      'name': 'xVideos',
-      'supported': true,
-      'color': Color(0xFF8B0000),
-      'icon': Icons.play_circle_rounded,
-      'adult': true,
-    },
-    {
-      'name': 'xHamster',
-      'supported': true,
-      'color': Color(0xFFE5673B),
-      'icon': Icons.play_circle_rounded,
-      'adult': true,
-    },
-    {
-      'name': 'RedTube',
-      'supported': true,
-      'color': Color(0xFFD11F1F),
-      'icon': Icons.play_circle_rounded,
-      'adult': true,
-    },
   ];
 
   void _showSupportedVideoServicesDialog() {
@@ -3264,7 +3230,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: _supportedVideoServices.map((svc) {
-                      final isAdult = svc['adult'] == true;
                       final svcColor = svc['color'] as Color;
                       final row = Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -3298,39 +3263,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ),
                                 ),
                               ),
-                              if (isAdult)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: const Text(
-                                    '18+',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                )
-                              else
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 20,
-                                  color: const Color(0xFF22C55E),
-                                ),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 20,
+                                color: const Color(0xFF22C55E),
+                              ),
                             ],
                           ),
                         ),
                       );
-                      // 18+ rows: blur until tapped
-                      if (isAdult) {
-                        return _BlurAfterTap(child: row);
-                      }
                       return row;
                     }).toList(),
                   ),
