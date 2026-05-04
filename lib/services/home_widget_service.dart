@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -40,6 +41,8 @@ class HomeWidgetService {
   static const _photoModePrefix = 'photo_day_mode_';
   static const _photoSaveMemoryPrefix = 'photo_day_save_memory_';
   static const _photoRefreshSeedPrefix = 'photo_day_refresh_seed_';
+  static const _photoDayPendingConfigsKey = 'photo_day_pending_configs';
+  static const _widgetChannel = MethodChannel('love_app/widgets');
 
   /// Привязать тип виджета к группе (вызывается при пине).
   Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
@@ -59,6 +62,135 @@ class HomeWidgetService {
   Future<String> getPhotoDayMode(String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('$_photoModePrefix$groupId') ?? 'random';
+  }
+
+  Future<List<int>> getPhotoDayWidgetIds() async {
+    if (!Platform.isAndroid) return const [];
+    try {
+      final ids = await _widgetChannel.invokeListMethod<dynamic>(
+        'getPhotoDayWidgetIds',
+      );
+      return ids
+              ?.map((id) => id is int ? id : int.tryParse(id.toString()))
+              .whereType<int>()
+              .toList() ??
+          const [];
+    } catch (e) {
+      debugPrint('HomeWidgetService.getPhotoDayWidgetIds failed: $e');
+      return const [];
+    }
+  }
+
+  String _photoDayWidgetKey(int widgetId, String suffix) =>
+      'photo_day_widget_${widgetId}_$suffix';
+
+  Future<void> enqueuePhotoDayWidgetConfig({
+    required String groupId,
+    required String mode,
+    required String display,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getString(_photoDayPendingConfigsKey);
+    final List<dynamic> pending = current == null || current.isEmpty
+        ? []
+        : (jsonDecode(current) as List<dynamic>);
+    pending.add({
+      'groupId': groupId,
+      'mode': mode,
+      'display': display,
+      'path': '',
+      'caption': '',
+      'memoryId': '',
+      'authorName': '',
+      'authorUid': '',
+      'viewerUid': '',
+      'viewerName': '',
+      'refreshSeed': 0,
+    });
+    await prefs.setString(_photoDayPendingConfigsKey, jsonEncode(pending));
+  }
+
+  Future<String> getPhotoDayWidgetMode(int widgetId, {String? fallbackGroupId}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final widgetMode = prefs.getString(_photoDayWidgetKey(widgetId, 'mode'));
+    if (widgetMode != null && widgetMode.isNotEmpty) return widgetMode;
+    if (fallbackGroupId != null && fallbackGroupId.isNotEmpty) {
+      return getPhotoDayMode(fallbackGroupId);
+    }
+    return 'random';
+  }
+
+  Future<void> setPhotoDayWidgetMode(int widgetId, String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_photoDayWidgetKey(widgetId, 'mode'), mode);
+  }
+
+  Future<String> getPhotoDayWidgetDisplay(
+    int widgetId, {
+    String defaultValue = 'partner',
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_photoDayWidgetKey(widgetId, 'display')) ?? defaultValue;
+  }
+
+  Future<void> setPhotoDayWidgetDisplay(int widgetId, String display) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_photoDayWidgetKey(widgetId, 'display'), display);
+  }
+
+  Future<String?> getPhotoDayWidgetGroupId(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_photoDayWidgetKey(widgetId, 'group_id'));
+  }
+
+  Future<String?> getPhotoDayWidgetCustomPath(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_photoDayWidgetKey(widgetId, 'custom_path'));
+  }
+
+  Future<void> setPhotoDayWidgetCustomPath(int widgetId, String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_photoDayWidgetKey(widgetId, 'custom_path'), path);
+  }
+
+  Future<int> getPhotoDayWidgetRefreshSeed(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_photoDayWidgetKey(widgetId, 'refresh_seed')) ?? 0;
+  }
+
+  Future<int> incrementPhotoDayWidgetRefreshSeed(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final next =
+        (prefs.getInt(_photoDayWidgetKey(widgetId, 'refresh_seed')) ?? 0) + 1;
+    await prefs.setInt(_photoDayWidgetKey(widgetId, 'refresh_seed'), next);
+    return next;
+  }
+
+  Future<Map<String, String?>> getPhotoDayWidgetPreview(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'path': prefs.getString(_photoDayWidgetKey(widgetId, 'path')),
+      'memoryId': prefs.getString(_photoDayWidgetKey(widgetId, 'memory_id')),
+      'authorName': prefs.getString(_photoDayWidgetKey(widgetId, 'author')),
+      'authorUid': prefs.getString(_photoDayWidgetKey(widgetId, 'author_uid')),
+      'mode': prefs.getString(_photoDayWidgetKey(widgetId, 'mode')),
+      'display': prefs.getString(_photoDayWidgetKey(widgetId, 'display')),
+      'groupId': prefs.getString(_photoDayWidgetKey(widgetId, 'group_id')),
+    };
+  }
+
+  Future<void> _savePhotoDayWidgetData(
+    int widgetId,
+    Map<String, String> values,
+  ) async {
+    for (final entry in values.entries) {
+      final key = _photoDayWidgetKey(widgetId, entry.key);
+      if (entry.key == 'refresh_seed') {
+        await HomeWidget.saveWidgetData<int>(key, int.tryParse(entry.value) ?? 0);
+      } else {
+        await HomeWidget.saveWidgetData<String>(key, entry.value);
+      }
+    }
   }
 
   Future<void> setPhotoDayMode(String groupId, String mode) async {
@@ -185,13 +317,18 @@ class HomeWidgetService {
     String authorName = '',
     String authorUid = '',
     File? localFile,
+    int? widgetId,
+    String? display,
+    String? groupId,
+    int? refreshSeed,
   }) async {
     try {
       String localPath = '';
       if (localFile != null) {
         // Если передали файл напрямую (с устройства) — копируем его в кэш виджета
         final dir = await getApplicationSupportDirectory();
-        final file = File('${dir.path}/widget_photo_day.jpg');
+        final suffix = widgetId != null ? '_$widgetId' : '';
+        final file = File('${dir.path}/widget_photo_day$suffix.jpg');
         await localFile.copy(file.path);
         localPath = file.path;
       } else {
@@ -205,22 +342,28 @@ class HomeWidgetService {
         viewerName = userDoc.data()?['displayName'] ?? '';
       }
 
-      await HomeWidget.saveWidgetData<String>('photo_day_path', localPath);
-      await HomeWidget.saveWidgetData<String>('photo_day_caption', caption);
-      await HomeWidget.saveWidgetData<String>('photo_day_memory_id', memoryId);
-      await HomeWidget.saveWidgetData<String>('photo_day_author', authorName);
-      await HomeWidget.saveWidgetData<String>(
-        'photo_day_author_uid',
-        authorUid,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'photo_day_viewer_uid',
-        viewerUid,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'photo_day_viewer_name',
-        viewerName,
-      );
+      if (widgetId != null) {
+        await _savePhotoDayWidgetData(widgetId, {
+          'path': localPath,
+          'caption': caption,
+          'memory_id': memoryId,
+          'author': authorName,
+          'author_uid': authorUid,
+          'viewer_uid': viewerUid,
+          'viewer_name': viewerName,
+          if (display != null) 'display': display,
+          if (groupId != null) 'group_id': groupId,
+          if (refreshSeed != null) 'refresh_seed': refreshSeed.toString(),
+        });
+      } else {
+        await HomeWidget.saveWidgetData<String>('photo_day_path', localPath);
+        await HomeWidget.saveWidgetData<String>('photo_day_caption', caption);
+        await HomeWidget.saveWidgetData<String>('photo_day_memory_id', memoryId);
+        await HomeWidget.saveWidgetData<String>('photo_day_author', authorName);
+        await HomeWidget.saveWidgetData<String>('photo_day_author_uid', authorUid);
+        await HomeWidget.saveWidgetData<String>('photo_day_viewer_uid', viewerUid);
+        await HomeWidget.saveWidgetData<String>('photo_day_viewer_name', viewerName);
+      }
       await HomeWidget.updateWidget(
         name: 'PhotoDayWidgetProvider',
         androidName: 'PhotoDayWidgetProvider',
@@ -239,10 +382,17 @@ class HomeWidgetService {
   Future<void> refreshPhotoOfDay(
     String groupId, {
     bool forceNext = false,
+    int? widgetId,
+    String? display,
   }) async {
     if (groupId.isEmpty) return;
     try {
-      final mode = await getPhotoDayMode(groupId);
+      final mode = widgetId != null
+          ? await getPhotoDayWidgetMode(widgetId, fallbackGroupId: groupId)
+          : await getPhotoDayMode(groupId);
+      final selectedDisplay = widgetId != null
+          ? await getPhotoDayWidgetDisplay(widgetId)
+          : (display ?? 'partner');
 
       // Сохраняем текущий профиль (viewer) для различения моего/партнёрского фото
       final currentUserUid = FirebaseService().uid ?? '';
@@ -251,41 +401,71 @@ class HomeWidgetService {
         final userDoc = await _db.collection('users').doc(currentUserUid).get();
         currentUserName = userDoc.data()?['displayName'] ?? '';
       }
-      await HomeWidget.saveWidgetData<String>(
-        'photo_day_viewer_uid',
-        currentUserUid,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'photo_day_viewer_name',
-        currentUserName,
-      );
+      if (widgetId != null) {
+        await _savePhotoDayWidgetData(widgetId, {
+          'viewer_uid': currentUserUid,
+          'viewer_name': currentUserName,
+          'mode': mode,
+          'display': selectedDisplay,
+          'group_id': groupId,
+        });
+      } else {
+        await HomeWidget.saveWidgetData<String>(
+          'photo_day_viewer_uid',
+          currentUserUid,
+        );
+        await HomeWidget.saveWidgetData<String>(
+          'photo_day_viewer_name',
+          currentUserName,
+        );
+      }
 
+      final myData = await _getMyWidgetData(groupId, currentUserUid);
       final partnerData = await _getPartnerWidgetData(groupId, currentUserUid);
-      final partnerMode = partnerData?['photoDayMode'] ?? 'random';
-      final partnerPhotoUrl = partnerData?['photoUrl'] ?? '';
+      final targetData = selectedDisplay == 'mine' ? myData : partnerData;
+      final targetMode = targetData?['photoDayMode'] ?? 'random';
+      final targetPhotoUrl = targetData?['photoUrl'] ?? '';
 
-      // ── Матрица режимов ──
-      // Рабочий стол ВСЕГДА показывает фото ПАРТНЁРА:
-      // • random + custom  → кастомное фото партнёра
-      // • custom + custom  → кастомное фото партнёра
-      // • custom + random  → случайное (фото партнёра — random)
-      // • random + random  → случайное (общее для обоих)
-      final bool partnerHasCustomPhoto =
-          partnerMode == 'custom' && partnerPhotoUrl.isNotEmpty;
+      if (widgetId != null &&
+          selectedDisplay == 'mine' &&
+          mode == 'custom') {
+        final customPath = await getPhotoDayWidgetCustomPath(widgetId);
+        if (customPath != null &&
+            customPath.isNotEmpty &&
+            File(customPath).existsSync()) {
+          await syncPhotoOfDay(
+            photoUrl: '',
+            caption: '',
+            memoryId: '',
+            authorName: currentUserName,
+            authorUid: currentUserUid,
+            localFile: File(customPath),
+            widgetId: widgetId,
+            display: selectedDisplay,
+            groupId: groupId,
+          );
+          return;
+        }
+      }
 
-      if (partnerHasCustomPhoto) {
-        // Партнёр выбрал конкретное фото — показываем его
+      final bool targetHasCustomPhoto =
+          mode == 'custom' && targetMode == 'custom' && targetPhotoUrl.isNotEmpty;
+
+      if (targetHasCustomPhoto) {
         debugPrint(
-          'HomeWidgetService: showing partner custom photo '
-          '(partnerMode=$partnerMode, myMode=$mode) '
-          'author=${partnerData!['authorName']} uid=${partnerData['authorUid']}',
+          'HomeWidgetService: showing custom photo '
+          '(targetMode=$targetMode, widgetMode=$mode, display=$selectedDisplay) '
+          'author=${targetData!['authorName']} uid=${targetData['authorUid']}',
         );
         await syncPhotoOfDay(
-          photoUrl: partnerPhotoUrl,
+          photoUrl: targetPhotoUrl,
           caption: '',
           memoryId: '',
-          authorName: partnerData['authorName'] ?? '',
-          authorUid: partnerData['authorUid'] ?? '',
+          authorName: targetData['authorName'] ?? '',
+          authorUid: targetData['authorUid'] ?? '',
+          widgetId: widgetId,
+          display: selectedDisplay,
+          groupId: groupId,
         );
         return;
       }
@@ -308,20 +488,23 @@ class HomeWidgetService {
           .map((doc) => Memory.fromFirestore(doc.id, doc.data()))
           .toList();
 
-      // Предпочитаем фото партнёра: он выбрал фото из памяти, а не я
-      final partnerMemories = partnerData != null
+      final targetUid = targetData?['authorUid'];
+      final targetMemories = targetUid != null && targetUid.isNotEmpty
           ? allMemories
-                .where((m) => m.authorUid == partnerData['authorUid'])
+                .where((m) => m.authorUid == targetUid)
                 .toList()
           : <Memory>[];
-      final candidateMemories = partnerMemories.isNotEmpty
-          ? partnerMemories
+      final candidateMemories = targetMemories.isNotEmpty
+          ? targetMemories
           : allMemories;
 
-      // Получаем (и при необходимости инкрементируем) сдвиг
-      final seed = forceNext
-          ? await incrementPhotoRefreshSeed(groupId)
-          : await getPhotoRefreshSeed(groupId);
+      final seed = widgetId != null
+          ? (forceNext
+                ? await incrementPhotoDayWidgetRefreshSeed(widgetId)
+                : await getPhotoDayWidgetRefreshSeed(widgetId))
+          : (forceNext
+                ? await incrementPhotoRefreshSeed(groupId)
+                : await getPhotoRefreshSeed(groupId));
 
       final selectedMemory = _pickDailyRandomMemory(
         candidateMemories,
@@ -341,6 +524,10 @@ class HomeWidgetService {
         memoryId: selectedMemory.id,
         authorName: selectedMemory.authorName,
         authorUid: selectedMemory.authorUid,
+        widgetId: widgetId,
+        display: selectedDisplay,
+        groupId: groupId,
+        refreshSeed: seed,
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoOfDay failed: $e');
@@ -380,6 +567,32 @@ class HomeWidgetService {
       debugPrint('HomeWidgetService._getPartnerWidgetData failed: $e');
     }
     return null;
+  }
+
+  Future<Map<String, String>?> _getMyWidgetData(
+    String groupId,
+    String currentUserUid,
+  ) async {
+    if (currentUserUid.isEmpty) return null;
+    try {
+      final doc = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('widgetData')
+          .doc(currentUserUid)
+          .get();
+      if (!doc.exists || doc.data() == null) return null;
+      final data = doc.data()!;
+      return {
+        'authorUid': currentUserUid,
+        'authorName': data['displayName'] as String? ?? '',
+        'photoUrl': data['photoUrl'] as String? ?? '',
+        'photoDayMode': data['photoDayMode'] as String? ?? 'random',
+      };
+    } catch (e) {
+      debugPrint('HomeWidgetService._getMyWidgetData failed: $e');
+      return null;
+    }
   }
 
   Memory? _pickDailyRandomMemory(
@@ -699,14 +912,17 @@ class HomeWidgetService {
       }
 
       // ── Photo of Day ──
-      final photoGroup = await getBoundGroup('photo_day');
-      if (photoGroup == null || photoGroup == activeGroupId) {
-        debugPrint('  photo_day → syncing (bound=$photoGroup)');
+      final widgetIds = await getPhotoDayWidgetIds();
+      if (widgetIds.isEmpty) {
         await refreshPhotoOfDay(activeGroupId);
       } else {
-        debugPrint(
-          '  photo_day → SKIP (bound=$photoGroup, active=$activeGroupId)',
-        );
+        for (final widgetId in widgetIds) {
+          final widgetGroupId = await getPhotoDayWidgetGroupId(widgetId);
+          if (widgetGroupId == null || widgetGroupId == activeGroupId) {
+            debugPrint('  photo_day#$widgetId → syncing (group=$widgetGroupId)');
+            await refreshPhotoOfDay(activeGroupId, widgetId: widgetId);
+          }
+        }
       }
 
       // ── Relationship Stats ──

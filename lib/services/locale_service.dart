@@ -695,6 +695,16 @@ abstract class AppStrings {
   String get photoSource;
   String get fromMemories;
   String get fromGalleryLabel;
+  String get widgetModeMine;
+  String get widgetModePartner;
+  String get widgetInstances;
+  String get widgetNotAddedYet;
+  String widgetSlotTitle(int index);
+  String get addedWidgetsWillAppearHere;
+  String get addSeparateWidgetHint;
+  String get widgetDisplaySource;
+  String get widgetDisplayPhoto;
+  String get noPhotoSelected;
 
   // ── Profile (extended) ──
   String get exportMemories;
@@ -2055,6 +2065,28 @@ class _RuStrings extends AppStrings {
   String get fromMemories => 'из воспоминаний';
   @override
   String get fromGalleryLabel => 'из галереи';
+  @override
+  String get widgetModeMine => 'Мои фото';
+  @override
+  String get widgetModePartner => 'Фото партнёра';
+  @override
+  String get widgetInstances => 'Виджеты на рабочем столе';
+  @override
+  String get widgetNotAddedYet => 'Виджет ещё не добавлен';
+  @override
+  String widgetSlotTitle(int index) => 'Виджет ${index + 1}';
+  @override
+  String get addedWidgetsWillAppearHere =>
+      'Добавленные фото-виджеты появятся здесь';
+  @override
+  String get addSeparateWidgetHint =>
+      'Добавляйте несколько виджетов: у каждого будет своё фото и свой режим';
+  @override
+  String get widgetDisplaySource => 'Что показывать на виджете:';
+  @override
+  String get widgetDisplayPhoto => 'Фото для виджета';
+  @override
+  String get noPhotoSelected => 'Фото не выбрано';
 
   // ── Profile (extended) ──
   @override
@@ -3441,6 +3473,28 @@ class _EnStrings extends AppStrings {
   String get fromMemories => 'from memories';
   @override
   String get fromGalleryLabel => 'from gallery';
+  @override
+  String get widgetModeMine => 'My photos';
+  @override
+  String get widgetModePartner => 'Partner photos';
+  @override
+  String get widgetInstances => 'Widgets on home screen';
+  @override
+  String get widgetNotAddedYet => 'Widget not added yet';
+  @override
+  String widgetSlotTitle(int index) => 'Widget ${index + 1}';
+  @override
+  String get addedWidgetsWillAppearHere =>
+      'Added photo widgets will appear here';
+  @override
+  String get addSeparateWidgetHint =>
+      'Add multiple widgets: each one will have its own photo and mode';
+  @override
+  String get widgetDisplaySource => 'What to show on widget:';
+  @override
+  String get widgetDisplayPhoto => 'Widget photo';
+  @override
+  String get noPhotoSelected => 'No photo selected';
 
   // ── Profile (extended) ──
   @override

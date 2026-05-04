@@ -83,6 +83,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _previewShowsPartner = false; // Переключатель превью: моё ↔ партнёра
   int _photoDayVersion = 0;
   bool _isLoadingPhoto = false;
+  List<int> _photoDayWidgetIds = [];
+  int? _selectedPhotoDayWidgetId;
+  String _photoDayWidgetDisplay = 'partner';
+  String? _selectedWidgetPhotoPath;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
@@ -121,6 +125,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     _loadWidgetTimerId();
     _loadStats();
     _loadPhotoDayPrefs();
+    _loadPhotoDayWidgets();
     _loadLockScreenMoodPref();
     _loadPhotoGridPrefs();
     // Подписываемся на настроение партнёров
@@ -222,24 +227,91 @@ class _WidgetScreenState extends State<WidgetScreen> {
     }
   }
 
+  Future<void> _loadPhotoDayWidgets() async {
+    final hws = HomeWidgetService.instance;
+    final ids = await hws.getPhotoDayWidgetIds();
+    int? selected = _selectedPhotoDayWidgetId;
+    if (ids.isEmpty) {
+      selected = null;
+    } else if (selected == null || !ids.contains(selected)) {
+      selected = ids.last;
+    }
+
+    String display = _photoDayWidgetDisplay;
+    String? path;
+    if (selected != null) {
+      display = await hws.getPhotoDayWidgetDisplay(selected);
+      final preview = await hws.getPhotoDayWidgetPreview(selected);
+      path = preview['path'];
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _photoDayWidgetIds = ids;
+      _selectedPhotoDayWidgetId = selected;
+      _photoDayWidgetDisplay = display;
+      _selectedWidgetPhotoPath = path;
+    });
+  }
+
+  Future<void> _selectPhotoDayWidget(int widgetId) async {
+    final hws = HomeWidgetService.instance;
+    final preview = await hws.getPhotoDayWidgetPreview(widgetId);
+    final display = await hws.getPhotoDayWidgetDisplay(widgetId);
+    final mode = await hws.getPhotoDayWidgetMode(widgetId, fallbackGroupId: _pair.pairId);
+    if (!mounted) return;
+    setState(() {
+      _selectedPhotoDayWidgetId = widgetId;
+      _photoDayWidgetDisplay = display;
+      _selectedWidgetPhotoPath = preview['path'];
+      _photoDayMode = mode;
+      _previewShowsPartner = true;
+      _photoDayVersion++;
+    });
+  }
+
   Future<void> _selectPhotoDayMode(String mode) async {
     final hws = HomeWidgetService.instance;
+    final selectedWidgetId = _selectedPhotoDayWidgetId;
+    if (selectedWidgetId == null) return;
     // Если уже в этом режиме и это random — генерируем следующее фото
     final forceNext = mode == 'random' && _photoDayMode == 'random';
     // Сохраняем режим локально и в Firestore
-    await hws.setPhotoDayMode(_pair.pairId, mode);
-    await _ws.setPhotoDayMode(mode);
+    await hws.setPhotoDayWidgetMode(selectedWidgetId, mode);
     setState(() {
       _photoDayMode = mode;
       _isLoadingPhoto = true;
-      _previewShowsPartner = false; // сбрасываем переключатель превью
+      _previewShowsPartner = _photoDayWidgetDisplay == 'partner';
     });
-    // Виджет рабочего стола ВСЕГДА показывает фото партнёра
-    // refreshPhotoOfDay сам определит правильное фото по матрице режимов
-    await hws.refreshPhotoOfDay(_pair.pairId, forceNext: forceNext);
+    await hws.refreshPhotoOfDay(
+      _pair.pairId,
+      forceNext: forceNext,
+      widgetId: selectedWidgetId,
+      display: _photoDayWidgetDisplay,
+    );
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
     await _loadPhotoDayPrefs();
+    await _loadPhotoDayWidgets();
+    if (mounted) setState(() => _isLoadingPhoto = false);
+  }
+
+  Future<void> _selectPhotoDayDisplay(String display) async {
+    final widgetId = _selectedPhotoDayWidgetId;
+    if (widgetId == null) return;
+    final hws = HomeWidgetService.instance;
+    setState(() {
+      _photoDayWidgetDisplay = display;
+      _previewShowsPartner = display == 'partner';
+      _isLoadingPhoto = true;
+    });
+    await hws.setPhotoDayWidgetDisplay(widgetId, display);
+    await hws.refreshPhotoOfDay(
+      _pair.pairId,
+      widgetId: widgetId,
+      display: display,
+    );
+    await _loadPhotoDayWidgets();
     if (mounted) setState(() => _isLoadingPhoto = false);
   }
 
@@ -329,6 +401,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     final fb = FirebaseService();
     final prefs = await SharedPreferences.getInstance();
+    final widgetId = _selectedPhotoDayWidgetId;
+    if (widgetId == null) return;
 
     // 1. Загружаем фото один раз и публикуем в widgetData
     //    Используем updatePhotoUrl (без auto-save в Memory Lane), чтобы
@@ -364,20 +438,27 @@ class _WidgetScreenState extends State<WidgetScreen> {
     }
 
     // 2. Публикуем URL в widgetData (партнёр увидит как «custom»)
-    await _ws.setPhotoDayMode('custom');
     if (uploadedUrl != null) {
       await _ws.updatePhotoUrl(uploadedUrl);
     }
 
     // 3. Сохраняем путь к локальному файлу (для превью в приложении)
     await prefs.setString('photo_day_path_${_pair.pairId}', file.path);
+    if (widgetId != null) {
+      await hws.setPhotoDayWidgetMode(widgetId, 'custom');
+      await hws.setPhotoDayWidgetCustomPath(widgetId, file.path);
+    }
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
     if (mounted) setState(() => _myOwnPhotoPath = file.path);
 
-    // 4. Обновляем виджет рабочего стола (показывает фото ПАРТНЁРА)
-    await hws.refreshPhotoOfDay(_pair.pairId);
+    await hws.refreshPhotoOfDay(
+      _pair.pairId,
+      widgetId: widgetId,
+      display: _photoDayWidgetDisplay,
+    );
     await _loadPhotoDayPrefs();
+    await _loadPhotoDayWidgets();
   }
 
   Future<void> _selectWidgetTimer(TimerItem timer) async {
@@ -408,6 +489,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
     try {
       final className = qualifiedName.split('.').last;
       debugPrint('_pinWidget: requesting pin for className=$className');
+      if (widgetType == 'photo_day' && _pair.pairId.isNotEmpty) {
+        await HomeWidgetService.instance.enqueuePhotoDayWidgetConfig(
+          groupId: _pair.pairId,
+          mode: _photoDayMode,
+          display: _photoDayWidgetDisplay,
+        );
+      }
       await HomeWidget.requestPinWidget(
         name: className,
         androidName: className,
@@ -421,6 +509,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
         );
         // Немедленно записать актуальные данные в виджет
         await _syncWidgetDataAfterPin(widgetType);
+        if (widgetType == 'photo_day') {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          await _loadPhotoDayWidgets();
+        }
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -473,7 +565,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
         if (timer != null) await hws.syncTimer(timer);
         break;
       case 'photo_day':
-        await hws.refreshPhotoOfDay(_pair.pairId);
+        final ids = await hws.getPhotoDayWidgetIds();
+        if (ids.isEmpty) {
+          await hws.refreshPhotoOfDay(_pair.pairId);
+        } else {
+          for (final widgetId in ids) {
+            final widgetGroupId = await hws.getPhotoDayWidgetGroupId(widgetId);
+            if (widgetGroupId == _pair.pairId || widgetGroupId == null) {
+              await hws.refreshPhotoOfDay(
+                _pair.pairId,
+                widgetId: widgetId,
+              );
+            }
+          }
+        }
         break;
       case 'photo_grid':
         await hws.refreshPhotoGrid(_pair.pairId);
@@ -532,6 +637,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
       // Сменилась группа — загружаем выбор таймера для новой группы
       _loadWidgetTimerId();
       _loadPhotoDayPrefs();
+      _loadPhotoDayWidgets();
     }
   }
 
@@ -553,6 +659,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final partnerGridUrls = _ws.firstPartnerData?.photoGridUrls ?? [];
     if (partnerGridUrls.isNotEmpty && _pair.pairId.isNotEmpty) {
       HomeWidgetService.instance.refreshPhotoGrid(_pair.pairId);
+    }
+    if (_pair.pairId.isNotEmpty) {
+      _loadPhotoDayWidgets();
     }
   }
 
@@ -1483,9 +1592,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
   Widget _buildPhotoDayPreview() {
     final s = LocaleService.current;
 
-    // Определяем какое фото показывать в превью
     final displayPath = _previewShowsPartner
-        ? _partnerWidgetPhotoPath
+        ? (_selectedWidgetPhotoPath ?? _partnerWidgetPhotoPath)
         : _myOwnPhotoPath;
 
     // Превью-заголовок для пустого состояния
@@ -1683,10 +1791,57 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Widget _buildPhotoDayExpandedContent() {
     final s = LocaleService.current;
+    final hasWidgets = _photoDayWidgetIds.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          s.widgetInstances,
+          style: GoogleFonts.rubik(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _t.primary.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildPhotoDayWidgetSelector(),
+        const SizedBox(height: 16),
+        Text(
+          s.widgetDisplaySource,
+          style: GoogleFonts.rubik(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _t.primary.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildModeButton(
+                label: s.widgetModePartner,
+                icon: Icons.favorite_rounded,
+                isSelected: _photoDayWidgetDisplay == 'partner',
+                subtitle: s.onWidget,
+                onTap: hasWidgets
+                    ? () => _selectPhotoDayDisplay('partner')
+                    : () {},
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildModeButton(
+                label: s.widgetModeMine,
+                icon: Icons.person_rounded,
+                isSelected: _photoDayWidgetDisplay == 'mine',
+                subtitle: s.mine,
+                onTap: hasWidgets ? () => _selectPhotoDayDisplay('mine') : () {},
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         Text(
           s.photoSource,
           style: GoogleFonts.rubik(
@@ -1705,7 +1860,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 isSelected: _photoDayMode == 'random',
                 showRefresh: _photoDayMode == 'random',
                 subtitle: s.fromMemories,
-                onTap: () => _selectPhotoDayMode('random'),
+                onTap: hasWidgets ? () => _selectPhotoDayMode('random') : () {},
               ),
             ),
             const SizedBox(width: 8),
@@ -1715,12 +1870,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 icon: Icons.image_rounded,
                 isSelected: _photoDayMode == 'custom',
                 subtitle: s.fromGalleryLabel,
-                onTap: () => _selectPhotoDayMode('custom'),
+                onTap: hasWidgets ? () => _selectPhotoDayMode('custom') : () {},
               ),
             ),
           ],
         ),
-        if (_photoDayMode == 'custom') ...[
+        if (_photoDayMode == 'custom' && hasWidgets) ...[
           const SizedBox(height: 16),
           _buildGlassCard(
             child: Column(
@@ -1787,6 +1942,114 @@ class _WidgetScreenState extends State<WidgetScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildPhotoDayWidgetSelector() {
+    final s = LocaleService.current;
+    if (_photoDayWidgetIds.isEmpty) {
+      return _buildGlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.widgetNotAddedYet,
+              style: GoogleFonts.rubik(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              s.addedWidgetsWillAppearHere,
+              style: GoogleFonts.rubik(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              s.addSeparateWidgetHint,
+              style: GoogleFonts.rubik(
+                fontSize: 11,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: _photoDayWidgetIds.asMap().entries.map((entry) {
+        final index = entry.key;
+        final widgetId = entry.value;
+        final isSelected = widgetId == _selectedPhotoDayWidgetId;
+        return GestureDetector(
+          onTap: () => _selectPhotoDayWidget(widgetId),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? _t.primary.withOpacity(0.08) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected ? _t.primary : Colors.grey.shade200,
+                width: isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _t.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.photo_size_select_actual_rounded,
+                    color: _t.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.widgetSlotTitle(index),
+                        style: GoogleFonts.rubik(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? _t.primary : Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'ID: $widgetId',
+                        style: GoogleFonts.rubik(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 20,
+                    color: _t.primary,
+                  ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
