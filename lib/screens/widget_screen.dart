@@ -216,7 +216,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     if (mounted) {
       setState(() {
-        _photoDayMode = mode;
         _savePhotoAsMemory = save;
         _myOwnPhotoPath = myPhoto;
         _partnerWidgetPhotoPath = (widgetPath != null && widgetPath.isNotEmpty)
@@ -239,10 +238,31 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
     String display = _photoDayWidgetDisplay;
     String? path;
+    String mode = _photoDayMode;
+    String? ownPhotoPath = _myOwnPhotoPath;
     if (selected != null) {
       display = await hws.getPhotoDayWidgetDisplay(selected);
+      mode = await hws.getPhotoDayWidgetMode(
+        selected,
+        fallbackGroupId: _pair.pairId,
+      );
       final preview = await hws.getPhotoDayWidgetPreview(selected);
       path = preview['path'];
+
+      final customPath = await hws.getPhotoDayWidgetCustomPath(selected);
+      if (mode == 'custom') {
+        if (customPath != null &&
+            customPath.isNotEmpty &&
+            File(customPath).existsSync()) {
+          ownPhotoPath = customPath;
+        } else if (_ws.myData?.photoUrl?.isNotEmpty == true) {
+          ownPhotoPath = _ws.myData!.photoUrl;
+        } else {
+          ownPhotoPath = null;
+        }
+      } else {
+        ownPhotoPath = (path != null && path.isNotEmpty) ? path : null;
+      }
     }
 
     if (!mounted) return;
@@ -250,7 +270,11 @@ class _WidgetScreenState extends State<WidgetScreen> {
       _photoDayWidgetIds = ids;
       _selectedPhotoDayWidgetId = selected;
       _photoDayWidgetDisplay = display;
+      _photoDayMode = mode;
       _selectedWidgetPhotoPath = path;
+      _partnerWidgetPhotoPath = (path != null && path.isNotEmpty) ? path : null;
+      _myOwnPhotoPath = ownPhotoPath;
+      _previewShowsPartner = display == 'partner';
     });
   }
 
@@ -258,14 +282,35 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     final preview = await hws.getPhotoDayWidgetPreview(widgetId);
     final display = await hws.getPhotoDayWidgetDisplay(widgetId);
-    final mode = await hws.getPhotoDayWidgetMode(widgetId, fallbackGroupId: _pair.pairId);
+    final mode = await hws.getPhotoDayWidgetMode(
+      widgetId,
+      fallbackGroupId: _pair.pairId,
+    );
+    final customPath = await hws.getPhotoDayWidgetCustomPath(widgetId);
+    String? ownPhotoPath;
+    if (mode == 'custom') {
+      if (customPath != null &&
+          customPath.isNotEmpty &&
+          File(customPath).existsSync()) {
+        ownPhotoPath = customPath;
+      } else if (_ws.myData?.photoUrl?.isNotEmpty == true) {
+        ownPhotoPath = _ws.myData!.photoUrl;
+      }
+    } else {
+      final previewPath = preview['path'];
+      ownPhotoPath = (previewPath != null && previewPath.isNotEmpty)
+          ? previewPath
+          : null;
+    }
     if (!mounted) return;
     setState(() {
       _selectedPhotoDayWidgetId = widgetId;
       _photoDayWidgetDisplay = display;
       _selectedWidgetPhotoPath = preview['path'];
+      _partnerWidgetPhotoPath = preview['path'];
       _photoDayMode = mode;
-      _previewShowsPartner = true;
+      _myOwnPhotoPath = ownPhotoPath;
+      _previewShowsPartner = display == 'partner';
       _photoDayVersion++;
     });
   }
@@ -291,7 +336,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     );
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
-    await _loadPhotoDayPrefs();
     await _loadPhotoDayWidgets();
     if (mounted) setState(() => _isLoadingPhoto = false);
   }
@@ -457,7 +501,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
       widgetId: widgetId,
       display: _photoDayWidgetDisplay,
     );
-    await _loadPhotoDayPrefs();
     await _loadPhotoDayWidgets();
   }
 
