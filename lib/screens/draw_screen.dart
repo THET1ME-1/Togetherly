@@ -570,30 +570,35 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (_isShapeTool) {
       final pt = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
-      _currentPoints
-        ..clear()
-        ..add(pt)
-        ..add(pt);
-      _currentShapeType = _activeShapeType;
-      _currentColorValue = _activeColor.toARGB32();
-      _currentStrokeWidth = _strokeWidth;
-      _currentIsEraser = false;
-      _currentIsFilledShape = _fillShapes;
-      _isDrawing = true;
+      setState(() {
+        _currentPoints
+          ..clear()
+          ..add(pt)
+          ..add(pt);
+        _currentShapeType = _activeShapeType;
+        _currentColorValue = _activeColor.toARGB32();
+        _currentStrokeWidth = _strokeWidth;
+        _currentIsEraser = false;
+        _currentIsFilledShape = _fillShapes;
+        _isDrawing = true;
+      });
       _repaintNotifier.value++;
       return;
     }
 
-    _currentPoints
-      ..clear()
-      ..add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
-    _currentShapeType = null;
-    _currentColorValue = _activeTool == DrawTool.eraser
-        ? _bgColor.toARGB32()
-        : _activeColor.toARGB32();
-    _currentStrokeWidth = _strokeWidth;
-    _currentIsEraser = _activeTool == DrawTool.eraser;
-    _isDrawing = true;
+    setState(() {
+      _currentPoints
+        ..clear()
+        ..add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
+      _currentShapeType = null;
+      _currentColorValue = _activeTool == DrawTool.eraser
+          ? _bgColor.toARGB32()
+          : _activeColor.toARGB32();
+      _currentStrokeWidth = _strokeWidth;
+      _currentIsEraser = _activeTool == DrawTool.eraser;
+      _currentIsFilledShape = false;
+      _isDrawing = true;
+    });
     _repaintNotifier.value++;
   }
 
@@ -963,15 +968,19 @@ class _DrawScreenState extends State<DrawScreen>
           break;
         }
       } else if (s.shapeType == DrawShapeType.circle) {
-        final cx = (first.x + last.x) / 2;
-        final cy = (first.y + last.y) / 2;
-        final dx = last.x - first.x;
-        final dy = last.y - first.y;
-        final radius = math.sqrt(dx * dx + dy * dy) / 2;
-        final dist = math.sqrt(
-          math.pow(canvasPt.x - cx, 2) + math.pow(canvasPt.y - cy, 2),
-        );
-        if (dist <= radius) {
+        final minX = math.min(first.x, last.x);
+        final maxX = math.max(first.x, last.x);
+        final minY = math.min(first.y, last.y);
+        final maxY = math.max(first.y, last.y);
+        final rx = (maxX - minX) / 2;
+        final ry = (maxY - minY) / 2;
+        if (rx <= 0 || ry <= 0) continue;
+
+        final cx = (minX + maxX) / 2;
+        final cy = (minY + maxY) / 2;
+        final nx = (canvasPt.x - cx) / rx;
+        final ny = (canvasPt.y - cy) / ry;
+        if (nx * nx + ny * ny <= 1) {
           hitShape = s;
           break;
         }
@@ -2457,11 +2466,7 @@ class _DrawingPainter extends CustomPainter {
       case DrawShapeType.rect:
         canvas.drawRect(Rect.fromPoints(s, e), paint);
       case DrawShapeType.circle:
-        final dx = e.dx - s.dx;
-        final dy = e.dy - s.dy;
-        final radius = math.sqrt(dx * dx + dy * dy) / 2;
-        final center = Offset((s.dx + e.dx) / 2, (s.dy + e.dy) / 2);
-        canvas.drawCircle(center, radius, paint);
+        canvas.drawOval(Rect.fromPoints(s, e), paint);
       case DrawShapeType.triangle:
         final path = Path();
         path.moveTo((s.dx + e.dx) / 2, s.dy); // Top center
