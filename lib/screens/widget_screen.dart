@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../logic/photo_day_widget_logic.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../models/widget_data.dart';
@@ -229,17 +230,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
   Future<void> _loadPhotoDayWidgets() async {
     final hws = HomeWidgetService.instance;
     final ids = await hws.getPhotoDayWidgetIds();
-    int? selected = _selectedPhotoDayWidgetId;
-    if (ids.isEmpty) {
-      selected = null;
-    } else if (selected == null || !ids.contains(selected)) {
-      selected = ids.last;
-    }
+    final selected = PhotoDayWidgetLogic.resolveSelectedWidgetId(
+      ids,
+      _selectedPhotoDayWidgetId,
+    );
 
     String display = _photoDayWidgetDisplay;
     String? path;
     String mode = _photoDayMode;
-    String? ownPhotoPath = _myOwnPhotoPath;
+    String? customPath;
     if (selected != null) {
       display = await hws.getPhotoDayWidgetDisplay(selected);
       mode = await hws.getPhotoDayWidgetMode(
@@ -248,33 +247,35 @@ class _WidgetScreenState extends State<WidgetScreen> {
       );
       final preview = await hws.getPhotoDayWidgetPreview(selected);
       path = preview['path'];
-
-      final customPath = await hws.getPhotoDayWidgetCustomPath(selected);
-      if (mode == 'custom') {
-        if (customPath != null &&
-            customPath.isNotEmpty &&
-            File(customPath).existsSync()) {
-          ownPhotoPath = customPath;
-        } else if (_ws.myData?.photoUrl?.isNotEmpty == true) {
-          ownPhotoPath = _ws.myData!.photoUrl;
-        } else {
-          ownPhotoPath = null;
-        }
-      } else {
-        ownPhotoPath = (path != null && path.isNotEmpty) ? path : null;
+      customPath = await hws.getPhotoDayWidgetCustomPath(selected);
+      if (customPath != null &&
+          customPath.isNotEmpty &&
+          !File(customPath).existsSync()) {
+        customPath = null;
       }
     }
+
+    final resolved = PhotoDayWidgetLogic.resolveState(
+      selectedWidgetId: selected,
+      mode: mode,
+      display: display,
+      widgetPreviewPath: path,
+      widgetCustomPath: customPath,
+      myPhotoUrl: _ws.myData?.photoUrl,
+      fallbackOwnPhotoPath: _myOwnPhotoPath,
+      fallbackPartnerPhotoPath: _partnerWidgetPhotoPath,
+    );
 
     if (!mounted) return;
     setState(() {
       _photoDayWidgetIds = ids;
-      _selectedPhotoDayWidgetId = selected;
-      _photoDayWidgetDisplay = display;
-      _photoDayMode = mode;
-      _selectedWidgetPhotoPath = path;
-      _partnerWidgetPhotoPath = (path != null && path.isNotEmpty) ? path : null;
-      _myOwnPhotoPath = ownPhotoPath;
-      _previewShowsPartner = display == 'partner';
+      _selectedPhotoDayWidgetId = resolved.selectedWidgetId;
+      _photoDayWidgetDisplay = resolved.display;
+      _photoDayMode = resolved.mode;
+      _selectedWidgetPhotoPath = resolved.widgetPhotoPath;
+      _partnerWidgetPhotoPath = resolved.partnerPhotoPath;
+      _myOwnPhotoPath = resolved.ownPhotoPath;
+      _previewShowsPartner = resolved.previewShowsPartner;
     });
   }
 
@@ -286,31 +287,31 @@ class _WidgetScreenState extends State<WidgetScreen> {
       widgetId,
       fallbackGroupId: _pair.pairId,
     );
-    final customPath = await hws.getPhotoDayWidgetCustomPath(widgetId);
-    String? ownPhotoPath;
-    if (mode == 'custom') {
-      if (customPath != null &&
-          customPath.isNotEmpty &&
-          File(customPath).existsSync()) {
-        ownPhotoPath = customPath;
-      } else if (_ws.myData?.photoUrl?.isNotEmpty == true) {
-        ownPhotoPath = _ws.myData!.photoUrl;
-      }
-    } else {
-      final previewPath = preview['path'];
-      ownPhotoPath = (previewPath != null && previewPath.isNotEmpty)
-          ? previewPath
-          : null;
+    var customPath = await hws.getPhotoDayWidgetCustomPath(widgetId);
+    if (customPath != null &&
+        customPath.isNotEmpty &&
+        !File(customPath).existsSync()) {
+      customPath = null;
     }
+    final resolved = PhotoDayWidgetLogic.resolveState(
+      selectedWidgetId: widgetId,
+      mode: mode,
+      display: display,
+      widgetPreviewPath: preview['path'],
+      widgetCustomPath: customPath,
+      myPhotoUrl: _ws.myData?.photoUrl,
+      fallbackOwnPhotoPath: _myOwnPhotoPath,
+      fallbackPartnerPhotoPath: _partnerWidgetPhotoPath,
+    );
     if (!mounted) return;
     setState(() {
-      _selectedPhotoDayWidgetId = widgetId;
-      _photoDayWidgetDisplay = display;
-      _selectedWidgetPhotoPath = preview['path'];
-      _partnerWidgetPhotoPath = preview['path'];
-      _photoDayMode = mode;
-      _myOwnPhotoPath = ownPhotoPath;
-      _previewShowsPartner = display == 'partner';
+      _selectedPhotoDayWidgetId = resolved.selectedWidgetId;
+      _photoDayWidgetDisplay = resolved.display;
+      _selectedWidgetPhotoPath = resolved.widgetPhotoPath;
+      _partnerWidgetPhotoPath = resolved.partnerPhotoPath;
+      _photoDayMode = resolved.mode;
+      _myOwnPhotoPath = resolved.ownPhotoPath;
+      _previewShowsPartner = resolved.previewShowsPartner;
       _photoDayVersion++;
     });
   }
@@ -319,18 +320,20 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     final selectedWidgetId = _selectedPhotoDayWidgetId;
     if (selectedWidgetId == null) return;
-    // Если уже в этом режиме и это random — генерируем следующее фото
-    final forceNext = mode == 'random' && _photoDayMode == 'random';
+    final modeChange = PhotoDayWidgetLogic.resolveModeChange(
+      currentMode: _photoDayMode,
+      requestedMode: mode,
+    );
     // Сохраняем режим локально и в Firestore
-    await hws.setPhotoDayWidgetMode(selectedWidgetId, mode);
+    await hws.setPhotoDayWidgetMode(selectedWidgetId, modeChange.mode);
     setState(() {
-      _photoDayMode = mode;
+      _photoDayMode = modeChange.mode;
       _isLoadingPhoto = true;
       _previewShowsPartner = _photoDayWidgetDisplay == 'partner';
     });
     await hws.refreshPhotoOfDay(
       _pair.pairId,
-      forceNext: forceNext,
+      forceNext: modeChange.forceNext,
       widgetId: selectedWidgetId,
       display: _photoDayWidgetDisplay,
     );
