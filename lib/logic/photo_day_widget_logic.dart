@@ -70,9 +70,8 @@ class PhotoDayWidgetLogic {
     final normalizedFallbackOwn = _normalized(fallbackOwnPhotoPath);
     final normalizedFallbackPartner = _normalized(fallbackPartnerPhotoPath);
 
-    final ownPhotoPath = mode == 'custom'
-        ? (normalizedCustomPath ?? normalizedMyPhotoUrl)
-        : (normalizedWidgetPreview ?? normalizedFallbackOwn);
+    final ownPhotoPath =
+        normalizedCustomPath ?? normalizedMyPhotoUrl ?? normalizedFallbackOwn;
 
     final partnerPhotoPath = normalizedWidgetPreview ?? normalizedFallbackPartner;
 

@@ -78,16 +78,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
   bool _photoDayExpanded = true;
   String _photoDayMode = 'random'; // 'random' | 'custom'
   bool _savePhotoAsMemory = true;
-  String? _myOwnPhotoPath; // МОЁ фото (показывается в превью по умолчанию)
-  String?
-  _partnerWidgetPhotoPath; // Фото партнёра (всегда отображается на рабочем столе)
-  bool _previewShowsPartner = false; // Переключатель превью: моё ↔ партнёра
-  int _photoDayVersion = 0;
   bool _isLoadingPhoto = false;
   List<int> _photoDayWidgetIds = [];
+  Map<int, String> _photoDayWidgetNames = const {};
+  Map<int, String?> _photoDayWidgetOwnPhotoPaths = const {};
   int? _selectedPhotoDayWidgetId;
   String _photoDayWidgetDisplay = 'partner';
-  String? _selectedWidgetPhotoPath;
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
@@ -183,47 +179,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   Future<void> _loadPhotoDayPrefs() async {
     final hws = HomeWidgetService.instance;
-    final mode = await hws.getPhotoDayMode(_pair.pairId);
     final save = await hws.getPhotoDaySaveMemory(_pair.pairId);
-    final prefs = await SharedPreferences.getInstance();
-
-    // Моё фото: для custom-режима — мой выбранный файл
-    final customPath = prefs.getString('photo_day_path_${_pair.pairId}');
-
-    // Фото на рабочем столе (ВСЕГДА фото партнёра или случайное)
-    final widgetPath = await HomeWidget.getWidgetData<String>('photo_day_path');
-
-    // Определяем МОЁ фото для превью
-    String? myPhoto;
-    if (mode == 'custom') {
-      // В кастомном режиме показываем мой выбранный файл
-      if (customPath != null &&
-          customPath.isNotEmpty &&
-          File(customPath).existsSync()) {
-        myPhoto = customPath;
-      } else {
-        // Fallback: URL из Firestore (если файл удалён/устарел)
-        myPhoto = (_ws.myData?.photoUrl?.isNotEmpty == true)
-            ? _ws.myData!.photoUrl
-            : null;
-      }
-    } else {
-      // В random-режиме превью показывает то же, что на рабочем столе
-      // (случайное фото или фото партнёра в режиме random+custom)
-      myPhoto = (widgetPath != null && widgetPath.isNotEmpty)
-          ? widgetPath
-          : null;
-    }
 
     if (mounted) {
-      setState(() {
-        _savePhotoAsMemory = save;
-        _myOwnPhotoPath = myPhoto;
-        _partnerWidgetPhotoPath = (widgetPath != null && widgetPath.isNotEmpty)
-            ? widgetPath
-            : null;
-        _photoDayVersion++;
-      });
+      setState(() => _savePhotoAsMemory = save);
     }
   }
 
@@ -235,23 +194,42 @@ class _WidgetScreenState extends State<WidgetScreen> {
       _selectedPhotoDayWidgetId,
     );
 
+    final widgetNames = <int, String>{};
+    final widgetOwnPhotoPaths = <int, String?>{};
     String display = _photoDayWidgetDisplay;
     String? path;
     String mode = _photoDayMode;
-    String? customPath;
-    if (selected != null) {
-      display = await hws.getPhotoDayWidgetDisplay(selected);
-      mode = await hws.getPhotoDayWidgetMode(
-        selected,
+    String? selectedOwnPhotoPath;
+    for (final widgetId in ids) {
+      widgetNames[widgetId] = (await hws.getPhotoDayWidgetName(widgetId)) ?? '';
+      final widgetDisplay = await hws.getPhotoDayWidgetDisplay(widgetId);
+      final widgetMode = await hws.getPhotoDayWidgetMode(
+        widgetId,
         fallbackGroupId: _pair.pairId,
       );
-      final preview = await hws.getPhotoDayWidgetPreview(selected);
-      path = preview['path'];
-      customPath = await hws.getPhotoDayWidgetCustomPath(selected);
+      final preview = await hws.getPhotoDayWidgetPreview(widgetId);
+      var customPath = await hws.getPhotoDayWidgetCustomPath(widgetId);
       if (customPath != null &&
           customPath.isNotEmpty &&
           !File(customPath).existsSync()) {
         customPath = null;
+      }
+
+      final widgetState = PhotoDayWidgetLogic.resolveState(
+        selectedWidgetId: widgetId,
+        mode: widgetMode,
+        display: widgetDisplay,
+        widgetPreviewPath: preview['path'],
+        widgetCustomPath: customPath,
+        myPhotoUrl: _ws.myData?.photoDayUrl,
+      );
+      widgetOwnPhotoPaths[widgetId] = widgetState.ownPhotoPath;
+
+      if (widgetId == selected) {
+        display = widgetDisplay;
+        mode = widgetMode;
+        path = preview['path'];
+        selectedOwnPhotoPath = widgetState.ownPhotoPath;
       }
     }
 
@@ -260,22 +238,17 @@ class _WidgetScreenState extends State<WidgetScreen> {
       mode: mode,
       display: display,
       widgetPreviewPath: path,
-      widgetCustomPath: customPath,
-      myPhotoUrl: _ws.myData?.photoUrl,
-      fallbackOwnPhotoPath: _myOwnPhotoPath,
-      fallbackPartnerPhotoPath: _partnerWidgetPhotoPath,
+      fallbackOwnPhotoPath: selectedOwnPhotoPath,
     );
 
     if (!mounted) return;
     setState(() {
       _photoDayWidgetIds = ids;
+      _photoDayWidgetNames = widgetNames;
+      _photoDayWidgetOwnPhotoPaths = widgetOwnPhotoPaths;
       _selectedPhotoDayWidgetId = resolved.selectedWidgetId;
       _photoDayWidgetDisplay = resolved.display;
       _photoDayMode = resolved.mode;
-      _selectedWidgetPhotoPath = resolved.widgetPhotoPath;
-      _partnerWidgetPhotoPath = resolved.partnerPhotoPath;
-      _myOwnPhotoPath = resolved.ownPhotoPath;
-      _previewShowsPartner = resolved.previewShowsPartner;
     });
   }
 
@@ -299,20 +272,13 @@ class _WidgetScreenState extends State<WidgetScreen> {
       display: display,
       widgetPreviewPath: preview['path'],
       widgetCustomPath: customPath,
-      myPhotoUrl: _ws.myData?.photoUrl,
-      fallbackOwnPhotoPath: _myOwnPhotoPath,
-      fallbackPartnerPhotoPath: _partnerWidgetPhotoPath,
+      myPhotoUrl: _ws.myData?.photoDayUrl,
     );
     if (!mounted) return;
     setState(() {
       _selectedPhotoDayWidgetId = resolved.selectedWidgetId;
       _photoDayWidgetDisplay = resolved.display;
-      _selectedWidgetPhotoPath = resolved.widgetPhotoPath;
-      _partnerWidgetPhotoPath = resolved.partnerPhotoPath;
       _photoDayMode = resolved.mode;
-      _myOwnPhotoPath = resolved.ownPhotoPath;
-      _previewShowsPartner = resolved.previewShowsPartner;
-      _photoDayVersion++;
     });
   }
 
@@ -329,7 +295,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     setState(() {
       _photoDayMode = modeChange.mode;
       _isLoadingPhoto = true;
-      _previewShowsPartner = _photoDayWidgetDisplay == 'partner';
     });
     await hws.refreshPhotoOfDay(
       _pair.pairId,
@@ -349,7 +314,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     setState(() {
       _photoDayWidgetDisplay = display;
-      _previewShowsPartner = display == 'partner';
       _isLoadingPhoto = true;
     });
     await hws.setPhotoDayWidgetDisplay(widgetId, display);
@@ -434,6 +398,12 @@ class _WidgetScreenState extends State<WidgetScreen> {
   }
 
   Future<void> _pickCustomPhoto(ImageSource source) async {
+    final widgetId = _selectedPhotoDayWidgetId;
+    if (widgetId == null) return;
+    await _pickCustomPhotoForWidget(widgetId, source);
+  }
+
+  Future<void> _pickCustomPhotoForWidget(int widgetId, ImageSource source) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: source,
@@ -448,8 +418,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
     final fb = FirebaseService();
     final prefs = await SharedPreferences.getInstance();
-    final widgetId = _selectedPhotoDayWidgetId;
-    if (widgetId == null) return;
 
     // 1. Загружаем фото один раз и публикуем в widgetData
     //    Используем updatePhotoUrl (без auto-save в Memory Lane), чтобы
@@ -484,9 +452,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
       debugPrint('Failed to upload photo day: $e');
     }
 
-    // 2. Публикуем URL в widgetData (партнёр увидит как «custom»)
+    // 2. Публикуем URL в widgetData (партнёр увидит как «custom» для Фото дня)
     if (uploadedUrl != null) {
-      await _ws.updatePhotoUrl(uploadedUrl);
+      await _ws.updatePhotoDayUrl(uploadedUrl);
     }
 
     // 3. Сохраняем путь к локальному файлу (для превью в приложении)
@@ -497,7 +465,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
     }
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
-    if (mounted) setState(() => _myOwnPhotoPath = file.path);
 
     await hws.refreshPhotoOfDay(
       _pair.pairId,
@@ -505,6 +472,43 @@ class _WidgetScreenState extends State<WidgetScreen> {
       display: _photoDayWidgetDisplay,
     );
     await _loadPhotoDayWidgets();
+  }
+
+  Future<void> _showPhotoDayPhotoSourcePicker(int widgetId) async {
+    await _selectPhotoDayWidget(widgetId);
+    if (!mounted) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoSourceSheet(theme: _t),
+    );
+    if (source == null) return;
+    await _pickCustomPhotoForWidget(widgetId, source);
+  }
+
+  Future<void> _renamePhotoDayWidget(
+    int widgetId,
+    String nextName,
+  ) async {
+    final trimmedName = nextName.trim();
+    await HomeWidgetService.instance.setPhotoDayWidgetName(widgetId, trimmedName);
+    if (!mounted) return;
+    setState(() {
+      _photoDayWidgetNames = Map<int, String>.from(_photoDayWidgetNames)
+        ..[widgetId] = trimmedName;
+    });
+  }
+
+  void _showPhotoDayWidgetNameEditor(int widgetId, int index) {
+    _showTextEditor(
+      title: _s.edit,
+      hint: _s.name,
+      initial: _photoDayWidgetNames[widgetId]?.trim().isNotEmpty == true
+          ? _photoDayWidgetNames[widgetId]!
+          : _s.widgetSlotTitle(index),
+      maxLength: 40,
+      onSave: (value) => _renamePhotoDayWidget(widgetId, value),
+    );
   }
 
   Future<void> _selectWidgetTimer(TimerItem timer) async {
@@ -1133,7 +1137,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
               : LocaleService.current.photoDayCustomSubtitle,
           svgString: _photoSvg,
           qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
-          preview: _buildPhotoDayPreview(),
           widgetType: 'photo_day',
           expandedContent: _buildPhotoDayExpandedContent(),
           isExpanded: _photoDayExpanded,
@@ -1190,7 +1193,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
     required String subtitle,
     required String svgString,
     required String qualifiedName,
-    required Widget preview,
+    Widget? preview,
     String? widgetType,
     Widget? expandedContent,
     bool isExpanded = false,
@@ -1260,9 +1263,10 @@ class _WidgetScreenState extends State<WidgetScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          // ── Превью виджета ──
-          preview,
+          if (preview != null) ...[
+            const SizedBox(height: 14),
+            preview,
+          ],
           // ── Кнопка «Добавить на рабочий стол» ──
           if (_canPinWidgets) ...[
             const SizedBox(height: 14),
@@ -1635,202 +1639,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
   // ВИДЖЕТ-ПРЕВЬЮ: Фото дня
   // ════════════════════════════════════════════════════════════════════════════
 
-  Widget _buildPhotoDayPreview() {
-    final s = LocaleService.current;
-
-    final displayPath = _previewShowsPartner
-        ? (_selectedWidgetPhotoPath ?? _partnerWidgetPhotoPath)
-        : _myOwnPhotoPath;
-
-    // Превью-заголовок для пустого состояния
-    final emptyLabel = _previewShowsPartner
-        ? s.partnerPhotoWillAppear
-        : (_photoDayMode == 'custom'
-              ? s.choosePhotoBelow
-              : s.randomPhotoFromMemories);
-
-    return Column(
-      children: [
-        // Переключатель: Моё фото ↔ Фото на виджете
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _previewShowsPartner = false),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    decoration: BoxDecoration(
-                      color: !_previewShowsPartner
-                          ? _t.primary.withOpacity(0.1)
-                          : Colors.transparent,
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(10),
-                      ),
-                      border: Border.all(
-                        color: !_previewShowsPartner
-                            ? _t.primary
-                            : _t.cardBorder,
-                        width: !_previewShowsPartner ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.person_rounded,
-                          size: 14,
-                          color: !_previewShowsPartner
-                              ? _t.primary
-                              : Colors.grey.shade400,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          s.mine,
-                          style: GoogleFonts.rubik(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: !_previewShowsPartner
-                                ? _t.primary
-                                : Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _previewShowsPartner = true),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    decoration: BoxDecoration(
-                      color: _previewShowsPartner
-                          ? _t.primary.withOpacity(0.1)
-                          : Colors.transparent,
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(10),
-                      ),
-                      border: Border.all(
-                        color: _previewShowsPartner
-                            ? _t.primary
-                            : _t.cardBorder,
-                        width: _previewShowsPartner ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.phone_android_rounded,
-                          size: 14,
-                          color: _previewShowsPartner
-                              ? _t.primary
-                              : Colors.grey.shade400,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          s.onWidget,
-                          style: GoogleFonts.rubik(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _previewShowsPartner
-                                ? _t.primary
-                                : Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Превью фото
-        AspectRatio(
-          aspectRatio: 1.0,
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: _t.primary.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _t.primary.withOpacity(0.1)),
-            ),
-            child: Stack(
-              children: [
-                if (displayPath != null && displayPath.isNotEmpty)
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: displayPath.startsWith('http')
-                          ? Image.network(
-                              displayPath,
-                              fit: BoxFit.cover,
-                              key: ValueKey(
-                                'net_${displayPath}_${_photoDayVersion}',
-                              ),
-                            )
-                          : Image.file(
-                              File(displayPath),
-                              fit: BoxFit.cover,
-                              key: ValueKey(
-                                'file_${displayPath}_${_photoDayVersion}',
-                              ),
-                            ),
-                    ),
-                  )
-                else
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _previewShowsPartner ? '👥' : '📷',
-                          style: const TextStyle(fontSize: 36),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          emptyLabel,
-                          style: GoogleFonts.rubik(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: _t.primary.withOpacity(0.5),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                if (_isLoadingPhoto)
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                        child: Container(
-                          color: Colors.white.withOpacity(0.35),
-                          child: Center(
-                            child: _MD3PhotoLoader(color: _t.primary),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   // ════════════════════════════════════════════════════════════════════════════
   // НАСТРОЙКИ ФОТО ДНЯ
   // ════════════════════════════════════════════════════════════════════════════
@@ -1929,44 +1737,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _pickCustomPhoto(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library_rounded, size: 16),
-                        label: Text(s.gallery, overflow: TextOverflow.ellipsis),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _t.primaryLight,
-                          foregroundColor: _t.primary,
-                          elevation: 0,
-                          textStyle: const TextStyle(fontSize: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _pickCustomPhoto(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                        label: Text(s.camera, overflow: TextOverflow.ellipsis),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _t.primaryLight,
-                          foregroundColor: _t.primary,
-                          elevation: 0,
-                          textStyle: const TextStyle(fontSize: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
                       child: Text(
                         s.saveToMemoryLane,
                         style: GoogleFonts.rubik(
@@ -2032,6 +1802,8 @@ class _WidgetScreenState extends State<WidgetScreen> {
         final index = entry.key;
         final widgetId = entry.value;
         final isSelected = widgetId == _selectedPhotoDayWidgetId;
+        final widgetName = _photoDayWidgetNames[widgetId]?.trim();
+        final ownPhotoPath = _photoDayWidgetOwnPhotoPaths[widgetId];
         return GestureDetector(
           onTap: () => _selectPhotoDayWidget(widgetId),
           child: AnimatedContainer(
@@ -2048,17 +1820,66 @@ class _WidgetScreenState extends State<WidgetScreen> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: _t.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.photo_size_select_actual_rounded,
-                    color: _t.primary,
-                    size: 18,
+                GestureDetector(
+                  onTap: () => _showPhotoDayPhotoSourcePicker(widgetId),
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? _t.primary.withOpacity(0.35)
+                                : Colors.grey.shade200,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ownPhotoPath != null && ownPhotoPath.isNotEmpty
+                            ? (ownPhotoPath.startsWith('http')
+                                  ? CachedNetworkImage(
+                                      imageUrl: ownPhotoPath,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 160,
+                                      memCacheHeight: 160,
+                                      errorWidget: (_, __, ___) => Icon(
+                                        Icons.photo_camera_back_rounded,
+                                        color: Colors.grey.shade400,
+                                        size: 20,
+                                      ),
+                                    )
+                                  : Image.file(
+                                      File(ownPhotoPath),
+                                      fit: BoxFit.cover,
+                                    ))
+                            : Icon(
+                                Icons.photo_camera_back_rounded,
+                                color: Colors.grey.shade400,
+                                size: 20,
+                              ),
+                      ),
+                      Positioned(
+                        right: 4,
+                        bottom: 4,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: _t.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 10,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -2066,13 +1887,37 @@ class _WidgetScreenState extends State<WidgetScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        s.widgetSlotTitle(index),
-                        style: GoogleFonts.rubik(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected ? _t.primary : Colors.grey.shade800,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widgetName?.isNotEmpty == true
+                                  ? widgetName!
+                                  : s.widgetSlotTitle(index),
+                              style: GoogleFonts.rubik(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? _t.primary
+                                    : Colors.grey.shade800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () =>
+                                _showPhotoDayWidgetNameEditor(widgetId, index),
+                            child: Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: isSelected
+                                  ? _t.primary
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

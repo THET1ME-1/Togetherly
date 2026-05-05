@@ -138,6 +138,16 @@ class HomeWidgetService {
     await prefs.setString(_photoDayWidgetKey(widgetId, 'display'), display);
   }
 
+  Future<String?> getPhotoDayWidgetName(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_photoDayWidgetKey(widgetId, 'name'));
+  }
+
+  Future<void> setPhotoDayWidgetName(int widgetId, String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_photoDayWidgetKey(widgetId, 'name'), name);
+  }
+
   Future<String?> getPhotoDayWidgetGroupId(int widgetId) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_photoDayWidgetKey(widgetId, 'group_id'));
@@ -423,30 +433,17 @@ class HomeWidgetService {
       final myData = await _getMyWidgetData(groupId, currentUserUid);
       final partnerData = await _getPartnerWidgetData(groupId, currentUserUid);
       final targetData = selectedDisplay == 'mine' ? myData : partnerData;
-      final targetMode = targetData?['photoDayMode'] ?? 'random';
-      final targetPhotoUrl = targetData?['photoUrl'] ?? '';
-
-      if (widgetId != null &&
-          selectedDisplay == 'mine' &&
-          mode == 'custom') {
-        final customPath = await getPhotoDayWidgetCustomPath(widgetId);
-        if (customPath != null &&
-            customPath.isNotEmpty &&
-            File(customPath).existsSync()) {
-          await syncPhotoOfDay(
-            photoUrl: '',
-            caption: '',
-            memoryId: '',
-            authorName: currentUserName,
-            authorUid: currentUserUid,
-            localFile: File(customPath),
-            widgetId: widgetId,
-            display: selectedDisplay,
-            groupId: groupId,
-          );
-          return;
-        }
+      if (selectedDisplay == 'partner' &&
+          (targetData == null || (targetData['authorUid'] ?? '').isEmpty)) {
+        await _clearPhotoOfDay(
+          widgetId: widgetId,
+          display: selectedDisplay,
+          groupId: groupId,
+        );
+        return;
       }
+      final targetMode = targetData?['photoDayMode'] ?? 'random';
+      final targetPhotoUrl = targetData?['photoDayUrl'] ?? '';
 
       final bool targetHasCustomPhoto =
           mode == 'custom' && targetMode == 'custom' && targetPhotoUrl.isNotEmpty;
@@ -494,9 +491,20 @@ class HomeWidgetService {
                 .where((m) => m.authorUid == targetUid)
                 .toList()
           : <Memory>[];
-      final candidateMemories = targetMemories.isNotEmpty
+      final candidateMemories = selectedDisplay == 'partner'
           ? targetMemories
-          : allMemories;
+          : (targetMemories.isNotEmpty ? targetMemories : allMemories);
+
+      if (candidateMemories.isEmpty) {
+        await _clearPhotoOfDay(
+          widgetId: widgetId,
+          display: selectedDisplay,
+          groupId: groupId,
+          authorName: targetData?['authorName'] ?? '',
+          authorUid: targetData?['authorUid'] ?? '',
+        );
+        return;
+      }
 
       final seed = widgetId != null
           ? (forceNext
@@ -552,6 +560,7 @@ class HomeWidgetService {
         final uid = data['uid'] as String? ?? '';
         if (uid.isEmpty || uid == currentUserUid) continue;
 
+        final photoDayUrl = data['photoDayUrl'] as String? ?? '';
         final photoUrl = data['photoUrl'] as String? ?? '';
         final mode = data['photoDayMode'] as String? ?? 'random';
 
@@ -559,6 +568,7 @@ class HomeWidgetService {
         return {
           'authorUid': uid,
           'authorName': data['displayName'] as String? ?? '',
+          'photoDayUrl': photoDayUrl,
           'photoUrl': photoUrl,
           'photoDayMode': mode,
         };
@@ -586,6 +596,7 @@ class HomeWidgetService {
       return {
         'authorUid': currentUserUid,
         'authorName': data['displayName'] as String? ?? '',
+        'photoDayUrl': data['photoDayUrl'] as String? ?? '',
         'photoUrl': data['photoUrl'] as String? ?? '',
         'photoDayMode': data['photoDayMode'] as String? ?? 'random',
       };
@@ -593,6 +604,36 @@ class HomeWidgetService {
       debugPrint('HomeWidgetService._getMyWidgetData failed: $e');
       return null;
     }
+  }
+
+  Future<void> _clearPhotoOfDay({
+    int? widgetId,
+    String? display,
+    String? groupId,
+    String authorName = '',
+    String authorUid = '',
+  }) async {
+    if (widgetId != null) {
+      await _savePhotoDayWidgetData(widgetId, {
+        'path': '',
+        'caption': '',
+        'memory_id': '',
+        'author': authorName,
+        'author_uid': authorUid,
+        if (display != null) 'display': display,
+        if (groupId != null) 'group_id': groupId,
+      });
+    } else {
+      await HomeWidget.saveWidgetData<String>('photo_day_path', '');
+      await HomeWidget.saveWidgetData<String>('photo_day_caption', '');
+      await HomeWidget.saveWidgetData<String>('photo_day_memory_id', '');
+      await HomeWidget.saveWidgetData<String>('photo_day_author', authorName);
+      await HomeWidget.saveWidgetData<String>('photo_day_author_uid', authorUid);
+    }
+    await HomeWidget.updateWidget(
+      name: 'PhotoDayWidgetProvider',
+      androidName: 'PhotoDayWidgetProvider',
+    );
   }
 
   Memory? _pickDailyRandomMemory(

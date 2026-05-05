@@ -209,6 +209,11 @@ class WidgetService extends ChangeNotifier {
     await _updateField({'photoUrl': url});
   }
 
+  /// Устанавливает кастомное фото конкретно для виджета "Фото дня"
+  Future<void> updatePhotoDayUrl(String url) async {
+    await _updateField({'photoDayUrl': url});
+  }
+
   /// Обновить режим PhotoDay (random/custom)
   Future<void> setPhotoDayMode(String mode) async {
     await _updateField({'photoDayMode': mode});

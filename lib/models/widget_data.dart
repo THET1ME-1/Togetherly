@@ -15,7 +15,8 @@ class WidgetData {
   String moodLabel; // текстовая метка настроения
   String message; // короткое сообщение / love note
   String photoDayMode; // 'random' or 'custom'
-  String? photoUrl; // URL фотографии
+  String? photoUrl; // URL фотографии (для парного виджета)
+  String? photoDayUrl; // URL кастомного фото для виджета "Фото дня"
   int photoGridCount; // 1, 2 или 4
   List<String> photoGridUrls; // URL фото для сетки
   String? musicTitle; // название песни
@@ -35,6 +36,7 @@ class WidgetData {
     this.message = '',
     this.photoDayMode = 'random',
     this.photoUrl,
+    this.photoDayUrl,
     this.photoGridCount = 1,
     this.photoGridUrls = const [],
 
@@ -82,6 +84,7 @@ class WidgetData {
     'moodLabel': moodLabel,
     'message': message,
     'photoUrl': photoUrl,
+    'photoDayUrl': photoDayUrl,
     'photoGridCount': photoGridCount,
     'photoGridUrls': photoGridUrls,
     'musicTitle': musicTitle,
@@ -103,6 +106,7 @@ class WidgetData {
       moodLabel: data['moodLabel'] ?? '',
       message: data['message'] ?? '',
       photoUrl: data['photoUrl'],
+      photoDayUrl: data['photoDayUrl'],
       photoGridCount: (data['photoGridCount'] as int?) ?? 1,
       photoGridUrls: List<String>.from(data['photoGridUrls'] ?? []),
       musicTitle: data['musicTitle'],
@@ -124,6 +128,7 @@ class WidgetData {
     String? moodLabel,
     String? message,
     String? photoUrl,
+    String? photoDayUrl,
     String? musicTitle,
     String? musicArtist,
     String? musicUrl,
@@ -144,6 +149,7 @@ class WidgetData {
       message: message ?? this.message,
       photoDayMode: photoDayMode ?? this.photoDayMode,
       photoUrl: photoUrl ?? this.photoUrl,
+      photoDayUrl: photoDayUrl ?? this.photoDayUrl,
       photoGridCount: photoGridCount ?? this.photoGridCount,
       photoGridUrls: photoGridUrls ?? this.photoGridUrls,
       musicTitle: musicTitle ?? this.musicTitle,

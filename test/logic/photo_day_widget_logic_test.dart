@@ -105,7 +105,7 @@ void main() {
       expect(result.previewPath(), 'https://cdn.example.com/mine.jpg');
     });
 
-    test('mine + random shows widget preview photo', () {
+    test('mine preview keeps own photo even in random mode', () {
       final result = PhotoDayWidgetLogic.resolveState(
         selectedWidgetId: 1,
         mode: 'random',
@@ -115,8 +115,8 @@ void main() {
       );
 
       expect(result.previewShowsPartner, isFalse);
-      expect(result.ownPhotoPath, '/widget/random.jpg');
-      expect(result.previewPath(), '/widget/random.jpg');
+      expect(result.ownPhotoPath, '/old/own.jpg');
+      expect(result.previewPath(), '/old/own.jpg');
     });
 
     test('partner path falls back when widget preview is empty', () {
