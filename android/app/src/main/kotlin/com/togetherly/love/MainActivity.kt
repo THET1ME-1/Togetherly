@@ -21,6 +21,25 @@ class MainActivity : FlutterActivity() {
                     result.success(manager.getAppWidgetIds(component).toList())
                 }
 
+                "updatePhotoDayCarousel" -> {
+                    val widgetId = call.argument<Int>("widgetId")
+                    val paths = call.argument<List<String>>("paths")
+                    
+                    if (widgetId != null && paths != null) {
+                        val prefs = getSharedPreferences("HomeWidgetPreferences", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString(
+                            "photo_day_widget_${widgetId}_paths",
+                            org.json.JSONArray(paths).toString()
+                        ).apply()
+                        
+                        // Force schedule alarm in case it wasn't running
+                        PhotoDayWidgetProvider.scheduleRotationAlarm(this)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARGS", "Missing widgetId or paths", null)
+                    }
+                }
+
                 else -> result.notImplemented()
             }
         }

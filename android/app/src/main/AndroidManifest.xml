@@ -169,6 +169,14 @@
                 android:resource="@xml/relationship_stats_widget_info" />
         </receiver>
 
+        <!-- Receiver для ротации карусели фото-виджета -->
+        <receiver android:name=".PhotoDayRotationReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="com.togetherly.love.ACTION_ROTATE_TIMER" />
+            </intent-filter>
+        </receiver>
+
         <!-- Иконка и цвет для FCM-уведомлений (фон / убитый процесс) -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

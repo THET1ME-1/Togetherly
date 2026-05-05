@@ -681,6 +681,7 @@ abstract class AppStrings {
   String get timerWidgetSubtitle;
   String get photoDayRandomSubtitle;
   String get photoDayCustomSubtitle;
+  String get photoDayPartnerSubtitle;
   String get moodWidgetSubtitle;
   String get relationshipStatsSubtitle;
   String get daysCounterLabel;
@@ -2034,6 +2035,8 @@ class _RuStrings extends AppStrings {
   String get photoDayRandomSubtitle => 'Случайное фото из ленты';
   @override
   String get photoDayCustomSubtitle => 'Своё установленное фото';
+  @override
+  String get photoDayPartnerSubtitle => 'То, чем делится ваш партнёр';
   @override
   String get moodWidgetSubtitle => 'Горизонтальный виджет: моё и партнёра';
   @override
@@ -3443,6 +3446,8 @@ class _EnStrings extends AppStrings {
   String get photoDayRandomSubtitle => 'Random photo from Memory Lane';
   @override
   String get photoDayCustomSubtitle => 'Custom set photo';
+  @override
+  String get photoDayPartnerSubtitle => 'What your partner shares';
   @override
   String get moodWidgetSubtitle => 'Horizontal widget: mine & partner\'s';
   @override

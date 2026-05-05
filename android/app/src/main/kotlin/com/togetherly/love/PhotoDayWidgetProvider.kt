@@ -15,6 +15,11 @@ import es.antonborri.home_widget.HomeWidgetProvider
 import org.json.JSONArray
 import org.json.JSONObject
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.SystemClock
+
 /**
  * Виджет «Фото дня» — случайное фото из Memory Lane.
  * При нажатии открывается лента воспоминаний.
@@ -28,6 +33,7 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         ensurePendingConfigsAssigned(context, widgetData, appWidgetIds)
+        scheduleRotationAlarm(context)
 
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.photo_day_widget).apply {
@@ -131,6 +137,7 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         editor.putString(key(widgetId, "group_id"), item.optString("groupId", ""))
         editor.putString(key(widgetId, "mode"), item.optString("mode", "random"))
         editor.putString(key(widgetId, "display"), item.optString("display", "partner"))
+        editor.putString(key(widgetId, "kind"), item.optString("kind", if (item.optString("display", "mine") == "partner") "partner" else "self"))
         editor.putString(key(widgetId, "path"), item.optString("path", ""))
         editor.putString(key(widgetId, "caption"), item.optString("caption", ""))
         editor.putString(key(widgetId, "memory_id"), item.optString("memoryId", ""))
@@ -145,6 +152,31 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
 
     companion object {
         private const val PENDING_CONFIGS_KEY = "photo_day_pending_configs"
+
+        fun scheduleRotationAlarm(context: Context) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, PhotoDayRotationReceiver::class.java).apply {
+                action = PhotoDayRotationReceiver.ACTION_ROTATE_TIMER
+            }
+            
+            val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            
+            val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
+
+            // 15 minutes interval is enough to check for any widget that needs rotation
+            val interval = 15 * 60 * 1000L 
+            
+            alarmManager.setInexactRepeating(
+                AlarmManager.ELAPSED_REALTIME,
+                SystemClock.elapsedRealtime() + interval,
+                interval,
+                pendingIntent
+            )
+        }
     }
 
     private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
