@@ -73,26 +73,21 @@ exports.onMissYouEvent = onDocumentCreated(
       return;
     }
 
-    // Формируем push-сообщение
+    const body = "Думает о вас и вспоминает 💭";
+
+    // Формируем data-only push-сообщение.
+    // Текст уведомления собирается на клиенте, чтобы можно было
+    // подставить локальный псевдоним отправителя у получателя.
     const message = {
-      notification: {
-        title: `${senderName} скучает по вам 💕`,
-        body: "Думает о вас и вспоминает 💭",
-      },
       data: {
         type: "miss_you",
         groupId: groupId,
         senderUid: senderUid,
         senderName: senderName,
+        body: body,
       },
       android: {
         priority: "high",
-        notification: {
-          channelId: "miss_you",
-          priority: "high",
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
       },
       apns: {
         headers: {

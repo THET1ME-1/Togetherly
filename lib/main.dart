@@ -16,7 +16,7 @@ import 'widgets/common/m3_loading.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('FCM background: ${message.notification?.title}');
+  await FirebaseService.handleBackgroundMessage(message);
 }
 
 void main() async {

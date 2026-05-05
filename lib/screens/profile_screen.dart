@@ -1852,46 +1852,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               // Toggles
               _notifToggle(
-                ctx: ctx,
-                setModal: setModal,
                 icon: Icons.favorite_rounded,
                 color: const Color(0xFFEC4899),
                 title: s.notifMissYou,
                 subtitle: s.notifMissYouSub,
                 value: _notifMissYou,
                 onChanged: (v) {
-                  setState(() => _notifMissYou = v);
-                  setModal(() {});
+                  setModal(() => _notifMissYou = v);
                   _saveNotifPref(_kNotifMissYou, v);
                 },
               ),
               const Divider(height: 1),
               _notifToggle(
-                ctx: ctx,
-                setModal: setModal,
                 icon: Icons.photo_library_outlined,
                 color: const Color(0xFF3B82F6),
                 title: s.notifNewMemory,
                 subtitle: s.notifNewMemorySub,
                 value: _notifNewMemory,
                 onChanged: (v) {
-                  setState(() => _notifNewMemory = v);
-                  setModal(() {});
+                  setModal(() => _notifNewMemory = v);
                   _saveNotifPref(_kNotifNewMemory, v);
                 },
               ),
               const Divider(height: 1),
               _notifToggle(
-                ctx: ctx,
-                setModal: setModal,
                 icon: Icons.mood_rounded,
                 color: const Color(0xFFF59E0B),
                 title: s.notifMood,
                 subtitle: s.notifMoodSub,
                 value: _notifMood,
                 onChanged: (v) {
-                  setState(() => _notifMood = v);
-                  setModal(() {});
+                  setModal(() => _notifMood = v);
                   _saveNotifPref(_kNotifMood, v);
                 },
               ),
@@ -1940,8 +1931,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _notifToggle({
-    required BuildContext ctx,
-    required StateSetter setModal,
     required IconData icon,
     required Color color,
     required String title,

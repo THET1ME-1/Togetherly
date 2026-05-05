@@ -14,6 +14,8 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/timer_item.dart';
+import 'locale_service.dart';
+import 'nickname_service.dart';
 
 /// Единый сервис для работы с Firebase.
 /// Поддерживает группы от 2 до 10 участников + совместные воспоминания.
@@ -218,7 +220,7 @@ class FirebaseService {
     }
   }
 
-  Future<void> _initLocalNotifications() async {
+  static Future<void> _initLocalNotifications() async {
     if (_localNotificationsInitialized) return;
 
     const androidSettings = AndroidInitializationSettings(
@@ -277,34 +279,107 @@ class FirebaseService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) async {
-    final notification = message.notification;
-    if (notification == null) return;
+    final shouldShow = await _shouldShowNotification(message);
+    if (!shouldShow) return;
 
-    // Проверяем локальные настройки уведомлений
+    final content = await _buildLocalNotificationContent(message);
+    if (content == null) return;
+
+    await _showLocalNotification(
+      id: _notificationIdFor(message),
+      title: content.title,
+      body: content.body,
+      channelId: _channelIdFor(message),
+    );
+  }
+
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    final shouldShow = await _shouldShowNotification(message);
+    if (!shouldShow) return;
+
+    final content = await _buildLocalNotificationContent(message);
+    if (content == null) return;
+
+    await _showLocalNotification(
+      id: _notificationIdFor(message),
+      title: content.title,
+      body: content.body,
+      channelId: _channelIdFor(message),
+    );
+  }
+
+  static Future<bool> _shouldShowNotification(RemoteMessage message) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final type = message.data['type'] ?? '';
       if (type == 'miss_you' && !(prefs.getBool(_kNotifMissYou) ?? true)) {
         debugPrint('FCM foreground: miss_you notification suppressed by user prefs');
-        return;
+        return false;
       }
       if (type == 'new_memory' && !(prefs.getBool(_kNotifNewMemory) ?? true)) {
         debugPrint('FCM foreground: new_memory notification suppressed by user prefs');
-        return;
+        return false;
       }
       if (type == 'mood' && !(prefs.getBool(_kNotifMood) ?? true)) {
         debugPrint('FCM foreground: mood notification suppressed by user prefs');
-        return;
+        return false;
       }
     } catch (e) {
       debugPrint('FCM foreground pref check failed: \$e');
     }
 
-    final channelId = message.notification?.android?.channelId ?? _kChannelId;
-    _localNotifications.show(
-      id: notification.hashCode,
-      title: notification.title,
-      body: notification.body,
+    return true;
+  }
+
+  static Future<_LocalNotificationContent?> _buildLocalNotificationContent(
+    RemoteMessage message,
+  ) async {
+    final type = message.data['type'] ?? '';
+
+    if (type == 'miss_you') {
+      await NicknameService.instance.init();
+      await LocaleService.instance.init();
+
+      final senderUid = message.data['senderUid'] ?? '';
+      final fallbackSenderName = message.data['senderName'] ?? 'Partner';
+      final senderName = NicknameService.instance.resolve(
+        senderUid,
+        fallbackSenderName,
+      );
+      final strings = LocaleService.current;
+      final body = (message.data['body'] ?? '').toString().trim();
+
+      return _LocalNotificationContent(
+        title: strings.missYouNotifTitle(senderName),
+        body: body.isNotEmpty ? body : strings.missYouNotifBody,
+      );
+    }
+
+    final notification = message.notification;
+    final title = (notification?.title ?? message.data['title'] ?? '')
+        .toString()
+        .trim();
+    final body = (notification?.body ?? message.data['body'] ?? '')
+        .toString()
+        .trim();
+
+    if (title.isEmpty && body.isEmpty) return null;
+
+    return _LocalNotificationContent(title: title, body: body);
+  }
+
+  static Future<void> _showLocalNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String channelId,
+  }) async {
+    await _initLocalNotifications();
+
+    await _localNotifications.show(
+      id: id,
+      title: title,
+      body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
@@ -322,6 +397,23 @@ class FirebaseService {
       ),
     );
   }
+
+  static int _notificationIdFor(RemoteMessage message) {
+    final messageId = message.messageId;
+    if (messageId != null && messageId.isNotEmpty) return messageId.hashCode;
+    return Object.hashAll([
+      message.data['type'],
+      message.data['groupId'],
+      message.data['senderUid'],
+      message.sentTime?.millisecondsSinceEpoch,
+    ]);
+  }
+
+  static String _channelIdFor(RemoteMessage message) {
+    return message.notification?.android?.channelId ?? _kChannelId;
+  }
+
+
 
   Future<void> _saveFcmToken(String token) async {
     final u = currentUser;
@@ -2535,6 +2627,16 @@ class FirebaseService {
     final rng = Random();
     return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
   }
+}
+
+class _LocalNotificationContent {
+  final String title;
+  final String body;
+
+  const _LocalNotificationContent({
+    required this.title,
+    required this.body,
+  });
 }
 
 /// Internal transfer object used by [listenToDrawingStrokes].
