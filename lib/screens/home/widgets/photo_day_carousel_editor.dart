@@ -3,27 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
-import '../../../services/locale_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class PhotoDayCarouselEditor extends StatefulWidget {
   final AppTheme theme;
-  final List<String> initialPaths; // can be local file or http
-  final int maxPhotos;
-  final String initialRotationType; // 'unlock' | 'time'
-  final int initialRotationInterval; // in minutes
+  final List<String> initialPaths;
+  final String initialRotationType;
+  final int initialRotationInterval;
   final Future<void> Function({
     required List<String> paths,
     required String rotationType,
     required int rotationInterval,
-  }) onSave;
+  })
+  onSave;
 
   const PhotoDayCarouselEditor({
     super.key,
     required this.theme,
     required this.initialPaths,
     required this.onSave,
-    this.maxPhotos = 10,
     this.initialRotationType = 'unlock',
     this.initialRotationInterval = 60,
   });
@@ -33,7 +31,8 @@ class PhotoDayCarouselEditor extends StatefulWidget {
 }
 
 class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
-  late List<String> _paths;
+  late int _count;
+  late List<String?> _paths;
   late String _rotationType;
   late int _rotationInterval;
   bool _isSaving = false;
@@ -41,39 +40,53 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   @override
   void initState() {
     super.initState();
-    _paths = List.from(widget.initialPaths);
+    _paths = widget.initialPaths.map((p) => p as String?).toList();
+    _count = _paths.length.clamp(1, 10);
+    while (_paths.length < _count) {
+      _paths.add(null);
+    }
     _rotationType = widget.initialRotationType;
     _rotationInterval = widget.initialRotationInterval;
   }
 
-  Future<void> _pickPhotos() async {
-    if (_paths.length >= widget.maxPhotos) return;
+  void _updateCount(int newCount) {
+    if (newCount < 1 || newCount > 10) return;
+    setState(() {
+      _count = newCount;
+      while (_paths.length < _count) {
+        _paths.add(null);
+      }
+      if (_paths.length > _count) {
+        _paths = _paths.sublist(0, _count);
+      }
+    });
+  }
 
+  Future<void> _pickPhoto(int index) async {
     final picker = ImagePicker();
-    final List<XFile> pickedFiles = await picker.pickMultiImage(
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
       imageQuality: 85,
       maxWidth: 1920,
       maxHeight: 1920,
     );
 
-    if (pickedFiles.isNotEmpty) {
+    if (picked != null) {
       setState(() {
-        for (var f in pickedFiles) {
-          if (_paths.length < widget.maxPhotos) {
-            _paths.add(f.path);
-          }
-        }
+        _paths[index] = picked.path;
       });
     }
   }
 
   Future<void> _save() async {
-    if (_paths.isEmpty) return; // need at least one
+    final validPaths = _paths.whereType<String>().toList();
+    if (validPaths.isEmpty) return;
+
     setState(() => _isSaving = true);
     try {
       await widget.onSave(
-        paths: _paths,
-        rotationType: _rotationType,
+        paths: validPaths,
+        rotationType: _count >= 2 ? _rotationType : 'none',
         rotationInterval: _rotationInterval,
       );
       if (mounted) Navigator.pop(context);
@@ -86,7 +99,6 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final s = LocaleService.current;
     final t = widget.theme;
 
     return Container(
@@ -115,68 +127,97 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Карусель фото', // s.carouselTitle
-                style: GoogleFonts.rubik(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: t.primary,
-                ),
-              ),
-              if (_paths.length < widget.maxPhotos)
-                TextButton.icon(
-                  onPressed: _pickPhotos,
-                  icon: const Icon(Icons.add_a_photo_rounded, size: 18),
-                  label: Text('Добавить'),
-                  style: TextButton.styleFrom(foregroundColor: t.primary),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Text(
-            'Выберите от 1 до ${widget.maxPhotos} фотографий. Перетаскивайте, чтобы изменить порядок.',
+            'Настройка фото',
             style: GoogleFonts.rubik(
-              fontSize: 13,
-              color: Colors.grey.shade600,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: t.primary,
             ),
           ),
           const SizedBox(height: 16),
-          
-          // Reorderable list of images
-          SizedBox(
-            height: 120,
-            child: _paths.isEmpty
-                ? Center(
-                    child: Text(
-                      'Нет фотографий',
-                      style: GoogleFonts.rubik(color: Colors.grey.shade400),
+
+          // Photo count selector
+          Text(
+            'Количество фото (1-10)',
+            style: GoogleFonts.rubik(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(10, (i) {
+              final num = i + 1;
+              final isSelected = _count == num;
+              return GestureDetector(
+                onTap: () => _updateCount(num),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isSelected ? t.primary : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected ? t.primary : Colors.grey.shade300,
                     ),
-                  )
-                : ReorderableListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _paths.length,
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        final item = _paths.removeAt(oldIndex);
-                        _paths.insert(newIndex, item);
-                      });
-                    },
-                    itemBuilder: (ctx, index) {
-                      final path = _paths[index];
-                      return Container(
-                        key: ValueKey(path),
-                        width: 100,
-                        margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$num',
+                      style: GoogleFonts.rubik(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 20),
+
+          // Photo slots
+          Text(
+            'Фото',
+            style: GoogleFonts.rubik(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1,
+            ),
+            itemCount: _count,
+            itemBuilder: (context, index) {
+              final path = _paths[index];
+              return GestureDetector(
+                onTap: () => _pickPhoto(index),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: path != null
+                          ? t.primary.withOpacity(0.3)
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: path != null
+                      ? Stack(
                           fit: StackFit.expand,
                           children: [
                             path.startsWith('http')
@@ -184,16 +225,15 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                                     imageUrl: path,
                                     fit: BoxFit.cover,
                                   )
-                                : Image.file(
-                                    File(path),
-                                    fit: BoxFit.cover,
-                                  ),
+                                : Image.file(File(path), fit: BoxFit.cover),
                             Positioned(
                               top: 4,
                               right: 4,
                               child: GestureDetector(
                                 onTap: () {
-                                  setState(() => _paths.removeAt(index));
+                                  setState(() {
+                                    _paths[index] = null;
+                                  });
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
@@ -203,20 +243,39 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                                   ),
                                   child: const Icon(
                                     Icons.close_rounded,
-                                    size: 14,
+                                    size: 12,
                                     color: Colors.white,
                                   ),
                                 ),
                               ),
                             ),
                           ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_photo_alternate_rounded,
+                              size: 24,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${index + 1}',
+                              style: GoogleFonts.rubik(
+                                fontSize: 10,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                ),
+              );
+            },
           ),
-          
-          if (_paths.length > 1) ...[
+
+          // Rotation settings (only for 2+ photos)
+          if (_count >= 2) ...[
             const SizedBox(height: 24),
             Text(
               'Менять фото:',
@@ -260,10 +319,19 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                     value: _rotationInterval,
                     isExpanded: true,
                     items: const [
-                      DropdownMenuItem(value: 15, child: Text('Каждые 15 минут')),
-                      DropdownMenuItem(value: 30, child: Text('Каждые 30 минут')),
+                      DropdownMenuItem(
+                        value: 15,
+                        child: Text('Каждые 15 минут'),
+                      ),
+                      DropdownMenuItem(
+                        value: 30,
+                        child: Text('Каждые 30 минут'),
+                      ),
                       DropdownMenuItem(value: 60, child: Text('Каждый час')),
-                      DropdownMenuItem(value: 180, child: Text('Каждые 3 часа')),
+                      DropdownMenuItem(
+                        value: 180,
+                        child: Text('Каждые 3 часа'),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v != null) setState(() => _rotationInterval = v);
@@ -279,7 +347,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _paths.isEmpty || _isSaving ? null : _save,
+              onPressed: _paths.whereType<String>().isEmpty || _isSaving
+                  ? null
+                  : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: t.primary,
                 foregroundColor: Colors.white,
@@ -292,10 +362,13 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : Text(
-                      s.save,
+                      'Сохранить',
                       style: GoogleFonts.rubik(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
