@@ -81,7 +81,12 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
             editor.remove(key(widgetId, "group_id"))
             editor.remove(key(widgetId, "mode"))
             editor.remove(key(widgetId, "display"))
+            editor.remove(key(widgetId, "kind"))
+            editor.remove(key(widgetId, "name"))
             editor.remove(key(widgetId, "path"))
+            editor.remove(key(widgetId, "paths"))
+            editor.remove(key(widgetId, "urls"))
+            editor.remove(key(widgetId, "custom_path"))
             editor.remove(key(widgetId, "caption"))
             editor.remove(key(widgetId, "memory_id"))
             editor.remove(key(widgetId, "author"))
@@ -89,6 +94,10 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
             editor.remove(key(widgetId, "viewer_uid"))
             editor.remove(key(widgetId, "viewer_name"))
             editor.remove(key(widgetId, "refresh_seed"))
+            editor.remove(key(widgetId, "rotation_type"))
+            editor.remove(key(widgetId, "rotation_interval"))
+            editor.remove(key(widgetId, "current_index"))
+            editor.remove(key(widgetId, "last_update"))
         }
         editor.apply()
     }

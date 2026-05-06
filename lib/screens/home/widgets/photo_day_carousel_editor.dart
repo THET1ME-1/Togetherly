@@ -5,6 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+/// Bottom-sheet редактор карусели для одного виджета "Фото-виджет".
+///
+/// Количество фото — динамическое: от 1 до 10. Если фото 1 — карусели нет,
+/// если 2-10 — появляются настройки смены (по разблокировке / по таймеру).
+/// Порядок задаётся drag-and-drop.
 class PhotoDayCarouselEditor extends StatefulWidget {
   final AppTheme theme;
   final List<String> initialPaths;
@@ -26,67 +31,90 @@ class PhotoDayCarouselEditor extends StatefulWidget {
     this.initialRotationInterval = 60,
   });
 
+  static const int kMaxPhotos = 10;
+
   @override
   State<PhotoDayCarouselEditor> createState() => _PhotoDayCarouselEditorState();
 }
 
 class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
-  late int _count;
-  late List<String?> _paths;
+  late List<String> _paths;
   late String _rotationType;
   late int _rotationInterval;
   bool _isSaving = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _paths = widget.initialPaths.map((p) => p as String?).toList();
-    _count = _paths.length.clamp(1, 10);
-    while (_paths.length < _count) {
-      _paths.add(null);
-    }
+    _paths = widget.initialPaths
+        .where((p) => p.trim().isNotEmpty)
+        .take(PhotoDayCarouselEditor.kMaxPhotos)
+        .toList();
     _rotationType = widget.initialRotationType;
     _rotationInterval = widget.initialRotationInterval;
   }
 
-  void _updateCount(int newCount) {
-    if (newCount < 1 || newCount > 10) return;
-    setState(() {
-      _count = newCount;
-      while (_paths.length < _count) {
-        _paths.add(null);
+  Future<void> _addPhotos() async {
+    final remaining = PhotoDayCarouselEditor.kMaxPhotos - _paths.length;
+    if (remaining <= 0) return;
+
+    try {
+      final List<XFile> picked = await _picker.pickMultiImage(
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (picked.isEmpty) return;
+
+      final taken = picked.take(remaining).map((x) => x.path).toList();
+      setState(() {
+        _paths.addAll(taken);
+      });
+    } catch (_) {
+      final XFile? single = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (single != null) {
+        setState(() => _paths.add(single.path));
       }
-      if (_paths.length > _count) {
-        _paths = _paths.sublist(0, _count);
-      }
-    });
+    }
   }
 
-  Future<void> _pickPhoto(int index) async {
-    final picker = ImagePicker();
-    final XFile? picked = await picker.pickImage(
+  void _replacePhoto(int index) async {
+    final XFile? picked = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
       maxWidth: 1920,
       maxHeight: 1920,
     );
-
     if (picked != null) {
-      setState(() {
-        _paths[index] = picked.path;
-      });
+      setState(() => _paths[index] = picked.path);
     }
   }
 
-  Future<void> _save() async {
-    final validPaths = _paths.whereType<String>().toList();
-    if (validPaths.isEmpty) return;
+  void _removePhoto(int index) {
+    setState(() => _paths.removeAt(index));
+  }
 
+  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final item = _paths.removeAt(oldIndex);
+      _paths.insert(newIndex, item);
+    });
+  }
+
+  Future<void> _save() async {
+    if (_paths.isEmpty) return;
     setState(() => _isSaving = true);
     try {
       await widget.onSave(
-        paths: validPaths,
-        rotationType: _count >= 2 ? _rotationType : 'none',
+        paths: List<String>.from(_paths),
+        rotationType: _paths.length >= 2 ? _rotationType : 'none',
         rotationInterval: _rotationInterval,
       );
       if (mounted) Navigator.pop(context);
@@ -100,284 +128,416 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
+    final canAddMore = _paths.length < PhotoDayCarouselEditor.kMaxPhotos;
+    final hasCarousel = _paths.length >= 2;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: t.cardSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).padding.bottom + 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.78,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: t.cardSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Настройка фото',
-            style: GoogleFonts.rubik(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: t.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Photo count selector
-          Text(
-            'Количество фото (1-10)',
-            style: GoogleFonts.rubik(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(10, (i) {
-              final num = i + 1;
-              final isSelected = _count == num;
-              return GestureDetector(
-                onTap: () => _updateCount(num),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Center(
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: isSelected ? t.primary : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected ? t.primary : Colors.grey.shade300,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$num',
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : Colors.grey.shade600,
-                      ),
-                    ),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              );
-            }),
-          ),
-          const SizedBox(height: 20),
-
-          // Photo slots
-          Text(
-            'Фото',
-            style: GoogleFonts.rubik(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 5,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1,
-            ),
-            itemCount: _count,
-            itemBuilder: (context, index) {
-              final path = _paths[index];
-              return GestureDetector(
-                onTap: () => _pickPhoto(index),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: path != null
-                          ? t.primary.withOpacity(0.3)
-                          : Colors.grey.shade300,
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Фото-виджет',
+                            style: GoogleFonts.rubik(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: t.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _paths.isEmpty
+                                ? 'Добавьте от 1 до 10 фото'
+                                : _paths.length == 1
+                                    ? '1 фото · без карусели'
+                                    : '${_paths.length} фото · карусель',
+                            style: GoogleFonts.rubik(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${_paths.length}/${PhotoDayCarouselEditor.kMaxPhotos}',
+                        style: GoogleFonts.rubik(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: t.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: MediaQuery.of(context).padding.bottom + 100,
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: path != null
-                      ? Stack(
-                          fit: StackFit.expand,
+                  children: [
+                    if (_paths.isNotEmpty) _buildHint(t),
+                    if (_paths.isNotEmpty) const SizedBox(height: 8),
+                    if (_paths.isNotEmpty) _buildPhotoList(t),
+                    if (canAddMore) const SizedBox(height: 8),
+                    if (canAddMore) _buildAddButton(t),
+                    if (hasCarousel) const SizedBox(height: 24),
+                    if (hasCarousel) _buildRotationSection(t),
+                    if (_paths.isNotEmpty && !hasCarousel) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: t.primary.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: t.primary.withOpacity(0.18),
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            path.startsWith('http')
-                                ? CachedNetworkImage(
-                                    imageUrl: path,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.file(File(path), fit: BoxFit.cover),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _paths[index] = null;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.close_rounded,
-                                    size: 12,
-                                    color: Colors.white,
-                                  ),
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 16,
+                              color: t.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Добавьте ещё фото, чтобы появилась карусель — фото будут меняться автоматически.',
+                                style: GoogleFonts.rubik(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade700,
                                 ),
                               ),
                             ),
                           ],
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_photo_alternate_rounded,
-                              size: 24,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${index + 1}',
-                              style: GoogleFonts.rubik(
-                                fontSize: 10,
-                                color: Colors.grey.shade400,
-                              ),
-                            ),
-                          ],
                         ),
-                ),
-              );
-            },
-          ),
-
-          // Rotation settings (only for 2+ photos)
-          if (_count >= 2) ...[
-            const SizedBox(height: 24),
-            Text(
-              'Менять фото:',
-              style: GoogleFonts.rubik(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: t.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildRadio(
-                    title: 'При разблокировке',
-                    value: 'unlock',
-                    groupValue: _rotationType,
-                    onChanged: (v) => setState(() => _rotationType = v!),
-                  ),
-                ),
-                Expanded(
-                  child: _buildRadio(
-                    title: 'По времени',
-                    value: 'time',
-                    groupValue: _rotationType,
-                    onChanged: (v) => setState(() => _rotationType = v!),
-                  ),
-                ),
-              ],
-            ),
-            if (_rotationType == 'time') ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: _rotationInterval,
-                    isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 15,
-                        child: Text('Каждые 15 минут'),
-                      ),
-                      DropdownMenuItem(
-                        value: 30,
-                        child: Text('Каждые 30 минут'),
-                      ),
-                      DropdownMenuItem(value: 60, child: Text('Каждый час')),
-                      DropdownMenuItem(
-                        value: 180,
-                        child: Text('Каждые 3 часа'),
                       ),
                     ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _rotationInterval = v);
-                    },
+                  ],
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _paths.isEmpty || _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: t.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Сохранить',
+                              style: GoogleFonts.rubik(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
                   ),
                 ),
               ),
             ],
-          ],
+          ),
+        );
+      },
+    );
+  }
 
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: _paths.whereType<String>().isEmpty || _isSaving
-                  ? null
-                  : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: t.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
+  Widget _buildHint(AppTheme t) {
+    return Row(
+      children: [
+        Icon(Icons.drag_indicator_rounded, size: 14, color: t.primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Удерживайте и перетаскивайте, чтобы изменить порядок',
+            style: GoogleFonts.rubik(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhotoList(AppTheme t) {
+    return ReorderableListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      onReorder: _reorder,
+      children: [
+        for (int i = 0; i < _paths.length; i++)
+          _buildPhotoTile(t, i, _paths[i]),
+      ],
+    );
+  }
+
+  Widget _buildPhotoTile(AppTheme t, int index, String path) {
+    return Container(
+      key: ValueKey('photo_${index}_${path.hashCode}'),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          ReorderableDragStartListener(
+            index: index,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4,
+                vertical: 12,
               ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+              child: Icon(
+                Icons.drag_handle_rounded,
+                size: 20,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _replacePhoto(index),
+            child: Container(
+              width: 56,
+              height: 56,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: t.primary.withOpacity(0.25)),
+              ),
+              child: path.startsWith('http')
+                  ? CachedNetworkImage(
+                      imageUrl: path,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 200,
+                      memCacheHeight: 200,
+                      errorWidget: (_, __, ___) => Icon(
+                        Icons.broken_image_rounded,
+                        size: 18,
+                        color: Colors.grey.shade400,
                       ),
                     )
-                  : Text(
-                      'Сохранить',
-                      style: GoogleFonts.rubik(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                  : Image.file(
+                      File(path),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.broken_image_rounded,
+                        size: 18,
+                        color: Colors.grey.shade400,
                       ),
                     ),
             ),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Фото ${index + 1}',
+                  style: GoogleFonts.rubik(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  index == 0 ? 'Главное' : 'Позиция ${index + 1}',
+                  style: GoogleFonts.rubik(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Удалить',
+            onPressed: () => _removePhoto(index),
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              size: 20,
+              color: Colors.red.shade400,
+            ),
+            visualDensity: VisualDensity.compact,
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAddButton(AppTheme t) {
+    return InkWell(
+      onTap: _addPhotos,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: t.primary.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: t.primary.withOpacity(0.3),
+            style: BorderStyle.solid,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_rounded, color: t.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              _paths.isEmpty ? 'Добавить фото' : 'Добавить ещё',
+              style: GoogleFonts.rubik(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: t.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRotationSection(AppTheme t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Менять фото:',
+          style: GoogleFonts.rubik(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: t.primary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildRadio(
+                title: 'При разблокировке',
+                value: 'unlock',
+                groupValue: _rotationType,
+                onChanged: (v) => setState(() => _rotationType = v!),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRadio(
+                title: 'По времени',
+                value: 'time',
+                groupValue: _rotationType,
+                onChanged: (v) => setState(() => _rotationType = v!),
+              ),
+            ),
+          ],
+        ),
+        if (_rotationType == 'time') ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _rotationInterval,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 15,
+                    child: Text('Каждые 15 минут'),
+                  ),
+                  DropdownMenuItem(
+                    value: 30,
+                    child: Text('Каждые 30 минут'),
+                  ),
+                  DropdownMenuItem(value: 60, child: Text('Каждый час')),
+                  DropdownMenuItem(
+                    value: 180,
+                    child: Text('Каждые 3 часа'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _rotationInterval = v);
+                },
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -391,9 +551,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
     final t = widget.theme;
     return GestureDetector(
       onTap: () => onChanged(value),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
           color: isSelected ? t.primary.withOpacity(0.1) : Colors.transparent,
           border: Border.all(
@@ -411,12 +571,16 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               size: 18,
             ),
             const SizedBox(width: 8),
-            Text(
-              title,
-              style: GoogleFonts.rubik(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? t.primary : Colors.grey.shade700,
+            Flexible(
+              child: Text(
+                title,
+                style: GoogleFonts.rubik(
+                  fontSize: 12,
+                  fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? t.primary : Colors.grey.shade700,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

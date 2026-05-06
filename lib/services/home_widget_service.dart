@@ -300,6 +300,37 @@ class HomeWidgetService {
     );
   }
 
+  /// URL-ы фото конкретного виджета (независимо от других экземпляров).
+  /// Хранится в SharedPreferences под ключом `photo_day_widget_{id}_urls`.
+  Future<List<String>> getPhotoDayWidgetUrls(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_photoDayWidgetKey(widgetId, 'urls'));
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is List) {
+        return list
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  Future<void> setPhotoDayWidgetUrls(int widgetId, List<String> urls) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _photoDayWidgetKey(widgetId, 'urls'),
+      jsonEncode(urls),
+    );
+  }
+
+  Future<void> clearPhotoDayWidgetUrls(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_photoDayWidgetKey(widgetId, 'urls'));
+  }
+
   Future<Map<String, String?>> getPhotoDayWidgetPreview(int widgetId) async {
     final prefs = await SharedPreferences.getInstance();
     return {
@@ -651,6 +682,11 @@ class HomeWidgetService {
         'group_id': groupId,
       });
 
+      // Каждый личный виджет хранит СВОИ URL-ы. Для self/custom приоритет —
+      // per-widget URL (чтобы виджет А и виджет Б показывали разные фото),
+      // и только если их нет, делаем fallback на общее поле в Firestore.
+      final List<String> ownWidgetUrls = await getPhotoDayWidgetUrls(widgetId);
+
       // Выбираем данные в зависимости от типа виджета
       Map<String, String>? targetData;
       if (selectedKind == 'partner') {
@@ -666,14 +702,21 @@ class HomeWidgetService {
       final targetMode = targetData?['photoDayMode'] ?? 'random';
       final targetPhotoUrl = targetData?['photoDayUrl'] ?? '';
       final targetPhotoUrlsRaw = targetData?['photoDayUrls'] ?? '';
-      final List<String> targetPhotoUrls = targetPhotoUrlsRaw.isNotEmpty
+      List<String> targetPhotoUrls = targetPhotoUrlsRaw.isNotEmpty
           ? targetPhotoUrlsRaw.split(',')
           : [];
 
-      // Если кастомный режим и есть фото — показываем их
+      // Per-widget URLs имеют приоритет для self-виджетов: каждый экземпляр
+      // показывает свой набор фото независимо от других.
+      if (selectedKind != 'partner' && ownWidgetUrls.isNotEmpty) {
+        targetPhotoUrls = ownWidgetUrls;
+      }
+
+      // Если кастомный режим (или есть локальные фото у этого виджета) — показываем их
       final bool targetHasCustomPhoto =
-          targetMode == 'custom' &&
-          (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty);
+          (selectedKind != 'partner' && ownWidgetUrls.isNotEmpty) ||
+          (targetMode == 'custom' &&
+              (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty));
 
       if (targetHasCustomPhoto) {
         debugPrint(
