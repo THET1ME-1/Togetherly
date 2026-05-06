@@ -2,12 +2,11 @@ package com.togetherly.love
 
 import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.util.Log
 import org.json.JSONArray
-import java.util.Calendar
 
 class PhotoDayRotationReceiver : BroadcastReceiver() {
 
@@ -15,15 +14,21 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         Log.d("PhotoDayRotation", "Received action: $action")
 
+        // После перезагрузки — восстанавливаем таймерный алarm и выходим.
+        if (action == Intent.ACTION_BOOT_COMPLETED) {
+            PhotoDayWidgetProvider.scheduleRotationAlarm(context)
+            return
+        }
+
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         val manager = AppWidgetManager.getInstance(context)
-        val component = android.content.ComponentName(context, PhotoDayWidgetProvider::class.java)
+        val component = ComponentName(context, PhotoDayWidgetProvider::class.java)
         val widgetIds = manager.getAppWidgetIds(component)
 
         if (widgetIds.isEmpty()) return
 
-        var needsUpdate = false
         val editor = prefs.edit()
+        val rotatedIds = mutableListOf<Int>()
 
         for (widgetId in widgetIds) {
             val pathsStr = prefs.getString("photo_day_widget_${widgetId}_paths", null)
@@ -37,20 +42,13 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
             val lastUpdate = prefs.getLong("photo_day_widget_${widgetId}_last_update", 0L)
             val now = System.currentTimeMillis()
 
-            var shouldRotate = false
-
-            if (action == Intent.ACTION_USER_PRESENT && rotationType == "unlock") {
-                shouldRotate = true
-            } else if (action == ACTION_ROTATE_TIMER && rotationType == "time") {
-                // Check if enough time has passed
-                if (now - lastUpdate >= rotationInterval * 60 * 1000L - 60000L) { // 1 min buffer
-                    shouldRotate = true
-                }
-            } else if (action == Intent.ACTION_USER_PRESENT && rotationType == "time") {
-                 // opportunistic update if interval passed
-                 if (now - lastUpdate >= rotationInterval * 60 * 1000L) {
-                     shouldRotate = true
-                 }
+            val shouldRotate = when {
+                action == Intent.ACTION_USER_PRESENT && rotationType == "unlock" -> true
+                action == ACTION_ROTATE_TIMER && rotationType == "time" ->
+                    now - lastUpdate >= rotationInterval * 60 * 1000L - 60_000L
+                action == Intent.ACTION_USER_PRESENT && rotationType == "time" ->
+                    now - lastUpdate >= rotationInterval * 60 * 1000L
+                else -> false
             }
 
             if (shouldRotate) {
@@ -58,21 +56,22 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
                 currentIndex = (currentIndex + 1) % paths.length()
                 editor.putInt("photo_day_widget_${widgetId}_current_index", currentIndex)
                 editor.putLong("photo_day_widget_${widgetId}_last_update", now)
-                
-                // Update the single path for HomeWidgetProvider
-                val currentPath = paths.optString(currentIndex, "")
-                editor.putString("photo_day_widget_${widgetId}_path", currentPath)
-                needsUpdate = true
+                editor.putString("photo_day_widget_${widgetId}_path", paths.optString(currentIndex, ""))
+                rotatedIds.add(widgetId)
             }
         }
 
-        if (needsUpdate) {
+        if (rotatedIds.isNotEmpty()) {
             editor.apply()
-            val updateIntent = Intent(context, PhotoDayWidgetProvider::class.java).apply {
-                this.action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+            // Читаем обновлённые prefs и рисуем виджеты напрямую.
+            // Нельзя sendBroadcast(ACTION_APPWIDGET_UPDATE) — это защищённый системный бродкаст.
+            val updatedPrefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+            for (widgetId in rotatedIds) {
+                manager.updateAppWidget(
+                    widgetId,
+                    PhotoDayWidgetProvider.buildViews(context, widgetId, updatedPrefs),
+                )
             }
-            context.sendBroadcast(updateIntent)
         }
     }
 

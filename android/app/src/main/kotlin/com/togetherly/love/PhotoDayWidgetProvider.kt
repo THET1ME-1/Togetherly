@@ -33,44 +33,47 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         ensurePendingConfigsAssigned(context, widgetData, appWidgetIds)
+        borrowPathForNewWidgets(context, widgetData, appWidgetManager, appWidgetIds)
         scheduleRotationAlarm(context)
 
         appWidgetIds.forEach { widgetId ->
-            val views = RemoteViews(context.packageName, R.layout.photo_day_widget).apply {
-
-                val memoryId = widgetData.getString(key(widgetId, "memory_id"), null)
-                    .takeIf { !it.isNullOrEmpty() } ?: ""
-
-                val uri = if (memoryId.isNotEmpty())
-                    "loveapp://memory_lane?id=$memoryId"
-                else
-                    "loveapp://memory_lane"
-
-                val pendingIntent = HomeWidgetLaunchIntent.getActivity(
-                    context,
-                    MainActivity::class.java,
-                    Uri.parse(uri)
-                )
-                setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-
-                val photoPath = widgetData.getString(key(widgetId, "path"), null)
-                    .takeIf { !it.isNullOrEmpty() }
-
-                val bitmap = loadScaledBitmap(photoPath, 400)
-                if (bitmap != null) {
-                    setImageViewBitmap(R.id.photo_image, bitmap)
-                    setViewVisibility(R.id.photo_image, View.VISIBLE)
-                    setViewVisibility(R.id.photo_placeholder, View.GONE)
-                } else {
-                    setViewVisibility(R.id.photo_image, View.GONE)
-                    setViewVisibility(R.id.photo_placeholder, View.VISIBLE)
-                }
-
-                setViewVisibility(R.id.photo_author, View.GONE)
-            }
-
-            appWidgetManager.updateAppWidget(widgetId, views)
+            appWidgetManager.updateAppWidget(
+                widgetId,
+                buildViews(context, widgetId, widgetData),
+            )
         }
+    }
+
+    // Для только что добавленных виджетов (есть group_id, но нет path) временно берём
+    // путь у уже настроенного соседнего виджета, чтобы показать хоть что-то сразу.
+    // Когда Flutter сделает refreshPhotoOfDay, виджет получит своё уникальное фото.
+    private fun borrowPathForNewWidgets(
+        context: Context,
+        widgetData: SharedPreferences,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        val component = ComponentName(context, PhotoDayWidgetProvider::class.java)
+        val allIds = appWidgetManager.getAppWidgetIds(component)
+        val editor = widgetData.edit()
+        var changed = false
+
+        for (widgetId in appWidgetIds) {
+            val hasGroupId = !widgetData.getString(key(widgetId, "group_id"), null).isNullOrEmpty()
+            val hasPath = !widgetData.getString(key(widgetId, "path"), null).isNullOrEmpty()
+            if (!hasGroupId || hasPath) continue
+
+            for (otherId in allIds) {
+                if (otherId == widgetId) continue
+                val otherPath = widgetData.getString(key(otherId, "path"), null)
+                if (!otherPath.isNullOrEmpty() && java.io.File(otherPath).exists()) {
+                    editor.putString(key(widgetId, "path"), otherPath)
+                    changed = true
+                    break
+                }
+            }
+        }
+        if (changed) editor.apply()
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -157,10 +160,74 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         editor.putInt(key(widgetId, "refresh_seed"), item.optInt("refreshSeed", 0))
     }
 
-    private fun key(widgetId: Int, suffix: String): String = "photo_day_widget_${widgetId}_$suffix"
-
     companion object {
         private const val PENDING_CONFIGS_KEY = "photo_day_pending_configs"
+
+        fun key(widgetId: Int, suffix: String): String = "photo_day_widget_${widgetId}_$suffix"
+
+        fun buildViews(
+            context: Context,
+            widgetId: Int,
+            widgetData: SharedPreferences,
+        ): RemoteViews = RemoteViews(context.packageName, R.layout.photo_day_widget).apply {
+            val memoryId = widgetData.getString("photo_day_widget_${widgetId}_memory_id", null)
+                .takeIf { !it.isNullOrEmpty() } ?: ""
+
+            val uri = if (memoryId.isNotEmpty())
+                "loveapp://memory_lane?id=$memoryId"
+            else
+                "loveapp://memory_lane"
+
+            val pendingIntent = HomeWidgetLaunchIntent.getActivity(
+                context,
+                MainActivity::class.java,
+                Uri.parse(uri),
+            )
+            setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+
+            val photoPath = widgetData.getString("photo_day_widget_${widgetId}_path", null)
+                .takeIf { !it.isNullOrEmpty() }
+
+            val bitmap = loadScaledBitmapStatic(photoPath, 400)
+            if (bitmap != null) {
+                setImageViewBitmap(R.id.photo_image, bitmap)
+                setViewVisibility(R.id.photo_image, View.VISIBLE)
+                setViewVisibility(R.id.photo_placeholder, View.GONE)
+            } else {
+                setViewVisibility(R.id.photo_image, View.GONE)
+                setViewVisibility(R.id.photo_placeholder, View.VISIBLE)
+            }
+            setViewVisibility(R.id.photo_author, View.GONE)
+        }
+
+        fun loadScaledBitmapStatic(path: String?, maxSizePx: Int): Bitmap? {
+            if (path.isNullOrEmpty()) return null
+            val file = java.io.File(path)
+            if (!file.exists()) return null
+
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, opts)
+            if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
+
+            var sampleSize = 1
+            var w = opts.outWidth
+            var h = opts.outHeight
+            while (w / 2 >= maxSizePx || h / 2 >= maxSizePx) {
+                sampleSize *= 2
+                w /= 2
+                h /= 2
+            }
+
+            val decodeOpts = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            return try {
+                BitmapFactory.decodeFile(path, decodeOpts)
+            } catch (e: OutOfMemoryError) {
+                null
+            }
+        }
 
         fun scheduleRotationAlarm(context: Context) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -188,32 +255,4 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         }
     }
 
-    private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
-        if (path.isNullOrEmpty()) return null
-        val file = java.io.File(path)
-        if (!file.exists()) return null
-
-        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, opts)
-        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
-
-        var sampleSize = 1
-        var w = opts.outWidth
-        var h = opts.outHeight
-        while (w / 2 >= maxSizePx || h / 2 >= maxSizePx) {
-            sampleSize *= 2
-            w /= 2
-            h /= 2
-        }
-
-        val decodeOpts = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.RGB_565
-        }
-        return try {
-            BitmapFactory.decodeFile(path, decodeOpts)
-        } catch (e: OutOfMemoryError) {
-            null
-        }
-    }
 }

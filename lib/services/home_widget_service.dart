@@ -281,6 +281,8 @@ class HomeWidgetService {
   Future<void> setPhotoDayWidgetRotationType(int widgetId, String type) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_photoDayWidgetKey(widgetId, 'rotation_type'), type);
+    // Дублируем в HomeWidgetPreferences, чтобы нативный PhotoDayRotationReceiver мог прочитать.
+    await HomeWidget.saveWidgetData<String>(_photoDayWidgetKey(widgetId, 'rotation_type'), type);
   }
 
   Future<int> getPhotoDayWidgetRotationInterval(int widgetId) async {
@@ -294,10 +296,9 @@ class HomeWidgetService {
     int minutes,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      _photoDayWidgetKey(widgetId, 'rotation_interval'),
-      minutes,
-    );
+    await prefs.setInt(_photoDayWidgetKey(widgetId, 'rotation_interval'), minutes);
+    // Дублируем в HomeWidgetPreferences, чтобы нативный PhotoDayRotationReceiver мог прочитать.
+    await HomeWidget.saveWidgetData<int>(_photoDayWidgetKey(widgetId, 'rotation_interval'), minutes);
   }
 
   /// URL-ы фото конкретного виджета (независимо от других экземпляров).
@@ -712,11 +713,15 @@ class HomeWidgetService {
         targetPhotoUrls = ownWidgetUrls;
       }
 
-      // Если кастомный режим (или есть локальные фото у этого виджета) — показываем их
-      final bool targetHasCustomPhoto =
-          (selectedKind != 'partner' && ownWidgetUrls.isNotEmpty) ||
-          (targetMode == 'custom' &&
-              (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty));
+      // Self-виджет показывает кастомные фото ТОЛЬКО если у него есть собственный
+      // набор URL. Firestore-поле photoDayUrls принадлежит другим экземплярам виджета
+      // и не должно использоваться для виджетов без своего набора — иначе каждый
+      // новый виджет копирует фото уже настроенного.
+      // Partner-виджет работает по старой логике: показывает кастомное фото партнёра.
+      final bool targetHasCustomPhoto = selectedKind == 'partner'
+          ? (targetMode == 'custom' &&
+              (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty))
+          : ownWidgetUrls.isNotEmpty;
 
       if (targetHasCustomPhoto) {
         debugPrint(

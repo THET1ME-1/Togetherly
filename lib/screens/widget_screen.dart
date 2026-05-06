@@ -576,7 +576,6 @@ class _WidgetScreenState extends State<WidgetScreen> {
         // Немедленно записать актуальные данные в виджет
         await _syncWidgetDataAfterPin(widgetType);
         if (widgetType.startsWith('photo_day')) {
-          await Future<void>.delayed(const Duration(milliseconds: 300));
           await _loadPhotoDayWidgets();
         }
       }
@@ -633,24 +632,19 @@ class _WidgetScreenState extends State<WidgetScreen> {
       case 'photo_day_self':
       case 'photo_day_partner':
       case 'photo_day':
+        // Ждём, пока система зарегистрирует новый виджет (requestPinWidget возвращает
+        // управление сразу, а ID появляется только когда пользователь бросает виджет
+        // на рабочий стол). Без задержки новый виджет ещё не виден в getPhotoDayWidgetIds.
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
         final ids = await hws.getPhotoDayWidgetIds();
+        for (final widgetId in ids) {
+          final widgetGroupId = await hws.getPhotoDayWidgetGroupId(widgetId);
+          if (widgetGroupId == _pair.pairId || widgetGroupId == null) {
+            await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
+          }
+        }
         if (ids.isEmpty) {
           await hws.refreshPhotoOfDay(_pair.pairId);
-        } else {
-          for (final widgetId in ids) {
-            final widgetGroupId = await hws.getPhotoDayWidgetGroupId(widgetId);
-            if (widgetGroupId == _pair.pairId || widgetGroupId == null) {
-              final preview = await hws.getPhotoDayWidgetPreview(widgetId);
-              final hasPhoto =
-                  (preview['path']?.isNotEmpty ?? false) ||
-                  (preview['memoryId']?.isNotEmpty ?? false);
-              if (hasPhoto) {
-                await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
-              } else {
-                await hws.clearPhotoDayWidget(widgetId, _pair.pairId);
-              }
-            }
-          }
         }
         break;
       case 'photo_grid':

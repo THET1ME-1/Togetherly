@@ -21,6 +21,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Вибрация для уведомлений -->
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Восстановление таймерного alarm'а после перезагрузки -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     
     <application
         android:label="Togetherly"
@@ -173,6 +176,7 @@
         <receiver android:name=".PhotoDayRotationReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="com.togetherly.love.ACTION_ROTATE_TIMER" />
             </intent-filter>
         </receiver>
