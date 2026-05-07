@@ -49,7 +49,8 @@ class WidgetScreen extends StatefulWidget {
   State<WidgetScreen> createState() => _WidgetScreenState();
 }
 
-class _WidgetScreenState extends State<WidgetScreen> {
+class _WidgetScreenState extends State<WidgetScreen>
+    with WidgetsBindingObserver {
   AppTheme get _t => widget.theme;
   WidgetService get _ws => widget.widgetService;
   MoodService get _moodService => widget.moodService;
@@ -123,6 +124,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
@@ -136,6 +138,15 @@ class _WidgetScreenState extends State<WidgetScreen> {
     // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Пользователь вернулся из лончера (после добавления виджета на рабочий
+    // стол) — обновляем список виджетов, чтобы новый виджет появился сразу.
+    if (state == AppLifecycleState.resumed) {
+      _loadPhotoDayWidgets();
     }
   }
 
@@ -252,13 +263,16 @@ class _WidgetScreenState extends State<WidgetScreen> {
         preferredOwnPath = urls.first;
       }
 
+      // myPhotoUrl (Firestore) используется только если у виджета есть
+      // собственные URL — иначе новый виджет копировал бы превью уже
+      // настроенного виджета.
       final widgetState = PhotoDayWidgetLogic.resolveState(
         selectedWidgetId: widgetId,
         mode: widgetMode,
         display: widgetDisplay,
         widgetPreviewPath: preview['path'],
         widgetCustomPath: customPath,
-        myPhotoUrl: _ws.myData?.photoDayUrl,
+        myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
       );
       widgetOwnPhotoPaths[widgetId] =
           preferredOwnPath ?? widgetState.ownPhotoPath;
@@ -700,6 +714,7 @@ class _WidgetScreenState extends State<WidgetScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
     _moodService.removeListener(_onDataChanged);
