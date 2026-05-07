@@ -45,3 +45,5 @@ app.*.map.json
 /android/app/release
 .firebase/hosting.aG9zdGluZw.cache
 .firebase/hosting.aG9zdGluZw.cache
+
+.claude/worktrees/
