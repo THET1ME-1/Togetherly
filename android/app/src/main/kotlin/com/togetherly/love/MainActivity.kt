@@ -21,6 +21,12 @@ class MainActivity : FlutterActivity() {
                     result.success(manager.getAppWidgetIds(component).toList())
                 }
 
+                "getPhotoGridWidgetIds" -> {
+                    val manager = AppWidgetManager.getInstance(this)
+                    val component = ComponentName(this, PhotoGridWidgetProvider::class.java)
+                    result.success(manager.getAppWidgetIds(component).toList())
+                }
+
                 "updatePhotoDayCarousel" -> {
                     val widgetId = call.argument<Int>("widgetId")
                     val paths = call.argument<List<String>>("paths")
