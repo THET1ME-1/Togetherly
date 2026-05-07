@@ -46,6 +46,11 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
                 action == Intent.ACTION_USER_PRESENT && rotationType == "unlock" -> true
                 action == ACTION_ROTATE_TIMER && rotationType == "time" ->
                     now - lastUpdate >= rotationInterval * 60 * 1000L - 60_000L
+                // Fallback for devices (e.g. Xiaomi/MIUI) where ACTION_USER_PRESENT
+                // is blocked for manifest-declared receivers: rotate "unlock" widgets
+                // via the 15-min alarm so the photo still changes periodically.
+                action == ACTION_ROTATE_TIMER && rotationType == "unlock" ->
+                    now - lastUpdate >= UNLOCK_FALLBACK_INTERVAL_MS
                 action == Intent.ACTION_USER_PRESENT && rotationType == "time" ->
                     now - lastUpdate >= rotationInterval * 60 * 1000L
                 else -> false
@@ -77,5 +82,10 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_ROTATE_TIMER = "com.togetherly.love.ACTION_ROTATE_TIMER"
+
+        /** Minimum interval between alarm-triggered rotations for "unlock" widgets.
+         *  On devices where ACTION_USER_PRESENT is blocked (e.g. Xiaomi/MIUI),
+         *  the photo will still change at most once per this interval. */
+        private const val UNLOCK_FALLBACK_INTERVAL_MS = 15 * 60 * 1000L // 15 minutes
     }
 }
