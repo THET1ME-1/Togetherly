@@ -825,7 +825,7 @@ class HomeWidgetService {
         candidateMemories,
         groupId,
         seed,
-        widgetId: widgetId,
+        widgetId,
       );
       if (selectedMemory == null ||
           selectedMemory.imageUrl == null ||
