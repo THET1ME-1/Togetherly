@@ -35,7 +35,9 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
                 )
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
-                val count = widgetData.getInt("photo_grid_count", 1).let {
+                // Per-widget ключи с fallback на старые глобальные (миграция)
+                val count = (widgetData.getInt("photo_grid_${widgetId}_count", -1)
+                    .takeIf { it >= 0 } ?: widgetData.getInt("photo_grid_count", 1)).let {
                     when {
                         it >= 4 -> 4
                         it >= 2 -> 2
@@ -51,19 +53,19 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
                 when (count) {
                     1 -> {
                         setViewVisibility(R.id.layout_1_photo, View.VISIBLE)
-                        loadSlot(this, widgetData, 0, R.id.photo_0, R.id.placeholder_0, 400)
+                        loadSlot(this, widgetData, widgetId, 0, R.id.photo_0, R.id.placeholder_0, 400)
                     }
                     2 -> {
                         setViewVisibility(R.id.layout_2_photos, View.VISIBLE)
-                        loadSlot(this, widgetData, 0, R.id.photo_2_0, R.id.placeholder_2_0, 300)
-                        loadSlot(this, widgetData, 1, R.id.photo_2_1, R.id.placeholder_2_1, 300)
+                        loadSlot(this, widgetData, widgetId, 0, R.id.photo_2_0, R.id.placeholder_2_0, 300)
+                        loadSlot(this, widgetData, widgetId, 1, R.id.photo_2_1, R.id.placeholder_2_1, 300)
                     }
                     4 -> {
                         setViewVisibility(R.id.layout_4_photos, View.VISIBLE)
-                        loadSlot(this, widgetData, 0, R.id.photo_4_0, R.id.placeholder_4_0, 200)
-                        loadSlot(this, widgetData, 1, R.id.photo_4_1, R.id.placeholder_4_1, 200)
-                        loadSlot(this, widgetData, 2, R.id.photo_4_2, R.id.placeholder_4_2, 200)
-                        loadSlot(this, widgetData, 3, R.id.photo_4_3, R.id.placeholder_4_3, 200)
+                        loadSlot(this, widgetData, widgetId, 0, R.id.photo_4_0, R.id.placeholder_4_0, 200)
+                        loadSlot(this, widgetData, widgetId, 1, R.id.photo_4_1, R.id.placeholder_4_1, 200)
+                        loadSlot(this, widgetData, widgetId, 2, R.id.photo_4_2, R.id.placeholder_4_2, 200)
+                        loadSlot(this, widgetData, widgetId, 3, R.id.photo_4_3, R.id.placeholder_4_3, 200)
                     }
                 }
             }
@@ -72,15 +74,31 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val prefs = context.getSharedPreferences("HomeWidgetPreferences", android.content.Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        appWidgetIds.forEach { widgetId ->
+            editor.remove("photo_grid_${widgetId}_count")
+            for (i in 0..3) {
+                editor.remove("photo_grid_${widgetId}_$i")
+            }
+        }
+        editor.apply()
+    }
+
     private fun loadSlot(
         views: RemoteViews,
         widgetData: SharedPreferences,
+        widgetId: Int,
         index: Int,
         imageViewId: Int,
         placeholderId: Int,
         maxSizePx: Int,
     ) {
-        val path = widgetData.getString("photo_grid_$index", null)
+        // Per-widget ключ с fallback на старый глобальный
+        val path = widgetData.getString("photo_grid_${widgetId}_$index", null)
+            ?: widgetData.getString("photo_grid_$index", null)
         val bitmap = loadScaledBitmap(path, maxSizePx)
         if (bitmap != null) {
             views.setImageViewBitmap(imageViewId, bitmap)

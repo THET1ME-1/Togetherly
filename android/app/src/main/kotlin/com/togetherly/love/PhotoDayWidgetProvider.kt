@@ -33,7 +33,6 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         ensurePendingConfigsAssigned(context, widgetData, appWidgetIds)
-        borrowPathForNewWidgets(context, widgetData, appWidgetManager, appWidgetIds)
         scheduleRotationAlarm(context)
 
         appWidgetIds.forEach { widgetId ->
@@ -42,38 +41,6 @@ class PhotoDayWidgetProvider : HomeWidgetProvider() {
                 buildViews(context, widgetId, widgetData),
             )
         }
-    }
-
-    // Для только что добавленных виджетов (есть group_id, но нет path) временно берём
-    // путь у уже настроенного соседнего виджета, чтобы показать хоть что-то сразу.
-    // Когда Flutter сделает refreshPhotoOfDay, виджет получит своё уникальное фото.
-    private fun borrowPathForNewWidgets(
-        context: Context,
-        widgetData: SharedPreferences,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray,
-    ) {
-        val component = ComponentName(context, PhotoDayWidgetProvider::class.java)
-        val allIds = appWidgetManager.getAppWidgetIds(component)
-        val editor = widgetData.edit()
-        var changed = false
-
-        for (widgetId in appWidgetIds) {
-            val hasGroupId = !widgetData.getString(key(widgetId, "group_id"), null).isNullOrEmpty()
-            val hasPath = !widgetData.getString(key(widgetId, "path"), null).isNullOrEmpty()
-            if (!hasGroupId || hasPath) continue
-
-            for (otherId in allIds) {
-                if (otherId == widgetId) continue
-                val otherPath = widgetData.getString(key(otherId, "path"), null)
-                if (!otherPath.isNullOrEmpty() && java.io.File(otherPath).exists()) {
-                    editor.putString(key(widgetId, "path"), otherPath)
-                    changed = true
-                    break
-                }
-            }
-        }
-        if (changed) editor.apply()
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {

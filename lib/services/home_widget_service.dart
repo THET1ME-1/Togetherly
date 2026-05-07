@@ -81,6 +81,23 @@ class HomeWidgetService {
     }
   }
 
+  Future<List<int>> getPhotoGridWidgetIds() async {
+    if (!Platform.isAndroid) return const [];
+    try {
+      final ids = await _widgetChannel.invokeListMethod<dynamic>(
+        'getPhotoGridWidgetIds',
+      );
+      return ids
+              ?.map((id) => id is int ? id : int.tryParse(id.toString()))
+              .whereType<int>()
+              .toList() ??
+          const [];
+    } catch (e) {
+      debugPrint('HomeWidgetService.getPhotoGridWidgetIds failed: $e');
+      return const [];
+    }
+  }
+
   String _photoDayWidgetKey(int widgetId, String suffix) =>
       'photo_day_widget_${widgetId}_$suffix';
 
@@ -754,7 +771,18 @@ class HomeWidgetService {
         return;
       }
 
-      // Если random — выбираем случайное фото из Memory Lane
+      // Self-виджет без собственных фото должен показывать заглушку,
+      // а не случайное фото из Memory Lane. Случайные фото — только для
+      // partner-виджетов, где пользователь не управляет содержимым вручную.
+      if (selectedKind != 'partner') {
+        debugPrint(
+          'HomeWidgetService: self-widget $widgetId has no own photos → showing placeholder',
+        );
+        await _clearPhotoOfDay(widgetId: widgetId, groupId: groupId);
+        return;
+      }
+
+      // Если random (partner-виджет) — выбираем случайное фото из Memory Lane
       final snap = await _db
           .collection('groups')
           .doc(groupId)
@@ -797,6 +825,7 @@ class HomeWidgetService {
         candidateMemories,
         groupId,
         seed,
+        widgetId: widgetId,
       );
       if (selectedMemory == null ||
           selectedMemory.imageUrl == null ||
@@ -824,12 +853,14 @@ class HomeWidgetService {
     List<Memory> memories,
     String groupId, [
     int seed = 0,
+    int? widgetId,
   ]) {
     if (memories.isEmpty) return null;
     final sorted = List<Memory>.from(memories)
       ..sort((a, b) => a.id.compareTo(b.id));
     final dayIndex = DateTime.now().difference(DateTime(2000)).inDays;
-    final hash = groupId.hashCode ^ dayIndex;
+    // widgetId включён в хэш: каждый экземпляр виджета показывает своё уникальное фото
+    final hash = groupId.hashCode ^ dayIndex ^ (widgetId ?? 0);
     // seed сдвигает индекс, позволяя выбирать разные фото при повторных нажатиях
     final index = (hash.abs() + seed) % sorted.length;
     return sorted[index];
@@ -1376,6 +1407,7 @@ class HomeWidgetService {
 
   /// Читает настройки ПАРТНЁРА из Firestore (photoGridCount + photoGridUrls),
   /// скачивает/кэширует фото и отправляет их в нативный виджет.
+  /// Данные сохраняются per-widgetId, чтобы каждый экземпляр был уникальным.
   Future<void> refreshPhotoGrid(String groupId) async {
     if (groupId.isEmpty) return;
     try {
@@ -1405,22 +1437,41 @@ class HomeWidgetService {
       final count = (partnerRaw['photoGridCount'] as int?) ?? 1;
       final urls = List<String>.from(partnerRaw['photoGridUrls'] ?? []);
 
-      await HomeWidget.saveWidgetData<int>('photo_grid_count', count);
+      // Кэшируем фото один раз (одинаковые для всех экземпляров)
+      final List<String> localPaths = [];
       for (int i = 0; i < 4; i++) {
         final url = i < urls.length ? urls[i] : '';
         if (url.isNotEmpty) {
           final localPath = await _cachePhotoFromUrl(url, 'photo_grid_$i');
-          await HomeWidget.saveWidgetData<String>('photo_grid_$i', localPath);
+          localPaths.add(localPath);
         } else {
-          await HomeWidget.saveWidgetData<String>('photo_grid_$i', '');
+          localPaths.add('');
         }
       }
+
+      // Сохраняем per-widget ключи для каждого экземпляра
+      final widgetIds = await getPhotoGridWidgetIds();
+      if (widgetIds.isEmpty) {
+        // Fallback: глобальные ключи (если виджетов нет ещё — для совместимости)
+        await HomeWidget.saveWidgetData<int>('photo_grid_count', count);
+        for (int i = 0; i < 4; i++) {
+          await HomeWidget.saveWidgetData<String>('photo_grid_$i', localPaths[i]);
+        }
+      } else {
+        for (final widgetId in widgetIds) {
+          await HomeWidget.saveWidgetData<int>('photo_grid_${widgetId}_count', count);
+          for (int i = 0; i < 4; i++) {
+            await HomeWidget.saveWidgetData<String>('photo_grid_${widgetId}_$i', localPaths[i]);
+          }
+        }
+      }
+
       await HomeWidget.updateWidget(
         name: 'PhotoGridWidgetProvider',
         androidName: 'PhotoGridWidgetProvider',
       );
       debugPrint(
-        'HomeWidgetService.refreshPhotoGrid: count=$count, urls=$urls',
+        'HomeWidgetService.refreshPhotoGrid: count=$count, urls=$urls, widgets=$widgetIds',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoGrid failed: $e');

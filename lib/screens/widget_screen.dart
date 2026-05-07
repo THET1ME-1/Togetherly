@@ -369,19 +369,9 @@ class _WidgetScreenState extends State<WidgetScreen> {
     final hws = HomeWidgetService.instance;
 
     // Каждый виджет редактирует ТОЛЬКО свои фото (per-widgetId).
-    // Если у виджета ещё нет своего набора (только что запинен), берём
-    // последний сохранённый набор из Firestore как стартовый — это удобно
-    // для миграции старых конфигураций.
-    List<String> initialPaths = await hws.getPhotoDayWidgetUrls(widgetId);
-    if (initialPaths.isEmpty) {
-      final shared = _ws.myData?.photoDayUrls ?? const <String>[];
-      if (shared.isNotEmpty) {
-        initialPaths = List<String>.from(shared);
-      } else if (_ws.myData?.photoDayUrl != null &&
-          _ws.myData!.photoDayUrl!.isNotEmpty) {
-        initialPaths = [_ws.myData!.photoDayUrl!];
-      }
-    }
+    // Новый виджет открывается с пустым редактором — фото Firestore других
+    // виджетов сюда не подставляются, чтобы каждый экземпляр был уникальным.
+    final List<String> initialPaths = await hws.getPhotoDayWidgetUrls(widgetId);
 
     final initialRotationType = await hws.getPhotoDayWidgetRotationType(
       widgetId,
