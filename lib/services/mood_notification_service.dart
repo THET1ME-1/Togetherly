@@ -17,7 +17,9 @@ class MoodNotificationService {
   bool _initialized = false;
 
   static const int _kNotificationId = 8888;
-  static const String _kChannelId = 'mood_lock_screen';
+  // v2: importance bumped to default so the notification appears on the lock
+  // screen (low-importance notifications are filtered out on most Android skins)
+  static const String _kChannelId = 'mood_lock_screen_v2';
   static const String _kChannelName = 'Настроение';
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -34,12 +36,14 @@ class MoodNotificationService {
       const initSettings = InitializationSettings(android: androidSettings);
       await _plugin.initialize(settings: initSettings);
 
-      // Канал с низким приоритетом — тихое, без звука и вибрации
+      // Default importance is required for the notification to appear on the
+      // lock screen; low-importance is silently filtered by most Android skins.
+      // Sound and vibration are explicitly disabled so it stays unobtrusive.
       const channel = AndroidNotificationChannel(
         _kChannelId,
         _kChannelName,
         description: 'Настроение на экране блокировки',
-        importance: Importance.low,
+        importance: Importance.defaultImportance,
         playSound: false,
         enableVibration: false,
         showBadge: false,
@@ -83,11 +87,11 @@ class MoodNotificationService {
       _kChannelId,
       _kChannelName,
       channelDescription: 'Настроение на экране блокировки',
-      importance: Importance.low,
-      priority: Priority.low,
-      ongoing: true, // нельзя смахнуть пальцем
-      autoCancel: false, // не исчезает при нажатии
-      showWhen: false, // не показывать время
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      ongoing: true,
+      autoCancel: false,
+      showWhen: false,
       icon: '@drawable/ic_notification',
       color: const Color(0xFFEC4899),
       // PUBLIC — контент виден без разблокировки
@@ -95,6 +99,7 @@ class MoodNotificationService {
       channelShowBadge: false,
       playSound: false,
       enableVibration: false,
+      silent: true,
     );
 
     await _plugin.show(

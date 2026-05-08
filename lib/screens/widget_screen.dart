@@ -350,7 +350,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         ? partnerEntries.first
         : null;
     final myName = _ws.myData?.displayName ?? '';
-    final partnerName = _pair.partnerName;
+    final partnerName = _pair.partnerDisplayName;
 
     // iOS: HomeWidget (LockScreenMoodWidgetProvider)
     await hws.syncLockScreenMood(

@@ -1893,16 +1893,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     Navigator.pop(ctx);
-                    final iosUri = Uri.parse('app-settings:');
-                    if (await canLaunchUrl(iosUri)) {
-                      await launchUrl(iosUri);
-                    } else if (Platform.isAndroid) {
+                    if (Platform.isAndroid) {
                       final androidUri = Uri.parse(
-                        'intent:#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;'
-                        'S.android.provider.extra.APP_PACKAGE=com.example.love_app;end',
+                        'intent:#Intent;'
+                        'action=android.settings.APP_NOTIFICATION_SETTINGS;'
+                        'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+                        'end',
                       );
-                      if (await canLaunchUrl(androidUri)) {
+                      try {
                         await launchUrl(androidUri);
+                      } catch (_) {
+                        // fallback: open general app settings
+                        await launchUrl(
+                          Uri.parse(
+                            'intent:#Intent;'
+                            'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
+                            'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+                            'end',
+                          ),
+                        );
+                      }
+                    } else {
+                      final iosUri = Uri.parse('app-settings:');
+                      if (await canLaunchUrl(iosUri)) {
+                        await launchUrl(iosUri);
                       }
                     }
                   },
