@@ -24,6 +24,7 @@ import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/m3_loading.dart';
+import '../widgets/petal_timer_dial.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
@@ -61,6 +62,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   bool _canPinWidgets = false;
   bool _pairWidgetExpanded = false;
   bool _timerWidgetExpanded = false;
+  bool _petalTimerWidgetExpanded = false;
   String? _widgetTimerId;
 
   int? _memoriesCount;
@@ -630,6 +632,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         );
         break;
       case 'timer':
+      case 'petal_timer':
         final timer = _widgetTimer;
         if (timer != null) await hws.syncTimer(timer);
         break;
@@ -1151,6 +1154,21 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
         const SizedBox(height: 16),
 
+        // ── 3б. Лепестковый таймер ──
+        _buildGalleryItem(
+          title: 'Лепестковый таймер',
+          subtitle: 'Живой циферблат — годы, мес, дни, ч, мин, сек',
+          svgString: _timerSvg,
+          qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
+          preview: _buildPetalTimerPreview(),
+          widgetType: 'petal_timer',
+          expandedContent: _buildTimerSelector(),
+          isExpanded: _petalTimerWidgetExpanded,
+          onToggleExpand: () =>
+              setState(() => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded),
+        ),
+        const SizedBox(height: 16),
+
         // ── 4. Фото-виджет (личный) ──
         _buildGalleryItem(
           title: 'Фото-виджет',
@@ -1566,6 +1584,81 @@ class _WidgetScreenState extends State<WidgetScreen>
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ВИДЖЕТ-ПРЕВЬЮ: Лепестковый таймер
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPetalTimerPreview() {
+    final timer = _widgetTimer;
+
+    if (timer == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        decoration: BoxDecoration(
+          color: _t.primary.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _t.primary.withOpacity(0.08)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.timer_off_rounded, size: 36, color: Colors.grey.shade400),
+            const SizedBox(height: 8),
+            Text(
+              LocaleService.current.noTimersWidget,
+              style: GoogleFonts.rubik(fontSize: 13, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1030),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3D2060), width: 1),
+      ),
+      child: Column(
+        children: [
+          // Заголовок
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(timer.emoji, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  timer.title,
+                  style: GoogleFonts.rubik(
+                    fontSize: 12,
+                    color: const Color(0xFFCCCCCC),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Живой лепестковый циферблат
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: PetalTimerDial(
+              theme: _t,
+              startDate: timer.startDate,
+              isCountdown: timer.isCountdown,
+            ),
+          ),
         ],
       ),
     );
