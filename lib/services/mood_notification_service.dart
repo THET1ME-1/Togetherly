@@ -42,9 +42,9 @@ class MoodNotificationService {
       // Удаляем устаревшие каналы, чтобы importance не кэшировался.
       // Wrapped separately so a missing API doesn't abort init.
       try {
-        await androidPlugin?.deleteNotificationChannel('mood_lock_screen_v2');
-        await androidPlugin?.deleteNotificationChannel('mood_lock_screen_v1');
-        await androidPlugin?.deleteNotificationChannel('mood_lock_screen');
+        await androidPlugin?.deleteNotificationChannel(channelId: 'mood_lock_screen_v2');
+        await androidPlugin?.deleteNotificationChannel(channelId: 'mood_lock_screen_v1');
+        await androidPlugin?.deleteNotificationChannel(channelId: 'mood_lock_screen');
       } catch (_) {}
 
       // HIGH importance — единственный надёжный способ показать уведомление
@@ -118,10 +118,10 @@ class MoodNotificationService {
     );
 
     await _plugin.show(
-      _kNotificationId,
-      title,
-      body.isNotEmpty ? body : null,
-      NotificationDetails(android: androidDetails),
+      id: _kNotificationId,
+      title: title,
+      body: body.isNotEmpty ? body : null,
+      notificationDetails: NotificationDetails(android: androidDetails),
     );
     debugPrint('MoodNotificationService: shown — $title | $body');
   }
@@ -130,7 +130,7 @@ class MoodNotificationService {
   Future<void> hide() async {
     if (!Platform.isAndroid) return;
     try {
-      await _plugin.cancel(_kNotificationId);
+      await _plugin.cancel(id: _kNotificationId);
       debugPrint('MoodNotificationService: hidden');
     } catch (e) {
       debugPrint('MoodNotificationService.hide failed: $e');
