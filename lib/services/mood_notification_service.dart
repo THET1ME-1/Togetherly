@@ -5,10 +5,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Сервис постоянного уведомления с настроением на Android.
 ///
-/// На Android нет API виджетов экрана блокировки (убрали в Android 5+),
-/// поэтому лучший вариант — ongoing-уведомление (permanent notification),
-/// которое всегда видно в шторке уведомлений прямо с экрана блокировки
-/// без разблокировки телефона.
+/// Использует foreground-style ongoing notification с Importance.high,
+/// чтобы гарантированно появляться на экране блокировки.
+/// Канал v3 создаётся при каждом запуске — старый канал удаляется,
+/// чтобы избежать кэширования низкого importance Android'ом.
 class MoodNotificationService {
   MoodNotificationService._();
   static final MoodNotificationService instance = MoodNotificationService._();
@@ -17,9 +17,7 @@ class MoodNotificationService {
   bool _initialized = false;
 
   static const int _kNotificationId = 8888;
-  // v2: importance bumped to default so the notification appears on the lock
-  // screen (low-importance notifications are filtered out on most Android skins)
-  static const String _kChannelId = 'mood_lock_screen_v2';
+  static const String _kChannelId = 'mood_lock_screen_v3';
   static const String _kChannelName = 'Настроение';
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -36,23 +34,31 @@ class MoodNotificationService {
       const initSettings = InitializationSettings(android: androidSettings);
       await _plugin.initialize(settings: initSettings);
 
-      // Default importance is required for the notification to appear on the
-      // lock screen; low-importance is silently filtered by most Android skins.
-      // Sound and vibration are explicitly disabled so it stays unobtrusive.
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
+      // Удаляем устаревшие каналы, чтобы importance не кэшировался.
+      // Wrapped separately so a missing API doesn't abort init.
+      try {
+        await androidPlugin?.deleteNotificationChannel('mood_lock_screen_v2');
+        await androidPlugin?.deleteNotificationChannel('mood_lock_screen_v1');
+        await androidPlugin?.deleteNotificationChannel('mood_lock_screen');
+      } catch (_) {}
+
+      // HIGH importance — единственный надёжный способ показать уведомление
+      // на экране блокировки без отдельного разрешения MANAGE_OVERLAY на Android 12+
       const channel = AndroidNotificationChannel(
         _kChannelId,
         _kChannelName,
         description: 'Настроение на экране блокировки',
-        importance: Importance.defaultImportance,
+        importance: Importance.high,
         playSound: false,
         enableVibration: false,
         showBadge: false,
       );
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(channel);
+      await androidPlugin?.createNotificationChannel(channel);
 
       _initialized = true;
       debugPrint('MoodNotificationService: initialized');
@@ -66,11 +72,6 @@ class MoodNotificationService {
   // ─────────────────────────────────────────────────────────────────────────
 
   /// Показать / обновить постоянное уведомление с настроением.
-  ///
-  /// [myMood]      — моё настроение (текст), например «Счастлив»
-  /// [myName]      — моё имя
-  /// [partnerMood] — настроение партнёра
-  /// [partnerName] — имя партнёра
   Future<void> show({
     required String myMood,
     required String myName,
@@ -78,7 +79,19 @@ class MoodNotificationService {
     String partnerName = '',
   }) async {
     if (!Platform.isAndroid) return;
-    await init();
+    if (!_initialized) await init();
+
+    // Android 13+ требует явного запроса разрешения POST_NOTIFICATIONS.
+    // Запрашиваем именно здесь — пользователь уже выбрал включить фичу.
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    final granted = await androidPlugin?.requestNotificationsPermission() ?? true;
+    if (!granted) {
+      debugPrint('MoodNotificationService: notification permission denied');
+      return;
+    }
 
     final title = _buildTitle(myName, myMood);
     final body = _buildBody(partnerName, partnerMood);
@@ -87,26 +100,28 @@ class MoodNotificationService {
       _kChannelId,
       _kChannelName,
       channelDescription: 'Настроение на экране блокировки',
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      importance: Importance.high,
+      priority: Priority.high,
       ongoing: true,
       autoCancel: false,
       showWhen: false,
       icon: '@drawable/ic_notification',
       color: const Color(0xFFEC4899),
-      // PUBLIC — контент виден без разблокировки
+      // PUBLIC — содержимое видно без разблокировки
       visibility: NotificationVisibility.public,
       channelShowBadge: false,
       playSound: false,
       enableVibration: false,
       silent: true,
+      // Позволяет обновлять уведомление без нового звука/вибрации
+      onlyAlertOnce: true,
     );
 
     await _plugin.show(
-      id: _kNotificationId,
-      title: title,
-      body: body.isNotEmpty ? body : null,
-      notificationDetails: NotificationDetails(android: androidDetails),
+      _kNotificationId,
+      title,
+      body.isNotEmpty ? body : null,
+      NotificationDetails(android: androidDetails),
     );
     debugPrint('MoodNotificationService: shown — $title | $body');
   }
@@ -115,7 +130,7 @@ class MoodNotificationService {
   Future<void> hide() async {
     if (!Platform.isAndroid) return;
     try {
-      await _plugin.cancel(id: _kNotificationId);
+      await _plugin.cancel(_kNotificationId);
       debugPrint('MoodNotificationService: hidden');
     } catch (e) {
       debugPrint('MoodNotificationService.hide failed: $e');
@@ -140,7 +155,6 @@ class MoodNotificationService {
     return '$emoji Партнёр: $partnerMood';
   }
 
-  /// Грубое соответствие текстового ярлыка → emoji для уведомления.
   String _moodToEmoji(String label) {
     final l = label.toLowerCase();
     if (l.contains('сча') || l.contains('happ')) return '😊';

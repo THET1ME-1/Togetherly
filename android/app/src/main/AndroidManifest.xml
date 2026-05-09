@@ -124,6 +124,18 @@
                 android:resource="@xml/timer_widget_info" />
         </receiver>
 
+        <!-- ═══ Виджет: Лепестковый таймер ═══ -->
+        <receiver android:name=".PetalTimerWidgetProvider"
+            android:exported="true"
+            android:label="Лепестковый таймер">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/petal_timer_widget_info" />
+        </receiver>
+
         <!-- ═══ Виджет: Фото дня ═══ -->
         <receiver android:name=".PhotoDayWidgetProvider"
             android:exported="true"

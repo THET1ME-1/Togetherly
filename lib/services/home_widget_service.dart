@@ -479,9 +479,18 @@ class HomeWidgetService {
         'timer_date',
         timer.formattedStartDate,
       );
+      // Дата старта в мс — нужна PetalTimerWidgetProvider для вычисления лепестков
+      await HomeWidget.saveWidgetData<String>(
+        'timer_start_ms',
+        timer.startDate.millisecondsSinceEpoch.toString(),
+      );
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
         androidName: 'TimerWidgetProvider',
+      );
+      await HomeWidget.updateWidget(
+        name: 'PetalTimerWidgetProvider',
+        androidName: 'PetalTimerWidgetProvider',
       );
       debugPrint(
         'HomeWidgetService: timer synced — ${timer.title}, ${timer.daysElapsed}d',
