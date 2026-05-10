@@ -38,8 +38,9 @@ class HomeBottomNav extends StatelessWidget {
     final inactiveColor = theme.timerDialBackground;
     final primary = theme.primary;
 
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 20 + bottomInset),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -59,9 +60,7 @@ class HomeBottomNav extends StatelessWidget {
             ),
           ],
         ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
+        child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -115,7 +114,6 @@ class HomeBottomNav extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
