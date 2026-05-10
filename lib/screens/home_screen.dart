@@ -35,7 +35,11 @@ import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
+import '../models/mascot.dart';
 import '../services/canvas_storage_service.dart';
+import '../services/mascot_service.dart';
+import '../widgets/active_mascot_widget.dart';
+import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
 import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
@@ -70,6 +74,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Widget service --
   final WidgetService _widgetService = WidgetService();
+
+  // -- Mascot service --
+  final MascotService _mascotService = MascotService();
+  StreamSubscription? _mascotStateSub;
 
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
@@ -114,6 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
+    _mascotStateSub?.cancel();
+    _mascotService.dispose();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _moodService.removeListener(_onMoodServiceChanged);
@@ -193,6 +203,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _startMemoryListener();
 
       if (_pairData.isPaired && _pairData.startDate != null) {
+        // Bind mascot service and record today's activity.
+        _bindMascotService(_pairData.pairId);
+
         // Bind timer service to group for Firestore sync
         _timerService.bindToGroup(_pairData.pairId);
 
@@ -219,10 +232,37 @@ class _HomeScreenState extends State<HomeScreen> {
         _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
+        _mascotService.unbind();
+        _mascotStateSub?.cancel();
       }
 
       setState(() {});
     }
+  }
+
+  void _bindMascotService(String groupId) {
+    _mascotService.bindToGroup(groupId);
+    _mascotStateSub?.cancel();
+    _mascotStateSub = _fb
+        .listenToGroupMascotState(groupId: groupId)
+        .listen((state) {
+          _mascotService.applyGroupData(state.toMap());
+        });
+    // Record that someone opened the app today (streak tracking).
+    _mascotService.recordDailyActivity();
+  }
+
+  void _openMascotGallery() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MascotGalleryScreen(
+          mascotService: _mascotService,
+          theme: _t,
+          myUid: widget.userData.uid,
+        ),
+      ),
+    );
   }
 
   /// Синхронизирует виджеты рабочего стола.
@@ -405,6 +445,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          // -- Active mascot floating overlay --
+          if (_pairData.isPaired)
+            ActiveMascotWidget(
+              mascotService: _mascotService,
+              theme: _t,
+              onOpenGallery: _openMascotGallery,
+            ),
           // -- Bottom Nav (hidden when timer card is expanded) --
           Positioned(
             bottom: 0,
@@ -517,6 +564,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildConnectPrompt(),
                   ),
                 ],
+                if (_pairData.isPaired) ...[
+                  const SizedBox(height: 8),
+                  AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 380),
+                    child: _buildMascotRow(),
+                  ),
+                ],
                 const SizedBox(height: 40),
               ],
             ),
@@ -534,6 +588,67 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMascotRow() {
+    final mascot = _mascotService.activeMascot;
+    final streak = _mascotService.state.streakDays;
+
+    return GestureDetector(
+      onTap: _openMascotGallery,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _t.cardBorder),
+        ),
+        child: Row(
+          children: [
+            // Mascot preview
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: mascot != null
+                  ? _MascotPreviewWidget(
+                      mascot: mascot,
+                      service: _mascotService,
+                    )
+                  : Icon(Icons.sentiment_satisfied_alt,
+                      size: 36, color: _t.primary.withAlpha(120)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mascot != null ? mascot.name : 'Маскот группы',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    streak > 0
+                        ? '🔥 Серия: $streak дн.'
+                        : mascot != null
+                            ? 'Нажмите для галереи'
+                            : 'Выберите маскота',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded,
+                size: 14, color: Colors.grey.shade400),
+          ],
+        ),
       ),
     );
   }
@@ -1205,5 +1320,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (ref == 'S' || ref == 'W') sum = -sum;
     return sum;
+  }
+}
+
+// ── Mascot preview in the home row ────────────────────────────────────────────
+
+class _MascotPreviewWidget extends StatelessWidget {
+  final Mascot mascot;
+  final MascotService service;
+
+  const _MascotPreviewWidget({
+    required this.mascot,
+    required this.service,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = service.resolvedAssetForMood(mascot);
+    if (asset != null) {
+      return SvgPicture.asset(asset, fit: BoxFit.contain);
+    }
+    if (mascot.imageUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: mascot.imageUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const Icon(Icons.face),
+      );
+    }
+    return const Icon(Icons.face);
   }
 }

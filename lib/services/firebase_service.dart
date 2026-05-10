@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import '../models/mascot.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/timer_item.dart';
@@ -2629,6 +2631,246 @@ class FirebaseService {
       }
     } catch (e) {
       debugPrint('setCanvasPresence failed: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  MASCOTS
+  // ══════════════════════════════════════════════
+
+  CollectionReference<Map<String, dynamic>> _mascotsRef(String groupId) =>
+      _db.collection('groups').doc(groupId).collection('mascots');
+
+  /// Upload raw PNG bytes to Storage and return the download URL.
+  Future<String?> uploadMascotImage({
+    required String groupId,
+    required List<int> pngBytes,
+  }) async {
+    try {
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ref = _storage.ref().child('groups/$groupId/mascots/mascot_$ts.png');
+      final metadata = SettableMetadata(contentType: 'image/png');
+      final task = ref.putData(
+        Uint8List.fromList(pngBytes),
+        metadata,
+      );
+      final snapshot = await task;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('uploadMascotImage failed: $e');
+      return null;
+    }
+  }
+
+  /// Save a new mascot document (or overwrite existing id).
+  Future<void> saveMascot({
+    required String groupId,
+    required Mascot mascot,
+  }) async {
+    try {
+      await _mascotsRef(groupId)
+          .doc(mascot.id)
+          .set(mascot.toFirestore(), SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('saveMascot failed: $e');
+    }
+  }
+
+  /// Save multiple mascots in one batch (used for seeding defaults).
+  Future<void> saveMascotsBatch({
+    required String groupId,
+    required List<Mascot> mascots,
+  }) async {
+    try {
+      final batch = _db.batch();
+      for (final m in mascots) {
+        batch.set(
+          _mascotsRef(groupId).doc(m.id),
+          m.toFirestore(),
+          SetOptions(merge: true),
+        );
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('saveMascotsBatch failed: $e');
+    }
+  }
+
+  /// Delete a mascot and its Storage image (if remote).
+  Future<void> deleteMascot({
+    required String groupId,
+    required String mascotId,
+    String? imageUrl,
+  }) async {
+    try {
+      await _mascotsRef(groupId).doc(mascotId).delete();
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        try {
+          await _storage.refFromURL(imageUrl).delete();
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('deleteMascot failed: $e');
+    }
+  }
+
+  /// Rename a mascot.
+  Future<void> renameMascot({
+    required String groupId,
+    required String mascotId,
+    required String newName,
+  }) async {
+    try {
+      await _mascotsRef(groupId).doc(mascotId).update({'name': newName});
+    } catch (e) {
+      debugPrint('renameMascot failed: $e');
+    }
+  }
+
+  /// Update record streak for a mascot.
+  Future<void> updateMascotRecord({
+    required String groupId,
+    required String mascotId,
+    required int recordStreak,
+  }) async {
+    try {
+      await _mascotsRef(groupId)
+          .doc(mascotId)
+          .update({'recordStreak': recordStreak});
+    } catch (e) {
+      debugPrint('updateMascotRecord failed: $e');
+    }
+  }
+
+  /// Set the active mascot for the group (null = no active mascot).
+  Future<void> setActiveMascot({
+    required String groupId,
+    required String? mascotId,
+  }) async {
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .set({'activeMascotId': mascotId}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('setActiveMascot failed: $e');
+    }
+  }
+
+  /// Update the floating mascot's position and scale.
+  Future<void> updateMascotPosition({
+    required String groupId,
+    required double x,
+    required double y,
+    required double scale,
+  }) async {
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .set({
+            'mascotPositionX': x,
+            'mascotPositionY': y,
+            'mascotScale': scale,
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('updateMascotPosition failed: $e');
+    }
+  }
+
+  /// Record that someone from this group opened the app today.
+  /// Updates the group's streak counter.
+  Future<void> recordGroupActivity(String groupId) async {
+    if (groupId.isEmpty) return;
+    try {
+      final now = DateTime.now();
+      final today =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final doc = await _db
+          .collection('groups')
+          .doc(groupId)
+          .get(const GetOptions(source: Source.serverAndCache));
+
+      final data = doc.data() ?? {};
+      final lastDate = data['streakLastOpenedDate'] as String?;
+      final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
+
+      if (lastDate == today) return; // already recorded today
+
+      int newStreak;
+      if (lastDate != null) {
+        final last = DateTime.tryParse(lastDate);
+        final diff = last != null ? now.difference(last).inDays : 999;
+        newStreak = diff == 1 ? currentStreak + 1 : 1;
+      } else {
+        newStreak = 1;
+      }
+
+      // Also check if we should update mascot record streak.
+      final activeMascotId = data['activeMascotId'] as String?;
+      final updates = <String, dynamic>{
+        'streakDays': newStreak,
+        'streakLastOpenedDate': today,
+      };
+
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .set(updates, SetOptions(merge: true));
+
+      // Update record streak for active mascot if needed.
+      if (activeMascotId != null) {
+        final mascotDoc =
+            await _mascotsRef(groupId).doc(activeMascotId).get();
+        if (mascotDoc.exists) {
+          final record =
+              (mascotDoc.data()?['recordStreak'] as num?)?.toInt() ?? 0;
+          if (newStreak > record) {
+            await _mascotsRef(groupId)
+                .doc(activeMascotId)
+                .update({'recordStreak': newStreak});
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('recordGroupActivity failed: $e');
+    }
+  }
+
+  /// Real-time stream of group mascot state (active id, position, scale, streak).
+  Stream<GroupMascotState> listenToGroupMascotState({required String groupId}) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .map((snap) => snap.exists
+            ? GroupMascotState.fromMap(snap.data()!)
+            : const GroupMascotState());
+  }
+
+  /// Real-time stream of mascots in the group gallery.
+  Stream<List<Mascot>> listenToMascots({required String groupId}) {
+    return _mascotsRef(groupId).snapshots().map(
+      (snap) => snap.docs
+          .map((d) => Mascot.fromFirestore(d.data()))
+          .where((m) => m.id.isNotEmpty)
+          .toList()
+        ..sort((a, b) {
+          // defaults first, then by creation date
+          if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+          return a.createdAt.compareTo(b.createdAt);
+        }),
+    );
+  }
+
+  /// Count of mascots in the group.
+  Future<int> getMascotCount(String groupId) async {
+    try {
+      final snap = await _mascotsRef(groupId).count().get();
+      return snap.count ?? 0;
+    } catch (e) {
+      return 0;
     }
   }
 
