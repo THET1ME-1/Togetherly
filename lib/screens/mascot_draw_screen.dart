@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,7 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/draw_stroke.dart';
 import '../theme/app_theme.dart';
 
-// ── Palette (same as shared draw screen) ────────────────────────────────────
+// ── Palette ──────────────────────────────────────────────────────────────────
 
 const List<Color> _kPalette = [
   Color(0xFF000000), Color(0xFF374151), Color(0xFF6B7280), Color(0xFFD1D5DB),
@@ -22,6 +23,66 @@ const List<Color> _kPalette = [
 
 enum _Tool { brush, eraser, line, rect, circle, fill }
 
+// ── Flood-fill data classes (top-level for compute isolate) ──────────────────
+
+class _FillLayer {
+  final ui.Image img;
+  final int order;
+  _FillLayer(this.img, this.order);
+}
+
+// Must be top-level for Flutter's compute()
+Uint8List _doFloodFill(Map<String, dynamic> args) {
+  final pixels = args['pixels'] as Uint8List;
+  final w = args['w'] as int;
+  final h = args['h'] as int;
+  final tx = args['tx'] as int;
+  final ty = args['ty'] as int;
+  final fillR = args['fillR'] as int;
+  final fillG = args['fillG'] as int;
+  final fillB = args['fillB'] as int;
+
+  final startIdx = (ty * w + tx) * 4;
+  final targetR = pixels[startIdx];
+  final targetG = pixels[startIdx + 1];
+  final targetB = pixels[startIdx + 2];
+
+  // No-op if target is already the fill colour
+  if (targetR == fillR && targetG == fillG && targetB == fillB) return pixels;
+
+  const tolerance = 35;
+
+  // BFS using a list as a queue (head pointer to avoid O(n) removeFirst)
+  final queue = <int>[ty * w + tx];
+  int head = 0;
+  final visited = Uint8List(w * h);
+
+  while (head < queue.length) {
+    final pos = queue[head++];
+    if (visited[pos] != 0) continue;
+    visited[pos] = 1;
+
+    final x = pos % w;
+    final y = pos ~/ w;
+    final idx = pos * 4;
+
+    if ((pixels[idx] - targetR).abs() > tolerance ||
+        (pixels[idx + 1] - targetG).abs() > tolerance ||
+        (pixels[idx + 2] - targetB).abs() > tolerance) continue;
+
+    pixels[idx] = fillR;
+    pixels[idx + 1] = fillG;
+    pixels[idx + 2] = fillB;
+    pixels[idx + 3] = 255;
+
+    if (x > 0) queue.add(pos - 1);
+    if (x < w - 1) queue.add(pos + 1);
+    if (y > 0) queue.add(pos - w);
+    if (y < h - 1) queue.add(pos + w);
+  }
+  return pixels;
+}
+
 // ── Result returned when the user saves ─────────────────────────────────────
 
 class MascotDrawResult {
@@ -32,9 +93,6 @@ class MascotDrawResult {
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
-/// Standalone drawing canvas for creating a mascot PNG.
-/// Returns [MascotDrawResult] via Navigator.pop when the user saves.
-/// Pass [initialPngBytes] to edit an existing mascot.
 class MascotDrawScreen extends StatefulWidget {
   final AppTheme theme;
   final String? initialName;
@@ -62,7 +120,13 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   final List<DrawPoint> _currentPoints = [];
   int _orderCounter = 0;
 
-  // Reference image (not exported)
+  // Fill layers (flood-fill results stored as images)
+  final List<_FillLayer> _fillLayers = [];
+  final List<_FillLayer> _fillRedoStack = [];
+  bool _isFilling = false;
+
+  // Reference image — shown as a semi-transparent guide OUTSIDE RepaintBoundary
+  // so it is NEVER included in the exported PNG.
   ui.Image? _refImage;
   bool _showRef = true;
 
@@ -74,7 +138,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
 
   bool _saving = false;
 
-  // Canvas transform (zoom + rotate + pan via two-finger gestures)
+  // Canvas transform (two-finger gestures cover the whole canvas area)
   double _canvasScale = 1.0;
   double _canvasRotation = 0.0;
   Offset _canvasPan = Offset.zero;
@@ -90,14 +154,14 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   void initState() {
     super.initState();
     if (widget.initialPngBytes != null) {
-      _loadInitialImage(widget.initialPngBytes!);
+      _loadRefImage(widget.initialPngBytes!);
     }
   }
 
-  Future<void> _loadInitialImage(Uint8List bytes) async {
+  Future<void> _loadRefImage(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
-    setState(() => _refImage = frame.image);
+    if (mounted) setState(() => _refImage = frame.image);
   }
 
   // ── Drawing ──────────────────────────────────────────────────────────────
@@ -105,19 +169,16 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   bool get _isShapeTool =>
       _tool == _Tool.line || _tool == _Tool.rect || _tool == _Tool.circle;
 
-  DrawShapeType? get _activeShape {
-    return switch (_tool) {
-      _Tool.line => DrawShapeType.line,
-      _Tool.rect => DrawShapeType.rect,
-      _Tool.circle => DrawShapeType.circle,
-      _ => null,
-    };
-  }
+  DrawShapeType? get _activeShape => switch (_tool) {
+        _Tool.line => DrawShapeType.line,
+        _Tool.rect => DrawShapeType.rect,
+        _Tool.circle => DrawShapeType.circle,
+        _ => null,
+      };
 
   void _onPointerDown(PointerDownEvent e, Size canvasSize) {
     _activePointers++;
     if (_activePointers > 1) {
-      // Second finger down — cancel any in-progress stroke and let scale gesture take over
       _currentPoints.clear();
       setState(() {});
       return;
@@ -147,7 +208,6 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       if (_activePointers == 0) _currentPoints.clear();
       return;
     }
-
     final pts = List<DrawPoint>.from(_currentPoints);
     final stroke = DrawStroke(
       id: 'local_${_orderCounter++}',
@@ -160,54 +220,118 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       shapeType: _activeShape,
       orderIndex: _orderCounter,
     );
-
     _strokes.add(stroke);
     _redoStack.clear();
+    _fillRedoStack.clear();
     _currentPoints.clear();
     setState(() {});
   }
 
-  DrawPoint _normalize(Offset local, Size size) {
-    return DrawPoint(
-      (local.dx / size.width).clamp(0.0, 1.0),
-      (local.dy / size.height).clamp(0.0, 1.0),
-    );
+  DrawPoint _normalize(Offset local, Size size) => DrawPoint(
+        (local.dx / size.width).clamp(0.0, 1.0),
+        (local.dy / size.height).clamp(0.0, 1.0),
+      );
+
+  // ── Flood fill ───────────────────────────────────────────────────────────
+
+  Future<void> _applyFill(Size canvasSize, Offset tapLocal) async {
+    if (_isFilling) return;
+    setState(() => _isFilling = true);
+    try {
+      final w = canvasSize.width.round();
+      final h = canvasSize.height.round();
+
+      // Render current canvas state to off-screen image
+      final recorder = ui.PictureRecorder();
+      final offCanvas = Canvas(recorder);
+      // White background (so the fill correctly sees stroke boundaries)
+      offCanvas.drawRect(
+        Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        Paint()..color = Colors.white,
+      );
+      _MascotCanvasPainter(
+        strokes: _strokes,
+        fillLayers: _fillLayers,
+        currentPoints: const [],
+        currentColor: Colors.black,
+        currentWidth: 1,
+        isEraser: false,
+        shapeType: null,
+        fillShapes: false,
+        canvasSize: canvasSize.width,
+      ).paint(offCanvas, Size(w.toDouble(), h.toDouble()));
+
+      final picture = recorder.endRecording();
+      final snapshot = await picture.toImage(w, h);
+      final byteData =
+          await snapshot.toByteData(format: ui.ImageByteFormat.rawRgba);
+      snapshot.dispose();
+      if (byteData == null || !mounted) return;
+
+      final pixels = Uint8List.fromList(byteData.buffer.asUint8List());
+      final tx = tapLocal.dx.round().clamp(0, w - 1);
+      final ty = tapLocal.dy.round().clamp(0, h - 1);
+
+      // Flood fill in a background isolate so the UI stays responsive
+      final filled = await compute(_doFloodFill, {
+        'pixels': pixels,
+        'w': w,
+        'h': h,
+        'tx': tx,
+        'ty': ty,
+        'fillR': _color.red,
+        'fillG': _color.green,
+        'fillB': _color.blue,
+      });
+
+      // Decode filled pixels back to ui.Image
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromPixels(
+          filled, w, h, ui.PixelFormat.rgba8888, completer.complete);
+      final fillImage = await completer.future;
+
+      if (!mounted) {
+        fillImage.dispose();
+        return;
+      }
+      setState(() {
+        _fillLayers.add(_FillLayer(fillImage, _orderCounter++));
+        _redoStack.clear();
+        _fillRedoStack.clear();
+      });
+    } catch (e) {
+      debugPrint('[Fill] error: $e');
+    } finally {
+      if (mounted) setState(() => _isFilling = false);
+    }
   }
 
-  void _applyFill(Size canvasSize, Offset tap) {
-    final fillStroke = DrawStroke(
-      id: 'fill_${_orderCounter++}',
-      userId: 'local',
-      colorValue: _color.toARGB32(),
-      strokeWidth: 1,
-      points: [
-        const DrawPoint(0, 0),
-        const DrawPoint(1, 0),
-        const DrawPoint(1, 1),
-        const DrawPoint(0, 1),
-      ],
-      isEraser: false,
-      isFilledShape: true,
-      shapeType: DrawShapeType.rect,
-      orderIndex: _orderCounter,
-    );
-    setState(() {
-      _strokes.insert(0, fillStroke);
-      _redoStack.clear();
-    });
-  }
+  // ── History (undo/redo handles both strokes and fill layers) ─────────────
 
   void _undo() {
-    if (_strokes.isEmpty) return;
+    final lastStroke = _strokes.isEmpty ? -1 : _strokes.last.orderIndex;
+    final lastFill = _fillLayers.isEmpty ? -1 : _fillLayers.last.order;
+    if (lastStroke == -1 && lastFill == -1) return;
     setState(() {
-      _redoStack.add(_strokes.removeLast());
+      if (lastFill > lastStroke) {
+        _fillRedoStack.add(_fillLayers.removeLast());
+      } else {
+        _redoStack.add(_strokes.removeLast());
+      }
     });
   }
 
   void _redo() {
-    if (_redoStack.isEmpty) return;
+    final redoStroke = _redoStack.isEmpty ? -1 : _redoStack.last.orderIndex;
+    final redoFill =
+        _fillRedoStack.isEmpty ? -1 : _fillRedoStack.last.order;
+    if (redoStroke == -1 && redoFill == -1) return;
     setState(() {
-      _strokes.add(_redoStack.removeLast());
+      if (redoFill > redoStroke) {
+        _fillLayers.add(_fillRedoStack.removeLast());
+      } else {
+        _strokes.add(_redoStack.removeLast());
+      }
     });
   }
 
@@ -215,12 +339,17 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     setState(() {
       _redoStack.addAll(_strokes.reversed);
       _strokes.clear();
+      _fillRedoStack.addAll(_fillLayers.reversed);
+      _fillLayers.clear();
     });
   }
 
-  // ── Canvas transform gestures ────────────────────────────────────────────
+  bool get _canUndo => _strokes.isNotEmpty || _fillLayers.isNotEmpty;
+  bool get _canRedo => _redoStack.isNotEmpty || _fillRedoStack.isNotEmpty;
 
-  void _onScaleStart(ScaleStartDetails details) {
+  // ── Canvas transform (two-finger, works over entire canvas area) ─────────
+
+  void _onScaleStart(ScaleStartDetails _) {
     _baseScale = _canvasScale;
     _baseRotation = _canvasRotation;
   }
@@ -234,6 +363,17 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     });
   }
 
+  void _resetTransform() => setState(() {
+        _canvasScale = 1.0;
+        _canvasRotation = 0.0;
+        _canvasPan = Offset.zero;
+      });
+
+  bool get _isTransformed =>
+      _canvasScale != 1.0 ||
+      _canvasRotation != 0.0 ||
+      _canvasPan != Offset.zero;
+
   // ── Reference image ──────────────────────────────────────────────────────
 
   Future<void> _pickRefImage() async {
@@ -243,23 +383,23 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     final bytes = await xFile.readAsBytes();
     final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
     final frame = await codec.getNextFrame();
-    setState(() {
-      _refImage = frame.image;
-      _showRef = true;
-    });
+    if (mounted) {
+      setState(() {
+        _refImage = frame.image;
+        _showRef = true;
+      });
+    }
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    if (_strokes.isEmpty) {
+    if (_strokes.isEmpty && _fillLayers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Нарисуйте что-нибудь сначала')),
       );
       return;
     }
-
-    // Ask for name
     final name = await _showNameDialog();
     if (name == null) return;
 
@@ -292,9 +432,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   }
 
   Future<String?> _showNameDialog() async {
-    final controller = TextEditingController(
-      text: widget.initialName ?? '',
-    );
+    final controller = TextEditingController(text: widget.initialName ?? '');
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -346,10 +484,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             const Padding(
               padding: EdgeInsets.all(12),
               child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
             )
           else
             TextButton(
@@ -383,13 +520,17 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                 ],
               ),
             ),
-          // Canvas
+          // Canvas area — GestureDetector covers the ENTIRE area so two-finger
+          // zoom/rotate/pan works even outside the canvas square.
           Expanded(
-            child: Center(
-              child: _buildCanvas(),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onScaleStart: _onScaleStart,
+              onScaleUpdate: _onScaleUpdate,
+              onDoubleTap: _resetTransform,
+              child: Center(child: _buildCanvas()),
             ),
           ),
-          // Toolbar
           _buildToolbar(),
         ],
       ),
@@ -400,59 +541,79 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final side = math.min(constraints.maxWidth, constraints.maxHeight) - 16;
-        return GestureDetector(
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          onDoubleTap: () => setState(() {
-            _canvasScale = 1.0;
-            _canvasRotation = 0.0;
-            _canvasPan = Offset.zero;
-          }),
-          child: Transform.translate(
-            offset: _canvasPan,
-            child: Transform(
-              transform: Matrix4.identity()
-                ..rotateZ(_canvasRotation)
-                ..scale(_canvasScale),
-              alignment: Alignment.center,
-              child: Container(
-                width: side,
-                height: side,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(20),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: RepaintBoundary(
-                    key: _canvasKey,
-                    child: Listener(
-                      onPointerDown: (e) => _onPointerDown(e, Size(side, side)),
-                      onPointerMove: (e) => _onPointerMove(e, Size(side, side)),
-                      onPointerUp: (e) => _onPointerUp(e, Size(side, side)),
-                      child: CustomPaint(
-                        size: Size(side, side),
-                        painter: _MascotCanvasPainter(
-                          strokes: _strokes,
-                          currentPoints: _currentPoints,
-                          currentColor: _color,
-                          currentWidth: _strokeWidth,
-                          isEraser: _tool == _Tool.eraser,
-                          shapeType: _activeShape,
-                          fillShapes: _fillShapes,
-                          refImage: _showRef ? _refImage : null,
-                          canvasSize: side,
+        return Transform.translate(
+          offset: _canvasPan,
+          child: Transform(
+            transform: Matrix4.identity()
+              ..rotateZ(_canvasRotation)
+              ..scale(_canvasScale),
+            alignment: Alignment.center,
+            child: Container(
+              width: side,
+              height: side,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(20),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(
+                  children: [
+                    // Reference image — rendered OUTSIDE RepaintBoundary so it
+                    // is NEVER included in the exported PNG.
+                    if (_refImage != null && _showRef)
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: 0.35,
+                          child: RawImage(
+                            image: _refImage!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    // Drawing canvas — only strokes and fill layers are exported.
+                    RepaintBoundary(
+                      key: _canvasKey,
+                      child: Listener(
+                        onPointerDown: (e) =>
+                            _onPointerDown(e, Size(side, side)),
+                        onPointerMove: (e) =>
+                            _onPointerMove(e, Size(side, side)),
+                        onPointerUp: (e) =>
+                            _onPointerUp(e, Size(side, side)),
+                        child: CustomPaint(
+                          size: Size(side, side),
+                          painter: _MascotCanvasPainter(
+                            strokes: _strokes,
+                            fillLayers: _fillLayers,
+                            currentPoints: _currentPoints,
+                            currentColor: _color,
+                            currentWidth: _strokeWidth,
+                            isEraser: _tool == _Tool.eraser,
+                            shapeType: _activeShape,
+                            fillShapes: _fillShapes,
+                            canvasSize: side,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    // Filling spinner overlay
+                    if (_isFilling)
+                      const Positioned.fill(
+                        child: ColoredBox(
+                          color: Color(0x22000000),
+                          child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -536,21 +697,21 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                   label: 'Отмена',
                   active: false,
                   color: Colors.grey,
-                  onTap: _strokes.isNotEmpty ? _undo : null,
+                  onTap: _canUndo ? _undo : null,
                 ),
                 _ToolBtn(
                   icon: Icons.redo,
                   label: 'Повтор',
                   active: false,
                   color: Colors.grey,
-                  onTap: _redoStack.isNotEmpty ? _redo : null,
+                  onTap: _canRedo ? _redo : null,
                 ),
                 _ToolBtn(
                   icon: Icons.delete_outline,
                   label: 'Очистить',
                   active: false,
                   color: Colors.red.shade300,
-                  onTap: _strokes.isNotEmpty ? _clear : null,
+                  onTap: _canUndo ? _clear : null,
                 ),
                 _ToolBtn(
                   icon: Icons.image_outlined,
@@ -573,7 +734,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          // Size slider
+          // Stroke size slider
           Row(
             children: [
               const SizedBox(width: 16),
@@ -594,7 +755,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               const SizedBox(width: 16),
             ],
           ),
-          // Color palette
+          // Colour palette
           SizedBox(
             height: 36,
             child: ListView.builder(
@@ -614,7 +775,8 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                       color: c,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: selected ? _t.primary : Colors.grey.shade300,
+                        color:
+                            selected ? _t.primary : Colors.grey.shade300,
                         width: selected ? 2.5 : 1,
                       ),
                       boxShadow: selected
@@ -622,7 +784,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                               BoxShadow(
                                 color: _t.primary.withAlpha(80),
                                 blurRadius: 4,
-                              ),
+                              )
                             ]
                           : null,
                     ),
@@ -631,9 +793,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               },
             ),
           ),
-          if (_canvasScale != 1.0 || _canvasRotation != 0.0 || _canvasPan != Offset.zero)
+          if (_isTransformed)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: Text(
                 'Двойной тап — сбросить вид',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
@@ -646,7 +808,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   }
 }
 
-// ── Tool button ──────────────────────────────────────────────────────────────
+// ── Tool button ───────────────────────────────────────────────────────────────
 
 class _ToolBtn extends StatelessWidget {
   final IconData icon;
@@ -691,65 +853,67 @@ class _ToolBtn extends StatelessWidget {
   }
 }
 
-// ── Canvas painter ───────────────────────────────────────────────────────────
+// ── Canvas painter ────────────────────────────────────────────────────────────
 
 class _MascotCanvasPainter extends CustomPainter {
   final List<DrawStroke> strokes;
+  final List<_FillLayer> fillLayers;
   final List<DrawPoint> currentPoints;
   final Color currentColor;
   final double currentWidth;
   final bool isEraser;
   final DrawShapeType? shapeType;
   final bool fillShapes;
-  final ui.Image? refImage;
   final double canvasSize;
 
   const _MascotCanvasPainter({
     required this.strokes,
+    required this.fillLayers,
     required this.currentPoints,
     required this.currentColor,
     required this.currentWidth,
     required this.isEraser,
     required this.shapeType,
     required this.fillShapes,
-    required this.refImage,
     required this.canvasSize,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Reference image (semi-transparent, not exported)
-    if (refImage != null) {
-      final paint = Paint()..color = Colors.white.withAlpha(160);
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
-      paintImage(
-        canvas: canvas,
-        rect: Rect.fromLTWH(0, 0, size.width, size.height),
-        image: refImage!,
-        fit: BoxFit.contain,
-        opacity: 0.35,
-      );
-    }
+    // Merge strokes and fill layers, render in creation order.
+    final items = <(int order, Object item)>[
+      for (final s in strokes) (s.orderIndex, s as Object),
+      for (final f in fillLayers) (f.order, f as Object),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
 
-    // Committed strokes
-    for (final stroke in strokes) {
-      _drawStroke(canvas, size, stroke);
+    for (final (_, item) in items) {
+      if (item is DrawStroke) {
+        _drawStroke(canvas, size, item);
+      } else if (item is _FillLayer) {
+        final src = Rect.fromLTWH(
+            0, 0, item.img.width.toDouble(), item.img.height.toDouble());
+        final dst = Rect.fromLTWH(0, 0, size.width, size.height);
+        canvas.drawImageRect(item.img, src, dst, Paint());
+      }
     }
 
     // In-progress stroke
     if (currentPoints.isNotEmpty) {
-      final liveStroke = DrawStroke(
-        id: '_live',
-        userId: 'local',
-        colorValue: currentColor.toARGB32(),
-        strokeWidth: currentWidth,
-        points: currentPoints,
-        isEraser: isEraser,
-        isFilledShape: fillShapes && shapeType != null,
-        shapeType: shapeType,
-        orderIndex: 0,
+      _drawStroke(
+        canvas,
+        size,
+        DrawStroke(
+          id: '_live',
+          userId: 'local',
+          colorValue: currentColor.toARGB32(),
+          strokeWidth: currentWidth,
+          points: currentPoints,
+          isEraser: isEraser,
+          isFilledShape: fillShapes && shapeType != null,
+          shapeType: shapeType,
+          orderIndex: 0,
+        ),
       );
-      _drawStroke(canvas, size, liveStroke);
     }
   }
 
@@ -772,14 +936,17 @@ class _MascotCanvasPainter extends CustomPainter {
     if (stroke.shapeType != null && stroke.points.length >= 2) {
       final p1 = stroke.points.first;
       final p2 = stroke.points.last;
-      final start = Offset(p1.x * size.width, p1.y * size.height);
-      final end = Offset(p2.x * size.width, p2.y * size.height);
-      _drawShape(canvas, paint, stroke.shapeType!, start, end,
-          stroke.isFilledShape);
+      _drawShape(
+        canvas,
+        paint,
+        stroke.shapeType!,
+        Offset(p1.x * size.width, p1.y * size.height),
+        Offset(p2.x * size.width, p2.y * size.height),
+        stroke.isFilledShape,
+      );
       return;
     }
 
-    final path = Path();
     final pts = stroke.points;
     if (pts.length == 1) {
       final p = pts.first;
@@ -791,19 +958,16 @@ class _MascotCanvasPainter extends CustomPainter {
       return;
     }
 
-    path.moveTo(pts[0].x * size.width, pts[0].y * size.height);
+    final path = Path()
+      ..moveTo(pts[0].x * size.width, pts[0].y * size.height);
     for (int i = 1; i < pts.length - 1; i++) {
       final midX = (pts[i].x + pts[i + 1].x) / 2 * size.width;
       final midY = (pts[i].y + pts[i + 1].y) / 2 * size.height;
       path.quadraticBezierTo(
-        pts[i].x * size.width,
-        pts[i].y * size.height,
-        midX,
-        midY,
+        pts[i].x * size.width, pts[i].y * size.height, midX, midY,
       );
     }
-    final last = pts.last;
-    path.lineTo(last.x * size.width, last.y * size.height);
+    path.lineTo(pts.last.x * size.width, pts.last.y * size.height);
     canvas.drawPath(path, paint..style = PaintingStyle.stroke);
   }
 
@@ -817,18 +981,18 @@ class _MascotCanvasPainter extends CustomPainter {
         canvas.drawLine(start, end, paint);
       case DrawShapeType.rect:
         canvas.drawRRect(
-          RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-          paint,
-        );
+            RRect.fromRectAndRadius(rect, const Radius.circular(4)), paint);
       case DrawShapeType.circle:
         canvas.drawOval(rect, paint);
       case DrawShapeType.triangle:
-        final path = Path()
-          ..moveTo((start.dx + end.dx) / 2, start.dy)
-          ..lineTo(end.dx, end.dy)
-          ..lineTo(start.dx, end.dy)
-          ..close();
-        canvas.drawPath(path, paint);
+        canvas.drawPath(
+          Path()
+            ..moveTo((start.dx + end.dx) / 2, start.dy)
+            ..lineTo(end.dx, end.dy)
+            ..lineTo(start.dx, end.dy)
+            ..close(),
+          paint,
+        );
     }
   }
 
