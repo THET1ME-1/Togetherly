@@ -107,10 +107,9 @@ service cloud.firestore {
       match /canvas/{canvasId}/strokes/{strokeId} {
         allow read:   if isMember();
         allow create: if isMember();
-        // Удалять может любой участник (undo / clear canvas)
         allow delete: if isMember();
-        // Обновление не используется
-        allow update: if false;
+        // Обновление нужно для перемещения/масштабирования изображений на холсте
+        allow update: if isMember();
       }
 
       // Текущий (live) штрих — каждый пишет только свой документ, читают все

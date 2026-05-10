@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -114,6 +115,14 @@ class _DrawScreenState extends State<DrawScreen>
   DrawShapeType? _currentShapeType;
   bool _isDrawing = false;
   bool _fillShapes = false;
+
+  // ── Image tool ────────────────────────────────────────────────────────────
+  String? _selectedImageId;
+  DrawStroke? _imgDragBase;
+  Offset _imgDragStartPx = Offset.zero;
+  double _imgScaleBaseW = 0.5;
+  double _imgScaleBaseH = 0.5;
+  double _imgScaleBaseRot = 0.0;
 
   // Hint / onboarding
   bool _showHint = true;
@@ -497,11 +506,8 @@ class _DrawScreenState extends State<DrawScreen>
     if (remote.isImageStroke != local.isImageStroke) return false;
 
     if (remote.isImageStroke) {
-      return remote.imageUrl == local.imageUrl &&
-          ((remote.imageX ?? 0) - (local.imageX ?? 0)).abs() < 0.0001 &&
-          ((remote.imageY ?? 0) - (local.imageY ?? 0)).abs() < 0.0001 &&
-          ((remote.imageWidth ?? 0) - (local.imageWidth ?? 0)).abs() < 0.0001 &&
-          ((remote.imageHeight ?? 0) - (local.imageHeight ?? 0)).abs() < 0.0001;
+      // Match by userId + orderIndex only — URL changes after upload, position changes on drag
+      return true;
     }
 
     if (remote.points.length != local.points.length) return false;
@@ -538,7 +544,10 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _selectTool(DrawTool tool) {
     _cancelCurrentGesture();
-    setState(() => _activeTool = tool);
+    setState(() {
+      _activeTool = tool;
+      if (tool != DrawTool.image) _selectedImageId = null;
+    });
     if (_showHint) setState(() => _showHint = false);
   }
 
@@ -694,10 +703,25 @@ class _DrawScreenState extends State<DrawScreen>
     // ���� ����� � ������������� ���������� zoom, ���� �� �����
     _isZooming = false;
 
-    // Palm tool: �������� ��� ������ ����� �������
+    // Palm tool
     if (_activeTool == DrawTool.palm) {
       _palmPanStart = event.localPosition;
       _palmBaseOffset = _canvasOffset;
+      return;
+    }
+
+    // Image tool
+    if (_activeTool == DrawTool.image) {
+      final hit = _findImageAt(event.localPosition);
+      if (hit != null) {
+        // Tapped on an image — select and prepare for drag
+        setState(() => _selectedImageId = hit.id);
+        _imgDragBase = hit;
+        _imgDragStartPx = _screenToCanvas(event.localPosition);
+      } else {
+        // Tapped on empty space — keep selection so pinch still works
+        _imgDragBase = null;
+      }
       return;
     }
 
@@ -707,12 +731,27 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onPointerMove(PointerMoveEvent event) {
     if (_isZooming || _activePointers.length != 1) return;
-    // Palm tool: ������������ �����
+
+    // Palm tool
     if (_activeTool == DrawTool.palm) {
       final delta = event.localPosition - _palmPanStart;
       setState(() => _canvasOffset = _palmBaseOffset + delta);
       return;
     }
+
+    // Image drag
+    if (_activeTool == DrawTool.image &&
+        _imgDragBase != null &&
+        _selectedImageId != null &&
+        !_canvasSize.isEmpty) {
+      final canvasPx = _screenToCanvas(event.localPosition);
+      final delta = canvasPx - _imgDragStartPx;
+      final newX = (_imgDragBase!.imageX ?? 0.5) + delta.dx / _canvasSize.width;
+      final newY = (_imgDragBase!.imageY ?? 0.5) + delta.dy / _canvasSize.height;
+      _applyImageUpdate(_copyImageStroke(_imgDragBase!, x: newX, y: newY));
+      return;
+    }
+
     if (_drawingPointerId != event.pointer) return;
     _updateStroke(event.localPosition);
   }
@@ -725,12 +764,16 @@ class _DrawScreenState extends State<DrawScreen>
       _finishStroke();
     }
 
-    // ����� ��� ������ ������� � ���������� ��� ���������,
-    // ����� �������� ����� �� ������������ ����� �������.
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
       _isZooming = false;
       if (_isDrawing) _cancelCurrentGesture();
+      // Sync image position to Firestore when drag ends
+      if (_activeTool == DrawTool.image && _imgDragBase != null) {
+        final img = _findImageById(_selectedImageId ?? '');
+        if (img != null) unawaited(_syncImageToFirestore(img));
+        _imgDragBase = null;
+      }
     }
   }
 
@@ -742,22 +785,44 @@ class _DrawScreenState extends State<DrawScreen>
     _baseOffset = _canvasOffset;
     _baseFocalPoint = details.localFocalPoint;
     _baseRotation = _canvasRotation;
+    // Save image base transform for pinch on selected image
+    if (_activeTool == DrawTool.image && _selectedImageId != null) {
+      final img = _findImageById(_selectedImageId!);
+      if (img != null) {
+        _imgDragBase = img;
+        _imgScaleBaseW = img.imageWidth ?? 0.5;
+        _imgScaleBaseH = img.imageHeight ?? 0.5;
+        _imgScaleBaseRot = img.imageRotation ?? 0.0;
+      }
+    }
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
+
+    // Image pinch: scale + rotate the selected image
+    if (_activeTool == DrawTool.image &&
+        _imgDragBase != null &&
+        _selectedImageId != null) {
+      final newW = (_imgScaleBaseW * details.scale).clamp(0.05, 2.0);
+      final newH = (_imgScaleBaseH * details.scale).clamp(0.05, 2.0);
+      final newRot = _imgScaleBaseRot + details.rotation;
+      _applyImageUpdate(
+        _copyImageStroke(_imgDragBase!, w: newW, h: newH, rot: newRot),
+      );
+      return;
+    }
+
     final nextScale = (_baseScale * details.scale).clamp(
       _kMinScale,
       _kMaxScale,
     );
     final nextRotation = _baseRotation + details.rotation;
-    // ��������� ����� � ����������� ������ (����������� ���� ��� �� �������� ���������)
     final focalCanvas = _rotateOffset(
       (_baseFocalPoint - _baseOffset) / _baseScale,
       -_baseRotation,
     );
-    // ����� offset: ��������� ����� ������ ������ ��������� ��� ��������
     final nextOffset =
         details.localFocalPoint -
         _rotateOffset(focalCanvas * nextScale, nextRotation);
@@ -770,8 +835,12 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isZooming = false;
-    // ����� pinch-zoom ��� ������ ������� � ��������, ���
-    // ��������� �� �������� � ������������ ���������.
+    // Sync image transform to Firestore after pinch ends
+    if (_activeTool == DrawTool.image && _imgDragBase != null) {
+      final img = _findImageById(_selectedImageId ?? '');
+      if (img != null) unawaited(_syncImageToFirestore(img));
+      _imgDragBase = null;
+    }
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
       if (_isDrawing) _cancelCurrentGesture();
@@ -784,6 +853,156 @@ class _DrawScreenState extends State<DrawScreen>
       _canvasOffset = Offset.zero;
       _canvasRotation = 0.0;
     });
+  }
+
+  // ── Image helpers ──────────────────────────────────────────────────────────
+
+  DrawStroke? _findImageAt(Offset screenPos) {
+    if (_canvasSize.isEmpty) return null;
+    final cp = _screenToCanvas(screenPos);
+    final nx = cp.dx / _canvasSize.width;
+    final ny = cp.dy / _canvasSize.height;
+    for (final s in _visibleStrokes.reversed) {
+      if (!s.isImageStroke) continue;
+      final cx = s.imageX ?? 0.5;
+      final cy = s.imageY ?? 0.5;
+      final hw = (s.imageWidth ?? 0.5) / 2;
+      final hh = (s.imageHeight ?? 0.5) / 2;
+      if (nx >= cx - hw && nx <= cx + hw && ny >= cy - hh && ny <= cy + hh) {
+        return s;
+      }
+    }
+    return null;
+  }
+
+  DrawStroke? _findImageById(String id) =>
+      _visibleStrokes.where((s) => s.id == id).firstOrNull;
+
+  DrawStroke _copyImageStroke(
+    DrawStroke s, {
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    double? rot,
+    String? url,
+  }) => DrawStroke(
+    id: s.id,
+    userId: s.userId,
+    colorValue: s.colorValue,
+    strokeWidth: s.strokeWidth,
+    points: s.points,
+    orderIndex: s.orderIndex,
+    imageUrl: url ?? s.imageUrl,
+    imageX: x ?? s.imageX,
+    imageY: y ?? s.imageY,
+    imageWidth: w ?? s.imageWidth,
+    imageHeight: h ?? s.imageHeight,
+    imageRotation: rot ?? s.imageRotation,
+  );
+
+  void _applyImageUpdate(DrawStroke updated) {
+    final id = updated.id;
+    if (_pendingLocalStrokes.containsKey(id)) {
+      _pendingLocalStrokes[id] = updated;
+      setState(() => _visibleStrokes = _composeVisibleStrokes());
+      return;
+    }
+    final ri = _remoteStrokes.indexWhere((s) => s.id == id);
+    if (ri >= 0) {
+      _remoteStrokes[ri] = updated;
+      setState(() => _visibleStrokes = _composeVisibleStrokes());
+      return;
+    }
+    // Solo canvas
+    setState(() {
+      final vi = _visibleStrokes.indexWhere((s) => s.id == id);
+      if (vi >= 0) _visibleStrokes[vi] = updated;
+    });
+  }
+
+  Future<void> _syncImageToFirestore(DrawStroke stroke) async {
+    if (!_hasSharedCanvas) return;
+    if (!_remoteStrokes.any((s) => s.id == stroke.id)) return;
+    try {
+      await _fb.updateDrawingStroke(
+        groupId: _groupId,
+        strokeId: stroke.id,
+        updates: {
+          'imageX': stroke.imageX,
+          'imageY': stroke.imageY,
+          'imageWidth': stroke.imageWidth,
+          'imageHeight': stroke.imageHeight,
+          'imageRotation': stroke.imageRotation,
+        },
+        canvasId: _canvasId,
+      );
+    } catch (e) {
+      debugPrint('[Draw] image sync error: $e');
+    }
+  }
+
+  Future<void> _pickAndAddImage() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (xFile == null || !mounted) return;
+
+    final id = 'img_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+    final stroke = DrawStroke(
+      id: id,
+      userId: _myUid,
+      colorValue: 0xFF000000,
+      strokeWidth: 0,
+      points: const [],
+      orderIndex: _orderCounter,
+      imageUrl: 'file://${xFile.path}',
+      imageX: 0.5,
+      imageY: 0.5,
+      imageWidth: 0.5,
+      imageHeight: 0.5,
+      imageRotation: 0.0,
+    );
+    _orderCounter++;
+    setState(() {
+      _selectedImageId = id;
+      _activeTool = DrawTool.image;
+    });
+    _submitStroke(stroke);
+
+    if (_hasSharedCanvas) {
+      unawaited(_uploadImageAsync(id, xFile.path));
+    }
+  }
+
+  Future<void> _uploadImageAsync(String localStrokeId, String localPath) async {
+    final ext = localPath.split('.').last.toLowerCase();
+    final dest = 'canvas/${_groupId}/$_canvasId/$localStrokeId.$ext';
+    final url = await _fb.uploadFile(localPath, dest);
+    if (url == null || !mounted) return;
+
+    // Find stroke by local ID or by local URL (in case ID was replaced by remote)
+    final localUrl = 'file://$localPath';
+    DrawStroke? current = _findImageById(localStrokeId);
+    current ??= _visibleStrokes
+        .where((s) => s.isImageStroke && s.imageUrl == localUrl)
+        .firstOrNull;
+    if (current == null) return;
+
+    _applyImageUpdate(_copyImageStroke(current, url: url));
+
+    // Sync URL to Firestore if already confirmed as a remote stroke
+    final updated = _findImageById(current.id);
+    if (updated != null && _remoteStrokes.any((s) => s.id == current!.id)) {
+      unawaited(_fb.updateDrawingStroke(
+        groupId: _groupId,
+        strokeId: current.id,
+        updates: {'imageUrl': url},
+        canvasId: _canvasId,
+      ));
+    }
   }
 
   //  Commit stroke
@@ -1586,6 +1805,7 @@ class _DrawScreenState extends State<DrawScreen>
                         partnerNotifier: _partnerNotifier,
                         canvasSize: _canvasSize,
                         repaintNotifier: _repaintNotifier,
+                        selectedImageId: _selectedImageId,
                       ),
                     ),
                   ),
@@ -2013,8 +2233,16 @@ class _DrawScreenState extends State<DrawScreen>
               ),
             ),
             const SizedBox(width: 4),
-            // Palm (hand) tool � pan & rotate canvas without drawing
+            // Palm (hand) tool
             _toolBtn(Icons.pan_tool_rounded, DrawTool.palm, s.palmTool, t),
+            // Image tool
+            _toolBtn(Icons.image_rounded, DrawTool.image, 'Фото', t),
+            // Add photo button
+            _actionBtn(
+              Icons.add_photo_alternate_rounded,
+              _pickAndAddImage,
+              tooltip: 'Добавить фото',
+            ),
             // Brush tool
             _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),
             // Eraser
@@ -2269,6 +2497,7 @@ class _CanvasScene extends StatefulWidget {
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
   final ValueNotifier<int> repaintNotifier;
+  final String? selectedImageId;
 
   const _CanvasScene({
     required this.bgColor,
@@ -2282,6 +2511,7 @@ class _CanvasScene extends StatefulWidget {
     required this.partnerNotifier,
     required this.canvasSize,
     required this.repaintNotifier,
+    this.selectedImageId,
   });
 
   @override
@@ -2314,26 +2544,123 @@ class _CanvasSceneState extends State<_CanvasScene> {
 
   @override
   Widget build(BuildContext context) {
+    final imageStrokes =
+        widget.strokes.where((s) => s.isImageStroke).toList();
+    final drawStrokes =
+        widget.strokes.where((s) => !s.isImageStroke).toList();
+
     return Container(
       color: widget.bgColor,
-      child: SizedBox.expand(
-        child: CustomPaint(
-          painter: _DrawingPainter(
-            strokes: widget.strokes,
-            currentPoints: widget.currentPoints,
-            currentColorValue: widget.currentColorValue,
-            currentStrokeWidth: widget.currentStrokeWidth,
-            currentIsEraser: widget.currentIsEraser,
-            currentIsFilledShape: widget.currentIsFilledShape,
-            currentShapeType: widget.currentShapeType,
-            partnerNotifier: widget.partnerNotifier,
-            canvasSize: widget.canvasSize,
-            repaint: _repaint,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          SizedBox.expand(
+            child: CustomPaint(
+              painter: _DrawingPainter(
+                strokes: drawStrokes,
+                currentPoints: widget.currentPoints,
+                currentColorValue: widget.currentColorValue,
+                currentStrokeWidth: widget.currentStrokeWidth,
+                currentIsEraser: widget.currentIsEraser,
+                currentIsFilledShape: widget.currentIsFilledShape,
+                currentShapeType: widget.currentShapeType,
+                partnerNotifier: widget.partnerNotifier,
+                canvasSize: widget.canvasSize,
+                repaint: _repaint,
+              ),
+            ),
           ),
+          ...imageStrokes.map(
+            (s) => _buildImageWidget(s, widget.canvasSize),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageWidget(DrawStroke s, Size canvasSize) {
+    if (canvasSize.isEmpty) return const SizedBox.shrink();
+    final cx = (s.imageX ?? 0.5) * canvasSize.width;
+    final cy = (s.imageY ?? 0.5) * canvasSize.height;
+    final w = (s.imageWidth ?? 0.5) * canvasSize.width;
+    final h = (s.imageHeight ?? 0.5) * canvasSize.height;
+    final rot = s.imageRotation ?? 0.0;
+    final url = s.imageUrl ?? '';
+    final isSelected = widget.selectedImageId == s.id;
+
+    Widget img;
+    if (url.startsWith('file://')) {
+      img = Image.file(
+        File(url.substring(7)),
+        width: w,
+        height: h,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
+      );
+    } else if (url.startsWith('http')) {
+      img = Image.network(
+        url,
+        width: w,
+        height: h,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : _imgPlaceholder(w, h, loading: true),
+        errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      left: cx - w / 2,
+      top: cy - h / 2,
+      child: Transform.rotate(
+        angle: rot,
+        alignment: Alignment.center,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: img,
+            ),
+            if (isSelected)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.blue.shade400,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _imgPlaceholder(double w, double h, {bool loading = false}) =>
+      Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(Icons.broken_image_rounded, color: Colors.grey.shade400),
+        ),
+      );
 }
 
 //  _DrawingPainter

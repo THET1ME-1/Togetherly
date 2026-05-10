@@ -55,6 +55,9 @@ class DrawStroke {
   final double? imageWidth;
   final double? imageHeight;
 
+  /// Rotation of the image in radians.
+  final double? imageRotation;
+
   const DrawStroke({
     required this.id,
     required this.userId,
@@ -70,6 +73,7 @@ class DrawStroke {
     this.imageY,
     this.imageWidth,
     this.imageHeight,
+    this.imageRotation,
   });
 
   bool get isImageStroke => imageUrl != null;
@@ -94,6 +98,7 @@ class DrawStroke {
     if (imageY != null) 'imageY': imageY,
     if (imageWidth != null) 'imageWidth': imageWidth,
     if (imageHeight != null) 'imageHeight': imageHeight,
+    if (imageRotation != null) 'imageRotation': imageRotation,
   };
 
   factory DrawStroke.fromFirestore(Map<String, dynamic> data, String id) {
@@ -115,6 +120,7 @@ class DrawStroke {
       imageY: (data['imageY'] as num?)?.toDouble(),
       imageWidth: (data['imageWidth'] as num?)?.toDouble(),
       imageHeight: (data['imageHeight'] as num?)?.toDouble(),
+      imageRotation: (data['imageRotation'] as num?)?.toDouble(),
     );
   }
 

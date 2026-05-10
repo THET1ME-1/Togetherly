@@ -2354,6 +2354,20 @@ class FirebaseService {
     }
   }
 
+  /// Update specific fields of an existing stroke (used for image repositioning).
+  Future<void> updateDrawingStroke({
+    required String groupId,
+    required String strokeId,
+    required Map<String, dynamic> updates,
+    String canvasId = 'main',
+  }) async {
+    try {
+      await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
+    } catch (e) {
+      debugPrint('updateDrawingStroke failed: $e');
+    }
+  }
+
   /// Delete a single stroke by ID (used for undo).
   Future<void> deleteDrawingStroke({
     required String groupId,
