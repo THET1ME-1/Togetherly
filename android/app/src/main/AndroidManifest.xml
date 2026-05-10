@@ -24,6 +24,9 @@
 
     <!-- Восстановление таймерного alarm'а после перезагрузки -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Точные будильники для живого виджета-лепестка -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     
     <application
         android:label="Togetherly"
@@ -130,6 +133,7 @@
             android:label="Лепестковый таймер">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.togetherly.love.PETAL_TIMER_TICK" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

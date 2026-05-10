@@ -111,16 +111,17 @@ class _WidgetScreenState extends State<WidgetScreen>
   static const String _statsSvg =
       '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Zm4.5 7.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75Zm3.75-1.5a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0V12Zm2.25-3a.75.75 0 0 1 .75.75v6.75a.75.75 0 0 1-1.5 0V9.75A.75.75 0 0 1 13.5 9Zm3.75-1.5a.75.75 0 0 0-1.5 0v9a.75.75 0 0 0 1.5 0v-9Z" clip-rule="evenodd" /></svg>''';
 
-  // Геттер: выбранный таймер для виджета (non-system)
+  // Геттер: выбранный таймер для виджета (любой, включая системный)
   TimerItem? get _widgetTimer {
-    final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
-    if (nonSystem.isEmpty) return null;
+    final timers = _timerService.timers;
+    if (timers.isEmpty) return null;
     if (_widgetTimerId != null) {
       try {
-        return nonSystem.firstWhere((t) => t.id == _widgetTimerId);
+        return timers.firstWhere((t) => t.id == _widgetTimerId);
       } catch (_) {}
     }
-    return nonSystem.first;
+    // Приоритет: дефолтный таймер (в т.ч. системный — дата начала отношений)
+    return _timerService.defaultTimer ?? timers.first;
   }
 
   @override
@@ -1618,48 +1619,15 @@ class _WidgetScreenState extends State<WidgetScreen>
       );
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1030),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF3D2060), width: 1),
-      ),
-      child: Column(
-        children: [
-          // Заголовок
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(timer.emoji, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  timer.title,
-                  style: GoogleFonts.rubik(
-                    fontSize: 12,
-                    color: const Color(0xFFCCCCCC),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Живой лепестковый циферблат
-          SizedBox(
-            width: 200,
-            height: 200,
-            child: PetalTimerDial(
-              theme: _t,
-              startDate: timer.startDate,
-              isCountdown: timer.isCountdown,
-            ),
-          ),
-        ],
+    return Center(
+      child: SizedBox(
+        width: 200,
+        height: 200,
+        child: PetalTimerDial(
+          theme: _t,
+          startDate: timer.startDate,
+          isCountdown: timer.isCountdown,
+        ),
       ),
     );
   }
@@ -1669,9 +1637,9 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildTimerSelector() {
-    final nonSystem = _timerService.timers.where((t) => !t.isSystem).toList();
+    final timers = _timerService.timers;
 
-    if (nonSystem.isEmpty) {
+    if (timers.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
@@ -1680,6 +1648,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
       );
     }
+
+    final defaultId = (_widgetTimer ?? timers.first).id;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1693,8 +1663,8 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ),
         const SizedBox(height: 10),
-        ...nonSystem.map((timer) {
-          final isSelected = timer.id == (_widgetTimerId ?? nonSystem.first.id);
+        ...timers.map((timer) {
+          final isSelected = timer.id == (_widgetTimerId ?? defaultId);
           return GestureDetector(
             onTap: () => _selectWidgetTimer(timer),
             child: AnimatedContainer(

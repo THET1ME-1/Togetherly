@@ -175,69 +175,88 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 
   List<_PetalData> _computePetals() {
     final now = DateTime.now();
-    Duration diff;
+    final DateTime from, to;
     if (widget.isCountdown) {
-      diff = widget.startDate.difference(now);
+      from = now;
+      to = widget.startDate;
     } else {
-      diff = now.difference(widget.startDate);
+      from = widget.startDate;
+      to = now;
     }
 
-    final totalMs = diff.inMilliseconds.abs();
-    final totalSec = totalMs / 1000.0;
+    if (!to.isAfter(from)) {
+      return _zeroPetals();
+    }
 
-    final yearsInt = (totalSec / (365.25 * 24 * 3600)).floor();
-    final monthsInt = (totalSec / (30.44 * 24 * 3600)).floor() % 12;
-    final daysInt = (totalSec / 86400).floor() % 30;
-    final hoursInt = (totalSec / 3600).floor() % 24;
-    final minutesInt = (totalSec / 60).floor() % 60;
-    final secondsInt = totalSec.floor() % 60;
+    // Calendar-aware years / months / days
+    int years  = to.year  - from.year;
+    int months = to.month - from.month;
+    int days   = to.day   - from.day;
 
-    final exactSeconds = totalSec % 60.0;
-    final exactMinutes = (totalSec / 60.0) % 60.0;
-    final exactHours = (totalSec / 3600.0) % 24.0;
-    final exactDays = (totalSec / 86400.0) % 30.0;
-    final exactMonths = (totalSec / (30.44 * 24 * 3600.0)) % 12.0;
-    final exactYears = totalSec / (365.25 * 24 * 3600.0);
+    if (days < 0) {
+      months--;
+      // day 0 = last day of the month before `to`
+      days += DateTime(to.year, to.month, 0).day;
+    }
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    // Sub-day components derived from total elapsed ms
+    final diffMs = to.difference(from).inMilliseconds;
+    final hI   = (diffMs ~/ 3600000) % 24;
+    final minI = (diffMs ~/ 60000)   % 60;
+    final sI   = (diffMs ~/ 1000)    % 60;
 
     return [
       _PetalData(
         label: LocaleService.current.yearsLabel,
-        value: yearsInt,
+        value: years,
         maxValue: 100,
-        exactValue: exactYears,
+        exactValue: years  + months / 12.0,
       ),
       _PetalData(
         label: LocaleService.current.monthsShortLabel,
-        value: monthsInt,
+        value: months,
         maxValue: 12,
-        exactValue: exactMonths,
+        exactValue: months + days  / 30.0,
       ),
       _PetalData(
         label: LocaleService.current.daysShortLabel,
-        value: daysInt,
+        value: days,
         maxValue: 30,
-        exactValue: exactDays,
+        exactValue: days   + hI   / 24.0,
       ),
       _PetalData(
         label: LocaleService.current.hoursLabel,
-        value: hoursInt,
+        value: hI,
         maxValue: 24,
-        exactValue: exactHours,
+        exactValue: hI    + minI  / 60.0,
       ),
       _PetalData(
         label: LocaleService.current.minLabel,
-        value: minutesInt,
+        value: minI,
         maxValue: 60,
-        exactValue: exactMinutes,
+        exactValue: minI  + sI   / 60.0,
       ),
       _PetalData(
         label: LocaleService.current.secLabel,
-        value: secondsInt,
+        value: sI,
         maxValue: 60,
-        exactValue: exactSeconds,
+        exactValue: sI.toDouble(),
       ),
     ];
   }
+
+  List<_PetalData> _zeroPetals() => [
+        _PetalData(label: LocaleService.current.yearsLabel,       value: 0, maxValue: 100, exactValue: 0),
+        _PetalData(label: LocaleService.current.monthsShortLabel, value: 0, maxValue: 12,  exactValue: 0),
+        _PetalData(label: LocaleService.current.daysShortLabel,   value: 0, maxValue: 30,  exactValue: 0),
+        _PetalData(label: LocaleService.current.hoursLabel,       value: 0, maxValue: 24,  exactValue: 0),
+        _PetalData(label: LocaleService.current.minLabel,         value: 0, maxValue: 60,  exactValue: 0),
+        _PetalData(label: LocaleService.current.secLabel,         value: 0, maxValue: 60,  exactValue: 0),
+      ];
 
   /// Which petal index is at [localPos]? Returns -1 if outside the ring.
   int _petalIndexAt(Offset localPos) {

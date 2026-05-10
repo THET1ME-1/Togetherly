@@ -1249,17 +1249,24 @@ class HomeWidgetService {
     required List<TimerItem> activeTimers,
     required String groupId,
   }) async {
-    final nonSystem = activeTimers.where((t) => !t.isSystem).toList();
-    if (nonSystem.isEmpty) return;
+    if (activeTimers.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final savedId = prefs.getString('widget_timer_id_$groupId');
     TimerItem? timer;
     if (savedId != null) {
       try {
-        timer = nonSystem.firstWhere((t) => t.id == savedId);
+        timer = activeTimers.firstWhere((t) => t.id == savedId);
       } catch (_) {}
     }
-    timer ??= nonSystem.first;
+    // Fallback: default timer first (includes system/relationship timer),
+    // then first non-system, then any timer.
+    timer ??= activeTimers.firstWhere(
+      (t) => t.isDefault,
+      orElse: () => activeTimers.firstWhere(
+        (t) => !t.isSystem,
+        orElse: () => activeTimers.first,
+      ),
+    );
     await syncTimer(timer);
   }
 
