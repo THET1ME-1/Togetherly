@@ -13,9 +13,11 @@ class MascotService extends ChangeNotifier {
 
   List<Mascot> _mascots = [];
   GroupMascotState _state = const GroupMascotState();
+  bool _isLoading = false;
 
   List<Mascot> get mascots => _mascots;
   GroupMascotState get state => _state;
+  bool get isLoading => _isLoading;
 
   bool get hasActiveMascot => _state.activeMascotId != null;
   int get mascotCount => _mascots.length;
@@ -40,6 +42,7 @@ class MascotService extends ChangeNotifier {
     _mascotsSub?.cancel();
     _mascots = [];
     _state = const GroupMascotState();
+    _isLoading = true;
     notifyListeners();
 
     _mascotsSub = _fb.listenToMascots(groupId: groupId).listen(
@@ -53,6 +56,7 @@ class MascotService extends ChangeNotifier {
     _groupId = '';
     _mascots = [];
     _state = const GroupMascotState();
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -71,13 +75,23 @@ class MascotService extends ChangeNotifier {
       return;
     }
 
+    _isLoading = false;
     notifyListeners();
   }
 
   Future<void> _seedDefaults() async {
     final defaults = DefaultMascots.asMascots();
+    // saveMascotsBatch catches its own errors internally and never throws,
+    // so we cannot rely on try/catch here. After the call, if Firestore
+    // wrote successfully the stream will fire again with the seeded data.
+    // If it failed silently the stream won't update - so we show defaults
+    // locally right now to prevent infinite loading.
     await _fb.saveMascotsBatch(groupId: _groupId, mascots: defaults);
-    // Stream will update _mascots automatically.
+    if (_mascots.isEmpty) {
+      _mascots = List.from(defaults);
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ── Streak ─────────────────────────────────────────────────────────────────
@@ -169,6 +183,12 @@ class MascotService extends ChangeNotifier {
       isDefault: false,
     );
     await _fb.saveMascot(groupId: _groupId, mascot: mascot);
+    // Optimistically add to local list so the gallery updates immediately
+    // without waiting for the Firestore stream to echo back.
+    if (!_mascots.any((m) => m.id == mascot.id)) {
+      _mascots = [..._mascots, mascot];
+      notifyListeners();
+    }
     return mascot;
   }
 
@@ -189,10 +209,16 @@ class MascotService extends ChangeNotifier {
         await _fb.deleteFileByUrl(mascot.imageUrl!);
       } catch (_) {}
     }
-    await _fb.saveMascot(
-      groupId: _groupId,
-      mascot: mascot.copyWith(imageUrl: url),
-    );
+    final updated = mascot.copyWith(imageUrl: url);
+    await _fb.saveMascot(groupId: _groupId, mascot: updated);
+    // Optimistically update local list.
+    final idx = _mascots.indexWhere((m) => m.id == mascot.id);
+    if (idx != -1) {
+      final list = List<Mascot>.from(_mascots);
+      list[idx] = updated;
+      _mascots = list;
+      notifyListeners();
+    }
   }
 
   // ── Mood state helper for display ─────────────────────────────────────────

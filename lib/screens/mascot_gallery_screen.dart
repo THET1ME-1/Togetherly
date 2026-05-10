@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
@@ -90,15 +91,109 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         );
         await _svc.renameMascot(editMascot, result.name);
       } else {
-        await _svc.uploadAndSaveMascot(
+        final saved = await _svc.uploadAndSaveMascot(
           pngBytes: result.pngBytes,
           name: result.name,
           creatorUid: widget.myUid,
+        );
+        if (saved == null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось сохранить маскота. Проверьте соединение.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _importPng() async {
+    if (_svc.isGalleryFull) {
+      _showLimitSnack();
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['png'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+
+    // Предложить имя на основе имени файла
+    final defaultName = (file.name)
+        .replaceAll(RegExp(r'\.png$', caseSensitive: false), '')
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ');
+
+    if (!mounted) return;
+    final name = await _showImportNameDialog(defaultName);
+    if (name == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    try {
+      final saved = await _svc.uploadAndSaveMascot(
+        pngBytes: bytes,
+        name: name,
+        creatorUid: widget.myUid,
+      );
+      if (saved == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось загрузить. Проверьте соединение.'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  Future<String?> _showImportNameDialog(String defaultName) async {
+    final controller = TextEditingController(text: defaultName);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Имя маскота'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 30,
+              decoration: const InputDecoration(hintText: 'Введите имя'),
+              onSubmitted: (_) {
+                final n = controller.text.trim();
+                if (n.isNotEmpty) Navigator.of(ctx).pop(n);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              final n = controller.text.trim();
+              if (n.isNotEmpty) Navigator.of(ctx).pop(n);
+            },
+            child: Text('Добавить', style: TextStyle(color: _t.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showLimitSnack() {
@@ -394,9 +489,17 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           ),
           // Grid
           Expanded(
-            child: mascots.isEmpty
+            child: _svc.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : GridView.builder(
+                : mascots.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Маскоты не загрузились.\nПроверьте соединение.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade500),
+                        ),
+                      )
+                    : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -423,12 +526,28 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       ),
       floatingActionButton: _svc.isGalleryFull
           ? null
-          : FloatingActionButton.extended(
-              onPressed: _uploading ? null : () => _openDrawScreen(),
-              backgroundColor: _t.primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Нарисовать'),
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'import_png',
+                  onPressed: _uploading ? null : _importPng,
+                  backgroundColor: Colors.white,
+                  foregroundColor: _t.primary,
+                  tooltip: 'Импорт PNG',
+                  child: const Icon(Icons.image_outlined),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'draw_mascot',
+                  onPressed: _uploading ? null : () => _openDrawScreen(),
+                  backgroundColor: _t.primary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Нарисовать'),
+                ),
+              ],
             ),
     );
   }

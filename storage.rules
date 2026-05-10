@@ -26,6 +26,13 @@ service firebase.storage {
                    && request.resource.size < 10 * 1024 * 1024; // 10MB limit
     }
 
+    // Маскоты группы — только участники, до 5 МБ
+    match /groups/{groupId}/mascots/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024;
+    }
+
     // Wallpapers — публичное чтение, запись запрещена
     match /wallpapers/{allPaths=**} {
       allow read: if true;

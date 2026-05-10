@@ -123,10 +123,15 @@ service cloud.firestore {
       match /canvasCatalogue/{canvasId} {
         allow read, write: if isMember();
       }
-      
+
       // Дополнительно: для счётчика в статистике
       match /canvases/{canvasId} {
         allow read: if isMember();
+      }
+
+      // ── Маскоты группы ──
+      match /mascots/{mascotId} {
+        allow read, write: if isMember();
       }
     }
 

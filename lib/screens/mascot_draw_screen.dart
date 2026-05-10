@@ -74,6 +74,14 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
 
   bool _saving = false;
 
+  // Canvas transform (zoom + rotate + pan via two-finger gestures)
+  double _canvasScale = 1.0;
+  double _canvasRotation = 0.0;
+  Offset _canvasPan = Offset.zero;
+  double _baseScale = 1.0;
+  double _baseRotation = 0.0;
+  int _activePointers = 0;
+
   AppTheme get _t => widget.theme;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -107,6 +115,13 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   }
 
   void _onPointerDown(PointerDownEvent e, Size canvasSize) {
+    _activePointers++;
+    if (_activePointers > 1) {
+      // Second finger down — cancel any in-progress stroke and let scale gesture take over
+      _currentPoints.clear();
+      setState(() {});
+      return;
+    }
     if (_tool == _Tool.fill) {
       _applyFill(canvasSize, e.localPosition);
       return;
@@ -118,6 +133,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   }
 
   void _onPointerMove(PointerMoveEvent e, Size canvasSize) {
+    if (_activePointers != 1) return;
     if (_tool == _Tool.fill) return;
     final pt = _normalize(e.localPosition, canvasSize);
     _currentPoints.add(pt);
@@ -125,7 +141,12 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   }
 
   void _onPointerUp(PointerUpEvent e, Size canvasSize) {
-    if (_tool == _Tool.fill || _currentPoints.isEmpty) return;
+    final wasDrawing = _activePointers == 1;
+    _activePointers = math.max(0, _activePointers - 1);
+    if (!wasDrawing || _tool == _Tool.fill || _currentPoints.isEmpty) {
+      if (_activePointers == 0) _currentPoints.clear();
+      return;
+    }
 
     final pts = List<DrawPoint>.from(_currentPoints);
     final stroke = DrawStroke(
@@ -194,6 +215,22 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     setState(() {
       _redoStack.addAll(_strokes.reversed);
       _strokes.clear();
+    });
+  }
+
+  // ── Canvas transform gestures ────────────────────────────────────────────
+
+  void _onScaleStart(ScaleStartDetails details) {
+    _baseScale = _canvasScale;
+    _baseRotation = _canvasRotation;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount < 2) return;
+    setState(() {
+      _canvasScale = (_baseScale * details.scale).clamp(0.3, 5.0);
+      _canvasRotation = _baseRotation + details.rotation;
+      _canvasPan += details.focalPointDelta;
     });
   }
 
@@ -363,40 +400,58 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final side = math.min(constraints.maxWidth, constraints.maxHeight) - 16;
-        return Container(
-          width: side,
-          height: side,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: RepaintBoundary(
-              key: _canvasKey,
-              child: Listener(
-                onPointerDown: (e) => _onPointerDown(e, Size(side, side)),
-                onPointerMove: (e) => _onPointerMove(e, Size(side, side)),
-                onPointerUp: (e) => _onPointerUp(e, Size(side, side)),
-                child: CustomPaint(
-                  size: Size(side, side),
-                  painter: _MascotCanvasPainter(
-                    strokes: _strokes,
-                    currentPoints: _currentPoints,
-                    currentColor: _color,
-                    currentWidth: _strokeWidth,
-                    isEraser: _tool == _Tool.eraser,
-                    shapeType: _activeShape,
-                    fillShapes: _fillShapes,
-                    refImage: _showRef ? _refImage : null,
-                    canvasSize: side,
+        return GestureDetector(
+          onScaleStart: _onScaleStart,
+          onScaleUpdate: _onScaleUpdate,
+          onDoubleTap: () => setState(() {
+            _canvasScale = 1.0;
+            _canvasRotation = 0.0;
+            _canvasPan = Offset.zero;
+          }),
+          child: Transform.translate(
+            offset: _canvasPan,
+            child: Transform(
+              transform: Matrix4.identity()
+                ..rotateZ(_canvasRotation)
+                ..scale(_canvasScale),
+              alignment: Alignment.center,
+              child: Container(
+                width: side,
+                height: side,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(20),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: RepaintBoundary(
+                    key: _canvasKey,
+                    child: Listener(
+                      onPointerDown: (e) => _onPointerDown(e, Size(side, side)),
+                      onPointerMove: (e) => _onPointerMove(e, Size(side, side)),
+                      onPointerUp: (e) => _onPointerUp(e, Size(side, side)),
+                      child: CustomPaint(
+                        size: Size(side, side),
+                        painter: _MascotCanvasPainter(
+                          strokes: _strokes,
+                          currentPoints: _currentPoints,
+                          currentColor: _color,
+                          currentWidth: _strokeWidth,
+                          isEraser: _tool == _Tool.eraser,
+                          shapeType: _activeShape,
+                          fillShapes: _fillShapes,
+                          refImage: _showRef ? _refImage : null,
+                          canvasSize: side,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -576,6 +631,14 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               },
             ),
           ),
+          if (_canvasScale != 1.0 || _canvasRotation != 0.0 || _canvasPan != Offset.zero)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Двойной тап — сбросить вид',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
+            ),
           const SizedBox(height: 8),
         ],
       ),
