@@ -32,6 +32,8 @@ class _FillLayer {
 }
 
 // Must be top-level for Flutter's compute()
+// Returns a transparent-background RGBA buffer: only the filled pixels are
+// opaque (alpha=255). Returns an empty Uint8List when nothing was filled.
 Uint8List _doFloodFill(Map<String, dynamic> args) {
   final pixels = args['pixels'] as Uint8List;
   final w = args['w'] as int;
@@ -48,7 +50,9 @@ Uint8List _doFloodFill(Map<String, dynamic> args) {
   final targetB = pixels[startIdx + 2];
 
   // No-op if target is already the fill colour
-  if (targetR == fillR && targetG == fillG && targetB == fillB) return pixels;
+  if (targetR == fillR && targetG == fillG && targetB == fillB) {
+    return Uint8List(0);
+  }
 
   const tolerance = 35;
 
@@ -56,6 +60,8 @@ Uint8List _doFloodFill(Map<String, dynamic> args) {
   final queue = <int>[ty * w + tx];
   int head = 0;
   final visited = Uint8List(w * h);
+  // Result starts fully transparent; only filled pixels become opaque.
+  final result = Uint8List(w * h * 4);
 
   while (head < queue.length) {
     final pos = queue[head++];
@@ -70,17 +76,17 @@ Uint8List _doFloodFill(Map<String, dynamic> args) {
         (pixels[idx + 1] - targetG).abs() > tolerance ||
         (pixels[idx + 2] - targetB).abs() > tolerance) continue;
 
-    pixels[idx] = fillR;
-    pixels[idx + 1] = fillG;
-    pixels[idx + 2] = fillB;
-    pixels[idx + 3] = 255;
+    result[idx] = fillR;
+    result[idx + 1] = fillG;
+    result[idx + 2] = fillB;
+    result[idx + 3] = 255;
 
     if (x > 0) queue.add(pos - 1);
     if (x < w - 1) queue.add(pos + 1);
     if (y > 0) queue.add(pos - w);
     if (y < h - 1) queue.add(pos + w);
   }
-  return pixels;
+  return result;
 }
 
 // ── Result returned when the user saves ─────────────────────────────────────
@@ -241,10 +247,15 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       final w = canvasSize.width.round();
       final h = canvasSize.height.round();
 
-      // Render current canvas state to off-screen image
+      // Render current canvas state to off-screen image.
+      // saveLayer ensures BlendMode.clear (eraser) composites correctly.
       final recorder = ui.PictureRecorder();
       final offCanvas = Canvas(recorder);
-      // White background (so the fill correctly sees stroke boundaries)
+      offCanvas.saveLayer(
+        Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        Paint(),
+      );
+      // White background so the fill algorithm sees stroke boundaries.
       offCanvas.drawRect(
         Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
         Paint()..color = Colors.white,
@@ -260,6 +271,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
         fillShapes: false,
         canvasSize: canvasSize.width,
       ).paint(offCanvas, Size(w.toDouble(), h.toDouble()));
+      offCanvas.restore();
 
       final picture = recorder.endRecording();
       final snapshot = await picture.toImage(w, h);
@@ -283,6 +295,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
         'fillG': _color.green,
         'fillB': _color.blue,
       });
+
+      // Empty result means the tap pixel was already the fill colour — skip.
+      if (filled.isEmpty || !mounted) return;
 
       // Decode filled pixels back to ui.Image
       final completer = Completer<ui.Image>();
@@ -501,38 +516,37 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (widget.isGalleryFull)
-            Container(
-              color: Colors.orange.shade100,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Достигнут лимит. Удалите маскота из галереи.',
-                      style: TextStyle(fontSize: 13),
+      // GestureDetector wraps the entire body so two-finger zoom/rotate/pan
+      // works anywhere on screen — including over the toolbar area.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onScaleStart: _onScaleStart,
+        onScaleUpdate: _onScaleUpdate,
+        onDoubleTap: _resetTransform,
+        child: Column(
+          children: [
+            if (widget.isGalleryFull)
+              Container(
+                color: Colors.orange.shade100,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Достигнут лимит. Удалите маскота из галереи.',
+                        style: TextStyle(fontSize: 13),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          // Canvas area — GestureDetector covers the ENTIRE area so two-finger
-          // zoom/rotate/pan works even outside the canvas square.
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onScaleStart: _onScaleStart,
-              onScaleUpdate: _onScaleUpdate,
-              onDoubleTap: _resetTransform,
-              child: Center(child: _buildCanvas()),
-            ),
-          ),
-          _buildToolbar(),
-        ],
+            Expanded(child: Center(child: _buildCanvas())),
+            _buildToolbar(),
+          ],
+        ),
       ),
     );
   }
