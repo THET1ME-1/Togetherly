@@ -218,8 +218,10 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.photo_library_outlined,
-                  color: widget.theme.primary),
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: widget.theme.primary,
+              ),
               title: const Text('Перейти в галерею'),
               onTap: () {
                 Navigator.of(ctx).pop();
@@ -227,8 +229,10 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.visibility_off_outlined,
-                  color: Colors.grey),
+              leading: const Icon(
+                Icons.visibility_off_outlined,
+                color: Colors.grey,
+              ),
               title: const Text('Скрыть'),
               onTap: () async {
                 Navigator.of(ctx).pop();
@@ -288,7 +292,7 @@ class _MascotImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
-      return SvgPicture.asset(asset, fit: BoxFit.contain);
+      return buildMascotAssetImage(asset, fit: BoxFit.contain);
     }
     if (mascot.imageUrl != null) {
       return CachedNetworkImage(
@@ -300,6 +304,26 @@ class _MascotImage extends StatelessWidget {
     }
     return const Icon(Icons.face, size: 40);
   }
+}
+
+/// Renders a mascot from a local asset path.
+/// Supports PNG/JPG (Image.asset) and SVG (SvgPicture.asset).
+Widget buildMascotAssetImage(
+  String assetPath, {
+  BoxFit fit = BoxFit.contain,
+  double? width,
+  double? height,
+}) {
+  if (assetPath.toLowerCase().endsWith('.svg')) {
+    return SvgPicture.asset(assetPath, fit: fit, width: width, height: height);
+  }
+  return Image.asset(
+    assetPath,
+    fit: fit,
+    width: width,
+    height: height,
+    errorBuilder: (_, __, ___) => const Icon(Icons.face, size: 40),
+  );
 }
 
 /// Standalone helper to un-hide the mascot (call from profile/settings).

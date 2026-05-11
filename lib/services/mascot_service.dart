@@ -45,10 +45,12 @@ class MascotService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _mascotsSub = _fb.listenToMascots(groupId: groupId).listen(
-      _onMascotsUpdate,
-      onError: (e) => debugPrint('[MascotService] mascots error: $e'),
-    );
+    _mascotsSub = _fb
+        .listenToMascots(groupId: groupId)
+        .listen(
+          _onMascotsUpdate,
+          onError: (e) => debugPrint('[MascotService] mascots error: $e'),
+        );
   }
 
   void unbind() {
@@ -66,6 +68,16 @@ class MascotService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // IDs of the old SVG system mascots that need to be replaced.
+  static const _kOldDefaultIds = {
+    'default_boy_happy',
+    'default_boy_sad',
+    'default_boy_very_sad',
+    'default_girl_happy',
+    'default_girl_sad',
+    'default_girl_very_sad',
+  };
+
   void _onMascotsUpdate(List<Mascot> mascots) {
     _mascots = mascots;
 
@@ -75,8 +87,38 @@ class MascotService extends ChangeNotifier {
       return;
     }
 
+    // One-time migration: replace the old 6 SVG defaults with the new 2.
+    final oldOnes = _mascots
+        .where((m) => _kOldDefaultIds.contains(m.id))
+        .toList();
+    if (oldOnes.isNotEmpty) {
+      _migrateOldDefaults(oldOnes);
+      return; // wait for Firestore stream to re-fire after writes
+    }
+
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _migrateOldDefaults(List<Mascot> oldOnes) async {
+    debugPrint('[MascotService] Migrating ${oldOnes.length} old defaults…');
+    // Clear active if it was an old default.
+    if (_kOldDefaultIds.contains(_state.activeMascotId)) {
+      await setActive(null);
+    }
+    // Delete every old default from Firestore.
+    for (final m in oldOnes) {
+      await _fb.deleteMascot(
+        groupId: _groupId,
+        mascotId: m.id,
+        imageUrl: null, // old defaults had no Storage image
+      );
+    }
+    // Write new defaults — stream will re-fire and gallery updates.
+    await _fb.saveMascotsBatch(
+      groupId: _groupId,
+      mascots: DefaultMascots.asMascots(),
+    );
   }
 
   Future<void> _seedDefaults() async {
@@ -121,12 +163,7 @@ class MascotService extends ChangeNotifier {
     if (_groupId.isEmpty) return;
     _state = _state.copyWith(positionX: x, positionY: y, scale: scale);
     notifyListeners();
-    await _fb.updateMascotPosition(
-      groupId: _groupId,
-      x: x,
-      y: y,
-      scale: scale,
-    );
+    await _fb.updateMascotPosition(groupId: _groupId, x: x, y: y, scale: scale);
   }
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
@@ -223,29 +260,8 @@ class MascotService extends ChangeNotifier {
 
   // ── Mood state helper for display ─────────────────────────────────────────
 
-  /// Returns the correct asset path for a default mascot considering group mood.
-  /// Returns null if [mascot] is not a default or has no variants.
-  String? resolvedAssetForMood(Mascot mascot) {
-    if (!mascot.isDefault) return mascot.defaultAsset;
-    final mood = _state.moodState;
-    // Map base mascot to correct mood variant.
-    final id = mascot.id;
-    if (id.startsWith('default_boy')) {
-      return switch (mood) {
-        MascotMoodState.happy => 'assets/mascots/boy_happy.svg',
-        MascotMoodState.sad => 'assets/mascots/boy_sad.svg',
-        MascotMoodState.verySad => 'assets/mascots/boy_very_sad.svg',
-      };
-    }
-    if (id.startsWith('default_girl')) {
-      return switch (mood) {
-        MascotMoodState.happy => 'assets/mascots/girl_happy.svg',
-        MascotMoodState.sad => 'assets/mascots/girl_sad.svg',
-        MascotMoodState.verySad => 'assets/mascots/girl_very_sad.svg',
-      };
-    }
-    return mascot.defaultAsset;
-  }
+  /// Returns the asset path for [mascot], or null for user-drawn (URL-based) ones.
+  String? resolvedAssetForMood(Mascot mascot) => mascot.defaultAsset;
 
   @override
   void dispose() {

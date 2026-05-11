@@ -243,11 +243,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _bindMascotService(String groupId) {
     _mascotService.bindToGroup(groupId);
     _mascotStateSub?.cancel();
-    _mascotStateSub = _fb
-        .listenToGroupMascotState(groupId: groupId)
-        .listen((state) {
-          _mascotService.applyGroupData(state.toMap());
-        });
+    _mascotStateSub = _fb.listenToGroupMascotState(groupId: groupId).listen((
+      state,
+    ) {
+      _mascotService.applyGroupData(state.toMap());
+    });
     // Record that someone opened the app today (streak tracking).
     _mascotService.recordDailyActivity();
   }
@@ -616,8 +616,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       mascot: mascot,
                       service: _mascotService,
                     )
-                  : Icon(Icons.sentiment_satisfied_alt,
-                      size: 36, color: _t.primary.withAlpha(120)),
+                  : Icon(
+                      Icons.sentiment_satisfied_alt,
+                      size: 36,
+                      color: _t.primary.withAlpha(120),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -635,18 +638,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     streak > 0
                         ? '🔥 Серия: $streak дн.'
                         : mascot != null
-                            ? 'Нажмите для галереи'
-                            : 'Выберите маскота',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                        ? 'Нажмите для галереи'
+                        : 'Выберите маскота',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: Colors.grey.shade400),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey.shade400,
+            ),
           ],
         ),
       ),
@@ -1329,16 +1332,13 @@ class _MascotPreviewWidget extends StatelessWidget {
   final Mascot mascot;
   final MascotService service;
 
-  const _MascotPreviewWidget({
-    required this.mascot,
-    required this.service,
-  });
+  const _MascotPreviewWidget({required this.mascot, required this.service});
 
   @override
   Widget build(BuildContext context) {
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
-      return SvgPicture.asset(asset, fit: BoxFit.contain);
+      return buildMascotAssetImage(asset, fit: BoxFit.contain);
     }
     if (mascot.imageUrl != null) {
       return CachedNetworkImage(

@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show Share, XFile;
 import 'dart:io';
@@ -11,6 +11,7 @@ import 'dart:io';
 import '../models/mascot.dart';
 import '../services/mascot_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import 'mascot_draw_screen.dart';
 
 class MascotGalleryScreen extends StatefulWidget {
@@ -99,7 +100,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         if (saved == null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Не удалось сохранить маскота. Проверьте соединение.'),
+              content: Text(
+                'Не удалось сохранить маскота. Проверьте соединение.',
+              ),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -236,8 +239,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           autofocus: true,
           maxLength: 30,
           decoration: const InputDecoration(hintText: 'Имя маскота'),
-          onSubmitted: (_) =>
-              Navigator.of(ctx).pop(controller.text.trim()),
+          onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
         ),
         actions: [
           TextButton(
@@ -245,8 +247,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             child: const Text('Отмена'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
             child: Text('OK', style: TextStyle(color: _t.primary)),
           ),
         ],
@@ -285,16 +286,17 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       if (mascot.imageUrl != null) {
         final file = await fetchCachedImageFile(mascot.imageUrl!);
         final tmp = await getTemporaryDirectory();
-        final dest =
-            File('${tmp.path}/${mascot.name.replaceAll(' ', '_')}.png');
+        final dest = File(
+          '${tmp.path}/${mascot.name.replaceAll(' ', '_')}.png',
+        );
         await file.copy(dest.path);
         await Share.shareXFiles([XFile(dest.path)], text: mascot.name);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка экспорта: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
       }
     }
   }
@@ -359,7 +361,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             ),
             const Divider(),
             _ActionTile(
-              icon: isActive ? Icons.check_circle : Icons.radio_button_unchecked,
+              icon: isActive
+                  ? Icons.check_circle
+                  : Icons.radio_button_unchecked,
               label: isActive ? 'Деактивировать' : 'Сделать активным',
               color: isActive ? Colors.green : _t.primary,
               onTap: () {
@@ -460,10 +464,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               children: [
                 Text(
                   '${mascots.length} / ${MascotService.maxMascots} маскотов',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
                 if (_svc.isGalleryFull)
                   Container(
@@ -492,22 +493,22 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             child: _svc.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : mascots.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Маскоты не загрузились.\nПроверьте соединение.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
-                      )
-                    : GridView.builder(
+                ? Center(
+                    child: Text(
+                      'Маскоты не загрузились.\nПроверьте соединение.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  )
+                : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      childAspectRatio: 0.82,
-                    ),
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 0.82,
+                        ),
                     itemCount: mascots.length,
                     itemBuilder: (ctx, i) {
                       final m = mascots[i];
@@ -568,10 +569,7 @@ class _StreakBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Text(
-            streak > 0 ? '🔥' : '💤',
-            style: const TextStyle(fontSize: 24),
-          ),
+          Text(streak > 0 ? '🔥' : '💤', style: const TextStyle(fontSize: 24)),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,7 +759,12 @@ class _MascotThumbnail extends StatelessWidget {
     final asset = service.resolvedAssetForMood(mascot);
 
     if (asset != null) {
-      return SvgPicture.asset(asset, width: size, height: size, fit: BoxFit.contain);
+      return buildMascotAssetImage(
+        asset,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      );
     }
     if (mascot.imageUrl != null) {
       return CachedNetworkImage(

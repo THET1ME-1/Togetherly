@@ -142,7 +142,9 @@ class GroupMascotState {
     bool clearActiveMascot = false,
   }) {
     return GroupMascotState(
-      activeMascotId: clearActiveMascot ? null : (activeMascotId ?? this.activeMascotId),
+      activeMascotId: clearActiveMascot
+          ? null
+          : (activeMascotId ?? this.activeMascotId),
       positionX: positionX ?? this.positionX,
       positionY: positionY ?? this.positionY,
       scale: scale ?? this.scale,
@@ -152,17 +154,21 @@ class GroupMascotState {
   }
 }
 
-/// The six default mascots bundled with the app.
+/// The default mascots bundled with the app.
 class DefaultMascots {
-  static const String _base = 'assets/mascots';
+  static const String _base = 'assets/images/mascots';
 
   static List<Map<String, String>> get entries => [
-    {'id': 'default_boy_happy', 'name': 'Мальчик весёлый', 'asset': '$_base/boy_happy.svg'},
-    {'id': 'default_boy_sad', 'name': 'Мальчик грустный', 'asset': '$_base/boy_sad.svg'},
-    {'id': 'default_boy_very_sad', 'name': 'Мальчик очень грустный', 'asset': '$_base/boy_very_sad.svg'},
-    {'id': 'default_girl_happy', 'name': 'Девочка весёлая', 'asset': '$_base/girl_happy.svg'},
-    {'id': 'default_girl_sad', 'name': 'Девочка грустная', 'asset': '$_base/girl_sad.svg'},
-    {'id': 'default_girl_very_sad', 'name': 'Девочка очень грустная', 'asset': '$_base/girl_very_sad.svg'},
+    {
+      'id': 'default_boy',
+      'name': 'Веселый мальчик',
+      'asset': '$_base/Веселый мальчик.png',
+    },
+    {
+      'id': 'default_girl',
+      'name': 'Веселая девочка',
+      'asset': '$_base/Веселая девочка.jpg',
+    },
   ];
 
   static List<Mascot> asMascots() {
