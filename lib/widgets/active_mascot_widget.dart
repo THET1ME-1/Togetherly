@@ -11,6 +11,11 @@ import '../theme/app_theme.dart';
 const String _kHiddenKey = 'mascot_hidden';
 const String _kOnboardingKey = 'mascot_onboarding_shown';
 
+/// Global notifier for the mascot's hidden state.
+/// Listen to this in other widgets (e.g. home screen mascot row)
+/// to react when the user hides/shows the floating mascot.
+final ValueNotifier<bool> mascotHiddenNotifier = ValueNotifier<bool>(false);
+
 /// Floating mascot overlay rendered inside the home screen Stack.
 /// Draggable + pinch-to-scale. Position and scale sync via [MascotService].
 class ActiveMascotWidget extends StatefulWidget {
@@ -65,6 +70,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
     _loadPrefs();
     _svc.addListener(_onServiceChanged);
+    mascotHiddenNotifier.addListener(_onExternalVisibilityChanged);
   }
 
   @override
@@ -72,15 +78,29 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _entranceCtrl.dispose();
     _syncTimer?.cancel();
     _svc.removeListener(_onServiceChanged);
+    mascotHiddenNotifier.removeListener(_onExternalVisibilityChanged);
     super.dispose();
+  }
+
+  /// Called when another widget changes [mascotHiddenNotifier] (e.g. home row).
+  void _onExternalVisibilityChanged() {
+    final shouldHide = mascotHiddenNotifier.value;
+    if (shouldHide != _hidden) {
+      setState(() => _hidden = shouldHide);
+      if (!shouldHide && _positionInitialized) {
+        _entranceCtrl.forward(from: 0);
+      }
+    }
   }
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final hidden = prefs.getBool(_kHiddenKey) ?? false;
     setState(() {
-      _hidden = prefs.getBool(_kHiddenKey) ?? false;
+      _hidden = hidden;
       _onboardingShown = prefs.getBool(_kOnboardingKey) ?? false;
     });
+    mascotHiddenNotifier.value = hidden;
   }
 
   void _onServiceChanged() {
@@ -237,6 +257,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               onTap: () async {
                 Navigator.of(ctx).pop();
                 setState(() => _hidden = true);
+                mascotHiddenNotifier.value = true;
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool(_kHiddenKey, true);
               },
@@ -326,8 +347,9 @@ Widget buildMascotAssetImage(
   );
 }
 
-/// Standalone helper to un-hide the mascot (call from profile/settings).
+/// Un-hides the floating mascot from anywhere in the app.
 Future<void> showMascotOverlay() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(_kHiddenKey, false);
+  mascotHiddenNotifier.value = false;
 }
