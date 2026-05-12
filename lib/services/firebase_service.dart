@@ -315,15 +315,21 @@ class FirebaseService {
       final prefs = await SharedPreferences.getInstance();
       final type = message.data['type'] ?? '';
       if (type == 'miss_you' && !(prefs.getBool(_kNotifMissYou) ?? true)) {
-        debugPrint('FCM foreground: miss_you notification suppressed by user prefs');
+        debugPrint(
+          'FCM foreground: miss_you notification suppressed by user prefs',
+        );
         return false;
       }
       if (type == 'new_memory' && !(prefs.getBool(_kNotifNewMemory) ?? true)) {
-        debugPrint('FCM foreground: new_memory notification suppressed by user prefs');
+        debugPrint(
+          'FCM foreground: new_memory notification suppressed by user prefs',
+        );
         return false;
       }
       if (type == 'mood' && !(prefs.getBool(_kNotifMood) ?? true)) {
-        debugPrint('FCM foreground: mood notification suppressed by user prefs');
+        debugPrint(
+          'FCM foreground: mood notification suppressed by user prefs',
+        );
         return false;
       }
     } catch (e) {
@@ -414,8 +420,6 @@ class FirebaseService {
   static String _channelIdFor(RemoteMessage message) {
     return message.notification?.android?.channelId ?? _kChannelId;
   }
-
-
 
   Future<void> _saveFcmToken(String token) async {
     final u = currentUser;
@@ -650,9 +654,18 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return '';
 
+    // Force-refresh the ID token so Firestore always sees a valid auth claim.
+    // This is critical for freshly-created email accounts where the token may
+    // not have propagated to Firestore's security backend yet.
     try {
+      await u.getIdToken(true);
+    } catch (_) {}
+
+    Future<String> attempt() async {
       if (oldCode != null && oldCode.isNotEmpty) {
-        await _db.collection('inviteCodes').doc(oldCode).delete();
+        try {
+          await _db.collection('inviteCodes').doc(oldCode).delete();
+        } catch (_) {}
       }
 
       String code;
@@ -674,9 +687,39 @@ class FirebaseService {
           .timeout(const Duration(seconds: 10));
 
       return code;
+    }
+
+    try {
+      return await attempt();
     } catch (e) {
-      debugPrint('generateNewInviteCode failed: $e');
-      return '';
+      debugPrint('generateNewInviteCode first attempt failed: $e — retrying…');
+      // Retry once after a short pause + token refresh (email sign-up timing fix)
+      try {
+        await Future.delayed(const Duration(milliseconds: 800));
+        await u.getIdToken(true);
+        return await attempt();
+      } catch (e2) {
+        debugPrint('generateNewInviteCode retry failed: $e2');
+        return '';
+      }
+    }
+  }
+
+  /// Returns true if [code] exists in Firestore and belongs to the current user.
+  /// Returns true (don't invalidate) on network errors.
+  Future<bool> isOwnedInviteCodeValid(String code) async {
+    if (code.isEmpty) return false;
+    final u = currentUser;
+    if (u == null) return false;
+    try {
+      final doc = await _db
+          .collection('inviteCodes')
+          .doc(code)
+          .get()
+          .timeout(const Duration(seconds: 5));
+      return doc.exists && doc.data()?['ownerUid'] == u.uid;
+    } catch (_) {
+      return true; // network error — assume valid, don't wipe it
     }
   }
 
@@ -1351,7 +1394,7 @@ class FirebaseService {
                     onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
                   }
                 })
-                 .catchError((_) {
+                .catchError((_) {
                   // ignore errors from legacy fallback — onData(null) already called
                 });
           }
@@ -2648,12 +2691,11 @@ class FirebaseService {
   }) async {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final ref = _storage.ref().child('groups/$groupId/mascots/mascot_$ts.png');
-      final metadata = SettableMetadata(contentType: 'image/png');
-      final task = ref.putData(
-        Uint8List.fromList(pngBytes),
-        metadata,
+      final ref = _storage.ref().child(
+        'groups/$groupId/mascots/mascot_$ts.png',
       );
+      final metadata = SettableMetadata(contentType: 'image/png');
+      final task = ref.putData(Uint8List.fromList(pngBytes), metadata);
       final snapshot = await task;
       return await snapshot.ref.getDownloadURL();
     } catch (e) {
@@ -2668,9 +2710,9 @@ class FirebaseService {
     required Mascot mascot,
   }) async {
     try {
-      await _mascotsRef(groupId)
-          .doc(mascot.id)
-          .set(mascot.toFirestore(), SetOptions(merge: true));
+      await _mascotsRef(
+        groupId,
+      ).doc(mascot.id).set(mascot.toFirestore(), SetOptions(merge: true));
     } catch (e) {
       debugPrint('saveMascot failed: $e');
     }
@@ -2734,9 +2776,9 @@ class FirebaseService {
     required int recordStreak,
   }) async {
     try {
-      await _mascotsRef(groupId)
-          .doc(mascotId)
-          .update({'recordStreak': recordStreak});
+      await _mascotsRef(
+        groupId,
+      ).doc(mascotId).update({'recordStreak': recordStreak});
     } catch (e) {
       debugPrint('updateMascotRecord failed: $e');
     }
@@ -2748,10 +2790,9 @@ class FirebaseService {
     required String? mascotId,
   }) async {
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .set({'activeMascotId': mascotId}, SetOptions(merge: true));
+      await _db.collection('groups').doc(groupId).set({
+        'activeMascotId': mascotId,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('setActiveMascot failed: $e');
     }
@@ -2765,14 +2806,11 @@ class FirebaseService {
     required double scale,
   }) async {
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .set({
-            'mascotPositionX': x,
-            'mascotPositionY': y,
-            'mascotScale': scale,
-          }, SetOptions(merge: true));
+      await _db.collection('groups').doc(groupId).set({
+        'mascotPositionX': x,
+        'mascotPositionY': y,
+        'mascotScale': scale,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('updateMascotPosition failed: $e');
     }
@@ -2821,15 +2859,14 @@ class FirebaseService {
 
       // Update record streak for active mascot if needed.
       if (activeMascotId != null) {
-        final mascotDoc =
-            await _mascotsRef(groupId).doc(activeMascotId).get();
+        final mascotDoc = await _mascotsRef(groupId).doc(activeMascotId).get();
         if (mascotDoc.exists) {
           final record =
               (mascotDoc.data()?['recordStreak'] as num?)?.toInt() ?? 0;
           if (newStreak > record) {
-            await _mascotsRef(groupId)
-                .doc(activeMascotId)
-                .update({'recordStreak': newStreak});
+            await _mascotsRef(
+              groupId,
+            ).doc(activeMascotId).update({'recordStreak': newStreak});
           }
         }
       }
@@ -2844,23 +2881,26 @@ class FirebaseService {
         .collection('groups')
         .doc(groupId)
         .snapshots()
-        .map((snap) => snap.exists
-            ? GroupMascotState.fromMap(snap.data()!)
-            : const GroupMascotState());
+        .map(
+          (snap) => snap.exists
+              ? GroupMascotState.fromMap(snap.data()!)
+              : const GroupMascotState(),
+        );
   }
 
   /// Real-time stream of mascots in the group gallery.
   Stream<List<Mascot>> listenToMascots({required String groupId}) {
     return _mascotsRef(groupId).snapshots().map(
-      (snap) => snap.docs
-          .map((d) => Mascot.fromFirestore(d.data()))
-          .where((m) => m.id.isNotEmpty)
-          .toList()
-        ..sort((a, b) {
-          // defaults first, then by creation date
-          if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-          return a.createdAt.compareTo(b.createdAt);
-        }),
+      (snap) =>
+          snap.docs
+              .map((d) => Mascot.fromFirestore(d.data()))
+              .where((m) => m.id.isNotEmpty)
+              .toList()
+            ..sort((a, b) {
+              // defaults first, then by creation date
+              if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+              return a.createdAt.compareTo(b.createdAt);
+            }),
     );
   }
 
@@ -2889,10 +2929,7 @@ class _LocalNotificationContent {
   final String title;
   final String body;
 
-  const _LocalNotificationContent({
-    required this.title,
-    required this.body,
-  });
+  const _LocalNotificationContent({required this.title, required this.body});
 }
 
 /// Internal transfer object used by [listenToDrawingStrokes].

@@ -115,20 +115,21 @@ class MascotService extends ChangeNotifier {
       );
     }
     // Write new defaults — stream will re-fire and gallery updates.
-    await _fb.saveMascotsBatch(
-      groupId: _groupId,
-      mascots: DefaultMascots.asMascots(),
-    );
+    final newDefaults = DefaultMascots.asMascots();
+    await _fb.saveMascotsBatch(groupId: _groupId, mascots: newDefaults);
+    // Auto-activate the first new default so the mascot stays visible.
+    if (newDefaults.isNotEmpty) {
+      await setActive(newDefaults.first.id);
+    }
   }
 
   Future<void> _seedDefaults() async {
     final defaults = DefaultMascots.asMascots();
-    // saveMascotsBatch catches its own errors internally and never throws,
-    // so we cannot rely on try/catch here. After the call, if Firestore
-    // wrote successfully the stream will fire again with the seeded data.
-    // If it failed silently the stream won't update - so we show defaults
-    // locally right now to prevent infinite loading.
     await _fb.saveMascotsBatch(groupId: _groupId, mascots: defaults);
+    // Auto-activate the first default mascot so it is visible immediately.
+    if (defaults.isNotEmpty) {
+      await setActive(defaults.first.id);
+    }
     if (_mascots.isEmpty) {
       _mascots = List.from(defaults);
       _isLoading = false;

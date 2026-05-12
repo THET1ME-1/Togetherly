@@ -31,6 +31,7 @@ class ConnectionsManager extends ChangeNotifier {
     await _saveLocal();
     notifyListeners();
   }
+
   bool get hasMultipleConnections => _connections.length > 1;
 
   // ── Initialization ──
@@ -55,25 +56,35 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     for (var connection in _connections) {
-      if (connection.inviteCode.isEmpty) {
-        if (_fb.isLoggedIn) {
-          // If connection already has a group, generate a group invite code
-          if (connection.pairId.isNotEmpty) {
-            final firestoreCode = await _fb.generateGroupInviteCode(
-              connection.pairId,
-            );
-            connection.inviteCode = firestoreCode.isNotEmpty
-                ? firestoreCode
-                : Connection.generateLocalCode();
-          } else {
-            final firestoreCode = await _fb.generateNewInviteCode();
-            connection.inviteCode = firestoreCode.isNotEmpty
-                ? firestoreCode
-                : Connection.generateLocalCode();
+      if (_fb.isLoggedIn) {
+        if (connection.pairId.isNotEmpty) {
+          // Paired connection: always refresh with a group-tied code.
+          final fc = await _fb.generateGroupInviteCode(connection.pairId);
+          if (fc.isNotEmpty) {
+            connection.inviteCode = fc;
+          } else if (connection.inviteCode.isEmpty) {
+            connection.inviteCode = Connection.generateLocalCode();
           }
         } else {
-          connection.inviteCode = Connection.generateLocalCode();
+          // Unpaired connection: validate the stored code is actually in
+          // Firestore and owned by the current user. Local fallback codes
+          // (generated when Firestore was unreachable) will fail this check
+          // and trigger a fresh Firestore code.
+          final codeValid = await _fb.isOwnedInviteCodeValid(
+            connection.inviteCode,
+          );
+          if (!codeValid) {
+            final oldCode = connection.inviteCode.isNotEmpty
+                ? connection.inviteCode
+                : null;
+            final fc = await _fb.generateNewInviteCode(oldCode: oldCode);
+            connection.inviteCode = fc.isNotEmpty
+                ? fc
+                : Connection.generateLocalCode();
+          }
         }
+      } else if (connection.inviteCode.isEmpty) {
+        connection.inviteCode = Connection.generateLocalCode();
       }
 
       // Only refresh pair status for connections that already have a pairId.

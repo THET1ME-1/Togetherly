@@ -95,9 +95,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
-        // User exists in Auth but no profile - redirect to setup
-        if (mounted) setState(() => _isLoading = false);
-        _showError(LocaleService.current.profileNotFound);
+        // No complete profile yet — send to setup to finish registration
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => SetupScreen(userData: widget.userData),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
