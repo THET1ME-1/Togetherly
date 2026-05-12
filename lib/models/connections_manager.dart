@@ -186,6 +186,28 @@ class ConnectionsManager extends ChangeNotifier {
     target.partnerAvatarUrl = result['partnerAvatar'] ?? '';
     target.startDate = result['startDate'] as DateTime? ?? DateTime.now();
 
+    final rtStr = result['relationshipType'] as String?;
+    if (rtStr != null) {
+      target.relationshipType = RelationshipType.values.firstWhere(
+        (e) => e.name == rtStr,
+        orElse: () => RelationshipType.couple,
+      );
+    }
+    target.customRelationshipLabel =
+        result['customRelationshipLabel'] as String? ?? '';
+    target.customRelationshipEmoji =
+        result['customRelationshipEmoji'] as String? ?? '';
+    final customTypes = result['customRelationshipTypes'] as List<dynamic>?;
+    if (customTypes != null) {
+      target.customRelationshipTypes = customTypes
+          .map(
+            (e) => Map<String, String>.from(
+              (e as Map).map((k, v) => MapEntry(k.toString(), v.toString())),
+            ),
+          )
+          .toList();
+    }
+
     final membersList = result['members'] as List<dynamic>?;
     if (membersList != null) {
       target.members = membersList

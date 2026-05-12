@@ -948,6 +948,10 @@ class FirebaseService {
         u.uid: myData['avatarUrl'] ?? u.photoURL ?? '',
       },
       'maxMembers': 2,
+      'relationshipType': 'couple',
+      'customRelationshipLabel': '',
+      'customRelationshipEmoji': '',
+      'customRelationshipTypes': <Map<String, String>>[],
       'startDate': now,
       'createdAt': now,
     });
@@ -989,6 +993,10 @@ class FirebaseService {
       'partnerAvatar': ownerData['avatarUrl'] ?? '',
       'pairId': groupRef.id,
       'startDate': DateTime.now(),
+      'relationshipType': 'couple',
+      'customRelationshipLabel': '',
+      'customRelationshipEmoji': '',
+      'customRelationshipTypes': <Map<String, String>>[],
       'members': [
         {
           'uid': ownerUid,
@@ -1109,6 +1117,14 @@ class FirebaseService {
       'startDate': groupData != null
           ? ((groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now())
           : DateTime.now(),
+      'relationshipType': groupData?['relationshipType'] as String? ?? 'couple',
+      'customRelationshipLabel':
+          groupData?['customRelationshipLabel'] as String? ?? '',
+      'customRelationshipEmoji':
+          groupData?['customRelationshipEmoji'] as String? ?? '',
+      'customRelationshipTypes':
+          groupData?['customRelationshipTypes'] as List<dynamic>? ??
+          <dynamic>[],
       'members': [...members, u.uid]
           .map(
             (uid) => {

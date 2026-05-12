@@ -827,17 +827,11 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       final w = drawing.width;
       final h = drawing.height;
 
-      // Composite: white + prevDrawing (if editing) + new strokes → final PNG.
+      // Composite: transparent + prevDrawing (if editing) + new strokes → final PNG.
       final recorder = ui.PictureRecorder();
       final c = Canvas(recorder);
 
-      // 1. White background
-      c.drawRect(
-        Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
-        Paint()..color = Colors.white,
-      );
-
-      // 2. Previous drawing (edit mode)
+      // 1. Previous drawing (edit mode)
       if (_prevDrawingImage != null) {
         c.drawImageRect(
           _prevDrawingImage!,
@@ -852,7 +846,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
         );
       }
 
-      // 3. New strokes on top
+      // 2. New strokes on top
       c.drawImage(drawing, Offset.zero, Paint());
       drawing.dispose();
       final composite = recorder.endRecording();

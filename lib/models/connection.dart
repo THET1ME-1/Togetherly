@@ -425,6 +425,30 @@ class Connection {
         partnerAvatarUrl = result['partnerAvatar'] ?? '';
         startDate = result['startDate'] as DateTime? ?? DateTime.now();
 
+        final rtStr = result['relationshipType'] as String?;
+        if (rtStr != null) {
+          relationshipType = RelationshipType.values.firstWhere(
+            (e) => e.name == rtStr,
+            orElse: () => RelationshipType.couple,
+          );
+        }
+        customRelationshipLabel =
+            result['customRelationshipLabel'] as String? ?? '';
+        customRelationshipEmoji =
+            result['customRelationshipEmoji'] as String? ?? '';
+        final crtList = result['customRelationshipTypes'] as List<dynamic>?;
+        if (crtList != null) {
+          customRelationshipTypes = crtList
+              .map(
+                (e) => Map<String, String>.from(
+                  (e as Map).map(
+                    (k, v) => MapEntry(k.toString(), v.toString()),
+                  ),
+                ),
+              )
+              .toList();
+        }
+
         // Parse members
         final membersList = result['members'] as List<dynamic>?;
         if (membersList != null) {
@@ -830,22 +854,35 @@ class Connection {
         .toList();
 
     return Connection(
-      id: json['id'] ?? '',
-      firebaseService: firebaseService,
-      isPaired: json['isPaired'] ?? false,
-      startDate: json['startDate'] != null
-          ? DateTime.tryParse(json['startDate'])
-          : null,
-      partnerName: json['partnerName'] ?? '',
-      partnerAvatarUrl: json['partnerAvatarUrl'] ?? '',
-      members: membersList ?? [],
-      inviteCode: json['inviteCode'] ?? '',
-      pairId: json['pairId'] ?? '',
-      relationshipType: RelationshipType.values.firstWhere(
-        (e) => e.name == json['relationshipType'],
-        orElse: () => RelationshipType.couple,
-      ),
-      onChanged: onChanged,
-    );
+        id: json['id'] ?? '',
+        firebaseService: firebaseService,
+        isPaired: json['isPaired'] ?? false,
+        startDate: json['startDate'] != null
+            ? DateTime.tryParse(json['startDate'])
+            : null,
+        partnerName: json['partnerName'] ?? '',
+        partnerAvatarUrl: json['partnerAvatarUrl'] ?? '',
+        members: membersList ?? [],
+        inviteCode: json['inviteCode'] ?? '',
+        pairId: json['pairId'] ?? '',
+        relationshipType: RelationshipType.values.firstWhere(
+          (e) => e.name == json['relationshipType'],
+          orElse: () => RelationshipType.couple,
+        ),
+        customRelationshipLabel: json['customRelationshipLabel'] ?? '',
+        customRelationshipEmoji: json['customRelationshipEmoji'] ?? '',
+        onChanged: onChanged,
+      )
+      ..customRelationshipTypes =
+          (json['customRelationshipTypes'] as List<dynamic>?)
+              ?.map(
+                (e) => Map<String, String>.from(
+                  (e as Map).map(
+                    (k, v) => MapEntry(k.toString(), v.toString()),
+                  ),
+                ),
+              )
+              .toList() ??
+          [];
   }
 }
