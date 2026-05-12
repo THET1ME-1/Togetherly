@@ -161,13 +161,13 @@ class DefaultMascots {
   static List<Map<String, String>> get entries => [
     {
       'id': 'default_boy',
-      'name': 'Веселый мальчик',
+      'name': 'Пиксиск',
       'asset': '$_base/Веселый мальчик.png',
     },
     {
       'id': 'default_girl',
-      'name': 'Веселая девочка',
-      'asset': '$_base/Веселая девочка.jpg',
+      'name': 'Пикси',
+      'asset': '$_base/Веселая девочка.png',
     },
   ];
 

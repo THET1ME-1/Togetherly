@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show Share, XFile;
@@ -31,6 +32,8 @@ class MascotGalleryScreen extends StatefulWidget {
 }
 
 class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
+  static final Uri _authorTelegramUri = Uri.parse('https://t.me/oke_y_y');
+
   AppTheme get _t => widget.theme;
   MascotService get _svc => widget.mascotService;
 
@@ -305,6 +308,10 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     await _export(mascot);
   }
 
+  Future<void> _openAuthorLink() async {
+    await launchUrl(_authorTelegramUri, mode: LaunchMode.externalApplication);
+  }
+
   void _showActions(Mascot mascot) {
     final isActive = _svc.state.activeMascotId == mascot.id;
     final canExport = mascot.imageUrl != null;
@@ -522,6 +529,34 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                       );
                     },
                   ),
+          ),
+          SafeArea(
+            top: false,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: InkWell(
+                  onTap: _openAuthorLink,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      'Алёна Гребенева',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _t.primary,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
