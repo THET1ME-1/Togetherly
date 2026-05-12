@@ -78,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- Mascot service --
   final MascotService _mascotService = MascotService();
   StreamSubscription? _mascotStateSub;
+  AppLifecycleListener? _appLifecycleListener;
 
   // -- Memory Lane real-time --
   final FirebaseService _fb = FirebaseService();
@@ -116,6 +117,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Fetch user location for distance display
     _fetchUserLocation();
+
+    _appLifecycleListener = AppLifecycleListener(
+      onResume: () {
+        if (_pairData.isPaired) {
+          _mascotService.recordDailyActivity();
+        }
+      },
+    );
   }
 
   @override
@@ -123,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
     _mascotStateSub?.cancel();
+    _appLifecycleListener?.dispose();
     _mascotService.dispose();
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);

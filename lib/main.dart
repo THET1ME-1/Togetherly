@@ -8,6 +8,7 @@ import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
 import 'services/locale_service.dart';
+import 'services/mascot_inactivity_notification_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'widgets/common/m3_loading.dart';
@@ -39,6 +40,10 @@ void main() async {
 
   // FCM — push-уведомления
   FirebaseService().initFCM();
+
+  // Локальное напоминание, если пользователь долго не открывает приложение
+  await MascotInactivityNotificationService.instance.init();
+  await MascotInactivityNotificationService.instance.markAppOpened();
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
@@ -81,10 +86,22 @@ class _LoveAppState extends State<LoveApp> {
     _init();
     // Отслеживаем жизненный цикл приложения для обновления статуса присутствия
     _lifecycleListener = AppLifecycleListener(
-      onResume: () => FirebaseService().setOnlineStatus(true),
-      onPause: () => FirebaseService().setOnlineStatus(false),
-      onDetach: () => FirebaseService().setOnlineStatus(false),
-      onHide: () => FirebaseService().setOnlineStatus(false),
+      onResume: () {
+        FirebaseService().setOnlineStatus(true);
+        MascotInactivityNotificationService.instance.markAppOpened();
+      },
+      onPause: () {
+        FirebaseService().setOnlineStatus(false);
+        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+      },
+      onDetach: () {
+        FirebaseService().setOnlineStatus(false);
+        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+      },
+      onHide: () {
+        FirebaseService().setOnlineStatus(false);
+        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+      },
     );
   }
 

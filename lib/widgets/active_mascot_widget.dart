@@ -46,6 +46,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   // Pinch state
   double _baseScale = 1.0;
+  bool _isInteracting = false;
 
   // Push-debounce for Firestore writes
   Timer? _syncTimer;
@@ -105,6 +106,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   void _onServiceChanged() {
     final state = _svc.state;
+    if (!mounted) return;
+
     if (!_positionInitialized && mounted) {
       // First sync: adopt group position/scale
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -121,8 +124,32 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
         _entranceCtrl.forward(from: 0);
         if (!_onboardingShown) _showOnboarding();
       });
+      return;
     }
-    if (mounted) setState(() {});
+
+    if (_positionInitialized && !_isInteracting) {
+      final size = MediaQuery.of(context).size;
+      final nextPosition = Offset(
+        state.positionX * size.width,
+        state.positionY * size.height,
+      );
+      final nextScale = state.scale.clamp(0.4, 3.0);
+      final shouldUpdatePosition =
+          (_position.dx - nextPosition.dx).abs() > 0.5 ||
+          (_position.dy - nextPosition.dy).abs() > 0.5;
+      final shouldUpdateScale = (_scale - nextScale).abs() > 0.01;
+
+      if (shouldUpdatePosition || shouldUpdateScale) {
+        setState(() {
+          _position = nextPosition;
+          _scale = nextScale;
+          _clampPosition();
+        });
+        return;
+      }
+    }
+
+    setState(() {});
   }
 
   void _showOnboarding() async {
@@ -173,6 +200,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   // ── Gestures ─────────────────────────────────────────────────────────────
 
   void _onScaleStart(ScaleStartDetails d) {
+    _isInteracting = true;
     _baseScale = _scale;
   }
 
@@ -186,6 +214,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   }
 
   void _onScaleEnd(ScaleEndDetails _) {
+    _isInteracting = false;
     _scheduleSync();
   }
 
@@ -286,6 +315,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       child: ScaleTransition(
         scale: _entranceAnim,
         child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
           onTap: _onTap,
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
