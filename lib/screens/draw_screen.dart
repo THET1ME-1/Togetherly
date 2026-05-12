@@ -158,8 +158,11 @@ class _DrawScreenState extends State<DrawScreen>
   StreamSubscription? _strokesSub;
   StreamSubscription? _liveSub;
   StreamSubscription? _bgColorSub;
+  StreamSubscription? _clearVersionSub;
+  StreamSubscription? _rotationSub;
   Timer? _staleTimer;
   Timer? _hintTimer;
+  int? _lastClearVersion;
 
   String get _myUid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
@@ -249,6 +252,8 @@ class _DrawScreenState extends State<DrawScreen>
     _strokesSub?.cancel();
     _liveSub?.cancel();
     _bgColorSub?.cancel();
+    _clearVersionSub?.cancel();
+    _rotationSub?.cancel();
     _staleTimer?.cancel();
     _hintTimer?.cancel();
     _toolbarAnim.dispose();
@@ -354,6 +359,16 @@ class _DrawScreenState extends State<DrawScreen>
           onError: (e) => debugPrint('[Draw] stream error: $e'),
         );
 
+    _clearVersionSub = _fb
+        .listenToCanvasClearVersion(groupId: _groupId)
+        .handleError((e) => debugPrint('[Draw] clearVersion error: $e'))
+        .listen(_onRemoteClearVersion);
+
+    _rotationSub = _fb
+        .listenToCanvasRotation(groupId: _groupId)
+        .handleError((e) => debugPrint('[Draw] rotation error: $e'))
+        .listen(_onRemoteRotation);
+
     // Safety: ensure listeners don't crash the app if rules are restrictive
     _strokesSub?.onError((e) => debugPrint('[Draw] global strokes error: $e'));
 
@@ -409,6 +424,33 @@ class _DrawScreenState extends State<DrawScreen>
     }
 
     setState(() => _visibleStrokes = _composeVisibleStrokes());
+  }
+
+  void _onRemoteClearVersion(int? version) {
+    if (!mounted || version == null) return;
+    if (_lastClearVersion == version) return;
+    _lastClearVersion = version;
+
+    _myStrokeIds.clear();
+    _redoStack.clear();
+    _pendingLocalStrokes.clear();
+    _cancelledPendingStrokeIds.clear();
+    _remoteStrokes = [];
+    _partnerLiveMap.clear();
+    _partnerTimestamps.clear();
+    _partnerNotifier.value = const [];
+    setState(() {
+      _visibleStrokes = [];
+    });
+  }
+
+  void _onRemoteRotation(int? rotationMilliRadians) {
+    if (!mounted || rotationMilliRadians == null) return;
+    final remoteRotation = rotationMilliRadians / 1000.0;
+    if ((_canvasRotation - remoteRotation).abs() < 0.001) return;
+    setState(() {
+      _canvasRotation = remoteRotation;
+    });
   }
 
   void _onLiveStrokes(Map<String, Map<String, dynamic>> liveMap) {
@@ -747,7 +789,8 @@ class _DrawScreenState extends State<DrawScreen>
       final canvasPx = _screenToCanvas(event.localPosition);
       final delta = canvasPx - _imgDragStartPx;
       final newX = (_imgDragBase!.imageX ?? 0.5) + delta.dx / _canvasSize.width;
-      final newY = (_imgDragBase!.imageY ?? 0.5) + delta.dy / _canvasSize.height;
+      final newY =
+          (_imgDragBase!.imageY ?? 0.5) + delta.dy / _canvasSize.height;
       _applyImageUpdate(_copyImageStroke(_imgDragBase!, x: newX, y: newY));
       return;
     }
@@ -844,6 +887,15 @@ class _DrawScreenState extends State<DrawScreen>
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
       if (_isDrawing) _cancelCurrentGesture();
+    }
+
+    if (_hasSharedCanvas) {
+      unawaited(
+        _fb.setCanvasRotation(
+          groupId: _groupId,
+          rotationQuarterTurns: (_canvasRotation * 1000).round(),
+        ),
+      );
     }
   }
 
@@ -996,12 +1048,14 @@ class _DrawScreenState extends State<DrawScreen>
     // Sync URL to Firestore if already confirmed as a remote stroke
     final updated = _findImageById(current.id);
     if (updated != null && _remoteStrokes.any((s) => s.id == current!.id)) {
-      unawaited(_fb.updateDrawingStroke(
-        groupId: _groupId,
-        strokeId: current.id,
-        updates: {'imageUrl': url},
-        canvasId: _canvasId,
-      ));
+      unawaited(
+        _fb.updateDrawingStroke(
+          groupId: _groupId,
+          strokeId: current.id,
+          updates: {'imageUrl': url},
+          canvasId: _canvasId,
+        ),
+      );
     }
   }
 
@@ -2544,10 +2598,8 @@ class _CanvasSceneState extends State<_CanvasScene> {
 
   @override
   Widget build(BuildContext context) {
-    final imageStrokes =
-        widget.strokes.where((s) => s.isImageStroke).toList();
-    final drawStrokes =
-        widget.strokes.where((s) => !s.isImageStroke).toList();
+    final imageStrokes = widget.strokes.where((s) => s.isImageStroke).toList();
+    final drawStrokes = widget.strokes.where((s) => !s.isImageStroke).toList();
 
     return Container(
       color: widget.bgColor,
@@ -2570,9 +2622,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
               ),
             ),
           ),
-          ...imageStrokes.map(
-            (s) => _buildImageWidget(s, widget.canvasSize),
-          ),
+          ...imageStrokes.map((s) => _buildImageWidget(s, widget.canvasSize)),
         ],
       ),
     );
@@ -2619,19 +2669,13 @@ class _CanvasSceneState extends State<_CanvasScene> {
         alignment: Alignment.center,
         child: Stack(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: img,
-            ),
+            ClipRRect(borderRadius: BorderRadius.circular(4), child: img),
             if (isSelected)
               Positioned.fill(
                 child: IgnorePointer(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.blue.shade400,
-                        width: 2,
-                      ),
+                      border: Border.all(color: Colors.blue.shade400, width: 2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),

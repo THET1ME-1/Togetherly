@@ -1174,8 +1174,19 @@ class FirebaseService {
     Map<String, String> entry,
   ) async {
     try {
-      await _db.collection('groups').doc(groupId).update({
-        'customRelationshipTypes': FieldValue.arrayUnion([entry]),
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? <String, dynamic>{};
+        final list = List<Map<String, dynamic>>.from(
+          (data['customRelationshipTypes'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        if (!list.any((e) => e['id'] == entry['id'])) {
+          list.add(Map<String, dynamic>.from(entry));
+        }
+        tx.set(ref, {'customRelationshipTypes': list}, SetOptions(merge: true));
       });
     } catch (e) {
       debugPrint('addCustomRelationshipType failed: $e');
@@ -1188,23 +1199,35 @@ class FirebaseService {
     Map<String, String> entry,
   ) async {
     try {
-      final doc = await _db.collection('groups').doc(groupId).get();
-      final data = doc.data();
-      if (data == null) return;
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data();
+        if (data == null) return;
 
-      final list = List<Map<String, dynamic>>.from(
-        (data['customRelationshipTypes'] as List<dynamic>? ?? []).map(
-          (e) => Map<String, dynamic>.from(e as Map),
-        ),
-      );
+        final list = List<Map<String, dynamic>>.from(
+          (data['customRelationshipTypes'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        final idx = list.indexWhere((e) => e['id'] == entry['id']);
+        if (idx == -1) return;
 
-      final idx = list.indexWhere((e) => e['id'] == entry['id']);
-      if (idx != -1) {
-        list[idx] = entry;
-        await _db.collection('groups').doc(groupId).update({
-          'customRelationshipTypes': list,
-        });
-      }
+        final previous = Map<String, dynamic>.from(list[idx]);
+        list[idx] = Map<String, dynamic>.from(entry);
+
+        final updates = <String, dynamic>{'customRelationshipTypes': list};
+        final currentLabel = data['customRelationshipLabel'] as String? ?? '';
+        final currentEmoji = data['customRelationshipEmoji'] as String? ?? '';
+        final prevLabel = previous['label'] as String? ?? '';
+        final prevEmoji = previous['emoji'] as String? ?? '';
+        if (currentLabel == prevLabel && currentEmoji == prevEmoji) {
+          updates['customRelationshipLabel'] = entry['label'] ?? '';
+          updates['customRelationshipEmoji'] = entry['emoji'] ?? '';
+        }
+
+        tx.update(ref, updates);
+      });
     } catch (e) {
       debugPrint('updateCustomRelationshipType failed: $e');
     }
@@ -1213,19 +1236,36 @@ class FirebaseService {
   /// Delete a custom relationship type from the group's shared list
   Future<void> deleteCustomRelationshipType(String groupId, String id) async {
     try {
-      final doc = await _db.collection('groups').doc(groupId).get();
-      final data = doc.data();
-      if (data == null) return;
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data();
+        if (data == null) return;
 
-      final list = List<Map<String, dynamic>>.from(
-        (data['customRelationshipTypes'] as List<dynamic>? ?? []).map(
-          (e) => Map<String, dynamic>.from(e as Map),
-        ),
-      );
+        final list = List<Map<String, dynamic>>.from(
+          (data['customRelationshipTypes'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        final removed = list.where((e) => e['id'] == id).toList();
+        list.removeWhere((e) => e['id'] == id);
 
-      list.removeWhere((e) => e['id'] == id);
-      await _db.collection('groups').doc(groupId).update({
-        'customRelationshipTypes': list,
+        final updates = <String, dynamic>{'customRelationshipTypes': list};
+        final removedLabel = removed.isNotEmpty
+            ? removed.first['label'] as String? ?? ''
+            : '';
+        final currentType = data['relationshipType'] as String? ?? '';
+        final currentLabel = data['customRelationshipLabel'] as String? ?? '';
+        if (currentType == 'custom' &&
+            removedLabel.isNotEmpty &&
+            currentLabel == removedLabel) {
+          updates['relationshipType'] = 'couple';
+          updates['maxMembers'] = 2;
+          updates['customRelationshipLabel'] = '';
+          updates['customRelationshipEmoji'] = '';
+        }
+
+        tx.update(ref, updates);
       });
     } catch (e) {
       debugPrint('deleteCustomRelationshipType failed: $e');
@@ -1383,13 +1423,7 @@ class FirebaseService {
         .collection('groups')
         .doc(pairId)
         .snapshots(includeMetadataChanges: true)
-        .listen((snap) {
-          // Skip if data is only from cache and not yet confirmed by server
-          if (snap.metadata.hasPendingWrites) {
-            debugPrint('listenToPair: skipping snapshot with pending writes');
-            return;
-          }
-
+        .listen((snap) async {
           if (snap.exists) {
             final parsedData = _parseGroupDoc(pairId, snap.data()!);
             debugPrint(
@@ -1398,21 +1432,19 @@ class FirebaseService {
             onData(parsedData);
           } else {
             debugPrint('listenToPair: group document deleted or not found');
-            // Immediately notify that the group is gone
-            onData(null);
-            // Also check legacy pairs collection as a fallback
-            _db
-                .collection('pairs')
-                .doc(pairId)
-                .get(const GetOptions(source: Source.server))
-                .then((pairSnap) {
-                  if (pairSnap.exists) {
-                    onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
-                  }
-                })
-                .catchError((_) {
-                  // ignore errors from legacy fallback — onData(null) already called
-                });
+            try {
+              final pairSnap = await _db
+                  .collection('pairs')
+                  .doc(pairId)
+                  .get(const GetOptions(source: Source.server));
+              if (pairSnap.exists) {
+                onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
+              } else {
+                onData(null);
+              }
+            } catch (_) {
+              onData(null);
+            }
           }
         }, onError: (e) => debugPrint('listenToPair error: $e'));
   }
@@ -1526,8 +1558,6 @@ class FirebaseService {
         .doc(u.uid)
         .snapshots(includeMetadataChanges: true)
         .listen((snap) {
-          // Skip if data is only from local cache and not yet confirmed by server
-          if (snap.metadata.isFromCache) return;
           if (snap.exists) {
             onData(snap.data());
           } else {
@@ -1985,8 +2015,21 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
-      await _db.collection('groups').doc(groupId).update({
-        'customStatuses': FieldValue.arrayUnion([statusData]),
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? <String, dynamic>{};
+        final customStatuses = List<Map<String, dynamic>>.from(
+          (data['customStatuses'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        if (!customStatuses.any((s) => s['id'] == statusData['id'])) {
+          customStatuses.add(Map<String, dynamic>.from(statusData));
+        }
+        tx.set(ref, {
+          'customStatuses': customStatuses,
+        }, SetOptions(merge: true));
       });
     } catch (e) {
       debugPrint('addCustomStatus failed: $e');
@@ -2000,36 +2043,30 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data();
+        if (data == null) return;
 
-      // Get current custom statuses
-      final doc = await _db.collection('groups').doc(groupId).get();
-      final data = doc.data();
-      if (data == null) return;
+        final customStatuses = List<Map<String, dynamic>>.from(
+          (data['customStatuses'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        final index = customStatuses.indexWhere(
+          (s) => s['id'] == statusData['id'],
+        );
+        if (index == -1) return;
 
-      final customStatuses = List<Map<String, dynamic>>.from(
-        (data['customStatuses'] as List<dynamic>? ?? []).map(
-          (e) => Map<String, dynamic>.from(e as Map),
-        ),
-      );
-
-      // Find and update the status
-      final index = customStatuses.indexWhere(
-        (s) => s['id'] == statusData['id'],
-      );
-      if (index != -1) {
-        customStatuses[index] = statusData;
-        await _db.collection('groups').doc(groupId).update({
-          'customStatuses': customStatuses,
-        });
-
-        // Also update currentStatus if it matches
+        customStatuses[index] = Map<String, dynamic>.from(statusData);
+        final updates = <String, dynamic>{'customStatuses': customStatuses};
         final currentStatus = data['currentStatus'] as Map<String, dynamic>?;
         if (currentStatus != null && currentStatus['id'] == statusData['id']) {
-          await _db.collection('groups').doc(groupId).update({
-            'currentStatus': statusData,
-          });
+          updates['currentStatus'] = statusData;
         }
-      }
+        tx.update(ref, updates);
+      });
     } catch (e) {
       debugPrint('updateCustomStatus failed: $e');
     }
@@ -2039,29 +2076,26 @@ class FirebaseService {
   Future<void> deleteCustomStatus(String groupId, String statusId) async {
     if (groupId.isEmpty) return;
     try {
-      // Get current custom statuses
-      final doc = await _db.collection('groups').doc(groupId).get();
-      final data = doc.data();
-      if (data == null) return;
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data();
+        if (data == null) return;
 
-      final customStatuses = List<Map<String, dynamic>>.from(
-        (data['customStatuses'] as List<dynamic>? ?? []).map(
-          (e) => Map<String, dynamic>.from(e as Map),
-        ),
-      );
+        final customStatuses = List<Map<String, dynamic>>.from(
+          (data['customStatuses'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+        customStatuses.removeWhere((s) => s['id'] == statusId);
 
-      // Remove the status
-      customStatuses.removeWhere((s) => s['id'] == statusId);
-
-      final updates = <String, dynamic>{'customStatuses': customStatuses};
-
-      // Also clear currentStatus if it matches
-      final currentStatus = data['currentStatus'] as Map<String, dynamic>?;
-      if (currentStatus != null && currentStatus['id'] == statusId) {
-        updates['currentStatus'] = FieldValue.delete();
-      }
-
-      await _db.collection('groups').doc(groupId).update(updates);
+        final updates = <String, dynamic>{'customStatuses': customStatuses};
+        final currentStatus = data['currentStatus'] as Map<String, dynamic>?;
+        if (currentStatus != null && currentStatus['id'] == statusId) {
+          updates['currentStatus'] = FieldValue.delete();
+        }
+        tx.update(ref, updates);
+      });
     } catch (e) {
       debugPrint('deleteCustomStatus failed: $e');
     }
@@ -2096,6 +2130,97 @@ class FirebaseService {
           'FirebaseService: критическая ошибка сохранения таймеров - $e2',
         );
       }
+    }
+  }
+
+  Future<void> upsertGroupTimer({
+    required String groupId,
+    required Map<String, dynamic> timer,
+  }) async {
+    try {
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? <String, dynamic>{};
+        final timers = List<Map<String, dynamic>>.from(
+          (data['timers'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+
+        timers.removeWhere((t) => t['id'] == timer['id']);
+        final isDefault = timer['isDefault'] as bool? ?? false;
+        if (isDefault) {
+          for (final existing in timers) {
+            existing['isDefault'] = false;
+          }
+        }
+
+        timers.add(Map<String, dynamic>.from(timer));
+        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
+          timers.first['isDefault'] = true;
+        }
+
+        tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+      });
+    } catch (e) {
+      debugPrint('upsertGroupTimer failed: $e');
+    }
+  }
+
+  Future<void> deleteGroupTimer({
+    required String groupId,
+    required String timerId,
+  }) async {
+    try {
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? <String, dynamic>{};
+        final timers = List<Map<String, dynamic>>.from(
+          (data['timers'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+
+        timers.removeWhere((t) => t['id'] == timerId);
+        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
+          timers.first['isDefault'] = true;
+        }
+
+        tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+      });
+    } catch (e) {
+      debugPrint('deleteGroupTimer failed: $e');
+    }
+  }
+
+  Future<void> setDefaultGroupTimer({
+    required String groupId,
+    required String timerId,
+  }) async {
+    try {
+      await _db.runTransaction((tx) async {
+        final ref = _db.collection('groups').doc(groupId);
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? <String, dynamic>{};
+        final timers = List<Map<String, dynamic>>.from(
+          (data['timers'] as List<dynamic>? ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+
+        for (final timer in timers) {
+          timer['isDefault'] = timer['id'] == timerId;
+        }
+        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
+          timers.first['isDefault'] = true;
+        }
+
+        tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+      });
+    } catch (e) {
+      debugPrint('setDefaultGroupTimer failed: $e');
     }
   }
 
@@ -2504,10 +2629,15 @@ class FirebaseService {
       for (final doc in liveSnap.docs) {
         batch.delete(doc.reference);
       }
-      batch.set(_canvasMainRef(groupId, canvasId), {
-        'clearVersion': version,
-        'bgColor': ?bgColorValue,
-      }, SetOptions(merge: true));
+      final data = <String, dynamic>{'clearVersion': version};
+      if (bgColorValue != null) {
+        data['bgColor'] = bgColorValue;
+      }
+      batch.set(
+        _canvasMainRef(groupId, canvasId),
+        data,
+        SetOptions(merge: true),
+      );
       await batch.commit();
     } catch (e) {
       debugPrint('clearDrawingCanvas failed: $e');

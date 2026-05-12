@@ -141,6 +141,17 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _ensureDefaultFlag() {
+    if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
+      final sys = systemTimer;
+      if (sys != null) {
+        sys.isDefault = true;
+      } else {
+        _timers.first.isDefault = true;
+      }
+    }
+  }
+
   Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, TimerItem.encodeList(_timers));
@@ -189,8 +200,14 @@ class TimerService extends ChangeNotifier {
         isCountdown: isCountdown,
       ),
     );
+    _ensureDefaultFlag();
     await _saveLocal();
-    await _saveToFirestore();
+    if (_groupId.isNotEmpty) {
+      await _fb.upsertGroupTimer(
+        groupId: _groupId,
+        timer: _timers.last.toJson(),
+      );
+    }
     notifyListeners();
   }
 
@@ -204,8 +221,11 @@ class TimerService extends ChangeNotifier {
       }
     }
     _timers[idx] = updated;
+    _ensureDefaultFlag();
     await _saveLocal();
-    await _saveToFirestore();
+    if (_groupId.isNotEmpty) {
+      await _fb.upsertGroupTimer(groupId: _groupId, timer: updated.toJson());
+    }
     notifyListeners();
   }
 
@@ -223,7 +243,9 @@ class TimerService extends ChangeNotifier {
       _timers.first.isDefault = true;
     }
     await _saveLocal();
-    await _saveToFirestore();
+    if (_groupId.isNotEmpty) {
+      await _fb.deleteGroupTimer(groupId: _groupId, timerId: id);
+    }
     notifyListeners();
   }
 
@@ -232,8 +254,11 @@ class TimerService extends ChangeNotifier {
     for (final t in _timers) {
       t.isDefault = t.id == id;
     }
+    _ensureDefaultFlag();
     await _saveLocal();
-    await _saveToFirestore();
+    if (_groupId.isNotEmpty) {
+      await _fb.setDefaultGroupTimer(groupId: _groupId, timerId: id);
+    }
     notifyListeners();
   }
 
@@ -288,8 +313,11 @@ class TimerService extends ChangeNotifier {
 
     sys.title = newTitle;
     sys.emoji = relationshipEmoji;
+    _ensureDefaultFlag();
     await _saveLocal();
-    await _saveToFirestore();
+    if (_groupId.isNotEmpty) {
+      await _fb.upsertGroupTimer(groupId: _groupId, timer: sys.toJson());
+    }
     notifyListeners();
   }
 

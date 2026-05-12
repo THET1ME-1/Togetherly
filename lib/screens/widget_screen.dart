@@ -173,7 +173,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
-        .collection('canvases')
+        .collection('canvasCatalogue')
         .count()
         .get()
         .then((snap) {
@@ -255,10 +255,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       }
       final urls = await hws.getPhotoDayWidgetUrls(widgetId);
       widgetUrls[widgetId] = urls;
-      widgetRotationType[widgetId] =
-          await hws.getPhotoDayWidgetRotationType(widgetId);
-      widgetRotationInterval[widgetId] =
-          await hws.getPhotoDayWidgetRotationInterval(widgetId);
+      widgetRotationType[widgetId] = await hws.getPhotoDayWidgetRotationType(
+        widgetId,
+      );
+      widgetRotationInterval[widgetId] = await hws
+          .getPhotoDayWidgetRotationInterval(widgetId);
 
       // Превью: сначала свои локальные URL, иначе fallback по логике.
       String? preferredOwnPath;
@@ -1165,8 +1166,9 @@ class _WidgetScreenState extends State<WidgetScreen>
           widgetType: 'petal_timer',
           expandedContent: _buildTimerSelector(),
           isExpanded: _petalTimerWidgetExpanded,
-          onToggleExpand: () =>
-              setState(() => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded),
+          onToggleExpand: () => setState(
+            () => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded,
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -1608,11 +1610,18 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
         child: Column(
           children: [
-            Icon(Icons.timer_off_rounded, size: 36, color: Colors.grey.shade400),
+            Icon(
+              Icons.timer_off_rounded,
+              size: 36,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
-              style: GoogleFonts.rubik(fontSize: 13, color: Colors.grey.shade500),
+              style: GoogleFonts.rubik(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+              ),
             ),
           ],
         ),
@@ -1753,11 +1762,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.photo_library_rounded,
-                size: 18,
-                color: _t.primary,
-              ),
+              Icon(Icons.photo_library_rounded, size: 18, color: _t.primary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1832,7 +1837,8 @@ class _WidgetScreenState extends State<WidgetScreen>
     final partnerName = _pair.partnerName.isNotEmpty
         ? _pair.partnerName
         : 'партнёр';
-    final partnerSharedCount = _ws.firstPartnerData?.photoDayUrls.length ??
+    final partnerSharedCount =
+        _ws.firstPartnerData?.photoDayUrls.length ??
         ((_ws.firstPartnerData?.photoDayUrl?.isNotEmpty ?? false) ? 1 : 0);
 
     return Column(
@@ -1847,11 +1853,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.favorite_rounded,
-                size: 18,
-                color: _t.primary,
-              ),
+              Icon(Icons.favorite_rounded, size: 18, color: _t.primary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1938,9 +1940,9 @@ class _WidgetScreenState extends State<WidgetScreen>
         // Счёт фото в виджете
         final int photoCount = isPartner
             ? (_ws.firstPartnerData?.photoDayUrls.length ??
-                ((_ws.firstPartnerData?.photoDayUrl?.isNotEmpty ?? false)
-                    ? 1
-                    : 0))
+                  ((_ws.firstPartnerData?.photoDayUrl?.isNotEmpty ?? false)
+                      ? 1
+                      : 0))
             : (_photoDayWidgetUrls[widgetId]?.length ?? 0);
 
         final rotationType = _photoDayWidgetRotationType[widgetId] ?? 'unlock';
@@ -1950,10 +1952,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         final String summary = photoCount == 0
             ? (isPartner ? 'Нет фото от партнёра' : 'Фото не добавлены')
             : !hasCarousel
-                ? '1 фото · без карусели'
-                : rotationType == 'unlock'
-                    ? '$photoCount фото · при разблокировке'
-                    : '$photoCount фото · ${_intervalLabel(rotationInterval)}';
+            ? '1 фото · без карусели'
+            : rotationType == 'unlock'
+            ? '$photoCount фото · при разблокировке'
+            : '$photoCount фото · ${_intervalLabel(rotationInterval)}';
 
         VoidCallback onTapThumb = isPartner
             ? () => _showPartnerWidgetRotationEditor(widgetId)
@@ -2029,8 +2031,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                           decoration: BoxDecoration(
                             color: _t.primary,
                             shape: BoxShape.circle,
-                            border:
-                                Border.all(color: Colors.white, width: 1.5),
+                            border: Border.all(color: Colors.white, width: 1.5),
                           ),
                           child: Icon(
                             isPartner
@@ -2166,8 +2167,9 @@ class _WidgetScreenState extends State<WidgetScreen>
             return Container(
               decoration: BoxDecoration(
                 color: _t.cardSurface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               padding: EdgeInsets.only(
                 left: 20,
@@ -2203,8 +2205,8 @@ class _WidgetScreenState extends State<WidgetScreen>
                     canRotate
                         ? 'Партнёр поделился $partnerCount фото — выберите как они будут меняться на этом виджете.'
                         : partnerCount == 1
-                            ? 'Партнёр поделился 1 фото — без карусели.'
-                            : 'Партнёр ещё не поделился фото.',
+                        ? 'Партнёр поделился 1 фото — без карусели.'
+                        : 'Партнёр ещё не поделился фото.',
                     style: GoogleFonts.rubik(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -2367,8 +2369,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 title,
                 style: GoogleFonts.rubik(
                   fontSize: 12,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: isSelected ? _t.primary : Colors.grey.shade700,
                 ),
                 overflow: TextOverflow.ellipsis,

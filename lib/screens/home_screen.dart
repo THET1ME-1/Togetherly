@@ -240,6 +240,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _syncHomeWidgets();
       } else {
         _timerService.unbindFromGroup();
+        _moodService.unbindFromGroup();
+        _widgetService.unbindFromGroup();
         _mascotService.unbind();
       }
 

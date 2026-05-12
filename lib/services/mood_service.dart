@@ -26,6 +26,7 @@ class MoodService extends ChangeNotifier {
   /// Привязаться к группе и начать слушать.
   void bindToGroup(String groupId) {
     if (groupId == _groupId && groupId.isNotEmpty) return;
+    unbindFromGroup(notify: false);
     _groupId = groupId;
     _startListening();
   }
@@ -51,6 +52,7 @@ class MoodService extends ChangeNotifier {
   void listenToPartner(String partnerUid) {
     if (_groupId.isEmpty) return;
     _partnerMoodSubs[partnerUid]?.cancel();
+    _partnerEntries.remove(partnerUid);
     _partnerMoodSubs[partnerUid] = _fb.listenToMoodEntries(
       groupId: _groupId,
       uid: partnerUid,
@@ -64,6 +66,21 @@ class MoodService extends ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  void unbindFromGroup({bool notify = true}) {
+    _myMoodSub?.cancel();
+    _myMoodSub = null;
+    for (final sub in _partnerMoodSubs.values) {
+      sub?.cancel();
+    }
+    _partnerMoodSubs.clear();
+    _groupId = '';
+    _myEntries = [];
+    _partnerEntries.clear();
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   /// Добавить настроение.
@@ -163,10 +180,7 @@ class MoodService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _myMoodSub?.cancel();
-    for (final sub in _partnerMoodSubs.values) {
-      sub?.cancel();
-    }
+    unbindFromGroup(notify: false);
     super.dispose();
   }
 }

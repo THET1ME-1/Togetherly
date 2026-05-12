@@ -64,6 +64,7 @@ class WidgetService extends ChangeNotifier {
   /// Привязка к группе. Начинает слушать свой виджет.
   Future<void> bindToGroup(String groupId) async {
     if (groupId.isEmpty || groupId == _groupId) return;
+    await unbindFromGroup(clearNativeWidget: false);
     _groupId = groupId;
     await _loadSettings();
     _listenToMyData();
@@ -73,7 +74,9 @@ class WidgetService extends ChangeNotifier {
   /// Подписка на виджет-данные партнёра
   void listenToPartner(String partnerUid) {
     if (partnerUid.isEmpty || _groupId.isEmpty) return;
-    if (_partnerSubs.containsKey(partnerUid)) return;
+
+    _partnerSubs.remove(partnerUid)?.cancel();
+    _partnerData.remove(partnerUid);
 
     final ref = _db
         .collection('groups')
@@ -91,6 +94,23 @@ class WidgetService extends ChangeNotifier {
       _syncToNativeWidget();
       notifyListeners();
     }, onError: (e) => debugPrint('WidgetService partner listener error: $e'));
+  }
+
+  Future<void> unbindFromGroup({bool clearNativeWidget = true}) async {
+    _mySub?.cancel();
+    _mySub = null;
+    for (final sub in _partnerSubs.values) {
+      sub.cancel();
+    }
+    _partnerSubs.clear();
+    _groupId = '';
+    _myData = null;
+    _partnerData.clear();
+
+    if (clearNativeWidget) {
+      await _syncToNativeWidget();
+    }
+    notifyListeners();
   }
 
   void _listenToMyData() {
@@ -211,7 +231,10 @@ class WidgetService extends ChangeNotifier {
 
   /// Устанавливает кастомное фото конкретно для виджета "Фото дня"
   Future<void> updatePhotoDayUrl(String url) async {
-    await _updateField({'photoDayUrl': url, 'photoDayUrls': [url]});
+    await _updateField({
+      'photoDayUrl': url,
+      'photoDayUrls': [url],
+    });
   }
 
   Future<void> updatePhotoDayCarousel(List<String> urls) async {
