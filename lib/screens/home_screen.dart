@@ -77,7 +77,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -- Mascot service --
   final MascotService _mascotService = MascotService();
-  StreamSubscription? _mascotStateSub;
   AppLifecycleListener? _appLifecycleListener;
 
   // -- Memory Lane real-time --
@@ -131,7 +130,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
-    _mascotStateSub?.cancel();
     _appLifecycleListener?.dispose();
     _mascotService.dispose();
     _pairData.removeListener(_onPairChanged);
@@ -243,7 +241,6 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         _timerService.unbindFromGroup();
         _mascotService.unbind();
-        _mascotStateSub?.cancel();
       }
 
       setState(() {});
@@ -252,12 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _bindMascotService(String groupId) {
     _mascotService.bindToGroup(groupId);
-    _mascotStateSub?.cancel();
-    _mascotStateSub = _fb.listenToGroupMascotState(groupId: groupId).listen((
-      state,
-    ) {
-      _mascotService.applyGroupData(state.toMap());
-    });
     // Record that someone opened the app today (streak tracking).
     _mascotService.recordDailyActivity();
   }

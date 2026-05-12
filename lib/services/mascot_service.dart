@@ -10,6 +10,7 @@ class MascotService extends ChangeNotifier {
 
   String _groupId = '';
   StreamSubscription? _mascotsSub;
+  StreamSubscription? _groupStateSub;
 
   List<Mascot> _mascots = [];
   GroupMascotState _state = const GroupMascotState();
@@ -40,10 +41,21 @@ class MascotService extends ChangeNotifier {
     if (_groupId == groupId) return;
     _groupId = groupId;
     _mascotsSub?.cancel();
+    _groupStateSub?.cancel();
     _mascots = [];
     _state = const GroupMascotState();
     _isLoading = true;
     notifyListeners();
+
+    _groupStateSub = _fb
+        .listenToGroupMascotState(groupId: groupId)
+        .listen(
+          (state) {
+            _state = state;
+            notifyListeners();
+          },
+          onError: (e) => debugPrint('[MascotService] group state error: $e'),
+        );
 
     _mascotsSub = _fb
         .listenToMascots(groupId: groupId)
@@ -55,6 +67,7 @@ class MascotService extends ChangeNotifier {
 
   void unbind() {
     _mascotsSub?.cancel();
+    _groupStateSub?.cancel();
     _groupId = '';
     _mascots = [];
     _state = const GroupMascotState();
@@ -267,6 +280,7 @@ class MascotService extends ChangeNotifier {
   @override
   void dispose() {
     _mascotsSub?.cancel();
+    _groupStateSub?.cancel();
     super.dispose();
   }
 }
