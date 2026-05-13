@@ -538,20 +538,36 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: InkWell(
                   onTap: _openAuthorLink,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Ink(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 6,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    child: Text(
-                      'Алёна Гребенева',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: _t.primary,
-                        decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    decoration: BoxDecoration(
+                      color: _t.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: _t.primary.withOpacity(0.18)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.palette_outlined,
+                          size: 15,
+                          color: _t.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Художница - Алёна Гребенева',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _t.primary,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
