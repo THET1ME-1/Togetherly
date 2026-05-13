@@ -748,8 +748,6 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_pair.isPaired) return _buildNotPaired();
-
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -1090,6 +1088,8 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildWidgetGallery() {
+    final isPaired = _pair.isPaired;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1116,30 +1116,37 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
 
         // ── 1. Парный виджет ──
-        _buildGalleryItem(
-          title: LocaleService.current.pairWidgetTitle,
-          subtitle: LocaleService.current.pairWidgetSubtitle,
-          svgString: _heartSvg,
-          qualifiedName: 'com.example.love_app.LoveWidgetProvider',
-          preview: _buildWidgetPreview(),
-          widgetType: 'pair',
-          expandedContent: _buildPairWidgetExpandedContent(),
-          isExpanded: _pairWidgetExpanded,
-          onToggleExpand: () =>
-              setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
-        ),
-        const SizedBox(height: 16),
+        if (!isPaired) ...[
+          _buildNotPairedBanner(),
+          const SizedBox(height: 16),
+        ],
 
-        // ── 2. Счётчик дней вместе ──
-        _buildGalleryItem(
-          title: LocaleService.current.daysTogetherStat,
-          subtitle: LocaleService.current.daysCounterSubtitle,
-          svgString: _calendarSvg,
-          qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
-          preview: _buildDaysCounterPreview(),
-          widgetType: 'days_counter',
-        ),
-        const SizedBox(height: 16),
+        if (isPaired) ...[
+          _buildGalleryItem(
+            title: LocaleService.current.pairWidgetTitle,
+            subtitle: LocaleService.current.pairWidgetSubtitle,
+            svgString: _heartSvg,
+            qualifiedName: 'com.example.love_app.LoveWidgetProvider',
+            preview: _buildWidgetPreview(),
+            widgetType: 'pair',
+            expandedContent: _buildPairWidgetExpandedContent(),
+            isExpanded: _pairWidgetExpanded,
+            onToggleExpand: () =>
+                setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
+          ),
+          const SizedBox(height: 16),
+
+          // ── 2. Счётчик дней вместе ──
+          _buildGalleryItem(
+            title: LocaleService.current.daysTogetherStat,
+            subtitle: LocaleService.current.daysCounterSubtitle,
+            svgString: _calendarSvg,
+            qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
+            preview: _buildDaysCounterPreview(),
+            widgetType: 'days_counter',
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // ── 3. Таймер ──
         _buildGalleryItem(
@@ -1173,72 +1180,76 @@ class _WidgetScreenState extends State<WidgetScreen>
         const SizedBox(height: 16),
 
         // ── 4. Фото-виджет (личный) ──
-        _buildGalleryItem(
-          title: 'Фото-виджет',
-          subtitle: 'Личная карусель: 1–10 фото с автосменой',
-          svgString: _photoSvg,
-          qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
-          widgetType: 'photo_day_self',
-          expandedContent: _buildPhotoDayExpandedContent(),
-          isExpanded: _photoDayExpanded,
-          onToggleExpand: () =>
-              setState(() => _photoDayExpanded = !_photoDayExpanded),
-        ),
-        const SizedBox(height: 16),
+        if (isPaired) ...[
+          _buildGalleryItem(
+            title: 'Фото-виджет',
+            subtitle: 'Личная карусель: 1–10 фото с автосменой',
+            svgString: _photoSvg,
+            qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+            widgetType: 'photo_day_self',
+            expandedContent: _buildPhotoDayExpandedContent(),
+            isExpanded: _photoDayExpanded,
+            onToggleExpand: () =>
+                setState(() => _photoDayExpanded = !_photoDayExpanded),
+          ),
+          const SizedBox(height: 16),
 
-        // ── 4б. Фото партнёра ──
-        _buildGalleryItem(
-          title: LocaleService.current.widgetModePartner,
-          subtitle: LocaleService.current.photoDayPartnerSubtitle,
-          svgString: _photoSvg,
-          qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
-          widgetType: 'photo_day_partner',
-          expandedContent: _buildPartnerPhotoExpandedContent(),
-          isExpanded: _partnerPhotoExpanded,
-          onToggleExpand: () =>
-              setState(() => _partnerPhotoExpanded = !_partnerPhotoExpanded),
-        ),
-        const SizedBox(height: 16),
+          // ── 4б. Фото партнёра ──
+          _buildGalleryItem(
+            title: LocaleService.current.widgetModePartner,
+            subtitle: LocaleService.current.photoDayPartnerSubtitle,
+            svgString: _photoSvg,
+            qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+            widgetType: 'photo_day_partner',
+            expandedContent: _buildPartnerPhotoExpandedContent(),
+            isExpanded: _partnerPhotoExpanded,
+            onToggleExpand: () =>
+                setState(() => _partnerPhotoExpanded = !_partnerPhotoExpanded),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // ── 5. Настроение ──
-        _buildGalleryItem(
-          title: LocaleService.current.mood,
-          subtitle: LocaleService.current.moodWidgetSubtitle,
-          svgString: _moodSvg,
-          qualifiedName: 'com.example.love_app.MoodWidgetProvider',
-          preview: _buildMoodPreview(),
-          widgetType: 'mood',
-        ),
-        const SizedBox(height: 16),
+        if (isPaired) ...[
+          _buildGalleryItem(
+            title: LocaleService.current.mood,
+            subtitle: LocaleService.current.moodWidgetSubtitle,
+            svgString: _moodSvg,
+            qualifiedName: 'com.example.love_app.MoodWidgetProvider',
+            preview: _buildMoodPreview(),
+            widgetType: 'mood',
+          ),
+          const SizedBox(height: 16),
 
-        // ── 5б. Настроение на экране блокировки ──
-        _buildLockScreenMoodCard(),
-        const SizedBox(height: 16),
+          // ── 5б. Настроение на экране блокировки ──
+          _buildLockScreenMoodCard(),
+          const SizedBox(height: 16),
 
-        // ── 5в. Фото-сетка ──
-        _buildGalleryItem(
-          title: LocaleService.current.photoGridWidget,
-          subtitle: LocaleService.current.photoGridWidgetSubtitle,
-          svgString: _photoSvg,
-          qualifiedName: 'com.example.love_app.PhotoGridWidgetProvider',
-          preview: _buildPhotoGridPreview(),
-          widgetType: 'photo_grid',
-          expandedContent: _buildPhotoGridExpandedContent(),
-          isExpanded: _photoGridExpanded,
-          onToggleExpand: () =>
-              setState(() => _photoGridExpanded = !_photoGridExpanded),
-        ),
-        const SizedBox(height: 16),
+          // ── 5в. Фото-сетка ──
+          _buildGalleryItem(
+            title: LocaleService.current.photoGridWidget,
+            subtitle: LocaleService.current.photoGridWidgetSubtitle,
+            svgString: _photoSvg,
+            qualifiedName: 'com.example.love_app.PhotoGridWidgetProvider',
+            preview: _buildPhotoGridPreview(),
+            widgetType: 'photo_grid',
+            expandedContent: _buildPhotoGridExpandedContent(),
+            isExpanded: _photoGridExpanded,
+            onToggleExpand: () =>
+                setState(() => _photoGridExpanded = !_photoGridExpanded),
+          ),
+          const SizedBox(height: 16),
 
-        // ── 6. Статистика отношений ──
-        _buildGalleryItem(
-          title: LocaleService.current.relationshipStats,
-          subtitle: LocaleService.current.relationshipStatsSubtitle,
-          svgString: _statsSvg,
-          qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
-          preview: _buildRelationshipStatsPreview(),
-          widgetType: 'relationship_stats',
-        ),
+          // ── 6. Статистика отношений ──
+          _buildGalleryItem(
+            title: LocaleService.current.relationshipStats,
+            subtitle: LocaleService.current.relationshipStatsSubtitle,
+            svgString: _statsSvg,
+            qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+            preview: _buildRelationshipStatsPreview(),
+            widgetType: 'relationship_stats',
+          ),
+        ],
       ],
     );
   }
@@ -3939,87 +3950,52 @@ class _WidgetScreenState extends State<WidgetScreen>
   // NOT PAIRED PLACEHOLDER
   // ════════════════════════════════════════════════════════════════════════════
 
-  Widget _buildNotPaired() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _t.bgImageUrl != null
-            ? CachedNetworkImage(
-                imageUrl: _t.bgImageUrl!,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                placeholder: (_, __) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: _t.bgGradient,
-                    ),
-                  ),
-                ),
-                errorWidget: (_, __, ___) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: _t.bgGradient,
-                    ),
-                  ),
-                ),
-              )
-            : DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: _t.bgGradient,
-                  ),
-                ),
-              ),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: _t.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.widgets_rounded,
-                    size: 36,
-                    color: _t.primary.withOpacity(0.5),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  _s.widgetsTitle,
-                  style: GoogleFonts.rubik(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _s.connectPartnerForWidgets,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.rubik(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                    height: 1.5,
-                  ),
-                ),
-              ],
+  Widget _buildNotPairedBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.82),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _t.primary.withOpacity(0.12)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: _t.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.timer_rounded,
+              size: 30,
+              color: _t.primary.withOpacity(0.75),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Text(
+            LocaleService.current.soloTimerBannerTitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.rubik(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            LocaleService.current.soloTimerBannerSubtitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.rubik(
+              fontSize: 13,
+              color: Colors.grey.shade500,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

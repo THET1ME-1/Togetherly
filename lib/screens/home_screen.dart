@@ -88,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- User location (for distance calc) --
   double? _userLat;
   double? _userLng;
+  bool _wasPaired = false;
 
   @override
   void initState() {
@@ -208,9 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onPairChanged() {
     if (mounted) {
+      final isPaired = _pairData.isPaired;
       _startMemoryListener();
 
-      if (_pairData.isPaired && _pairData.startDate != null) {
+      if (isPaired && _pairData.startDate != null) {
         // Bind mascot service and record today's activity.
         _bindMascotService(_pairData.pairId);
 
@@ -244,6 +246,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _widgetService.unbindFromGroup();
         _mascotService.unbind();
       }
+
+      _wasPaired = isPaired;
 
       setState(() {});
     }

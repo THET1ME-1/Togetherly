@@ -687,6 +687,8 @@ abstract class AppStrings {
   String get daysCounterLabel;
   String get addTimerHint;
   String get noTimersAddHint;
+  String get soloTimerBannerTitle;
+  String get soloTimerBannerSubtitle;
   String get selectTimerForWidget;
   String get daysShortLeft;
   String get daysShortElapsed;
@@ -2049,6 +2051,11 @@ class _RuStrings extends AppStrings {
   @override
   String get noTimersAddHint =>
       'Нет таймеров. Добавьте таймер в разделе «Таймеры».';
+  @override
+  String get soloTimerBannerTitle => 'Можно создать свой таймер';
+  @override
+  String get soloTimerBannerSubtitle =>
+      'Одиночные таймеры и их виджеты доступны даже без добавления пары.';
   @override
   String get selectTimerForWidget => 'Выберите таймер для виджета:';
   @override
@@ -3459,6 +3466,11 @@ class _EnStrings extends AppStrings {
   String get addTimerHint => 'Add a timer in the Timers section';
   @override
   String get noTimersAddHint => 'No timers. Add a timer in the Timers section.';
+  @override
+  String get soloTimerBannerTitle => 'You can create your own timer';
+  @override
+  String get soloTimerBannerSubtitle =>
+      'Solo timers and their widgets are available even without adding a partner.';
   @override
   String get selectTimerForWidget => 'Select timer for widget:';
   @override

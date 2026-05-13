@@ -100,7 +100,31 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     if (timers.isEmpty) {
       return SizedBox(
         height: 300,
-        child: Center(child: Text(LocaleService.current.noTimers)),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(LocaleService.current.noTimers),
+              if (!widget.isPaired) ...[
+                const SizedBox(height: 16),
+                _RadialButton(
+                  icon: Icons.add_rounded,
+                  onTap: _showCreateDialog,
+                  theme: _t,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  LocaleService.current.createTimer,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _t.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       );
     }
 
