@@ -629,6 +629,8 @@ class Connection {
             ),
           )
           .toList();
+    } else {
+      customRelationshipTypes = [];
     }
 
     // Parse members
@@ -654,12 +656,16 @@ class Connection {
           MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
         ),
       );
+    } else {
+      memberMoods = {};
     }
 
     // Parse current status
     final statusData = data['currentStatus'] as Map<String, dynamic>?;
     if (statusData != null) {
       currentStatus = RelationshipStatus.fromJson(statusData);
+    } else {
+      currentStatus = null;
     }
 
     // Parse custom statuses
@@ -672,6 +678,8 @@ class Connection {
             ),
           )
           .toList();
+    } else {
+      customStatuses = [];
     }
   }
 
@@ -776,6 +784,8 @@ class Connection {
                 ),
               )
               .toList();
+        } else {
+          customRelationshipTypes = [];
         }
 
         // Update moods
@@ -787,6 +797,8 @@ class Connection {
               MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
             ),
           );
+        } else {
+          memberMoods = {};
         }
 
         // Update status

@@ -360,12 +360,12 @@ class _DrawScreenState extends State<DrawScreen>
         );
 
     _clearVersionSub = _fb
-        .listenToCanvasClearVersion(groupId: _groupId)
+        .listenToCanvasClearVersion(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] clearVersion error: $e'))
         .listen(_onRemoteClearVersion);
 
     _rotationSub = _fb
-        .listenToCanvasRotation(groupId: _groupId)
+        .listenToCanvasRotation(groupId: _groupId, canvasId: _canvasId)
         .handleError((e) => debugPrint('[Draw] rotation error: $e'))
         .listen(_onRemoteRotation);
 
@@ -894,6 +894,7 @@ class _DrawScreenState extends State<DrawScreen>
         _fb.setCanvasRotation(
           groupId: _groupId,
           rotationQuarterTurns: (_canvasRotation * 1000).round(),
+          canvasId: _canvasId,
         ),
       );
     }

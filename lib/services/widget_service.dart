@@ -22,6 +22,7 @@ class WidgetService extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   bool _isDisposed = false;
+  int _bindGeneration = 0;
 
   @override
   void notifyListeners() {
@@ -64,9 +65,14 @@ class WidgetService extends ChangeNotifier {
   /// Привязка к группе. Начинает слушать свой виджет.
   Future<void> bindToGroup(String groupId) async {
     if (groupId.isEmpty || groupId == _groupId) return;
+    final generation = ++_bindGeneration;
     await unbindFromGroup(clearNativeWidget: false);
+    if (_isDisposed || generation != _bindGeneration) return;
     _groupId = groupId;
     await _loadSettings();
+    if (_isDisposed || generation != _bindGeneration || _groupId != groupId) {
+      return;
+    }
     _listenToMyData();
     notifyListeners();
   }
@@ -97,6 +103,7 @@ class WidgetService extends ChangeNotifier {
   }
 
   Future<void> unbindFromGroup({bool clearNativeWidget = true}) async {
+    _bindGeneration++;
     _mySub?.cancel();
     _mySub = null;
     for (final sub in _partnerSubs.values) {
@@ -153,10 +160,14 @@ class WidgetService extends ChangeNotifier {
     String label, {
     bool skipCalendar = false,
   }) async {
-    await _updateField({'moodEmoji': emojiPath, 'moodLabel': label});
+    final groupId = _groupId;
+    await _updateField({
+      'moodEmoji': emojiPath,
+      'moodLabel': label,
+    }, groupId: groupId);
 
     // Автоотправка в календарь — только если не пропускаем
-    if (!skipCalendar && _autoSendMoodToCalendar && _groupId.isNotEmpty) {
+    if (!skipCalendar && _autoSendMoodToCalendar && groupId.isNotEmpty) {
       try {
         final uid = _fb.currentUser?.uid ?? '';
         final now = DateTime.now();
@@ -173,7 +184,7 @@ class WidgetService extends ChangeNotifier {
           label: label,
           timestamp: now,
         );
-        await _fb.addMoodEntry(groupId: _groupId, entry: entry.toFirestore());
+        await _fb.addMoodEntry(groupId: groupId, entry: entry.toFirestore());
       } catch (e) {
         debugPrint('Widget → Calendar failed: $e');
       }
@@ -182,13 +193,14 @@ class WidgetService extends ChangeNotifier {
 
   /// Обновить сообщение
   Future<void> updateMessage(String message) async {
-    await _updateField({'message': message});
+    final groupId = _groupId;
+    await _updateField({'message': message}, groupId: groupId);
 
     // Автоотправка в Memory Lane
-    if (_autoSendMessageToMemory && message.isNotEmpty && _groupId.isNotEmpty) {
+    if (_autoSendMessageToMemory && message.isNotEmpty && groupId.isNotEmpty) {
       try {
         await _fb.addMemory(
-          groupId: _groupId,
+          groupId: groupId,
           type: MemoryType.text,
           caption: '💬 $message',
         );
@@ -200,20 +212,22 @@ class WidgetService extends ChangeNotifier {
 
   /// Обновить фото
   Future<void> updatePhoto(String localPath) async {
+    final groupId = _groupId;
+    if (groupId.isEmpty) return;
     // Загрузка в Storage
     final uid = _fb.currentUser?.uid ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final dest = 'widget/$_groupId/${uid}_$ts.jpg';
+    final dest = 'widget/$groupId/${uid}_$ts.jpg';
     final url = await _fb.uploadFile(localPath, dest);
-    if (url == null) return;
+    if (url == null || groupId != _groupId) return;
 
-    await _updateField({'photoUrl': url});
+    await _updateField({'photoUrl': url}, groupId: groupId);
 
     // Автоотправка в Memory Lane
-    if (_autoSendPhotoToMemory && _groupId.isNotEmpty) {
+    if (_autoSendPhotoToMemory && groupId.isNotEmpty) {
       try {
         await _fb.addMemory(
-          groupId: _groupId,
+          groupId: groupId,
           type: MemoryType.photo,
           imageUrl: url,
           caption: '📸 Виджет',
@@ -226,7 +240,7 @@ class WidgetService extends ChangeNotifier {
 
   /// Обновить фото по URL (уже загружено)
   Future<void> updatePhotoUrl(String url) async {
-    await _updateField({'photoUrl': url});
+    await _updateField({'photoUrl': url}, groupId: _groupId);
   }
 
   /// Устанавливает кастомное фото конкретно для виджета "Фото дня"
@@ -234,24 +248,27 @@ class WidgetService extends ChangeNotifier {
     await _updateField({
       'photoDayUrl': url,
       'photoDayUrls': [url],
-    });
+    }, groupId: _groupId);
   }
 
   Future<void> updatePhotoDayCarousel(List<String> urls) async {
     await _updateField({
       'photoDayUrls': urls,
       'photoDayUrl': urls.isNotEmpty ? urls.first : null,
-    });
+    }, groupId: _groupId);
   }
 
   /// Обновить режим PhotoDay (random/custom)
   Future<void> setPhotoDayMode(String mode) async {
-    await _updateField({'photoDayMode': mode});
+    await _updateField({'photoDayMode': mode}, groupId: _groupId);
   }
 
   /// Сохранить настройки сетки фото (мои фото, которые увидит партнёр)
   Future<void> updatePhotoGrid(int count, List<String> photoUrls) async {
-    await _updateField({'photoGridCount': count, 'photoGridUrls': photoUrls});
+    await _updateField({
+      'photoGridCount': count,
+      'photoGridUrls': photoUrls,
+    }, groupId: _groupId);
   }
 
   /// Обновить музыку
@@ -261,18 +278,19 @@ class WidgetService extends ChangeNotifier {
     String? url,
     String? coverUrl,
   }) async {
+    final groupId = _groupId;
     await _updateField({
       'musicTitle': title,
       'musicArtist': artist,
       'musicUrl': url,
       'musicCoverUrl': coverUrl,
-    });
+    }, groupId: groupId);
 
     // Автоотправка в Memory Lane
-    if (_autoSendMusicToMemory && _groupId.isNotEmpty) {
+    if (_autoSendMusicToMemory && groupId.isNotEmpty) {
       try {
         await _fb.addMemory(
-          groupId: _groupId,
+          groupId: groupId,
           type: MemoryType.music,
           musicTitle: title,
           musicArtist: artist,
@@ -312,9 +330,13 @@ class WidgetService extends ChangeNotifier {
     });
   }
 
-  Future<void> _updateField(Map<String, dynamic> fields) async {
+  Future<void> _updateField(
+    Map<String, dynamic> fields, {
+    String? groupId,
+  }) async {
     final uid = _fb.currentUser?.uid;
-    if (uid == null || _groupId.isEmpty) return;
+    final targetGroupId = groupId ?? _groupId;
+    if (uid == null || targetGroupId.isEmpty) return;
 
     try {
       final userDoc = await _db.collection('users').doc(uid).get();
@@ -326,7 +348,7 @@ class WidgetService extends ChangeNotifier {
 
       final ref = _db
           .collection('groups')
-          .doc(_groupId)
+          .doc(targetGroupId)
           .collection('widgetData')
           .doc(uid);
 
@@ -338,6 +360,8 @@ class WidgetService extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
         ...fields,
       }, SetOptions(merge: true));
+
+      if (targetGroupId != _groupId) return;
 
       // Синхронизируем нативный виджет сразу после записи,
       // не дожидаясь Firestore-листенера (Xiaomi убивает процесс слишком быстро)
@@ -421,6 +445,7 @@ class WidgetService extends ChangeNotifier {
 
   /// Синхронизирует данные в SharedPreferences для нативного виджета Android
   Future<void> _syncToNativeWidget() async {
+    final bindGeneration = _bindGeneration;
     try {
       // ── Мои данные ──
       final my = _myData;
@@ -497,6 +522,7 @@ class WidgetService extends ChangeNotifier {
         name: 'LoveWidgetProvider',
         androidName: 'LoveWidgetProvider',
       );
+      if (_isDisposed || bindGeneration != _bindGeneration) return;
       debugPrint(
         'NativeWidget: synced — my=${my?.displayName}, partner=${partner?.displayName}',
       );
@@ -518,6 +544,7 @@ class WidgetService extends ChangeNotifier {
           )
           .toList();
       await HomeWidgetService.instance.syncGroupMood(membersData);
+      if (_isDisposed || bindGeneration != _bindGeneration) return;
 
       for (int i = 0; i < limitedMembers.length; i++) {
         await HomeWidget.saveWidgetData<String>(
@@ -531,6 +558,7 @@ class WidgetService extends ChangeNotifier {
         _cacheEmojiForWidget(my?.moodEmoji, 'my_mood_emoji_path'),
         _cacheEmojiForWidget(partner?.moodEmoji, 'partner_mood_emoji_path'),
       ]).then((_) async {
+        if (_isDisposed || bindGeneration != _bindGeneration) return;
         try {
           await HomeWidget.updateWidget(
             name: 'LoveWidgetProvider',
@@ -562,10 +590,12 @@ class WidgetService extends ChangeNotifier {
 
   /// Скачивает фото в локальный кэш и обновляет нативный виджет (LoveWidget).
   void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
+    final bindGeneration = _bindGeneration;
     Future.wait([
       _downloadPhoto(myUrl, 'my_photo_path'),
       _downloadPhoto(partnerUrl, 'partner_photo_path'),
     ]).then((_) async {
+      if (_isDisposed || bindGeneration != _bindGeneration) return;
       try {
         await HomeWidget.updateWidget(
           name: 'LoveWidgetProvider',
@@ -579,10 +609,12 @@ class WidgetService extends ChangeNotifier {
 
   /// Скачивает аватарки для парного виджета (LoveWidget) в локальный кэш.
   void _cacheAvatarsForLoveWidget(String? myUrl, String? partnerUrl) {
+    final bindGeneration = _bindGeneration;
     Future.wait([
       _downloadPhoto(myUrl, 'my_avatar_path'),
       _downloadPhoto(partnerUrl, 'partner_avatar_path'),
     ]).then((_) async {
+      if (_isDisposed || bindGeneration != _bindGeneration) return;
       try {
         await HomeWidget.updateWidget(
           name: 'LoveWidgetProvider',
@@ -598,6 +630,7 @@ class WidgetService extends ChangeNotifier {
 
   /// Скачивает аватарки группы в локальный кэш и обновляет MoodWidget.
   void _cacheGroupAvatarsForWidget(List<WidgetData> members) {
+    final bindGeneration = _bindGeneration;
     final futures = <Future<void>>[];
     for (int i = 0; i < members.length; i++) {
       futures.add(
@@ -605,6 +638,7 @@ class WidgetService extends ChangeNotifier {
       );
     }
     Future.wait(futures).then((_) async {
+      if (_isDisposed || bindGeneration != _bindGeneration) return;
       try {
         await HomeWidget.updateWidget(
           name: 'MoodWidgetProvider',

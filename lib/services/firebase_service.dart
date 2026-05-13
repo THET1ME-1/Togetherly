@@ -2673,8 +2673,11 @@ class FirebaseService {
   }
 
   /// Stream of clear events for the shared canvas.
-  Stream<int?> listenToCanvasClearVersion({required String groupId}) {
-    return _canvasMainRef(groupId).snapshots().map(
+  Stream<int?> listenToCanvasClearVersion({
+    required String groupId,
+    String canvasId = 'main',
+  }) {
+    return _canvasMainRef(groupId, canvasId).snapshots().map(
       (snap) => (snap.data()?['clearVersion'] as num?)?.toInt(),
     );
   }
@@ -2684,10 +2687,12 @@ class FirebaseService {
   Future<void> setCanvasRotation({
     required String groupId,
     required int rotationQuarterTurns, // actually milli-radians
+    String canvasId = 'main',
   }) async {
     try {
       await _canvasMainRef(
         groupId,
+        canvasId,
       ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('setCanvasRotation failed: $e');
@@ -2695,8 +2700,11 @@ class FirebaseService {
   }
 
   /// Stream of canvas rotation changes (value is angle in milli-radians).
-  Stream<int?> listenToCanvasRotation({required String groupId}) {
-    return _canvasMainRef(groupId).snapshots().map(
+  Stream<int?> listenToCanvasRotation({
+    required String groupId,
+    String canvasId = 'main',
+  }) {
+    return _canvasMainRef(groupId, canvasId).snapshots().map(
       (snap) => (snap.data()?['canvasRotation'] as num?)?.toInt(),
     );
   }

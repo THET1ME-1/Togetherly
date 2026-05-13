@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -68,6 +69,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
+  StreamSubscription? _missYouSub;
 
   // Экран блокировки: настроение
   bool _lockScreenMoodEnabled = false;
@@ -154,8 +156,18 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   void _loadStats() {
+    _missYouSub?.cancel();
     final groupId = _pair.pairId;
-    if (groupId.isEmpty) return;
+    if (groupId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _memoriesCount = 0;
+          _drawingsCount = 0;
+          _missYouCount = 0;
+        });
+      }
+      return;
+    }
 
     // Load memories count
     FirebaseFirestore.instance
@@ -182,7 +194,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         .catchError((_) {});
 
     // Miss you (from group doc)
-    FirebaseFirestore.instance
+    _missYouSub = FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .snapshots()
@@ -712,6 +724,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (oldWidget.pairData.pairId != widget.pairData.pairId) {
       // Сменилась группа — загружаем выбор таймера для новой группы
       _loadWidgetTimerId();
+      _loadStats();
       _loadPhotoDayPrefs();
       _loadPhotoDayWidgets();
     }
@@ -720,6 +733,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _missYouSub?.cancel();
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
     _moodService.removeListener(_onDataChanged);
@@ -1116,10 +1130,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
 
         // ── 1. Парный виджет ──
-        if (!isPaired) ...[
-          _buildNotPairedBanner(),
-          const SizedBox(height: 16),
-        ],
+        if (!isPaired) ...[_buildNotPairedBanner(), const SizedBox(height: 16)],
 
         if (isPaired) ...[
           _buildGalleryItem(
@@ -1245,7 +1256,8 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: LocaleService.current.relationshipStats,
             subtitle: LocaleService.current.relationshipStatsSubtitle,
             svgString: _statsSvg,
-            qualifiedName: 'com.example.love_app.RelationshipStatsWidgetProvider',
+            qualifiedName:
+                'com.example.love_app.RelationshipStatsWidgetProvider',
             preview: _buildRelationshipStatsPreview(),
             widgetType: 'relationship_stats',
           ),

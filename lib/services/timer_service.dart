@@ -9,7 +9,7 @@ import 'firebase_service.dart';
 /// Хранит данные локально (SharedPreferences) и синхронизирует с Firestore
 /// когда пользователь состоит в группе.
 class TimerService extends ChangeNotifier {
-  static const _storageKey = 'user_timers';
+  static const _localStorageKey = 'user_timers_local';
   final FirebaseService _fb = FirebaseService();
   List<TimerItem> _timers = [];
   String _groupId = '';
@@ -21,6 +21,13 @@ class TimerService extends ChangeNotifier {
 
   List<TimerItem> get timers => List.unmodifiable(_timers);
   int get count => _timers.length;
+
+  String get _storageKey {
+    final uid = _fb.uid ?? 'guest';
+    return _groupId.isNotEmpty
+        ? 'user_timers_${uid}_$_groupId'
+        : '${_localStorageKey}_$uid';
+  }
 
   /// Таймер, отображаемый по умолчанию в свёрнутом виде.
   TimerItem? get defaultTimer {
@@ -43,24 +50,33 @@ class TimerService extends ChangeNotifier {
   // ── Инициализация ──
 
   Future<void> init() async {
+    await _loadLocal();
+    notifyListeners();
+  }
+
+  Future<void> _loadLocal() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw != null && raw.isNotEmpty) {
       try {
         _timers = TimerItem.decodeList(raw);
-      } catch (_) {
-        _timers = [];
-      }
+        return;
+      } catch (_) {}
     }
-    notifyListeners();
+    _timers = [];
   }
 
   /// Привязать к группе — начинает синхронизацию с Firestore.
   /// Вызывается когда пользователь входит в группу.
-  void bindToGroup(String groupId) {
+  Future<void> bindToGroup(String groupId) async {
     if (_groupId == groupId && groupId.isNotEmpty) return;
     _firestoreSub?.cancel();
     _groupId = groupId;
+    _hasReceivedRemoteSync = false;
+    _pendingSystemTimer = null;
+    _timers = [];
+    await _loadLocal();
+    notifyListeners();
     if (groupId.isEmpty) return;
 
     // Слушаем изменения таймеров в Firestore
@@ -73,12 +89,14 @@ class TimerService extends ChangeNotifier {
   }
 
   /// Отвязать от группы (при unpair)
-  void unbindFromGroup() {
+  Future<void> unbindFromGroup() async {
     _firestoreSub?.cancel();
     _firestoreSub = null;
     _groupId = '';
     _hasReceivedRemoteSync = false;
     _pendingSystemTimer = null;
+    await _loadLocal();
+    notifyListeners();
   }
 
   /// Слияние remote таймеров с локальными.

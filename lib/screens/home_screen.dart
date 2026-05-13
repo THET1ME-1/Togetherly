@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:exif/exif.dart';
@@ -208,47 +208,58 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onPairChanged() {
-    if (mounted) {
-      final isPaired = _pairData.isPaired;
-      _startMemoryListener();
+    if (!mounted) return;
+    unawaited(_handlePairChanged());
+  }
 
-      if (isPaired && _pairData.startDate != null) {
-        // Bind mascot service and record today's activity.
-        _bindMascotService(_pairData.pairId);
+  Future<void> _handlePairChanged() async {
+    if (!mounted) return;
+    final isPaired = _pairData.isPaired;
+    _startMemoryListener();
 
-        // Bind timer service to group for Firestore sync
-        _timerService.bindToGroup(_pairData.pairId);
+    if (isPaired && _pairData.startDate != null) {
+      // Bind mascot service and record today's activity.
+      _bindMascotService(_pairData.pairId);
 
-        // Bind mood service to group for Firestore sync
-        _moodService.bindToGroup(_pairData.pairId);
+      // Bind timer service to group for Firestore sync
+      await _timerService.bindToGroup(_pairData.pairId);
 
-        // Bind widget service to group for Firestore sync
-        _widgetService.bindToGroup(_pairData.pairId);
-        for (final p in _pairData.partners) {
-          _widgetService.listenToPartner(p.uid);
-          // Subscribe to partner moods so MoodWidgetProvider stays updated
-          _moodService.listenToPartner(p.uid);
-        }
+      // Bind mood service to group for Firestore sync
+      _moodService.bindToGroup(_pairData.pairId);
 
-        // Create system timer if it doesn't exist yet
-        _timerService.createSystemTimer(
-          startDate: _pairData.startDate!,
-          relationshipLabel: _pairData.relationshipLabel,
-          relationshipEmoji: _pairData.relationshipEmoji,
-          partnerName: _pairData.partnerDisplayName,
-        );
-
-        // Синхронизируем виджеты рабочего стола с актуальными данными
-        _syncHomeWidgets();
-      } else {
-        _timerService.unbindFromGroup();
-        _moodService.unbindFromGroup();
-        _widgetService.unbindFromGroup();
-        _mascotService.unbind();
+      // Bind widget service to group for Firestore sync
+      await _widgetService.bindToGroup(_pairData.pairId);
+      for (final p in _pairData.partners) {
+        _widgetService.listenToPartner(p.uid);
+        // Subscribe to partner moods so MoodWidgetProvider stays updated
+        _moodService.listenToPartner(p.uid);
       }
 
-      _wasPaired = isPaired;
+      // Create system timer if it doesn't exist yet
+      await _timerService.createSystemTimer(
+        startDate: _pairData.startDate!,
+        relationshipLabel: _pairData.relationshipLabel,
+        relationshipEmoji: _pairData.relationshipEmoji,
+        partnerName: _pairData.partnerDisplayName,
+      );
+      await _timerService.updateSystemTimerTitle(
+        relationshipLabel: _pairData.relationshipLabel,
+        relationshipEmoji: _pairData.relationshipEmoji,
+        partnerName: _pairData.partnerDisplayName,
+      );
 
+      // Синхронизируем виджеты рабочего стола с актуальными данными
+      await _syncHomeWidgets();
+    } else {
+      await _timerService.unbindFromGroup();
+      _moodService.unbindFromGroup();
+      await _widgetService.unbindFromGroup();
+      _mascotService.unbind();
+    }
+
+    _wasPaired = isPaired;
+
+    if (mounted) {
       setState(() {});
     }
   }
