@@ -215,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handlePairChanged() async {
     if (!mounted) return;
     final isPaired = _pairData.isPaired;
+    final isSolo = _pairData.isSolo;
     _startMemoryListener();
 
     if (isPaired && _pairData.startDate != null) {
@@ -250,11 +251,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
       await _syncHomeWidgets();
+    } else if (isSolo) {
+      // Solo mode: load local timers and sync widget
+      await _timerService.unbindFromGroup();
+      _moodService.unbindFromGroup();
+      await _widgetService.unbindFromGroup();
+      _mascotService.unbind();
+      // Sync widgets for solo mode (already done in unbindFromGroup)
+      await _syncHomeWidgets();
     } else {
       await _timerService.unbindFromGroup();
       _moodService.unbindFromGroup();
       await _widgetService.unbindFromGroup();
       _mascotService.unbind();
+      // Sync widgets for single user mode (no group)
+      await _syncHomeWidgets();
     }
 
     _wasPaired = isPaired;
@@ -286,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Синхронизирует виджеты рабочего стола.
   /// Вызов дешёвый — обновляет данные виджета только при необходимости.
   Future<void> _syncHomeWidgets() async {
-    if (!_pairData.isPaired) return;
+    // Allow single user mode (no group) to sync personal widgets
 
     final hws = HomeWidgetService.instance;
     final myName = widget.userData.displayName;

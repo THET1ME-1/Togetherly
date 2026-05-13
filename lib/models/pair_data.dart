@@ -18,6 +18,7 @@ class PairData extends ChangeNotifier {
 
   // ── Getters ──
   bool get isPaired => _active?.isPaired ?? false;
+  bool get isSolo => _active?.isSolo ?? false;
   DateTime? get startDate => _active?.startDate;
   String get myName => 'You';
   String get partnerName => _active?.partnerName ?? '';

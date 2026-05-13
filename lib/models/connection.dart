@@ -67,6 +67,7 @@ class MemberMood {
 class Connection {
   final String id;
   bool isPaired; // true if at least 1 partner joined
+  bool isSolo; // true if this is the solo (single user) mode
   DateTime? startDate;
 
   // Legacy single-partner fields (first partner for compat)
@@ -102,6 +103,7 @@ class Connection {
     required this.id,
     required FirebaseService firebaseService,
     this.isPaired = false,
+    this.isSolo = false,
     this.startDate,
     this.partnerName = '',
     this.partnerAvatarUrl = '',
@@ -844,6 +846,7 @@ class Connection {
     return {
       'id': id,
       'isPaired': isPaired,
+      'isSolo': isSolo,
       'startDate': startDate?.toIso8601String(),
       'partnerName': partnerName,
       'partnerAvatarUrl': partnerAvatarUrl,
@@ -869,6 +872,7 @@ class Connection {
         id: json['id'] ?? '',
         firebaseService: firebaseService,
         isPaired: json['isPaired'] ?? false,
+        isSolo: json['isSolo'] ?? false,
         startDate: json['startDate'] != null
             ? DateTime.tryParse(json['startDate'])
             : null,

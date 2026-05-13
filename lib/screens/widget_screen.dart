@@ -489,7 +489,8 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     // Дублируем последнюю настройку в Firestore — это «текущий набор,
     // которым я делюсь с партнёром» (для виджета "Фото партнёра" у партнёра).
-    if (uploadedUrls.isNotEmpty) {
+    // Skip for solo mode (no group in Firestore)
+    if (uploadedUrls.isNotEmpty && _pair.pairId.isNotEmpty) {
       await _ws.updatePhotoDayCarousel(uploadedUrls);
     }
 
@@ -564,7 +565,8 @@ class _WidgetScreenState extends State<WidgetScreen>
       final className = qualifiedName.split('.').last;
       debugPrint('_pinWidget: requesting pin for className=$className');
 
-      if (widgetType == 'photo_day_self' && _pair.pairId.isNotEmpty) {
+      // Photo day self: works for both solo and paired modes
+      if (widgetType == 'photo_day_self') {
         await HomeWidgetService.instance.enqueuePhotoDayWidgetConfig(
           groupId: _pair.pairId,
           // Личный фото-виджет всегда работает с собственными фото пользователя.
@@ -572,6 +574,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           kind: 'self',
         );
       } else if (widgetType == 'photo_day_partner' && _pair.pairId.isNotEmpty) {
+        // Partner photo widget requires a group (partner)
         await HomeWidgetService.instance.enqueuePhotoDayWidgetConfig(
           groupId: _pair.pairId,
           mode: 'random',
@@ -585,7 +588,8 @@ class _WidgetScreenState extends State<WidgetScreen>
       );
       debugPrint('_pinWidget: requestPinWidget completed successfully');
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
-      if (widgetType != null && _pair.pairId.isNotEmpty) {
+      // For solo mode, we still sync with empty groupId
+      if (widgetType != null) {
         final realType = widgetType.startsWith('photo_day')
             ? 'photo_day'
             : widgetType;
@@ -660,7 +664,11 @@ class _WidgetScreenState extends State<WidgetScreen>
         final ids = await hws.getPhotoDayWidgetIds();
         for (final widgetId in ids) {
           final widgetGroupId = await hws.getPhotoDayWidgetGroupId(widgetId);
-          if (widgetGroupId == _pair.pairId || widgetGroupId == null) {
+          // For solo mode, sync widgets without group or with empty group
+          final shouldSync = _pair.pairId.isEmpty
+              ? (widgetGroupId == null || widgetGroupId.isEmpty)
+              : (widgetGroupId == _pair.pairId || widgetGroupId == null);
+          if (shouldSync) {
             await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
           }
         }
@@ -669,7 +677,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         }
         break;
       case 'photo_grid':
-        await hws.refreshPhotoGrid(_pair.pairId);
+        // Photo grid requires a group (partner), skip for solo mode
+        if (_pair.pairId.isNotEmpty) {
+          await hws.refreshPhotoGrid(_pair.pairId);
+        }
         break;
       case 'pair':
         // Парный виджет синхронизируется WidgetService

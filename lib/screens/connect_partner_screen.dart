@@ -133,21 +133,71 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   // ═══════════════════════════════════════════════════
   Widget _buildGroupTabs() {
     final connections = pair.manager.connections;
+    final isSoloActive = pair.manager.isSoloMode;
     return SizedBox(
       height: 56,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        itemCount: connections.length + 1,
+        itemCount: connections.length + 2, // +1 for solo, +1 for add
         separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
-          if (index == connections.length) {
-            return _buildAddGroupChip();
+          // First item is solo button
+          if (index == 0) {
+            return _buildSoloChip(isActive: isSoloActive);
           }
-          final connection = connections[index];
-          final isActive = index == pair.manager.activeConnectionIndex;
-          return _buildGroupChip(connection, index, isActive);
+          // Second to second-to-last are connections
+          if (index <= connections.length) {
+            final connIndex = index - 1;
+            if (connIndex >= connections.length) return const SizedBox();
+            final connection = connections[connIndex];
+            // Skip solo connection in the list (it's at index 0 in manager but we handle it separately)
+            if (connection.isSolo) return const SizedBox();
+            final isActive = connIndex == pair.manager.activeConnectionIndex - 1; // -1 because solo is at 0
+            return _buildGroupChip(connection, connIndex + 1, isActive);
+          }
+          // Last item is add button
+          return _buildAddGroupChip();
         },
+      ),
+    );
+  }
+
+  Widget _buildSoloChip({required bool isActive}) {
+    return GestureDetector(
+      onTap: () async {
+        await pair.manager.switchToSolo();
+        _resetCodeInput();
+        setState(() {});
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isActive ? primary : Colors.white,
+          border: Border.all(
+            color: isActive ? primary : Colors.grey.shade300,
+            width: isActive ? 2 : 1,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Icon(
+            Icons.person_outline,
+            color: isActive ? Colors.white : Colors.grey.shade600,
+            size: 22,
+          ),
+        ),
       ),
     );
   }

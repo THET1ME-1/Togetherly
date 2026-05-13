@@ -41,8 +41,11 @@ class ConnectionsManager extends ChangeNotifier {
 
     await _loadLocal();
 
-    // If no connections exist, create a default one
-    if (_connections.isEmpty) {
+    // Ensure solo connection exists at index 0 (can't be deleted)
+    _ensureSoloConnection();
+
+    // If no connections exist (besides solo), create a default one
+    if (_connections.length <= 1) {
       await _createNewConnection();
     }
 
@@ -97,12 +100,23 @@ class ConnectionsManager extends ChangeNotifier {
 
     // If no connection claimed the Firebase pair, let the FIRST unpaired
     // connection check (only once, to pick up the initial pairing).
+    // Use a flag to ensure only one connection attempts to claim the Firebase pair.
     if (_fb.isLoggedIn && knownPairIds.isEmpty) {
-      final firstUnpaired = _connections.firstWhere(
-        (c) => !c.isPaired,
-        orElse: () => _connections.first,
-      );
-      await firstUnpaired.refreshPairStatus();
+      bool pairClaimed = false;
+      for (final conn in _connections) {
+        if (conn.isPaired || conn.pairId.isNotEmpty) {
+          pairClaimed = true;
+          break;
+        }
+        if (!pairClaimed) {
+          await conn.refreshPairStatus();
+          if (conn.isPaired && conn.pairId.isNotEmpty) {
+            pairClaimed = true;
+            knownPairIds.add(conn.pairId);
+          }
+          break; // Only one connection should attempt to claim
+        }
+      }
     }
 
     await _saveLocal();
@@ -335,6 +349,45 @@ class ConnectionsManager extends ChangeNotifier {
     );
   }
 
+  /// Ensures solo connection exists at index 0 (for single user mode)
+  void _ensureSoloConnection() {
+    // Check if solo connection already exists
+    final existingSolo = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.isSolo,
+      orElse: () => null,
+    );
+
+    if (existingSolo != null) {
+      // Move solo to index 0 if not already there
+      if (_connections.first != existingSolo) {
+        _connections.remove(existingSolo);
+        _connections.insert(0, existingSolo);
+      }
+      return;
+    }
+
+    // Create new solo connection
+    final soloConnection = Connection(
+      id: 'solo',
+      firebaseService: _fb,
+      isSolo: true,
+      onChanged: () {
+        _saveLocal();
+        notifyListeners();
+      },
+    );
+
+    _connections.insert(0, soloConnection);
+
+    // Adjust active index if needed (if we had active non-solo, keep it offset by 1)
+    if (_activeConnectionIndex > 0) {
+      _activeConnectionIndex++;
+    } else if (_activeConnectionIndex == 0 && _connections.length > 1) {
+      // Default to first real connection, not solo
+      _activeConnectionIndex = 1;
+    }
+  }
+
   // ── Connection Management ──
   Future<Connection> _createNewConnection() async {
     final newConnection = Connection(
@@ -385,6 +438,9 @@ class ConnectionsManager extends ChangeNotifier {
   Future<void> removeConnection(String connectionId) async {
     final index = _connections.indexWhere((c) => c.id == connectionId);
     if (index == -1) return;
+
+    // Can't remove solo connection
+    if (_connections[index].isSolo) return;
 
     // Can't remove the last connection
     if (_connections.length == 1) return;
@@ -452,6 +508,25 @@ class ConnectionsManager extends ChangeNotifier {
 
     await _saveLocal();
     notifyListeners();
+  }
+
+  /// Switch to solo mode (single user, no group)
+  Future<void> switchToSolo() async {
+    // Find solo connection index
+    final soloIndex = _connections.indexWhere((c) => c.isSolo);
+    if (soloIndex == -1) return;
+    
+    _activeConnectionIndex = soloIndex;
+    await _saveLocal();
+    notifyListeners();
+    debugPrint('ConnectionsManager: switched to solo mode');
+  }
+
+  /// Check if currently in solo mode
+  bool get isSoloMode {
+    if (_connections.isEmpty) return false;
+    if (_activeConnectionIndex >= _connections.length) return false;
+    return _connections[_activeConnectionIndex].isSolo;
   }
 
   // ── Persistence ──

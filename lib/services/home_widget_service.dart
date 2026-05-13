@@ -465,6 +465,7 @@ class HomeWidgetService {
   /// Передаётся [TimerItem] — текущий дефолтный или выбранный таймер.
   Future<void> syncTimer(TimerItem timer) async {
     try {
+      debugPrint('HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch}');
       await HomeWidget.saveWidgetData<String>('timer_title', timer.title);
       await HomeWidget.saveWidgetData<String>(
         'timer_days',
@@ -493,7 +494,7 @@ class HomeWidgetService {
         androidName: 'PetalTimerWidgetProvider',
       );
       debugPrint(
-        'HomeWidgetService: timer synced — ${timer.title}, ${timer.daysElapsed}d',
+        'HomeWidgetService: timer synced — ${timer.title}, days=${timer.daysElapsed}, startMs=${timer.startDate.millisecondsSinceEpoch}',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.syncTimer failed: $e');
@@ -663,19 +664,20 @@ class HomeWidgetService {
   ///
   /// [forceNext] — если true, инкрементирует seed, чтобы выбрать следующее фото.
   /// [widgetId] — конкретный ID виджета (null = все виджеты этого groupId).
+  /// Works for both group mode and single user mode (no group).
   Future<void> refreshPhotoOfDay(
     String groupId, {
     bool forceNext = false,
     int? widgetId,
   }) async {
-    if (groupId.isEmpty) return;
     try {
       // If no widgetId specified, refresh all photo day widgets for this group
       if (widgetId == null) {
         final allIds = await getPhotoDayWidgetIds();
         for (final id in allIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(id);
-          if (widgetGroupId == null || widgetGroupId == groupId) {
+          // Sync if: no group bound, or bound to current group, or no groupId at all (single user)
+          if (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == groupId) {
             await refreshPhotoOfDay(
               groupId,
               widgetId: id,
@@ -683,6 +685,12 @@ class HomeWidgetService {
             );
           }
         }
+        return;
+      }
+
+      // Single user mode (no group): use widget's own stored URLs
+      if (groupId.isEmpty) {
+        await _syncPhotoDayWidgetSingleUser(widgetId, forceNext: forceNext);
         return;
       }
 
@@ -855,6 +863,72 @@ class HomeWidgetService {
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoOfDay failed: $e');
+    }
+  }
+
+  /// Синхронизация фото виджета для одиночного режима (без группы).
+  /// Использует собственные URL-ы виджета.
+  Future<void> _syncPhotoDayWidgetSingleUser(int widgetId, {bool forceNext = false}) async {
+    try {
+      final currentUserUid = FirebaseService().uid ?? '';
+      String currentUserName = '';
+      if (currentUserUid.isNotEmpty) {
+        final userDoc = await _db.collection('users').doc(currentUserUid).get();
+        currentUserName = userDoc.data()?['displayName'] ?? '';
+      }
+
+      final selectedKind = await getPhotoDayWidgetKind(widgetId);
+      final widgetName = await getPhotoDayWidgetName(widgetId);
+
+      await _savePhotoDayWidgetData(widgetId, {
+        'viewer_uid': currentUserUid,
+        'viewer_name': currentUserName,
+        'mode': 'self',
+        'kind': selectedKind,
+        'group_id': '',
+      });
+
+      // For single user, use widget's own stored URLs
+      final ownUrls = await getPhotoDayWidgetUrls(widgetId);
+      final customPath = await getPhotoDayWidgetCustomPath(widgetId);
+
+      if (ownUrls.isNotEmpty) {
+        // Select photo based on seed
+        final seed = forceNext
+            ? await incrementPhotoDayWidgetRefreshSeed(widgetId)
+            : await getPhotoDayWidgetRefreshSeed(widgetId);
+        final index = seed % ownUrls.length;
+        final selectedUrl = ownUrls[index];
+
+        await _savePhotoDayWidgetData(widgetId, {
+          'photo_url': selectedUrl,
+          'refresh_seed': seed.toString(),
+          'author_name': currentUserName,
+          'author_uid': currentUserUid,
+        });
+      } else if (customPath != null && customPath.isNotEmpty) {
+        // Use custom local photo
+        await _savePhotoDayWidgetData(widgetId, {
+          'path': customPath,
+          'refresh_seed': '0',
+          'author_name': currentUserName,
+          'author_uid': currentUserUid,
+        });
+      } else {
+        // No photos - clear
+        await _savePhotoDayWidgetData(widgetId, {
+          'photo_url': '',
+          'refresh_seed': '0',
+        });
+      }
+
+      await HomeWidget.updateWidget(
+        name: 'PhotoDayWidgetProvider',
+        androidName: 'PhotoDayWidgetProvider',
+      );
+      debugPrint('HomeWidgetService: photo day (single user) synced for widget $widgetId');
+    } catch (e) {
+      debugPrint('HomeWidgetService._syncPhotoDayWidgetSingleUser failed: $e');
     }
   }
 
@@ -1183,7 +1257,11 @@ class HomeWidgetService {
       } else {
         for (final widgetId in widgetIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(widgetId);
-          if (widgetGroupId == null || widgetGroupId == activeGroupId) {
+          // For solo mode (empty activeGroupId), sync widgets without bound group or with empty group
+          final shouldSync = activeGroupId.isEmpty
+              ? (widgetGroupId == null || widgetGroupId.isEmpty)
+              : (widgetGroupId == null || widgetGroupId == activeGroupId);
+          if (shouldSync) {
             debugPrint(
               '  photo_day#$widgetId → syncing (group=$widgetGroupId)',
             );

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import 'firebase_service.dart';
+import 'home_widget_service.dart';
 
 /// Сервис для управления пользовательскими таймерами.
 /// Хранит данные локально (SharedPreferences) и синхронизирует с Firestore
@@ -51,6 +52,8 @@ class TimerService extends ChangeNotifier {
 
   Future<void> init() async {
     await _loadLocal();
+    // Sync widget after loading timers (for solo mode on first app launch)
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
@@ -88,7 +91,7 @@ class TimerService extends ChangeNotifier {
     );
   }
 
-  /// Отвязать от группы (при unpair)
+  /// Отвязать от группы (при unpair или переключении на соло)
   Future<void> unbindFromGroup() async {
     _firestoreSub?.cancel();
     _firestoreSub = null;
@@ -96,6 +99,8 @@ class TimerService extends ChangeNotifier {
     _hasReceivedRemoteSync = false;
     _pendingSystemTimer = null;
     await _loadLocal();
+    // Sync widget for solo mode after unbind
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
@@ -226,7 +231,19 @@ class TimerService extends ChangeNotifier {
         timer: _timers.last.toJson(),
       );
     }
+    // Sync widget immediately after creating timer (single user mode)
+    await _syncWidgetTimer();
     notifyListeners();
+  }
+
+  Future<void> _syncWidgetTimer() async {
+    if (_timers.isEmpty) {
+      debugPrint('TimerService._syncWidgetTimer: no timers to sync');
+      return;
+    }
+    final timer = defaultTimer ?? _timers.first;
+    debugPrint('TimerService._syncWidgetTimer: syncing timer ${timer.id} startDate=${timer.startDate} groupId=$_groupId');
+    await HomeWidgetService.instance.syncTimer(timer);
   }
 
   /// Обновить существующий таймер.
@@ -244,6 +261,7 @@ class TimerService extends ChangeNotifier {
     if (_groupId.isNotEmpty) {
       await _fb.upsertGroupTimer(groupId: _groupId, timer: updated.toJson());
     }
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
@@ -264,6 +282,7 @@ class TimerService extends ChangeNotifier {
     if (_groupId.isNotEmpty) {
       await _fb.deleteGroupTimer(groupId: _groupId, timerId: id);
     }
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
@@ -277,6 +296,7 @@ class TimerService extends ChangeNotifier {
     if (_groupId.isNotEmpty) {
       await _fb.setDefaultGroupTimer(groupId: _groupId, timerId: id);
     }
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
@@ -336,6 +356,7 @@ class TimerService extends ChangeNotifier {
     if (_groupId.isNotEmpty) {
       await _fb.upsertGroupTimer(groupId: _groupId, timer: sys.toJson());
     }
+    await _syncWidgetTimer();
     notifyListeners();
   }
 
