@@ -238,11 +238,12 @@ class TimerService extends ChangeNotifier {
 
   Future<void> _syncWidgetTimer() async {
     if (_timers.isEmpty) {
-      debugPrint('TimerService._syncWidgetTimer: no timers to sync');
+      debugPrint('TimerService._syncWidgetTimer: нет таймеров, очищаю виджет');
+      await HomeWidgetService.instance.clearTimerWidget();
       return;
     }
     final timer = defaultTimer ?? _timers.first;
-    debugPrint('TimerService._syncWidgetTimer: syncing timer ${timer.id} startDate=${timer.startDate} groupId=$_groupId');
+    debugPrint('TimerService._syncWidgetTimer: syncing timer ${timer.id} title=${timer.title} startDate=${timer.startDate} groupId=$_groupId');
     await HomeWidgetService.instance.syncTimer(timer);
   }
 
@@ -273,17 +274,24 @@ class TimerService extends ChangeNotifier {
     );
     if (timer.isSystem) return; // нельзя удалить системный таймер
 
+    debugPrint('TimerService.deleteTimer: удаляю таймер $id (${timer.title}), groupId=$_groupId');
+    
     _timers.removeWhere((t) => t.id == id);
     // Если удалили дефолтный — ставим первый
     if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
       _timers.first.isDefault = true;
     }
     await _saveLocal();
+    debugPrint('TimerService.deleteTimer: сохранено в local, таймеров: ${_timers.length}');
+    
     if (_groupId.isNotEmpty) {
       await _fb.deleteGroupTimer(groupId: _groupId, timerId: id);
+      debugPrint('TimerService.deleteTimer: удалено из Firestore');
     }
+    
     await _syncWidgetTimer();
     notifyListeners();
+    debugPrint('TimerService.deleteTimer: завершено, синхронизировано с виджетом');
   }
 
   /// Назначить таймер «показываемым по умолчанию».

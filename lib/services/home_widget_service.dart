@@ -501,6 +501,29 @@ class HomeWidgetService {
     }
   }
 
+  /// Очистить данные таймера в виджете
+  Future<void> clearTimerWidget() async {
+    try {
+      await HomeWidget.saveWidgetData<String>('timer_title', '');
+      await HomeWidget.saveWidgetData<String>('timer_days', '0');
+      await HomeWidget.saveWidgetData<String>('timer_emoji', '❤️');
+      await HomeWidget.saveWidgetData<String>('timer_is_countdown', '0');
+      await HomeWidget.saveWidgetData<String>('timer_date', '');
+      await HomeWidget.saveWidgetData<String>('timer_start_ms', '0');
+      await HomeWidget.updateWidget(
+        name: 'TimerWidgetProvider',
+        androidName: 'TimerWidgetProvider',
+      );
+      await HomeWidget.updateWidget(
+        name: 'PetalTimerWidgetProvider',
+        androidName: 'PetalTimerWidgetProvider',
+      );
+      debugPrint('HomeWidgetService: timer widget cleared');
+    } catch (e) {
+      debugPrint('HomeWidgetService.clearTimerWidget failed: $e');
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  3. ФОТО ДНЯ  (Memory Lane)
   // ════════════════════════════════════════════════════════════════════════

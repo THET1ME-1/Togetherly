@@ -1202,7 +1202,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         const SizedBox(height: 16),
 
         // ── 4. Фото-виджет (личный) ──
-        if (isPaired) ...[
+        if (isPaired || _pair.isSolo) ...[
           _buildGalleryItem(
             title: 'Фото-виджет',
             subtitle: 'Личная карусель: 1–10 фото с автосменой',
@@ -1217,18 +1217,21 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 16),
 
           // ── 4б. Фото партнёра ──
-          _buildGalleryItem(
-            title: LocaleService.current.widgetModePartner,
-            subtitle: LocaleService.current.photoDayPartnerSubtitle,
-            svgString: _photoSvg,
-            qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
-            widgetType: 'photo_day_partner',
-            expandedContent: _buildPartnerPhotoExpandedContent(),
-            isExpanded: _partnerPhotoExpanded,
-            onToggleExpand: () =>
-                setState(() => _partnerPhotoExpanded = !_partnerPhotoExpanded),
-          ),
-          const SizedBox(height: 16),
+          if (isPaired) ...[
+            _buildGalleryItem(
+              title: LocaleService.current.widgetModePartner,
+              subtitle: LocaleService.current.photoDayPartnerSubtitle,
+              svgString: _photoSvg,
+              qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+              widgetType: 'photo_day_partner',
+              expandedContent: _buildPartnerPhotoExpandedContent(),
+              isExpanded: _partnerPhotoExpanded,
+              onToggleExpand: () => setState(
+                () => _partnerPhotoExpanded = !_partnerPhotoExpanded,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ],
 
         // ── 5. Настроение ──

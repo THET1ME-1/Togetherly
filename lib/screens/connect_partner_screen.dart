@@ -153,8 +153,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             final connection = connections[connIndex];
             // Skip solo connection in the list (it's at index 0 in manager but we handle it separately)
             if (connection.isSolo) return const SizedBox();
-            final isActive = connIndex == pair.manager.activeConnectionIndex - 1; // -1 because solo is at 0
-            return _buildGroupChip(connection, connIndex + 1, isActive);
+            // UI index maps directly to manager index (manager has solo at 0, we skip it)
+            final isActive = pair.manager.activeConnectionIndex == connIndex;
+            return _buildGroupChip(connection, connIndex, isActive);
           }
           // Last item is add button
           return _buildAddGroupChip();

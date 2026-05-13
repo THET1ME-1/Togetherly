@@ -466,7 +466,9 @@ class ConnectionsManager extends ChangeNotifier {
 
   Future<void> switchToConnection(int index) async {
     if (index < 0 || index >= _connections.length) return;
+    final oldGroupId = _connections[_activeConnectionIndex].pairId;
     _activeConnectionIndex = index;
+    final newGroupId = _connections[index].pairId;
 
     // Generate invite code if the connection doesn't have one
     final connection = _connections[index];

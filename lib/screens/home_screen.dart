@@ -89,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
   double? _userLat;
   double? _userLng;
   bool _wasPaired = false;
+  String _lastPairId = '';
 
   @override
   void initState() {
@@ -216,9 +217,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final isPaired = _pairData.isPaired;
     final isSolo = _pairData.isSolo;
+    final currentPairId = _pairData.pairId;
+    
+    // Detect if group changed (even within paired mode)
+    final groupChanged = _lastPairId != currentPairId;
+    _lastPairId = currentPairId;
+    
     _startMemoryListener();
 
     if (isPaired && _pairData.startDate != null) {
+      // Rebind services if group changed or first time
+      if (groupChanged || _wasPaired != isPaired) {
+        // Unbind from old group first
+        await _timerService.unbindFromGroup();
+        _moodService.unbindFromGroup();
+        await _widgetService.unbindFromGroup();
+      }
+      
       // Bind mascot service and record today's activity.
       _bindMascotService(_pairData.pairId);
 

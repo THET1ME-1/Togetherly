@@ -467,8 +467,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                     child: ElevatedButton(
                       onPressed: () {
                         if (titleCtrl.text.isEmpty) return;
-                        final finalDate =
-                            _parseDate(dateCtrl.text) ?? pickedDate;
+                        var finalDate = _parseDate(dateCtrl.text) ?? pickedDate;
+                        finalDate = _normalizeTimerDate(finalDate);
                         onSave(
                           titleCtrl.text.trim(),
                           finalDate,
@@ -631,6 +631,25 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     } catch (_) {
       return null;
     }
+  }
+
+  DateTime _normalizeTimerDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        now.hour,
+        now.minute,
+        now.second,
+        now.millisecond,
+        now.microsecond,
+      );
+    }
+    return date;
   }
 }
 
