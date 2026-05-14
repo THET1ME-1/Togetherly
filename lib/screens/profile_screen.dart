@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io' show Platform;
 import '../services/firebase_service.dart';
 import '../models/user_data.dart';
@@ -233,6 +234,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (!mounted) return;
     _showError(_s.error);
+  }
+
+  Future<String> _getAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      return packageInfo.version;
+    } catch (e) {
+      return '1.1.4';
+    }
   }
 
   @override
@@ -2170,9 +2180,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Love App v1.0.0',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+          FutureBuilder<String>(
+            future: _getAppVersion(),
+            builder: (context, snapshot) {
+              final version = snapshot.data ?? 'unknown';
+              return Text(
+                'Love App v$version',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              );
+            },
           ),
           const SizedBox(height: 12),
           GestureDetector(
