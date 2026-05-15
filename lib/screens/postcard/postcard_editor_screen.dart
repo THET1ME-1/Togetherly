@@ -1,0 +1,464 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../models/pair_data.dart';
+import '../../models/user_data.dart';
+import '../../theme/app_theme.dart';
+import 'models/postcard_template.dart';
+import 'widgets/postcard_card.dart';
+
+class PostcardEditorScreen extends StatefulWidget {
+  final UserData userData;
+  final PairData pairData;
+  final AppTheme theme;
+
+  const PostcardEditorScreen({
+    super.key,
+    required this.userData,
+    required this.pairData,
+    required this.theme,
+  });
+
+  @override
+  State<PostcardEditorScreen> createState() => _PostcardEditorScreenState();
+}
+
+class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
+  AppTheme get _t => widget.theme;
+
+  PostcardTemplateId _templateId = PostcardTemplateId.together;
+  late List<PostcardTextBlock> _blocks;
+  bool _exporting = false;
+  bool _capturing = false; // true во время снимка — скрывает UI-оверлеи из экспорта
+
+  // Polaroid photo state
+  String? _polaroidImagePath;
+  Alignment _polaroidAlignment = Alignment.center;
+
+  final GlobalKey _cardKey = GlobalKey();
+
+  int get _days => widget.pairData.daysInLove;
+  String get _myName => widget.userData.displayName;
+  String get _partnerName => widget.pairData.partnerDisplayName;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetBlocks();
+  }
+
+  void _resetBlocks() {
+    _blocks = PostcardTemplate.defaultBlocks(
+      templateId: _templateId,
+      days: _days,
+      myName: _myName,
+      partnerName: _partnerName,
+    );
+  }
+
+  void _switchTemplate(PostcardTemplateId id) {
+    if (_templateId == id) return;
+    setState(() {
+      _templateId = id;
+      _resetBlocks();
+      if (id != PostcardTemplateId.polaroid) {
+        _polaroidImagePath = null;
+        _polaroidAlignment = Alignment.center;
+      }
+    });
+  }
+
+  Future<void> _pickPolaroidPhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null && mounted) {
+      setState(() {
+        _polaroidImagePath = picked.path;
+        _polaroidAlignment = Alignment.center;
+      });
+    }
+  }
+
+  void _editBlock(String blockId) {
+    final block = _blocks.firstWhere((b) => b.id == blockId);
+    final controller = TextEditingController(text: block.text);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                block.label,
+                style: GoogleFonts.rubik(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: null,
+                style: GoogleFonts.rubik(fontSize: 16, color: Colors.grey.shade900),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: _t.primaryLight,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _t.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    final newText = controller.text.trim();
+                    if (newText.isNotEmpty) {
+                      setState(() {
+                        _blocks = _blocks
+                            .map((b) => b.id == blockId ? b.copyWith(text: newText) : b)
+                            .toList();
+                      });
+                    }
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text(
+                    'Готово',
+                    style: GoogleFonts.rubik(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _export() async {
+    // Скрываем UI-оверлеи (баджик «потяни» и рамки редактирования)
+    setState(() { _exporting = true; _capturing = true; });
+    await Future.delayed(const Duration(milliseconds: 60));
+
+    try {
+      final boundary =
+          _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/togetherly_postcard.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        text: '$_days дней вместе ❤️',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось сохранить: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() { _exporting = false; _capturing = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: _t.bgGradient,
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildAppBar(),
+                const SizedBox(height: 16),
+                _buildTemplateSelector(),
+                if (_templateId == PostcardTemplateId.polaroid) ...[
+                  const SizedBox(height: 10),
+                  _buildPhotoPickerButton(),
+                ],
+                const SizedBox(height: 12),
+                Expanded(child: _buildCardPreview()),
+                _buildEditHint(),
+                const SizedBox(height: 16),
+                _buildShareButton(),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 16, 0),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: _t.primary, size: 20),
+          ),
+          Expanded(
+            child: Text(
+              'Открытка',
+              style: GoogleFonts.rubik(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+              ),
+            ),
+          ),
+          Text(
+            '$_days дней',
+            style: GoogleFonts.rubik(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _t.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTemplateSelector() {
+    return SizedBox(
+      height: 68,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        separatorBuilder: (context, i) => const SizedBox(width: 10),
+        itemCount: PostcardTemplate.all.length,
+        itemBuilder: (context, i) {
+          final tpl = PostcardTemplate.all[i];
+          final isSelected = tpl.id == _templateId;
+          return GestureDetector(
+            onTap: () => _switchTemplate(tpl.id),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? _t.primary : Colors.white.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? _t.primary : Colors.grey.shade200,
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: _t.primary.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(tpl.emoji, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Text(
+                    tpl.name,
+                    style: GoogleFonts.rubik(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardPreview() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: RepaintBoundary(
+          key: _cardKey,
+          child: PostcardCard(
+            templateId: _templateId,
+            days: _days,
+            blocks: _blocks,
+            isEditing: !_capturing,
+            onBlockTap: _editBlock,
+            polaroidImagePath: _polaroidImagePath,
+            polaroidAlignment: _polaroidAlignment,
+            onSelectPhoto: _pickPolaroidPhoto,
+            onAlignmentChanged: (a) => setState(() => _polaroidAlignment = a),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPickerButton() {
+    final hasPhoto = _polaroidImagePath != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GestureDetector(
+        onTap: _pickPolaroidPhoto,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _t.cardBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                hasPhoto
+                    ? Icons.swap_horiz_rounded
+                    : Icons.add_photo_alternate_rounded,
+                size: 18,
+                color: _t.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                hasPhoto ? 'Сменить фото' : 'Добавить фото из галереи',
+                style: GoogleFonts.rubik(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _t.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditHint() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 14, color: Colors.grey.shade400),
+          const SizedBox(width: 6),
+          Text(
+            'Нажми на любой текст чтобы изменить',
+            style: GoogleFonts.rubik(
+              fontSize: 12,
+              color: Colors.grey.shade400,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShareButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: _t.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          onPressed: _exporting ? null : _export,
+          icon: _exporting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+          label: Text(
+            _exporting ? 'Создаём...' : 'Поделиться открыткой',
+            style: GoogleFonts.rubik(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

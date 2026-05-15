@@ -27,6 +27,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
+import 'postcard/postcard_editor_screen.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
@@ -821,6 +822,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
                   child: Column(
                     children: [
+                      // ── Открытки ──
+                      _buildPostcardBanner(),
+                      const SizedBox(height: 16),
                       // ── Галерея виджетов рабочего стола ──
                       _buildWidgetGallery(),
                     ],
@@ -3920,6 +3924,99 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ════════════════════════════════════════════════════════════════════════════
   // HELPERS / BUILDERS
   // ════════════════════════════════════════════════════════════════════════════
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // POSTCARD BANNER
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPostcardBanner() {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PostcardEditorScreen(
+            userData: widget.userData,
+            pairData: _pair,
+            theme: _t,
+          ),
+        ),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _t.primary.withOpacity(0.85),
+              _t.primary,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: _t.primary.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Center(
+                child: Text('💌', style: TextStyle(fontSize: 24)),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Создать открытку',
+                    style: GoogleFonts.rubik(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Сколько дней вы вместе — красиво и со стилем',
+                    style: GoogleFonts.rubik(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildGlassCard({required Widget child}) {
     return Container(
