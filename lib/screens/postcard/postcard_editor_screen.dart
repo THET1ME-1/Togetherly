@@ -41,6 +41,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   Alignment _polaroidAlignment = Alignment.center;
 
   final GlobalKey _cardKey = GlobalKey();
+  final GlobalKey _polaroidKey = GlobalKey();
 
   int get _days => widget.pairData.daysInLove;
   String get _myName => widget.userData.displayName;
@@ -187,8 +188,11 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
     await Future.delayed(const Duration(milliseconds: 60));
 
     try {
+      final captureKey = _templateId == PostcardTemplateId.polaroid
+          ? _polaroidKey
+          : _cardKey;
       final boundary =
-          _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+          captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
 
       final image = await boundary.toImage(pixelRatio: 3.0);
@@ -359,6 +363,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
             polaroidAlignment: _polaroidAlignment,
             onSelectPhoto: _pickPolaroidPhoto,
             onAlignmentChanged: (a) => setState(() => _polaroidAlignment = a),
+            polaroidCaptureKey: _polaroidKey,
           ),
         ),
       ),

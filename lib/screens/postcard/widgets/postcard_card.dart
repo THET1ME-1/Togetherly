@@ -16,6 +16,7 @@ class PostcardCard extends StatelessWidget {
   final Alignment polaroidAlignment;
   final VoidCallback? onSelectPhoto;
   final void Function(Alignment)? onAlignmentChanged;
+  final GlobalKey? polaroidCaptureKey;
 
   const PostcardCard({
     super.key,
@@ -28,6 +29,7 @@ class PostcardCard extends StatelessWidget {
     this.polaroidAlignment = Alignment.center,
     this.onSelectPhoto,
     this.onAlignmentChanged,
+    this.polaroidCaptureKey,
   });
 
   @override
@@ -50,6 +52,7 @@ class PostcardCard extends StatelessWidget {
           imageAlignment: polaroidAlignment,
           onSelectPhoto: onSelectPhoto,
           onAlignmentChanged: onAlignmentChanged,
+          captureKey: polaroidCaptureKey,
         ),
         PostcardTemplateId.bloom => _BloomCard(
           days: days,
@@ -242,6 +245,7 @@ class _PolaroidCard extends StatelessWidget {
   final Alignment imageAlignment;
   final VoidCallback? onSelectPhoto;
   final void Function(Alignment)? onAlignmentChanged;
+  final GlobalKey? captureKey;
 
   const _PolaroidCard({
     required this.days,
@@ -252,6 +256,7 @@ class _PolaroidCard extends StatelessWidget {
     this.imageAlignment = Alignment.center,
     this.onSelectPhoto,
     this.onAlignmentChanged,
+    this.captureKey,
   });
 
   PostcardTextBlock _b(String id) => blocks.firstWhere(
@@ -426,46 +431,43 @@ class _PolaroidCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!isEditing) {
-      // Экспорт: только содержимое без бежевого фона и рамки
-      return ColoredBox(
+    final frame = Container(
+      decoration: BoxDecoration(
         color: Colors.white,
-        child: Column(
-          children: [
-            Expanded(child: _buildPhotoContent(topRadius: false)),
-            _buildBottomStrip(),
-          ],
-        ),
-      );
-    }
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: isEditing
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 185,
+            child: _buildPhotoContent(topRadius: true),
+          ),
+          _buildBottomStrip(),
+        ],
+      ),
+    );
 
-    // Превью: бежевый фон + белая поляроидная рамка с тенью
+    // Бежевый фон + рамка поляроида всегда одинаковые.
+    // captureKey прикреплён к RepaintBoundary вокруг рамки —
+    // экспорт захватывает только её, без фона.
     return Container(
       color: const Color(0xFFFFF8EF),
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: 185,
-                child: _buildPhotoContent(topRadius: true),
-              ),
-              _buildBottomStrip(),
-            ],
-          ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: captureKey != null
+              ? RepaintBoundary(key: captureKey, child: frame)
+              : frame,
         ),
       ),
     );
