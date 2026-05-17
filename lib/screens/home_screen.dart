@@ -375,6 +375,10 @@ class _HomeScreenState extends State<HomeScreen> {
       partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
       partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: _pairData.partnerDisplayName,
+      noMoodText: LocaleService.current.noMoodRecorded,
+      nameFallbackMe: LocaleService.current.me,
+      nameFallbackPartner: LocaleService.current.partner,
+      ratingPrefix: LocaleService.current.moodScorePrefix,
     );
   }
 

@@ -1066,6 +1066,10 @@ class HomeWidgetService {
   /// [partnerMoodLabel]          — текстовое название настроения партнёра.
   /// [partnerMoodColor]          — цвет настроения партнёра (hex).
   /// [partnerUserName]           — имя партнёра.
+  /// [noMoodText]                — локализованный текст «нет настроения».
+  /// [nameFallbackMe]            — локализованный «Я/Me».
+  /// [nameFallbackPartner]       — локализованный «Партнёр/Partner».
+  /// [ratingPrefix]              — локализованный «Оценка/Rating».
   Future<void> syncMood({
     required String moodEmojiAssetPath,
     required String moodLabel,
@@ -1077,6 +1081,10 @@ class HomeWidgetService {
     String partnerMoodColor = '',
     required int partnerMoodScore,
     String partnerUserName = '',
+    String noMoodText = '',
+    String nameFallbackMe = '',
+    String nameFallbackPartner = '',
+    String ratingPrefix = '',
   }) async {
     if (moodEmojiAssetPath.isEmpty &&
         moodLabel.isEmpty &&
@@ -1136,6 +1144,24 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<int>(
         'partner_mood_score',
         partnerMoodScore,
+      );
+
+      // ── Локализованные строки для нативного виджета ──
+      await HomeWidget.saveWidgetData<String>(
+        'no_mood_text',
+        noMoodText.isNotEmpty ? noMoodText : 'Пока нет данных',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'name_fallback_me',
+        nameFallbackMe.isNotEmpty ? nameFallbackMe : 'Вы',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'name_fallback_partner',
+        nameFallbackPartner.isNotEmpty ? nameFallbackPartner : 'Партнёр',
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'rating_prefix',
+        ratingPrefix.isNotEmpty ? ratingPrefix : 'Оценка',
       );
 
       await HomeWidget.updateWidget(

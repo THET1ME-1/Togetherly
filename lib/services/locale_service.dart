@@ -625,6 +625,7 @@ abstract class AppStrings {
   String get notEnoughData;
   String moodRecorded(String label);
   String get noMoodRecorded;
+  String get moodScorePrefix;
   List<String> get shortWeekdaysSingleChar;
   List<String> get longWeekdays;
 
@@ -1902,6 +1903,8 @@ class _RuStrings extends AppStrings {
   String moodRecorded(String label) => '$label записано!';
   @override
   String get noMoodRecorded => 'Настроение не отмечено';
+  @override
+  String get moodScorePrefix => 'Оценка';
   @override
   List<String> get shortWeekdaysSingleChar => [
     'П',
@@ -3331,6 +3334,8 @@ class _EnStrings extends AppStrings {
   String moodRecorded(String label) => '$label recorded!';
   @override
   String get noMoodRecorded => 'No mood recorded';
+  @override
+  String get moodScorePrefix => 'Rating';
   @override
   List<String> get shortWeekdaysSingleChar => [
     'M',

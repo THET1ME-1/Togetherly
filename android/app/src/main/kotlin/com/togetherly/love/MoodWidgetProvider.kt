@@ -67,25 +67,41 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                 val label = widgetData.getString("user_${i}_label", "") ?: ""
                 val score = widgetData.getInt("user_${i}_score", 0).coerceIn(0, 5)
                 val colorHex = widgetData.getString("user_${i}_color", "") ?: ""
+                val noMoodText = widgetData.getString("no_mood_text", "Пока нет данных") ?: "Пока нет данных"
+                val nameFallback0 = widgetData.getString("name_fallback_me", "Вы") ?: "Вы"
+                val nameFallback1 = widgetData.getString("name_fallback_partner", "Партнёр") ?: "Партнёр"
+                val ratingPrefix = widgetData.getString("rating_prefix", "Оценка") ?: "Оценка"
 
-                val ratingText = if (score > 0) "Оценка $score из 5" else ""
+                val ratingText = if (score > 0) "$ratingPrefix $score из 5" else ""
 
                 val nameId = if (i == 0) R.id.name_2_0 else R.id.name_2_1
                 val heartId = if (i == 0) R.id.heart_2_0 else R.id.heart_2_1
                 val ratingId = if (i == 0) R.id.rating_2_0 else R.id.rating_2_1
                 val labelId = if (i == 0) R.id.label_2_0 else R.id.label_2_1
 
-                val displayName = if (name.isNotEmpty()) name else if (i == 0) "Вы" else "Партнёр"
+                val displayName = when {
+                    name.isNotEmpty() -> name
+                    i == 0 -> nameFallback0
+                    else -> nameFallback1
+                }
 
                 val waterColor = parseColor(colorHex)
-                val heartBitmap = createWaterHeartBitmap(70, score / 5.0, waterColor)
+                // Apply easeOutCubic to match Flutter preview: f(t) = 1 - (1 - t)^3
+                val t = score / 5.0
+                val easedFill = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
+                val heartBitmap = createWaterHeartBitmap(70, easedFill, waterColor)
 
                 views.setTextViewText(nameId, displayName)
                 views.setImageViewBitmap(heartId, heartBitmap)
+
+                // Rating row: hide completely when no mood (matches Flutter behaviour)
+                views.setViewVisibility(ratingId, if (ratingText.isNotEmpty()) View.VISIBLE else View.GONE)
                 views.setTextViewText(ratingId, ratingText)
-                views.setTextColor(ratingId, if (ratingText.isNotEmpty()) waterColor else Color.parseColor("#9CA3AF"))
-                views.setTextViewText(labelId, if (label.isNotEmpty()) label else "Пока нет данных")
-                views.setTextColor(labelId, if (label.isNotEmpty()) waterColor else Color.parseColor("#9CA3AF"))
+                views.setTextColor(ratingId, waterColor)
+
+                val hasLabel = label.isNotEmpty()
+                views.setTextViewText(labelId, if (hasLabel) label else noMoodText)
+                views.setTextColor(labelId, if (hasLabel) waterColor else Color.parseColor("#9CA3AF"))
             } catch (e: Exception) {
                 Log.e(TAG, "Error populating mood for user $i", e)
             }

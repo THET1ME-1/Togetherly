@@ -5,6 +5,7 @@ import '../../../models/pair_data.dart';
 import '../../../models/mood_entry.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/home_widget_service.dart';
+import '../../../services/locale_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/timer_service.dart';
 import '../../../services/widget_service.dart';
@@ -127,6 +128,10 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
       partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
       partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: pairData.partnerDisplayName,
+      noMoodText: LocaleService.current.noMoodRecorded,
+      nameFallbackMe: LocaleService.current.me,
+      nameFallbackPartner: LocaleService.current.partner,
+      ratingPrefix: LocaleService.current.moodScorePrefix,
     );
   }
 }

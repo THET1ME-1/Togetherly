@@ -117,9 +117,9 @@ class _MoodHeartsPreviewState extends State<MoodHeartsPreview>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.grey.withValues(alpha: 0),
-                  Colors.grey.withValues(alpha: 0.25),
-                  Colors.grey.withValues(alpha: 0),
+                  const Color(0xFFD1D5DB).withValues(alpha: 0),
+                  const Color(0xFFD1D5DB).withValues(alpha: 0.25),
+                  const Color(0xFFD1D5DB).withValues(alpha: 0),
                 ],
               ),
             ),
@@ -167,7 +167,7 @@ class _HeartColumn extends StatelessWidget {
         : 0;
     final waterColor = _waterColor();
     final ratingText = entries.isNotEmpty
-        ? 'Оценка $score из $_kMaxMoodsPerDay'
+        ? '${LocaleService.current.moodScorePrefix} $score из $_kMaxMoodsPerDay'
         : '';
 
     return Column(
@@ -178,7 +178,7 @@ class _HeartColumn extends StatelessWidget {
           style: GoogleFonts.rubik(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: Colors.grey.shade500,
+            color: const Color(0xFF737373),
             letterSpacing: 0.3,
           ),
           maxLines: 1,
@@ -213,7 +213,7 @@ class _HeartColumn extends StatelessWidget {
           style: GoogleFonts.rubik(
             fontSize: 11.5,
             fontWeight: lastEntry != null ? FontWeight.w600 : FontWeight.w400,
-            color: lastEntry != null ? lastEntry.color : Colors.grey.shade400,
+            color: lastEntry != null ? lastEntry.color : const Color(0xFF9CA3AF),
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
