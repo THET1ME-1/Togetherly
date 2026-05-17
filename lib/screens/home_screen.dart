@@ -42,6 +42,7 @@ import '../widgets/active_mascot_widget.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
 import 'home/home_skeleton.dart';
+import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 
 class HomeScreen extends StatefulWidget {
