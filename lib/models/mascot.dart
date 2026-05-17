@@ -161,7 +161,7 @@ class DefaultMascots {
   static List<Map<String, String>> get entries => [
     {
       'id': 'default_boy',
-      'name': 'Пиксиск',
+      'name': 'Пиксик',
       'asset': '$_base/Веселый мальчик.png',
     },
     {
