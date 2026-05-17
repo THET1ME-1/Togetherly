@@ -109,12 +109,21 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
         ? partnerEntries.first
         : null;
 
+    if (myEntry == null && partnerEntry == null) {
+      debugPrint(
+        'HomeWidgetService.syncMood skipped in HomeListenersMixin: no mood entries today',
+      );
+      return;
+    }
+
     await HomeWidgetService.instance.syncMood(
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
       moodLabel: myEntry?.localizedLabel ?? '',
+      moodScore: myEntry?.score ?? 0,
       userName: displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
       partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+      partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: pairData.partnerDisplayName,
     );
   }

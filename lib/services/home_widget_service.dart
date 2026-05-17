@@ -1067,11 +1067,23 @@ class HomeWidgetService {
   Future<void> syncMood({
     required String moodEmojiAssetPath,
     required String moodLabel,
+    required int moodScore,
     String userName = '',
     String partnerMoodEmojiAssetPath = '',
     String partnerMoodLabel = '',
+    required int partnerMoodScore,
     String partnerUserName = '',
   }) async {
+    if (moodEmojiAssetPath.isEmpty &&
+        moodLabel.isEmpty &&
+        moodScore == 0 &&
+        partnerMoodEmojiAssetPath.isEmpty &&
+        partnerMoodLabel.isEmpty &&
+        partnerMoodScore == 0) {
+      debugPrint('HomeWidgetService.syncMood skipped: no mood data to save');
+      return;
+    }
+
     try {
       // ── Моё настроение ──
       String myLocalPath = '';
@@ -1081,10 +1093,13 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('mood_emoji_path', myLocalPath);
       await HomeWidget.saveWidgetData<String>('mood_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('mood_user_name', userName);
+      await HomeWidget.saveWidgetData<int>('mood_score', moodScore);
       await HomeWidget.saveWidgetData<int>('user_count', 2);
       await HomeWidget.saveWidgetData<String>('user_0_emoji_path', myLocalPath);
       await HomeWidget.saveWidgetData<String>('user_0_name', userName);
+      await HomeWidget.saveWidgetData<String>('user_0_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('user_0_avatar_path', '');
+      await HomeWidget.saveWidgetData<int>('user_0_score', moodScore);
 
       // ── Настроение партнёра ──
       String partnerLocalPath = '';
@@ -1108,7 +1123,13 @@ class HomeWidgetService {
         partnerLocalPath,
       );
       await HomeWidget.saveWidgetData<String>('user_1_name', partnerUserName);
+      await HomeWidget.saveWidgetData<String>('user_1_label', partnerMoodLabel);
       await HomeWidget.saveWidgetData<String>('user_1_avatar_path', '');
+      await HomeWidget.saveWidgetData<int>('user_1_score', partnerMoodScore);
+      await HomeWidget.saveWidgetData<int>(
+        'partner_mood_score',
+        partnerMoodScore,
+      );
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',

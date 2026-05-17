@@ -45,9 +45,7 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                 when (userCount) {
                     2 -> {
                         setViewVisibility(R.id.layout_2_users, View.VISIBLE)
-                        populateSlots(this, widgetData, 2, intArrayOf(R.id.emoji_2_0, R.id.emoji_2_1), 
-                                     intArrayOf(R.id.placeholder_2_0, R.id.placeholder_2_1),
-                                     intArrayOf(R.id.avatar_2_0, R.id.avatar_2_1))
+                        populateMoodPreview(this, widgetData)
                     }
                     3 -> {
                         setViewVisibility(R.id.layout_3_users, View.VISIBLE)
@@ -99,6 +97,49 @@ class MoodWidgetProvider : HomeWidgetProvider() {
             } else {
                 views.setViewVisibility(avatarIds[i], View.GONE)
             }
+        }
+    }
+
+    private fun populateMoodPreview(
+        views: RemoteViews,
+        widgetData: SharedPreferences,
+    ) {
+        for (i in 0..1) {
+            val name = widgetData.getString("user_${i}_name", "") ?: ""
+            val label = widgetData.getString("user_${i}_label", "") ?: ""
+            val score = widgetData.getInt("user_${i}_score", 0).coerceIn(0, 5)
+
+            val ratingText = if (score > 0) {
+                "Оценка $score из 5"
+            } else {
+                ""
+            }
+
+            val hearts = buildHeartString(score)
+
+            val nameId = if (i == 0) R.id.name_2_0 else R.id.name_2_1
+            val heartsId = if (i == 0) R.id.hearts_2_0 else R.id.hearts_2_1
+            val ratingId = if (i == 0) R.id.rating_2_0 else R.id.rating_2_1
+            val labelId = if (i == 0) R.id.label_2_0 else R.id.label_2_1
+
+            val displayName = if (name.isNotEmpty()) {
+                name
+            } else {
+                if (i == 0) "Вы" else "Партнёр"
+            }
+            views.setTextViewText(nameId, displayName)
+            views.setTextViewText(heartsId, hearts)
+            views.setTextViewText(ratingId, ratingText)
+            views.setTextViewText(labelId, if (label.isNotEmpty()) label else "Пока нет данных")
+        }
+    }
+
+    private fun buildHeartString(score: Int): String {
+        val filled = "❤"
+        val empty = "♡"
+        return buildString {
+            repeat(score) { append(filled) }
+            repeat(5 - score) { append(empty) }
         }
     }
 

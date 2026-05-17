@@ -709,9 +709,11 @@ class _WidgetScreenState extends State<WidgetScreen>
           await hws.syncMood(
             moodEmojiAssetPath: myEntry?.imagePath ?? '',
             moodLabel: myEntry?.localizedLabel ?? '',
+            moodScore: myEntry?.score ?? 0,
             userName: _ws.myData?.displayName ?? '',
             partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
             partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+            partnerMoodScore: partnerEntry?.score ?? 0,
             partnerUserName: _pair.partnerName,
           );
         }

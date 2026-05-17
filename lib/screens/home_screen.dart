@@ -357,12 +357,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ? partnerEntries.first
         : null;
 
+    if (myEntry == null && partnerEntry == null) {
+      debugPrint(
+        'HomeWidgetService.syncMood skipped in HomeScreen: no mood entries today',
+      );
+      return;
+    }
+
     await HomeWidgetService.instance.syncMood(
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
       moodLabel: myEntry?.localizedLabel ?? '',
+      moodScore: myEntry?.score ?? 0,
       userName: widget.userData.displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
       partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+      partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: _pairData.partnerDisplayName,
     );
   }
