@@ -69,14 +69,23 @@
                 <data android:scheme="loveapp" android:host="invite" />
             </intent-filter>
             
-            <!-- Web link fallback -->
+            <!-- Web link: togetherly.app (будущий домен) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Обработка https://togetherly.app/invite/{code} -->
-                <data android:scheme="https" 
-                      android:host="togetherly.app" 
+                <data android:scheme="https"
+                      android:host="togetherly.app"
+                      android:pathPrefix="/invite" />
+            </intent-filter>
+
+            <!-- Web link: Firebase Hosting (рабочий домен) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="togetherly-d4856.web.app"
                       android:pathPrefix="/invite" />
             </intent-filter>
         </activity>

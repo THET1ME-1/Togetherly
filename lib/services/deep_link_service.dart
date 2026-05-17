@@ -46,31 +46,40 @@ class DeepLinkService {
 
     // Поддерживаемые форматы:
     // loveapp://invite/ABC123
-    // https://togetherly.app/invite/ABC123
-    // https://togetherly-d4856.firebaseapp.com/?... (email link)
+    // https://togetherly-d4856.web.app/invite/ABC123   ← основной рабочий домен
+    // https://togetherly.app/invite/ABC123             ← будущий домен
+    // https://togetherly-d4856.web.app/?oobCode=...    ← email link
 
-    // Email Link Authentication - любая ссылка с Firebase Hosting домена
-    if (uri.scheme == 'https' && uri.host == 'togetherly-d4856.web.app') {
-      debugPrint('Potential email link detected from Firebase domain');
-      _handleEmailLink(uri.toString());
-      return;
-    }
-
-    // Invite links
     if (uri.scheme == 'loveapp' && uri.host == 'invite') {
       // loveapp://invite/ABC123
       final code = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
       if (code != null && code.length == 6) {
         _inviteCodeController.add(code.toUpperCase());
       }
-    } else if (uri.scheme == 'https' &&
-        uri.host == 'togetherly.app' &&
-        uri.pathSegments.isNotEmpty &&
-        uri.pathSegments.first == 'invite') {
-      // https://togetherly.app/invite/ABC123
-      final code = uri.pathSegments.length > 1 ? uri.pathSegments[1] : null;
-      if (code != null && code.length == 6) {
-        _inviteCodeController.add(code.toUpperCase());
+      return;
+    }
+
+    if (uri.scheme == 'https') {
+      final isFirebaseHost = uri.host == 'togetherly-d4856.web.app';
+      final isMainHost = uri.host == 'togetherly.app';
+      final isInvitePath = uri.pathSegments.isNotEmpty &&
+          uri.pathSegments.first == 'invite';
+
+      if ((isFirebaseHost || isMainHost) && isInvitePath) {
+        // https://<host>/invite/ABC123
+        final code =
+            uri.pathSegments.length > 1 ? uri.pathSegments[1] : null;
+        if (code != null && code.length == 6) {
+          debugPrint('DeepLinkService: invite code from web link: $code');
+          _inviteCodeController.add(code.toUpperCase());
+        }
+        return;
+      }
+
+      if (isFirebaseHost) {
+        // Остальные ссылки с Firebase Hosting — email link
+        debugPrint('DeepLinkService: email link from Firebase domain');
+        _handleEmailLink(uri.toString());
       }
     }
   }
