@@ -35,35 +35,58 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
   late final MapController _mapController;
   late List<_MemoryCluster> _clusters;
   _MemoryCluster? _selectedCluster;
+  double _zoom = 3.5;
 
-  // ~1.5 km grid cell (0.015° ≈ 1.5 km at mid-latitudes)
-  static const double _cellDeg = 0.015;
+  // How many screen pixels define "overlapping" — markers closer than this merge.
+  static const double _clusterPixels = 56.0;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-    _clusters = _buildClusters();
+    _clusters = _buildClusters(_zoom);
   }
 
-  List<_MemoryCluster> _buildClusters() {
+  /// Grid cell size in degrees for a given zoom level.
+  /// At zoom z, 256·2^z pixels span 360° → 1° = 256·2^z/360 px.
+  /// We merge markers whose centres are within [_clusterPixels] pixels.
+  static double _cellDeg(double zoom) {
+    final pxPerDeg = 256.0 * pow(2.0, zoom) / 360.0;
+    return _clusterPixels / pxPerDeg;
+  }
+
+  List<_MemoryCluster> _buildClusters(double zoom) {
+    final cell = _cellDeg(zoom);
     final geoMemories = widget.memories
         .where((m) => m.latitude != null && m.longitude != null)
         .toList();
 
     final Map<String, List<Memory>> groups = {};
     for (final m in geoMemories) {
-      final cellLat = (m.latitude! / _cellDeg).floor();
-      final cellLng = (m.longitude! / _cellDeg).floor();
-      final key = '${cellLat}_$cellLng';
-      groups.putIfAbsent(key, () => []).add(m);
+      final cellLat = (m.latitude! / cell).floor();
+      final cellLng = (m.longitude! / cell).floor();
+      groups.putIfAbsent('${cellLat}_$cellLng', () => []).add(m);
     }
 
     return groups.values.map((list) {
-      final avgLat = list.map((m) => m.latitude!).reduce((a, b) => a + b) / list.length;
-      final avgLng = list.map((m) => m.longitude!).reduce((a, b) => a + b) / list.length;
+      final avgLat =
+          list.map((m) => m.latitude!).reduce((a, b) => a + b) / list.length;
+      final avgLng =
+          list.map((m) => m.longitude!).reduce((a, b) => a + b) / list.length;
       return _MemoryCluster(center: LatLng(avgLat, avgLng), memories: list);
     }).toList();
+  }
+
+  void _onMapEvent(MapEvent event) {
+    final newZoom = event.camera.zoom;
+    // Only re-cluster when zoom changes meaningfully (ignore tiny floating drift)
+    if ((newZoom - _zoom).abs() >= 0.25) {
+      setState(() {
+        _zoom = newZoom;
+        _selectedCluster = null;
+        _clusters = _buildClusters(newZoom);
+      });
+    }
   }
 
   double _markerSize(_MemoryCluster c) {
@@ -101,10 +124,26 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
   }
 
   void _onClusterTap(_MemoryCluster cluster) {
-    setState(() {
-      _selectedCluster = cluster == _selectedCluster ? null : cluster;
-    });
-    _mapController.move(cluster.center, 10.0);
+    if (_selectedCluster == cluster) {
+      setState(() => _selectedCluster = null);
+    } else {
+      // Zoom in enough that the cluster likely splits (or shows detail)
+      final targetZoom = (_zoom + 3).clamp(1.5, 18.0);
+      _mapController.move(cluster.center, targetZoom);
+      // Re-cluster at new zoom and then select
+      setState(() {
+        _zoom = targetZoom;
+        _clusters = _buildClusters(targetZoom);
+        _selectedCluster = null; // will be updated below
+      });
+      // Find whichever cluster now contains the tapped memories
+      final tappedIds = cluster.memories.map((m) => m.id).toSet();
+      final newCluster = _clusters.firstWhere(
+        (c) => c.memories.any((m) => tappedIds.contains(m.id)),
+        orElse: () => cluster,
+      );
+      setState(() => _selectedCluster = newCluster);
+    }
   }
 
   @override
@@ -120,10 +159,11 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: center,
-              initialZoom: _clusters.isEmpty ? 2.0 : 3.5,
+              initialZoom: _zoom,
               minZoom: 1.5,
               maxZoom: 18,
               onTap: (_, __) => setState(() => _selectedCluster = null),
+              onMapEvent: _onMapEvent,
             ),
             children: [
               TileLayer(
@@ -251,7 +291,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '${_clusters.fold(0, (s, c) => s + c.count)}',
+                                '${widget.memories.where((m) => m.latitude != null).length}',
                                 style: GoogleFonts.rubik(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
