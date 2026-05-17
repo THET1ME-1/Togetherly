@@ -1060,17 +1060,21 @@ class HomeWidgetService {
   ///
   /// [moodEmojiAssetPath]        — путь к ассету моего эмодзи (напр. 'assets/images/emoji/033-love.png').
   /// [moodLabel]                 — текстовое название моего настроения.
+  /// [moodColor]                 — цвет моего настроения (hex).
   /// [userName]                  — моё имя.
   /// [partnerMoodEmojiAssetPath] — путь к ассету эмодзи партнёра.
   /// [partnerMoodLabel]          — текстовое название настроения партнёра.
+  /// [partnerMoodColor]          — цвет настроения партнёра (hex).
   /// [partnerUserName]           — имя партнёра.
   Future<void> syncMood({
     required String moodEmojiAssetPath,
     required String moodLabel,
     required int moodScore,
+    String moodColor = '',
     String userName = '',
     String partnerMoodEmojiAssetPath = '',
     String partnerMoodLabel = '',
+    String partnerMoodColor = '',
     required int partnerMoodScore,
     String partnerUserName = '',
   }) async {
@@ -1094,12 +1098,14 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('mood_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('mood_user_name', userName);
       await HomeWidget.saveWidgetData<int>('mood_score', moodScore);
+      await HomeWidget.saveWidgetData<String>('mood_color', moodColor);
       await HomeWidget.saveWidgetData<int>('user_count', 2);
       await HomeWidget.saveWidgetData<String>('user_0_emoji_path', myLocalPath);
       await HomeWidget.saveWidgetData<String>('user_0_name', userName);
       await HomeWidget.saveWidgetData<String>('user_0_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('user_0_avatar_path', '');
       await HomeWidget.saveWidgetData<int>('user_0_score', moodScore);
+      await HomeWidget.saveWidgetData<String>('user_0_color', moodColor);
 
       // ── Настроение партнёра ──
       String partnerLocalPath = '';
@@ -1126,6 +1132,7 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('user_1_label', partnerMoodLabel);
       await HomeWidget.saveWidgetData<String>('user_1_avatar_path', '');
       await HomeWidget.saveWidgetData<int>('user_1_score', partnerMoodScore);
+      await HomeWidget.saveWidgetData<String>('user_1_color', partnerMoodColor);
       await HomeWidget.saveWidgetData<int>(
         'partner_mood_score',
         partnerMoodScore,

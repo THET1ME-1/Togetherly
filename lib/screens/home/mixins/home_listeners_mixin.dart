@@ -120,9 +120,11 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
       moodLabel: myEntry?.localizedLabel ?? '',
       moodScore: myEntry?.score ?? 0,
+      moodColor: myEntry != null ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
       userName: displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
       partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+      partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
       partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: pairData.partnerDisplayName,
     );

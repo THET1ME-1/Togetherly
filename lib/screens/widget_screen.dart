@@ -135,17 +135,214 @@ class _WidgetScreenState extends State<WidgetScreen>
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
-    _checkPinSupport();
-    _loadWidgetTimerId();
-    _loadStats();
-    _loadPhotoDayPrefs();
-    _loadPhotoDayWidgets();
-    _loadLockScreenMoodPref();
-    _loadPhotoGridPrefs();
-    // Подписываемся на настроение партнёров
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
     }
+    _loadAllInitialPrefs();
+  }
+
+  Future<void> _loadAllInitialPrefs() async {
+    final hws = HomeWidgetService.instance;
+
+    final pinSupportedFuture = _checkPinSupportSilent();
+    final timerIdFuture = _loadWidgetTimerIdSilent();
+    final lockScreenFuture = hws.getLockScreenMoodEnabled();
+    final photoGridCount = _ws.myData?.photoGridCount ?? 1;
+    final photoDaySaveFuture = hws.getPhotoDaySaveMemory(_pair.pairId);
+    final photoDayWidgetsFuture = _loadPhotoDayWidgetsSilent();
+    final statsFuture = _loadStatsSilent();
+
+    final results = await Future.wait([
+      pinSupportedFuture,
+      timerIdFuture,
+      lockScreenFuture,
+      photoDaySaveFuture,
+      photoDayWidgetsFuture,
+      statsFuture,
+    ]);
+
+    if (!mounted) return;
+
+    final canPin = results[0] as bool;
+    final timerId = results[1] as String?;
+    final lockEnabled = results[2] as bool;
+    final photoDaySave = results[3] as bool;
+    final photoDayState = results[4] as Map<String, dynamic>;
+    final statsState = results[5] as Map<String, dynamic>;
+
+    setState(() {
+      _canPinWidgets = canPin;
+      _widgetTimerId = timerId;
+      _lockScreenMoodEnabled = lockEnabled;
+      _savePhotoAsMemory = photoDaySave;
+      _photoGridCount = photoGridCount;
+      _personalWidgetIds = List<int>.from(photoDayState['personalIds'] ?? []);
+      _partnerWidgetIds = List<int>.from(photoDayState['partnerIds'] ?? []);
+      _photoDayWidgetNames = Map<int, String>.from(photoDayState['names'] ?? {});
+      _photoDayWidgetOwnPhotoPaths = Map<int, String?>.from(photoDayState['ownPhotoPaths'] ?? {});
+      _photoDayWidgetUrls = Map<int, List<String>>.from(photoDayState['urls'] ?? {});
+      _photoDayWidgetRotationType = Map<int, String>.from(photoDayState['rotationType'] ?? {});
+      _photoDayWidgetRotationInterval = Map<int, int>.from(photoDayState['rotationInterval'] ?? {});
+      _selectedPersonalWidgetId = photoDayState['selectedPersonal'] as int?;
+      _selectedPartnerWidgetId = photoDayState['selectedPartner'] as int?;
+      _memoriesCount = statsState['memoriesCount'] as int?;
+      _drawingsCount = statsState['drawingsCount'] as int?;
+      _missYouCount = statsState['missYouCount'] as int?;
+    });
+
+    _startMissYouListener();
+
+    // Post-setState async operations
+    await MoodNotificationService.instance.init();
+    if (lockEnabled) await _syncLockScreenMoodWidget(true);
+  }
+
+  void _startMissYouListener() {
+    _missYouSub?.cancel();
+    final groupId = _pair.pairId;
+    if (groupId.isEmpty) return;
+    _missYouSub = FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .listen((snap) {
+          if (snap.exists && mounted) {
+            setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
+          }
+        });
+  }
+
+  Future<bool> _checkPinSupportSilent() async {
+    try {
+      final supported = await HomeWidget.isRequestPinWidgetSupported();
+      return (supported ?? false) || true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<String?> _loadWidgetTimerIdSilent() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_widgetTimerKey);
+  }
+
+  Future<Map<String, dynamic>> _loadStatsSilent() async {
+    final groupId = _pair.pairId;
+    if (groupId.isEmpty) {
+      return {'memoriesCount': 0, 'drawingsCount': 0, 'missYouCount': 0};
+    }
+
+    int? memoriesCount;
+    int? drawingsCount;
+
+    try {
+      memoriesCount = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .count()
+          .get()
+          .then((snap) => snap.count);
+    } catch (_) {}
+
+    try {
+      drawingsCount = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .count()
+          .get()
+          .then((snap) => snap.count);
+    } catch (_) {}
+
+    return {
+      'memoriesCount': memoriesCount,
+      'drawingsCount': drawingsCount,
+      'missYouCount': null,
+    };
+  }
+
+  Future<Map<String, dynamic>> _loadPhotoDayWidgetsSilent() async {
+    final hws = HomeWidgetService.instance;
+    final allIds = await hws.getPhotoDayWidgetIds();
+
+    final personalIds = <int>[];
+    final partnerIds = <int>[];
+
+    for (final id in allIds) {
+      final kind = await hws.getPhotoDayWidgetKind(id);
+      if (kind == 'partner') {
+        partnerIds.add(id);
+      } else {
+        personalIds.add(id);
+      }
+    }
+
+    final selectedPersonal = PhotoDayWidgetLogic.resolveSelectedWidgetId(
+      personalIds,
+      _selectedPersonalWidgetId,
+    );
+    final selectedPartner = PhotoDayWidgetLogic.resolveSelectedWidgetId(
+      partnerIds,
+      _selectedPartnerWidgetId,
+    );
+
+    final widgetNames = <int, String>{};
+    final widgetOwnPhotoPaths = <int, String?>{};
+    final widgetUrls = <int, List<String>>{};
+    final widgetRotationType = <int, String>{};
+    final widgetRotationInterval = <int, int>{};
+
+    for (final widgetId in allIds) {
+      widgetNames[widgetId] = (await hws.getPhotoDayWidgetName(widgetId)) ?? '';
+      final widgetDisplay = await hws.getPhotoDayWidgetDisplay(widgetId);
+      final widgetMode = await hws.getPhotoDayWidgetMode(
+        widgetId,
+        fallbackGroupId: _pair.pairId,
+      );
+      final preview = await hws.getPhotoDayWidgetPreview(widgetId);
+      var customPath = await hws.getPhotoDayWidgetCustomPath(widgetId);
+      if (customPath != null &&
+          customPath.isNotEmpty &&
+          !File(customPath).existsSync()) {
+        customPath = null;
+      }
+      final urls = await hws.getPhotoDayWidgetUrls(widgetId);
+      widgetUrls[widgetId] = urls;
+      widgetRotationType[widgetId] = await hws.getPhotoDayWidgetRotationType(
+        widgetId,
+      );
+      widgetRotationInterval[widgetId] = await hws
+          .getPhotoDayWidgetRotationInterval(widgetId);
+
+      String? preferredOwnPath;
+      if (urls.isNotEmpty) {
+        preferredOwnPath = urls.first;
+      }
+
+      final widgetState = PhotoDayWidgetLogic.resolveState(
+        selectedWidgetId: widgetId,
+        mode: widgetMode,
+        display: widgetDisplay,
+        widgetPreviewPath: preview['path'],
+        widgetCustomPath: customPath,
+        myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
+      );
+      widgetOwnPhotoPaths[widgetId] =
+          preferredOwnPath ?? widgetState.ownPhotoPath;
+    }
+
+    return {
+      'personalIds': personalIds,
+      'partnerIds': partnerIds,
+      'names': widgetNames,
+      'ownPhotoPaths': widgetOwnPhotoPaths,
+      'urls': widgetUrls,
+      'rotationType': widgetRotationType,
+      'rotationInterval': widgetRotationInterval,
+      'selectedPersonal': selectedPersonal,
+      'selectedPartner': selectedPartner,
+    };
   }
 
   @override
@@ -710,9 +907,11 @@ class _WidgetScreenState extends State<WidgetScreen>
             moodEmojiAssetPath: myEntry?.imagePath ?? '',
             moodLabel: myEntry?.localizedLabel ?? '',
             moodScore: myEntry?.score ?? 0,
+            moodColor: myEntry != null ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
             userName: _ws.myData?.displayName ?? '',
             partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
             partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+            partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
             partnerMoodScore: partnerEntry?.score ?? 0,
             partnerUserName: _pair.partnerName,
           );
