@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(firebase deploy *)"
+      "Bash(firebase deploy *)",
+      "Bash(xargs cat)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\android\" -Filter \"AndroidManifest.xml\" -Recurse)"
     ]
   }
 }

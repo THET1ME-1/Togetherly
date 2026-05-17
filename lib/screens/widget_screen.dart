@@ -456,10 +456,15 @@ class _WidgetScreenState extends State<WidgetScreen>
         uploadedUrls.add(path);
       } else {
         try {
-          if (_savePhotoAsMemory) {
-            final timestamp = DateTime.now().millisecondsSinceEpoch;
-            final destination =
-                'memories/${_pair.pairId}/photo_day_$timestamp.jpg';
+          final uid = fb.uid ?? '';
+          final ts = DateTime.now().millisecondsSinceEpoch;
+          // Когда pairId пустой (соло-режим), используем uid как папку.
+          // Путь с пустым сегментом (widget//uid.jpg) отклоняется Firebase Storage.
+          final folder =
+              _pair.pairId.isNotEmpty ? _pair.pairId : uid;
+
+          if (_savePhotoAsMemory && _pair.pairId.isNotEmpty) {
+            final destination = 'memories/$folder/photo_day_$ts.jpg';
             final uploadedUrl = await fb.uploadFile(path, destination);
             if (uploadedUrl != null) {
               await fb.addMemory(
@@ -471,11 +476,9 @@ class _WidgetScreenState extends State<WidgetScreen>
               uploadedUrls.add(uploadedUrl);
             }
           } else {
-            final uid = fb.uid ?? '';
-            final ts = DateTime.now().millisecondsSinceEpoch;
             final uploadedUrl = await fb.uploadFile(
               path,
-              'widget/${_pair.pairId}/${uid}_$ts.jpg',
+              'widget/$folder/${uid}_$ts.jpg',
             );
             if (uploadedUrl != null) uploadedUrls.add(uploadedUrl);
           }
@@ -1807,7 +1810,9 @@ class _WidgetScreenState extends State<WidgetScreen>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается карусель: смена при разблокировке или по таймеру.',
+                  _pair.partnerName.isNotEmpty
+                      ? 'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается карусель: смена при разблокировке или по таймеру.\n\n${_pair.partnerName} увидит их в своём «Фото партнёра»-виджете автоматически.'
+                      : 'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается карусель: смена при разблокировке или по таймеру.',
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade700,

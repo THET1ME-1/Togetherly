@@ -186,7 +186,33 @@ class HomeWidgetService {
         };
       }
     }
-    return null;
+
+    // Партнёр ещё не открывал настройки виджетов — его документ widgetData
+    // не существует. Берём UID из массива members группы, чтобы random-fallback
+    // мог фильтровать Memory Lane по автору.
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (!groupDoc.exists) return null;
+      final members = List<String>.from(groupDoc.data()?['members'] ?? []);
+      final memberNames = Map<String, dynamic>.from(
+        groupDoc.data()?['memberNames'] ?? {},
+      );
+      final partnerUid = members.firstWhere(
+        (uid) => uid != currentUserUid,
+        orElse: () => '',
+      );
+      if (partnerUid.isEmpty) return null;
+      return {
+        'photoDayMode': 'random',
+        'photoDayUrl': '',
+        'photoDayUrls': '',
+        'authorName': memberNames[partnerUid] as String? ?? '',
+        'authorUid': partnerUid,
+      };
+    } catch (e) {
+      debugPrint('_getPartnerWidgetData group fallback failed: $e');
+      return null;
+    }
   }
 
   Future<Map<String, String>?> _getMyWidgetData(
@@ -749,10 +775,8 @@ class HomeWidgetService {
       Map<String, String>? targetData;
       if (selectedKind == 'partner') {
         targetData = await _getPartnerWidgetData(groupId, currentUserUid);
-        if (targetData == null || (targetData['authorUid'] ?? '').isEmpty) {
-          await _clearPhotoOfDay(widgetId: widgetId, groupId: groupId);
-          return;
-        }
+        // Не останавливаемся при null — даём шанс random-fallback из Memory Lane
+        // (если партнёр не настроил виджет, показываем случайное фото из ленты)
       } else {
         targetData = await _getMyWidgetData(groupId, currentUserUid);
       }
@@ -774,24 +798,24 @@ class HomeWidgetService {
       // набор URL. Firestore-поле photoDayUrls принадлежит другим экземплярам виджета
       // и не должно использоваться для виджетов без своего набора — иначе каждый
       // новый виджет копирует фото уже настроенного.
-      // Partner-виджет работает по старой логике: показывает кастомное фото партнёра.
+      // Partner-виджет: показываем фото партнёра если они вообще есть — не требуем
+      // явного mode='custom', потому что пользователь не управляет режимом партнёра.
       final bool targetHasCustomPhoto = selectedKind == 'partner'
-          ? (targetMode == 'custom' &&
-              (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty))
+          ? (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty)
           : ownWidgetUrls.isNotEmpty;
 
       if (targetHasCustomPhoto) {
         debugPrint(
           'HomeWidgetService: showing custom photo '
           '(targetMode=$targetMode, widgetMode=$mode, kind=$selectedKind) '
-          'author=${targetData!['authorName']} uid=${targetData['authorUid']}',
+          'author=${targetData?['authorName']} uid=${targetData?['authorUid']}',
         );
 
         if (targetPhotoUrls.length > 1) {
           await syncPhotoOfDayCarousel(
             photoUrls: targetPhotoUrls,
-            authorName: targetData['authorName'] ?? '',
-            authorUid: targetData['authorUid'] ?? '',
+            authorName: targetData?['authorName'] ?? '',
+            authorUid: targetData?['authorUid'] ?? '',
             widgetId: widgetId,
             groupId: groupId,
           );
@@ -802,8 +826,8 @@ class HomeWidgetService {
                 : targetPhotoUrl,
             caption: '',
             memoryId: '',
-            authorName: targetData['authorName'] ?? '',
-            authorUid: targetData['authorUid'] ?? '',
+            authorName: targetData?['authorName'] ?? '',
+            authorUid: targetData?['authorUid'] ?? '',
             widgetId: widgetId,
             groupId: groupId,
           );

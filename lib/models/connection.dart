@@ -553,6 +553,7 @@ class Connection {
 
   /// Called when real-time listener detects a new pairId
   Future<void> claimPair(String newPairId) async {
+    if (isSolo) return; // solo-connection никогда не должен становиться парным
     if (isPaired || pairId.isNotEmpty) return;
     pairId = newPairId;
     await refreshPairStatus();

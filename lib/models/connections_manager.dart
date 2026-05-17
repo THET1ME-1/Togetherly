@@ -99,11 +99,12 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     // If no connection claimed the Firebase pair, let the FIRST unpaired
-    // connection check (only once, to pick up the initial pairing).
+    // non-solo connection check (only once, to pick up the initial pairing).
     // Use a flag to ensure only one connection attempts to claim the Firebase pair.
     if (_fb.isLoggedIn && knownPairIds.isEmpty) {
       bool pairClaimed = false;
       for (final conn in _connections) {
+        if (conn.isSolo) continue; // solo никогда не должен клеймить пару
         if (conn.isPaired || conn.pairId.isNotEmpty) {
           pairClaimed = true;
           break;
@@ -172,9 +173,11 @@ class ConnectionsManager extends ChangeNotifier {
       return true;
     }
 
-    // Find first unpaired connection to reuse, or create new one
+    // Find first unpaired non-solo connection to reuse, or create new one.
+    // Solo connection никогда не должен становиться парным — он существует
+    // только для одиночного режима и всегда должен оставаться solo.
     Connection? target = _connections.cast<Connection?>().firstWhere(
-      (c) => !c!.isPaired && c.pairId.isEmpty,
+      (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
       orElse: () => null,
     );
 
@@ -302,10 +305,10 @@ class ConnectionsManager extends ChangeNotifier {
         for (var remotePairId in remotePairIds) {
           if (claimedIds.contains(remotePairId)) continue;
 
-          // Нашли новую пару — назначаем первому unpaired connection
-          // Если unpaired нет — создаём новый connection
+          // Нашли новую пару — назначаем первому unpaired non-solo connection.
+          // Solo connection пропускаем: он существует только для одиночного режима.
           Connection? unpaired = _connections.cast<Connection?>().firstWhere(
-            (c) => !c!.isPaired && c.pairId.isEmpty,
+            (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
             orElse: () => null,
           );
 
@@ -358,6 +361,51 @@ class ConnectionsManager extends ChangeNotifier {
     );
 
     if (existingSolo != null) {
+      // Лечим повреждённый соло-коннекшн: если у него есть pairId, значит
+      // старый баг записал туда партнёрскую группу. Переселяем её в новый
+      // нормальный коннекшн, а соло очищаем.
+      if (existingSolo.pairId.isNotEmpty || existingSolo.isPaired) {
+        final orphanedPairId = existingSolo.pairId;
+        final alreadyExists = orphanedPairId.isNotEmpty &&
+            _connections.any(
+              (c) => !c.isSolo && c.pairId == orphanedPairId,
+            );
+
+        if (!alreadyExists && orphanedPairId.isNotEmpty) {
+          // Создаём новый нормальный коннекшн и переносим все данные соло
+          final rescued = Connection(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            firebaseService: _fb,
+            isPaired: existingSolo.isPaired,
+            pairId: orphanedPairId,
+            startDate: existingSolo.startDate,
+            partnerName: existingSolo.partnerName,
+            partnerAvatarUrl: existingSolo.partnerAvatarUrl,
+            members: List.of(existingSolo.members),
+            inviteCode: existingSolo.inviteCode,
+            relationshipType: existingSolo.relationshipType,
+            onChanged: () {
+              _saveLocal();
+              notifyListeners();
+            },
+          );
+          _connections.add(rescued);
+          debugPrint(
+            '_ensureSoloConnection: rescued orphaned pairId=$orphanedPairId into new connection',
+          );
+        }
+
+        // Сбрасываем соло до чистого состояния
+        existingSolo.isPaired = false;
+        existingSolo.pairId = '';
+        existingSolo.startDate = null;
+        existingSolo.partnerName = '';
+        existingSolo.partnerAvatarUrl = '';
+        existingSolo.members.clear();
+        existingSolo.inviteCode = '';
+        debugPrint('_ensureSoloConnection: reset corrupted solo connection');
+      }
+
       // Move solo to index 0 if not already there
       if (_connections.first != existingSolo) {
         _connections.remove(existingSolo);
