@@ -3,7 +3,10 @@
     "allow": [
       "Bash(firebase deploy *)",
       "Bash(xargs cat)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\android\" -Filter \"AndroidManifest.xml\" -Recurse)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\android\" -Filter \"AndroidManifest.xml\" -Recurse)",
+      "Bash(dart analyze *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" -Recurse -Filter \"*mood_widget*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

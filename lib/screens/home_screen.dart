@@ -218,11 +218,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final isPaired = _pairData.isPaired;
     final isSolo = _pairData.isSolo;
     final currentPairId = _pairData.pairId;
-    
+
     // Detect if group changed (even within paired mode)
     final groupChanged = _lastPairId != currentPairId;
     _lastPairId = currentPairId;
-    
+
     _startMemoryListener();
 
     if (isPaired && _pairData.startDate != null) {
@@ -233,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _moodService.unbindFromGroup();
         await _widgetService.unbindFromGroup();
       }
-      
+
       // Bind mascot service and record today's activity.
       _bindMascotService(_pairData.pairId);
 
@@ -359,10 +359,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await HomeWidgetService.instance.syncMood(
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
-      moodLabel: myEntry?.label ?? '',
+      moodLabel: myEntry?.localizedLabel ?? '',
       userName: widget.userData.displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-      partnerMoodLabel: partnerEntry?.label ?? '',
+      partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
       partnerUserName: _pairData.partnerDisplayName,
     );
   }

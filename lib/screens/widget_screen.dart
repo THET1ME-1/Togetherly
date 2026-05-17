@@ -26,6 +26,7 @@ import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
+import '../widgets/mood_hearts_preview.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 import 'postcard/postcard_editor_screen.dart';
 
@@ -460,8 +461,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           final ts = DateTime.now().millisecondsSinceEpoch;
           // Когда pairId пустой (соло-режим), используем uid как папку.
           // Путь с пустым сегментом (widget//uid.jpg) отклоняется Firebase Storage.
-          final folder =
-              _pair.pairId.isNotEmpty ? _pair.pairId : uid;
+          final folder = _pair.pairId.isNotEmpty ? _pair.pairId : uid;
 
           if (_savePhotoAsMemory && _pair.pairId.isNotEmpty) {
             final destination = 'memories/$folder/photo_day_$ts.jpg';
@@ -690,6 +690,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         // Парный виджет синхронизируется WidgetService
         break;
       case 'mood':
+        // Ждём, пока система зарегистрирует новый виджет перед синхронизацией.
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
         // Синхронизируем из Mood Calendar за сегодня
         {
           final today = DateTime.now();
@@ -2652,20 +2654,13 @@ class _WidgetScreenState extends State<WidgetScreen>
     final s = LocaleService.current;
     final today = DateTime.now();
 
-    // Моё настроение из Mood Calendar за сегодня
     final myEntries = _moodService.myEntriesForDay(today);
-    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
-
-    // Настроение партнёра из Mood Calendar за сегодня
     final partnerUid = _pair.partners.isNotEmpty
         ? _pair.partners.first.uid
         : '';
     final partnerEntries = partnerUid.isNotEmpty
         ? _moodService.partnerEntriesForDay(partnerUid, today)
         : <MoodEntry>[];
-    final partnerEntry = partnerEntries.isNotEmpty
-        ? partnerEntries.first
-        : null;
 
     final myName = _ws.myData?.displayName.isNotEmpty == true
         ? _ws.myData!.displayName
@@ -2674,104 +2669,12 @@ class _WidgetScreenState extends State<WidgetScreen>
         ? _pair.partnerName
         : s.partner;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_t.primary.withOpacity(0.05), _t.primary.withOpacity(0.1)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _t.primary.withOpacity(0.1)),
-      ),
-      child: Row(
-        children: [
-          // ── Левая часть: Моё настроение ──
-          Expanded(
-            child: _buildMoodHalf(entry: myEntry, name: myName, isLeft: true),
-          ),
-          // ── Разделитель ──
-          Container(
-            width: 1,
-            height: 80,
-            margin: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.grey.shade200.withOpacity(0),
-                  Colors.grey.shade300,
-                  Colors.grey.shade200.withOpacity(0),
-                ],
-              ),
-            ),
-          ),
-          // ── Правая часть: Настроение партнёра ──
-          Expanded(
-            child: _buildMoodHalf(
-              entry: partnerEntry,
-              name: partnerName,
-              isLeft: false,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMoodHalf({
-    required MoodEntry? entry,
-    required String name,
-    required bool isLeft,
-  }) {
-    return Column(
-      crossAxisAlignment: isLeft
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.end,
-      children: [
-        Text(
-          name,
-          style: GoogleFonts.rubik(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey.shade500,
-            letterSpacing: 0.3,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 6),
-        if (entry != null) ...[
-          Image.asset(
-            entry.imagePath,
-            width: 48,
-            height: 48,
-            errorBuilder: (_, __, ___) =>
-                const Text('😶', style: TextStyle(fontSize: 36)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            entry.label,
-            style: GoogleFonts.rubik(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: _t.primary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ] else ...[
-          const Text('😶', style: TextStyle(fontSize: 36)),
-          const SizedBox(height: 4),
-          Text(
-            LocaleService.current.none,
-            style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade400),
-          ),
-        ],
-      ],
+    return MoodHeartsPreview(
+      myEntries: myEntries,
+      partnerEntries: partnerEntries,
+      myName: myName,
+      partnerName: partnerName,
+      primaryColor: _t.primary,
     );
   }
 
@@ -3952,10 +3855,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              _t.primary.withOpacity(0.85),
-              _t.primary,
-            ],
+            colors: [_t.primary.withOpacity(0.85), _t.primary],
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [

@@ -325,7 +325,10 @@ class HomeWidgetService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_photoDayWidgetKey(widgetId, 'rotation_type'), type);
     // Дублируем в HomeWidgetPreferences, чтобы нативный PhotoDayRotationReceiver мог прочитать.
-    await HomeWidget.saveWidgetData<String>(_photoDayWidgetKey(widgetId, 'rotation_type'), type);
+    await HomeWidget.saveWidgetData<String>(
+      _photoDayWidgetKey(widgetId, 'rotation_type'),
+      type,
+    );
   }
 
   Future<int> getPhotoDayWidgetRotationInterval(int widgetId) async {
@@ -339,9 +342,15 @@ class HomeWidgetService {
     int minutes,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_photoDayWidgetKey(widgetId, 'rotation_interval'), minutes);
+    await prefs.setInt(
+      _photoDayWidgetKey(widgetId, 'rotation_interval'),
+      minutes,
+    );
     // Дублируем в HomeWidgetPreferences, чтобы нативный PhotoDayRotationReceiver мог прочитать.
-    await HomeWidget.saveWidgetData<int>(_photoDayWidgetKey(widgetId, 'rotation_interval'), minutes);
+    await HomeWidget.saveWidgetData<int>(
+      _photoDayWidgetKey(widgetId, 'rotation_interval'),
+      minutes,
+    );
   }
 
   /// URL-ы фото конкретного виджета (независимо от других экземпляров).
@@ -491,7 +500,9 @@ class HomeWidgetService {
   /// Передаётся [TimerItem] — текущий дефолтный или выбранный таймер.
   Future<void> syncTimer(TimerItem timer) async {
     try {
-      debugPrint('HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch}');
+      debugPrint(
+        'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch}',
+      );
       await HomeWidget.saveWidgetData<String>('timer_title', timer.title);
       await HomeWidget.saveWidgetData<String>(
         'timer_days',
@@ -726,7 +737,9 @@ class HomeWidgetService {
         for (final id in allIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(id);
           // Sync if: no group bound, or bound to current group, or no groupId at all (single user)
-          if (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == groupId) {
+          if (widgetGroupId == null ||
+              widgetGroupId.isEmpty ||
+              widgetGroupId == groupId) {
             await refreshPhotoOfDay(
               groupId,
               widgetId: id,
@@ -915,7 +928,10 @@ class HomeWidgetService {
 
   /// Синхронизация фото виджета для одиночного режима (без группы).
   /// Использует собственные URL-ы виджета.
-  Future<void> _syncPhotoDayWidgetSingleUser(int widgetId, {bool forceNext = false}) async {
+  Future<void> _syncPhotoDayWidgetSingleUser(
+    int widgetId, {
+    bool forceNext = false,
+  }) async {
     try {
       final currentUserUid = FirebaseService().uid ?? '';
       String currentUserName = '';
@@ -973,7 +989,9 @@ class HomeWidgetService {
         name: 'PhotoDayWidgetProvider',
         androidName: 'PhotoDayWidgetProvider',
       );
-      debugPrint('HomeWidgetService: photo day (single user) synced for widget $widgetId');
+      debugPrint(
+        'HomeWidgetService: photo day (single user) synced for widget $widgetId',
+      );
     } catch (e) {
       debugPrint('HomeWidgetService._syncPhotoDayWidgetSingleUser failed: $e');
     }
@@ -1063,6 +1081,10 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('mood_emoji_path', myLocalPath);
       await HomeWidget.saveWidgetData<String>('mood_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('mood_user_name', userName);
+      await HomeWidget.saveWidgetData<int>('user_count', 2);
+      await HomeWidget.saveWidgetData<String>('user_0_emoji_path', myLocalPath);
+      await HomeWidget.saveWidgetData<String>('user_0_name', userName);
+      await HomeWidget.saveWidgetData<String>('user_0_avatar_path', '');
 
       // ── Настроение партнёра ──
       String partnerLocalPath = '';
@@ -1081,6 +1103,12 @@ class HomeWidgetService {
         'partner_mood_user_name',
         partnerUserName,
       );
+      await HomeWidget.saveWidgetData<String>(
+        'user_1_emoji_path',
+        partnerLocalPath,
+      );
+      await HomeWidget.saveWidgetData<String>('user_1_name', partnerUserName);
+      await HomeWidget.saveWidgetData<String>('user_1_avatar_path', '');
 
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
@@ -1596,13 +1624,22 @@ class HomeWidgetService {
         // Fallback: глобальные ключи (если виджетов нет ещё — для совместимости)
         await HomeWidget.saveWidgetData<int>('photo_grid_count', count);
         for (int i = 0; i < 4; i++) {
-          await HomeWidget.saveWidgetData<String>('photo_grid_$i', localPaths[i]);
+          await HomeWidget.saveWidgetData<String>(
+            'photo_grid_$i',
+            localPaths[i],
+          );
         }
       } else {
         for (final widgetId in widgetIds) {
-          await HomeWidget.saveWidgetData<int>('photo_grid_${widgetId}_count', count);
+          await HomeWidget.saveWidgetData<int>(
+            'photo_grid_${widgetId}_count',
+            count,
+          );
           for (int i = 0; i < 4; i++) {
-            await HomeWidget.saveWidgetData<String>('photo_grid_${widgetId}_$i', localPaths[i]);
+            await HomeWidget.saveWidgetData<String>(
+              'photo_grid_${widgetId}_$i',
+              localPaths[i],
+            );
           }
         }
       }

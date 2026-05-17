@@ -111,10 +111,10 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
 
     await HomeWidgetService.instance.syncMood(
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
-      moodLabel: myEntry?.label ?? '',
+      moodLabel: myEntry?.localizedLabel ?? '',
       userName: displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-      partnerMoodLabel: partnerEntry?.label ?? '',
+      partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
       partnerUserName: pairData.partnerDisplayName,
     );
   }
