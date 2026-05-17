@@ -54,12 +54,20 @@ class _MissYouButtonState extends State<MissYouButton>
     super.initState();
     _scaleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 140),
+      duration: const Duration(milliseconds: 480),
     );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.90,
-    ).animate(CurvedAnimation(parent: _scaleController, curve: Curves.easeOut));
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 0.92)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 0.92, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 82,
+      ),
+    ]).animate(_scaleController);
     _startListening();
   }
 
@@ -99,8 +107,7 @@ class _MissYouButtonState extends State<MissYouButton>
   Future<void> _onTap() async {
     if (!widget.enabled || widget.groupId.isEmpty) return;
     HapticFeedback.mediumImpact();
-    await _scaleController.forward();
-    _scaleController.reverse();
+    _scaleController.forward(from: 0);
     _spawnHearts();
     await _fb.sendMissYou(
       groupId: widget.groupId,
@@ -179,7 +186,6 @@ class _MissYouButtonState extends State<MissYouButton>
             child: GestureDetector(
               onTap: _onTap,
               child: TweenAnimationBuilder<double>(
-                key: ValueKey(_currentRatio),
                 tween: Tween(begin: _prevRatio, end: _currentRatio),
                 duration: const Duration(milliseconds: 600),
                 curve: Curves.easeInOut,
