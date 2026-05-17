@@ -117,7 +117,7 @@ class Connection {
   }) : _fb = firebaseService,
        members = members ?? [];
 
-  String get inviteLink => 'https://togetherly.app/invite/$inviteCode';
+  String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
 
   /// Max members allowed for this relationship type
   int get maxMembers {

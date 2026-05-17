@@ -7,10 +7,20 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "rewrites": [
+      { "source": "/invite/**", "destination": "/invite/index.html" }
+    ],
     "headers": [
       {
         "source": "**/*.html",
         "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" },
           { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
         ]
       }

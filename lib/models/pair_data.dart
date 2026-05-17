@@ -53,7 +53,7 @@ class PairData extends ChangeNotifier {
   RelationshipType get relationshipType =>
       _active?.relationshipType ?? RelationshipType.couple;
 
-  String get inviteLink => 'https://togetherly.app/invite/$inviteCode';
+  String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
 
   // ── Multi-member getters ──
   List<GroupMember> get members => _active?.members ?? [];

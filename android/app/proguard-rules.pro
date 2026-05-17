@@ -42,10 +42,13 @@
 -keep class es.antonborri.home_widget.** { *; }
 
 # App Widget Providers (required for requestPinWidget)
--keep class com.example.love_app.LoveWidgetProvider { *; }
--keep class com.example.love_app.DaysCounterWidgetProvider { *; }
--keep class com.example.love_app.TimerWidgetProvider { *; }
--keep class com.example.love_app.PhotoDayWidgetProvider { *; }
--keep class com.example.love_app.MoodWidgetProvider { *; }
--keep class com.example.love_app.RelationshipStatsWidgetProvider { *; }
+-keep class com.togetherly.love.LoveWidgetProvider { *; }
+-keep class com.togetherly.love.DaysCounterWidgetProvider { *; }
+-keep class com.togetherly.love.TimerWidgetProvider { *; }
+-keep class com.togetherly.love.PhotoDayWidgetProvider { *; }
+-keep class com.togetherly.love.MoodWidgetProvider { *; }
+-keep class com.togetherly.love.RelationshipStatsWidgetProvider { *; }
+-keep class com.togetherly.love.PhotoGridWidgetProvider { *; }
+-keep class com.togetherly.love.PetalTimerWidgetProvider { *; }
+-keep class com.togetherly.love.LockScreenMoodWidgetProvider { *; }
 
