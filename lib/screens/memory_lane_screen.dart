@@ -14,6 +14,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:exif/exif.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/memory.dart';
@@ -415,6 +416,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               builder: (_) => MemoriesMapScreen(
                 memories: _memories,
                 theme: widget.theme,
+                currentUserUid: _fb.uid,
               ),
             ),
           ),
@@ -1850,6 +1852,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         isOwner: memory.authorUid == _fb.uid,
         canDownload: _canDownload(memory),
         typeColor: _memoryTypeColor(memory.type),
+        userLat: _userLat,
+        userLng: _userLng,
         onTogglePin: () => _togglePin(memory),
         onDownload: () => _downloadMemoryMedia(memory),
         onEdit: () => _editMemory(memory),
@@ -3915,9 +3919,29 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     imageQuality: 85,
                                   );
                                   if (picked.isNotEmpty) {
-                                    setState(
-                                      () => selectedPhotos.addAll(picked),
-                                    );
+                                    setState(() => selectedPhotos.addAll(picked));
+                                    if (lat == null) {
+                                      _extractExifGps(picked.first.path).then((coords) async {
+                                        if (coords == null) return;
+                                        String addr = '';
+                                        try {
+                                          final ps = await placemarkFromCoordinates(coords.$1, coords.$2);
+                                          if (ps.isNotEmpty) {
+                                            final place = ps.first;
+                                            final name = place.name ?? place.subLocality ?? '';
+                                            final locality = place.locality ?? '';
+                                            addr = name.isNotEmpty ? '$name, $locality' : locality;
+                                          }
+                                        } catch (_) {}
+                                        if (context.mounted) {
+                                          setState(() {
+                                            lat = coords.$1;
+                                            lng = coords.$2;
+                                            locationCtrl.text = addr;
+                                          });
+                                        }
+                                      });
+                                    }
                                   }
                                 } catch (e) {
                                   debugPrint('Pick photos failed: $e');
@@ -3993,6 +4017,28 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           );
                           if (picked.isNotEmpty) {
                             setState(() => selectedPhotos = picked);
+                            if (lat == null) {
+                              _extractExifGps(picked.first.path).then((coords) async {
+                                if (coords == null) return;
+                                String addr = '';
+                                try {
+                                  final ps = await placemarkFromCoordinates(coords.$1, coords.$2);
+                                  if (ps.isNotEmpty) {
+                                    final place = ps.first;
+                                    final name = place.name ?? place.subLocality ?? '';
+                                    final locality = place.locality ?? '';
+                                    addr = name.isNotEmpty ? '$name, $locality' : locality;
+                                  }
+                                } catch (_) {}
+                                if (context.mounted) {
+                                  setState(() {
+                                    lat = coords.$1;
+                                    lng = coords.$2;
+                                    locationCtrl.text = addr;
+                                  });
+                                }
+                              });
+                            }
                           }
                         } catch (e) {
                           debugPrint('Pick photos failed: $e');
@@ -4107,6 +4153,170 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ),
                     ),
                   ),
+                  // ── Location for photo ──
+                  const SizedBox(height: 8),
+                  if (lat != null && lng != null) ...[
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        lat = null;
+                        lng = null;
+                        locationCtrl.clear();
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E).withOpacity(0.07),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF22C55E).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              size: 14,
+                              color: Color(0xFF22C55E),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                locationCtrl.text.isNotEmpty
+                                    ? locationCtrl.text
+                                    : '${lat!.toStringAsFixed(5)}, ${lng!.toStringAsFixed(5)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF22C55E),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Icon(Icons.close_rounded, size: 14, color: Colors.grey.shade400),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: isLoadingLocation
+                                ? null
+                                : () async {
+                                    setState(() => isLoadingLocation = true);
+                                    try {
+                                      if (!await Geolocator.isLocationServiceEnabled()) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(LocaleService.current.locationServicesDisabled),
+                                            ),
+                                          );
+                                        }
+                                        setState(() => isLoadingLocation = false);
+                                        return;
+                                      }
+                                      LocationPermission perm = await Geolocator.checkPermission();
+                                      if (perm == LocationPermission.denied) {
+                                        perm = await Geolocator.requestPermission();
+                                      }
+                                      if (perm == LocationPermission.denied ||
+                                          perm == LocationPermission.deniedForever) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(LocaleService.current.locationPermissionDenied),
+                                            ),
+                                          );
+                                        }
+                                        setState(() => isLoadingLocation = false);
+                                        return;
+                                      }
+                                      final pos = await Geolocator.getCurrentPosition();
+                                      lat = pos.latitude;
+                                      lng = pos.longitude;
+                                      try {
+                                        final ps = await placemarkFromCoordinates(lat!, lng!);
+                                        if (ps.isNotEmpty) {
+                                          final place = ps.first;
+                                          final name = place.name ?? place.subLocality ?? '';
+                                          final locality = place.locality ?? '';
+                                          locationCtrl.text = name.isNotEmpty
+                                              ? '$name, $locality'
+                                              : locality;
+                                        }
+                                      } catch (_) {}
+                                    } catch (e) {
+                                      debugPrint('Get location error: $e');
+                                    }
+                                    setState(() => isLoadingLocation = false);
+                                  },
+                            icon: isLoadingLocation
+                                ? SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primary,
+                                    ),
+                                  )
+                                : const Icon(Icons.my_location_rounded),
+                            label: Text(
+                              LocaleService.current.useCurrent,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primary,
+                              side: BorderSide(color: primary),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final result = await Navigator.push<Map<String, dynamic>>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => MapPickerScreen(
+                                    initialLatitude: lat,
+                                    initialLongitude: lng,
+                                  ),
+                                ),
+                              );
+                              if (result != null && context.mounted) {
+                                setState(() {
+                                  lat = result['latitude'] as double?;
+                                  lng = result['longitude'] as double?;
+                                  locationCtrl.text = result['address'] as String? ?? '';
+                                });
+                              }
+                            },
+                            icon: const Icon(Icons.map_rounded),
+                            label: Text(
+                              LocaleService.current.pickOnMap,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF22C55E),
+                              side: const BorderSide(color: Color(0xFF22C55E)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 12),
                 ] else if (type == MemoryType.video) ...[
                   // ── Toggle: Из галереи / По ссылке ──
@@ -5524,6 +5734,44 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // =============================================
 
   /// Fetch user location for distance display on photo cards
+  /// Extract GPS (lat, lng) from a photo file's EXIF data.
+  /// Returns null if no GPS tag found or parsing fails.
+  static Future<(double, double)?> _extractExifGps(String imagePath) async {
+    try {
+      final bytes = await File(imagePath).readAsBytes();
+      final tags = await readExifFromBytes(bytes);
+      if (!tags.containsKey('GPS GPSLatitude') ||
+          !tags.containsKey('GPS GPSLongitude')) return null;
+      final latRef = tags['GPS GPSLatitudeRef']?.printable.trim() ?? 'N';
+      final lngRef = tags['GPS GPSLongitudeRef']?.printable.trim() ?? 'E';
+      double? toDeg(String raw) {
+        final clean = raw.replaceAll(RegExp(r'[\[\]\s]'), '');
+        final parts = clean.split(',');
+        if (parts.length < 3) return null;
+        double p(String s) {
+          if (s.contains('/')) {
+            final f = s.split('/');
+            final n = double.tryParse(f[0]);
+            final d = double.tryParse(f[1]);
+            if (n == null || d == null || d == 0) return 0;
+            return n / d;
+          }
+          return double.tryParse(s) ?? 0;
+        }
+        return p(parts[0]) + p(parts[1]) / 60.0 + p(parts[2]) / 3600.0;
+      }
+      final latVal = toDeg(tags['GPS GPSLatitude']!.printable);
+      final lngVal = toDeg(tags['GPS GPSLongitude']!.printable);
+      if (latVal == null || lngVal == null || (latVal == 0.0 && lngVal == 0.0)) {
+        return null;
+      }
+      return (latRef == 'S' ? -latVal : latVal, lngRef == 'W' ? -lngVal : lngVal);
+    } catch (e) {
+      debugPrint('EXIF GPS extraction failed: $e');
+      return null;
+    }
+  }
+
   Future<void> _fetchUserLocation() async {
     try {
       LocationPermission perm = await Geolocator.checkPermission();
@@ -5565,43 +5813,71 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return const Color(0xFFEF4444);
   }
 
-  /// Colored location distance pill shown on photo/video tiles
+  /// Colored location distance pill shown on photo/video tiles.
+  /// Shows distance + color when user GPS is known; falls back to
+  /// location name (grey) when user GPS is unavailable.
   Widget _locationDistancePill(Memory memory) {
-    if (memory.latitude == null || memory.longitude == null) {
-      return const SizedBox.shrink();
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+    final hasName = memory.locationName?.isNotEmpty == true;
+    if (!hasCoords && !hasName) return const SizedBox.shrink();
+
+    Widget pill;
+    if (hasCoords) {
+      final dist = _distanceKm(memory.latitude!, memory.longitude!);
+      if (dist.isNotEmpty) {
+        // User GPS known → colored distance pill
+        final color = _distanceColor(memory.latitude!, memory.longitude!);
+        pill = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.35), width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_on_rounded, size: 12, color: color),
+              const SizedBox(width: 4),
+              Text(
+                dist,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // No user GPS → grey pin icon only (no name on closed tiles)
+        pill = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+          ),
+          child: Icon(Icons.location_on_rounded, size: 12, color: Colors.grey.shade500),
+        );
+      }
+    } else {
+      // locationName only, no coords — grey pin icon
+      pill = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+        ),
+        child: Icon(Icons.location_on_rounded, size: 12, color: Colors.grey.shade500),
+      );
     }
-    final dist = _distanceKm(memory.latitude!, memory.longitude!);
-    if (dist.isEmpty) return const SizedBox.shrink();
-    final color = _distanceColor(memory.latitude!, memory.longitude!);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color.withOpacity(0.35), width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.location_on_rounded, size: 12, color: color),
-                const SizedBox(width: 4),
-                Text(
-                  dist,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [pill]),
     );
   }
 
@@ -6745,6 +7021,8 @@ class _MemoryDetailSheet extends StatefulWidget {
   final bool isOwner;
   final bool canDownload;
   final Color typeColor;
+  final double? userLat;
+  final double? userLng;
   final VoidCallback onTogglePin;
   final VoidCallback onDownload;
   final VoidCallback onEdit;
@@ -6758,6 +7036,8 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.isOwner,
     required this.canDownload,
     required this.typeColor,
+    this.userLat,
+    this.userLng,
     required this.onTogglePin,
     required this.onDownload,
     required this.onEdit,
@@ -6834,6 +7114,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         children: [
                           _buildMedia(memory, p),
                           _buildCaption(memory),
+                          _buildLocationRow(memory, p),
                           const SizedBox(height: 20),
                           _buildActions(memory, p),
                           const SizedBox(height: 24),
@@ -7531,14 +7812,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  final url =
-                      'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
-                  launchUrl(
-                    Uri.parse(url),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
+                onPressed: () => _showMapsPickerSheet(
+                  context,
+                  memory.latitude!,
+                  memory.longitude!,
+                  memory.locationName,
+                ),
                 icon: const Icon(Icons.map_rounded, size: 18),
                 label: Text(LocaleService.current.openInGoogleMaps),
                 style: ElevatedButton.styleFrom(
@@ -7608,6 +7887,210 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── LOCATION ROW (shown for all memory types that have coords/name) ──────────
+  Widget _buildLocationRow(Memory memory, Color p) {
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+    final hasName = memory.locationName?.isNotEmpty == true;
+    if (!hasCoords && !hasName) return const SizedBox.shrink();
+    // Don't duplicate — location type already shows full card via _buildLocationMedia
+    if (memory.type == MemoryType.location) return const SizedBox.shrink();
+
+    String? distLabel;
+    Color pillColor = Colors.grey.shade500;
+    if (hasCoords && widget.userLat != null && widget.userLng != null) {
+      final m = Geolocator.distanceBetween(
+        widget.userLat!, widget.userLng!,
+        memory.latitude!, memory.longitude!,
+      );
+      final km = m / 1000;
+      distLabel = m < 1000 ? '${m.round()} м' : '${km.toStringAsFixed(1)} км';
+      if (km < 1) {
+        pillColor = const Color(0xFF22C55E);
+      } else if (km < 10) {
+        pillColor = const Color(0xFF16A34A);
+      } else if (km < 50) {
+        pillColor = const Color(0xFFF59E0B);
+      } else {
+        pillColor = const Color(0xFFEF4444);
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: GestureDetector(
+        onTap: hasCoords
+            ? () => _showMapsPickerSheet(
+                context, memory.latitude!, memory.longitude!, memory.locationName)
+            : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: hasCoords ? pillColor.withOpacity(0.06) : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hasCoords ? pillColor.withOpacity(0.25) : Colors.grey.shade200,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: hasCoords ? pillColor.withOpacity(0.12) : Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.location_on_rounded,
+                  size: 18,
+                  color: hasCoords ? pillColor : Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasName)
+                      Text(
+                        memory.locationName!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (distLabel != null)
+                      Text(
+                        distLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: pillColor,
+                        ),
+                      )
+                    else if (!hasName)
+                      Text(
+                        '${memory.latitude!.toStringAsFixed(5)}, ${memory.longitude!.toStringAsFixed(5)}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                  ],
+                ),
+              ),
+              if (hasCoords) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded, size: 18, color: pillColor),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shows a bottom sheet with map app choices to build a route.
+  static Future<void> _showMapsPickerSheet(
+    BuildContext context,
+    double lat,
+    double lng,
+    String? label,
+  ) async {
+    final encodedLabel = label != null ? Uri.encodeComponent(label) : '';
+
+    final apps = [
+      (
+        name: 'Google Maps',
+        icon: Icons.map_rounded,
+        color: const Color(0xFF4285F4),
+        url: 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng',
+      ),
+      (
+        name: 'Яндекс Карты',
+        icon: Icons.directions_rounded,
+        color: const Color(0xFFFC3F1D),
+        url: 'yandexmaps://maps.yandex.ru/?rtext=~$lat,$lng&rtt=auto',
+      ),
+      (
+        name: '2GIS',
+        icon: Icons.location_city_rounded,
+        color: const Color(0xFF00AF43),
+        url: 'dgis://2gis.ru/routeSearch/rsType/car/to/$lng,$lat',
+      ),
+      (
+        name: 'Waze',
+        icon: Icons.navigation_rounded,
+        color: const Color(0xFF09D3AC),
+        url: 'https://waze.com/ul?ll=$lat,$lng&navigate=yes',
+      ),
+      (
+        name: 'Apple Maps',
+        icon: Icons.map_outlined,
+        color: const Color(0xFF007AFF),
+        url: 'https://maps.apple.com/?daddr=$lat,$lng&q=$encodedLabel',
+      ),
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              if (label != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on_rounded,
+                          size: 16, color: Colors.grey.shade500),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ...apps.map((app) => _MapAppTile(
+                    name: app.name,
+                    icon: app.icon,
+                    color: app.color,
+                    url: app.url,
+                  )),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -8192,6 +8675,72 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
 // Only this widget rebuilds on every frame of the keyboard animation,
 // leaving the heavy modal sheet tree completely untouched.
 // ══════════════════════════════════════════════════════
+// ─── Map app tile for route picker ───────────────────────────────────────────
+class _MapAppTile extends StatelessWidget {
+  final String name;
+  final IconData icon;
+  final Color color;
+  final String url;
+
+  const _MapAppTile({
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.url,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          // Fallback: try web URL for native-scheme apps
+          final webFallback = Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=${uri.host}',
+          );
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Приложение не установлено')),
+            );
+          }
+          debugPrint('Cannot launch $url, fallback: $webFallback');
+        }
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _KeyboardPaddingBox extends StatelessWidget {
   const _KeyboardPaddingBox();
 

@@ -6,7 +6,10 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\android\" -Filter \"AndroidManifest.xml\" -Recurse)",
       "Bash(dart analyze *)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" -Recurse -Filter \"*mood_widget*\" -ErrorAction SilentlyContinue)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\lib\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
     ]
   }
 }

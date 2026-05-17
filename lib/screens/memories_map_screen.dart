@@ -21,11 +21,13 @@ class _MemoryCluster {
 class MemoriesMapScreen extends StatefulWidget {
   final List<Memory> memories;
   final AppTheme theme;
+  final String? currentUserUid;
 
   const MemoriesMapScreen({
     super.key,
     required this.memories,
     required this.theme,
+    this.currentUserUid,
   });
 
   @override
@@ -37,7 +39,8 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
   late List<_MemoryCluster> _clusters;
   _MemoryCluster? _selectedCluster;
 
-  static const double _clusterRadius = 0.8; // degrees — ~90km grid cell
+  // ~25km grid for unnamed points (fallback)
+  static const double _coordCellDeg = 0.25;
 
   @override
   void initState() {
@@ -46,20 +49,37 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
     _clusters = _buildClusters();
   }
 
+  /// Returns a stable cluster key for a memory.
+  /// Named locations → normalized "City, Country" (last 1–2 comma parts).
+  /// Unnamed → coordinate grid cell so nearby pins still group.
+  static String _clusterKey(Memory m) {
+    final name = m.locationName?.trim() ?? '';
+    if (name.isNotEmpty) {
+      // Strip exact-address prefix: keep only last 1-2 comma-separated parts.
+      final parts = name.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      if (parts.length >= 2) {
+        // last two: usually "City, Country" or "District, City"
+        return '${parts[parts.length - 2]}, ${parts[parts.length - 1]}'.toLowerCase();
+      }
+      return parts.last.toLowerCase();
+    }
+    // Fallback: ~25 km coordinate cell
+    final gridLat = (m.latitude! / _coordCellDeg).floor();
+    final gridLng = (m.longitude! / _coordCellDeg).floor();
+    return 'coord_${gridLat}_$gridLng';
+  }
+
   List<_MemoryCluster> _buildClusters() {
     final geoMemories = widget.memories
         .where((m) => m.latitude != null && m.longitude != null)
         .toList();
 
-    final Map<String, List<Memory>> grid = {};
+    final Map<String, List<Memory>> groups = {};
     for (final m in geoMemories) {
-      final gridLat = (m.latitude! / _clusterRadius).floor() * _clusterRadius;
-      final gridLng = (m.longitude! / _clusterRadius).floor() * _clusterRadius;
-      final key = '${gridLat.toStringAsFixed(1)}_${gridLng.toStringAsFixed(1)}';
-      grid.putIfAbsent(key, () => []).add(m);
+      groups.putIfAbsent(_clusterKey(m), () => []).add(m);
     }
 
-    return grid.values.map((list) {
+    return groups.values.map((list) {
       final avgLat = list.map((m) => m.latitude!).reduce((a, b) => a + b) / list.length;
       final avgLng = list.map((m) => m.longitude!).reduce((a, b) => a + b) / list.length;
       return _MemoryCluster(center: LatLng(avgLat, avgLng), memories: list);
@@ -75,10 +95,19 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
 
   Color _markerColor(_MemoryCluster c) {
     final t = widget.theme;
-    if (c.count == 1) return t.primary.withOpacity(0.85);
-    if (c.count <= 3) return t.primary;
-    if (c.count <= 8) return Color.lerp(t.primary, Colors.deepPurple, 0.35)!;
-    return Color.lerp(t.primary, Colors.deepPurple, 0.65)!;
+    final uid = widget.currentUserUid;
+
+    // Determine dominant author in the cluster
+    final bool isMine = uid != null &&
+        c.memories.where((m) => m.authorUid == uid).length >
+            c.memories.length / 2;
+
+    // My memories → theme primary; partner's → teal/cyan to distinguish
+    final base = isMine ? t.primary : Colors.teal.shade400;
+    if (c.count == 1) return base.withValues(alpha: 0.85);
+    if (c.count <= 3) return base;
+    if (c.count <= 8) return Color.lerp(base, Colors.deepPurple, 0.25)!;
+    return Color.lerp(base, Colors.deepPurple, 0.5)!;
   }
 
   LatLng? _boundsCenter() {
