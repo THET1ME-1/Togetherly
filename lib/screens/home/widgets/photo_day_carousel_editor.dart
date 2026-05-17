@@ -10,6 +10,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 /// Количество фото — динамическое: от 1 до 10. Если фото 1 — карусели нет,
 /// если 2-10 — появляются настройки смены (по разблокировке / по таймеру).
 /// Порядок задаётся drag-and-drop.
+///
+/// [onPickFromMemories] — если передан, появляется кнопка "Из ленты воспоминаний".
+/// Callback принимает максимальное количество фото, которые можно выбрать,
+/// и возвращает список выбранных https-URL (уже загруженных на Firebase Storage).
 class PhotoDayCarouselEditor extends StatefulWidget {
   final AppTheme theme;
   final List<String> initialPaths;
@@ -22,6 +26,11 @@ class PhotoDayCarouselEditor extends StatefulWidget {
   })
   onSave;
 
+  /// Callback для выбора фото из ленты воспоминаний.
+  /// Принимает [maxCount] — сколько ещё фото можно добавить.
+  /// Возвращает список URL выбранных фотографий.
+  final Future<List<String>> Function(int maxCount)? onPickFromMemories;
+
   const PhotoDayCarouselEditor({
     super.key,
     required this.theme,
@@ -29,6 +38,7 @@ class PhotoDayCarouselEditor extends StatefulWidget {
     required this.onSave,
     this.initialRotationType = 'unlock',
     this.initialRotationInterval = 60,
+    this.onPickFromMemories,
   });
 
   static const int kMaxPhotos = 10;
@@ -53,6 +63,21 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         .toList();
     _rotationType = widget.initialRotationType;
     _rotationInterval = widget.initialRotationInterval;
+  }
+
+  Future<void> _addFromMemories() async {
+    final remaining = PhotoDayCarouselEditor.kMaxPhotos - _paths.length;
+    if (remaining <= 0 || widget.onPickFromMemories == null) return;
+    final picked = await widget.onPickFromMemories!(remaining);
+    if (picked.isEmpty) return;
+    setState(() {
+      for (final url in picked) {
+        if (!_paths.contains(url) &&
+            _paths.length < PhotoDayCarouselEditor.kMaxPhotos) {
+          _paths.add(url);
+        }
+      }
+    });
   }
 
   Future<void> _addPhotos() async {
@@ -436,8 +461,54 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   }
 
   Widget _buildAddButton(AppTheme t) {
+    final hasMemoryPicker = widget.onPickFromMemories != null;
+    final label = _paths.isEmpty ? 'Добавить фото' : 'Добавить ещё';
+
+    if (!hasMemoryPicker) {
+      return _addTile(
+        t,
+        icon: Icons.add_photo_alternate_rounded,
+        label: label,
+        onTap: _addPhotos,
+      );
+    }
+
+    // Два источника: с устройства и из ленты воспоминаний
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _addTile(
+                t,
+                icon: Icons.add_photo_alternate_rounded,
+                label: 'С устройства',
+                onTap: _addPhotos,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _addTile(
+                t,
+                icon: Icons.auto_stories_rounded,
+                label: 'Из ленты',
+                onTap: _addFromMemories,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _addTile(
+    AppTheme t, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: _addPhotos,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -446,22 +517,22 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: t.primary.withOpacity(0.3),
-            style: BorderStyle.solid,
             width: 1.2,
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_photo_alternate_rounded, color: t.primary, size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, color: t.primary, size: 22),
+            const SizedBox(height: 6),
             Text(
-              _paths.isEmpty ? 'Добавить фото' : 'Добавить ещё',
+              label,
               style: GoogleFonts.rubik(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: t.primary,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

@@ -1744,6 +1744,8 @@ class FirebaseService {
     String? title,
     String? caption,
     String? locationName,
+    double? latitude,
+    double? longitude,
     String? musicTitle,
     String? musicArtist,
     String? imageUrl,
@@ -1755,6 +1757,8 @@ class FirebaseService {
       if (title != null) updates['title'] = title;
       if (caption != null) updates['caption'] = caption;
       if (locationName != null) updates['locationName'] = locationName;
+      if (latitude != null) updates['latitude'] = latitude;
+      if (longitude != null) updates['longitude'] = longitude;
       if (musicTitle != null) updates['musicTitle'] = musicTitle;
       if (musicArtist != null) updates['musicArtist'] = musicArtist;
       if (imageUrl != null) updates['imageUrl'] = imageUrl;

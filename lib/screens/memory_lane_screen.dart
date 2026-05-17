@@ -25,6 +25,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/m3_loading.dart';
 import 'map_picker_screen.dart';
+import 'memories_map_screen.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -407,6 +408,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
       actions: [
+        IconButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoriesMapScreen(
+                memories: _memories,
+                theme: widget.theme,
+              ),
+            ),
+          ),
+          icon: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.map_rounded, color: primary, size: 18),
+          ),
+          tooltip: 'Карта воспоминаний',
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 16),
           child: Center(
@@ -827,6 +848,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
           ],
+          _locationDistancePill(memory),
           const SizedBox(height: 12),
         ],
       ),
@@ -941,6 +963,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
               ),
             ),
+          _locationDistancePill(memory),
           const SizedBox(height: 12),
         ],
       ),
@@ -2398,6 +2421,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 _togglePin(memory);
               },
             ),
+            ListTile(
+              leading: Icon(
+                memory.latitude != null
+                    ? Icons.location_on_rounded
+                    : Icons.add_location_alt_rounded,
+                color: Colors.teal,
+              ),
+              title: Text(
+                memory.latitude != null
+                    ? 'Изменить геолокацию'
+                    : 'Добавить геолокацию',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _setLocationOnMemory(memory);
+              },
+            ),
             if (_canDownload(memory))
               ListTile(
                 leading: Icon(
@@ -2905,6 +2945,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         locationName: memory.type == MemoryType.location
                             ? locationCtrl.text.trim()
                             : null,
+                        latitude: editLat,
+                        longitude: editLng,
                         isAdult: memory.type == MemoryType.photo
                             ? isAdultEdit
                             : null,
@@ -5511,6 +5553,83 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final d = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng);
     if (d < 1000) return '${d.round()}m';
     return '${(d / 1000).toStringAsFixed(1)}km';
+  }
+
+  /// Color for distance pill based on proximity
+  Color _distanceColor(double lat, double lng) {
+    if (_userLat == null || _userLng == null) return Colors.grey;
+    final km = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng) / 1000;
+    if (km < 1) return const Color(0xFF22C55E);
+    if (km < 10) return const Color(0xFF16A34A);
+    if (km < 50) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  /// Colored location distance pill shown on photo/video tiles
+  Widget _locationDistancePill(Memory memory) {
+    if (memory.latitude == null || memory.longitude == null) {
+      return const SizedBox.shrink();
+    }
+    final dist = _distanceKm(memory.latitude!, memory.longitude!);
+    if (dist.isEmpty) return const SizedBox.shrink();
+    final color = _distanceColor(memory.latitude!, memory.longitude!);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.35), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.location_on_rounded, size: 12, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  dist,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Open MapPickerScreen to set/change location on any memory type
+  Future<void> _setLocationOnMemory(Memory memory) async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapPickerScreen(
+          initialLatitude: memory.latitude,
+          initialLongitude: memory.longitude,
+        ),
+      ),
+    );
+    if (result == null) return;
+    final lat = result['latitude'] as double?;
+    final lng = result['longitude'] as double?;
+    final address = result['address'] as String?;
+    if (lat == null || lng == null) return;
+    await _fb.updateMemory(
+      groupId: _groupId,
+      memoryId: memory.id,
+      latitude: lat,
+      longitude: lng,
+      locationName: memory.locationName?.isNotEmpty == true
+          ? memory.locationName
+          : address,
+    );
   }
 
   /// Format time ago from DateTime using localized strings

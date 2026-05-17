@@ -28,6 +28,7 @@ import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/mood_hearts_preview.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
+import 'home/widgets/memory_photo_picker.dart';
 import 'postcard/postcard_editor_screen.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
@@ -619,6 +620,15 @@ class _WidgetScreenState extends State<WidgetScreen>
         initialPaths: initialPaths,
         initialRotationType: initialRotationType,
         initialRotationInterval: initialRotationInterval,
+        onPickFromMemories: _pair.pairId.isNotEmpty
+            ? (maxCount) => MemoryPhotoPicker.show(
+                  ctx,
+                  groupId: _pair.pairId,
+                  theme: _t,
+                  maxCount: maxCount,
+                  alreadySelected: initialPaths,
+                )
+            : null,
         onSave:
             ({
               required paths,

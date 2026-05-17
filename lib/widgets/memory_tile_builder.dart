@@ -61,7 +61,11 @@ class MemoryTileBuilder {
     bool enableTap = true;
     switch (memory.type) {
       case MemoryType.photo:
-        content = _photoContent(memory, onOpenGallery: onOpenGallery);
+        content = _photoContent(
+          memory,
+          onOpenGallery: onOpenGallery,
+          distanceText: distanceText,
+        );
         break;
       case MemoryType.video:
         content = _videoContent(memory);
@@ -297,6 +301,7 @@ class MemoryTileBuilder {
   Widget _photoContent(
     Memory memory, {
     void Function(List<String> urls, int index)? onOpenGallery,
+    String? distanceText,
   }) {
     final s = LocaleService.current;
     final allPhotos = <String>[
@@ -472,6 +477,43 @@ class MemoryTileBuilder {
                   child: memory.isAdult ? _AdultBlurWrapper(child: img) : img,
                 );
               },
+            ),
+          ),
+        ],
+        if (distanceText != null && distanceText.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: primary.withOpacity(0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 12, color: primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        distanceText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
