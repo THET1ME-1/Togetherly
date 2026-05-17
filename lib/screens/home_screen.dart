@@ -41,7 +41,7 @@ import '../services/mascot_service.dart';
 import '../widgets/active_mascot_widget.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
-import 'draw_screen.dart';
+import 'home/home_skeleton.dart';
 import 'draw_gallery_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -61,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
+  bool _isLoading = true;
   StreamSubscription? _deepLinkSub;
 
   // -- Pair data --
@@ -144,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initPairData() async {
     await _pairData.init(myName: widget.userData.displayName);
-    if (mounted) setState(() {});
+    if (mounted) setState(() { _isLoading = false; });
   }
 
   /// Проверяет, запущено ли приложение кликом на виджет
@@ -486,20 +487,23 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: false,
             child: Column(
               children: [
-                HomeHeader(
-                  theme: _t,
-                  isPaired: _pairData.isPaired,
-                  partnerCount: _pairData.partnerCount,
-                  myAvatarUrl: widget.userData.avatarUrl,
-                  myDisplayName: widget.userData.displayName,
-                  partners: _pairData.partners,
-                  myMood: _pairData.myMood,
-                  moodOf: _pairData.moodOf,
-                  statusBadgeText: _statusBadgeText,
-                  statusBadgeEmoji: _statusBadgeEmoji,
-                  onRelationshipTap: _showRelationshipTypeDialog,
-                  pairId: _pairData.pairId,
-                ),
+                if (_isLoading)
+                  const HomeSkeletonHeader()
+                else
+                  HomeHeader(
+                    theme: _t,
+                    isPaired: _pairData.isPaired,
+                    partnerCount: _pairData.partnerCount,
+                    myAvatarUrl: widget.userData.avatarUrl,
+                    myDisplayName: widget.userData.displayName,
+                    partners: _pairData.partners,
+                    myMood: _pairData.myMood,
+                    moodOf: _pairData.moodOf,
+                    statusBadgeText: _statusBadgeText,
+                    statusBadgeEmoji: _statusBadgeEmoji,
+                    onRelationshipTap: _showRelationshipTypeDialog,
+                    pairId: _pairData.pairId,
+                  ),
                 Expanded(child: _buildBody()),
               ],
             ),
@@ -529,6 +533,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
+    if (_isLoading && _selectedNavIndex == 0) {
+      return const HomeSkeletonBody();
+    }
     switch (_selectedNavIndex) {
       case 0:
         return _buildHomeTab();

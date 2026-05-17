@@ -43,8 +43,8 @@ class HomeHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
       child: Row(
         children: [
-          // Аватары
-          if (isPaired) ...[
+          // Аватары (фиксированная ширина)
+          if (isPaired) ...[ 
             SizedBox(
               width: 28.0 + 40.0 + (partnerCount - 1).clamp(0, 3) * 28.0,
               height: 48,
@@ -83,56 +83,62 @@ class HomeHeader extends StatelessWidget {
             _avatarCircle(myAvatarUrl, name: myDisplayName, primary: primary),
           ],
           const SizedBox(width: 8),
-          // Бейдж статуса (нажатие → смена типа отношений)
-          GestureDetector(
-            onTap: isPaired ? onRelationshipTap : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isPaired
-                    ? primary.withOpacity(0.1)
-                    : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
+          // Бейдж статуса — Flexible, чтобы не выталкивал кнопку «Скучаю»
+          Flexible(
+            child: GestureDetector(
+              onTap: isPaired ? onRelationshipTap : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
                   color: isPaired
                       ? primary.withOpacity(0.1)
-                      : Colors.grey.shade300,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (statusBadgeEmoji.isNotEmpty) ...[
-                    Text(
-                      statusBadgeEmoji,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    const SizedBox(width: 4),
-                  ] else ...[
-                    Icon(
-                      Icons.favorite_border,
-                      color: Colors.grey.shade400,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  Text(
-                    statusBadgeText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isPaired ? primary : Colors.grey.shade500,
-                    ),
+                      : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isPaired
+                        ? primary.withOpacity(0.1)
+                        : Colors.grey.shade300,
                   ),
-                  if (isPaired) ...[
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.expand_more_rounded,
-                      size: 14,
-                      color: primary.withOpacity(0.6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (statusBadgeEmoji.isNotEmpty) ...[
+                      Text(
+                        statusBadgeEmoji,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(width: 4),
+                    ] else ...[
+                      Icon(
+                        Icons.favorite_border,
+                        color: Colors.grey.shade400,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        statusBadgeText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isPaired ? primary : Colors.grey.shade500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    if (isPaired) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.expand_more_rounded,
+                        size: 14,
+                        color: primary.withOpacity(0.6),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -145,7 +151,6 @@ class HomeHeader extends StatelessWidget {
               enabled: isPaired,
             ),
           ],
-          const Spacer(),
         ],
       ),
     );
