@@ -1,0 +1,445 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
+import '../models/memory.dart';
+import '../theme/app_theme.dart';
+
+/// A cluster of nearby memories shown as a single marker.
+class _MemoryCluster {
+  final LatLng center;
+  final List<Memory> memories;
+
+  const _MemoryCluster({required this.center, required this.memories});
+
+  int get count => memories.length;
+}
+
+/// Full-screen world map showing all memories with geo-coordinates as
+/// colored circle clusters. Circle size grows with the number of memories.
+class MemoriesMapScreen extends StatefulWidget {
+  final List<Memory> memories;
+  final AppTheme theme;
+
+  const MemoriesMapScreen({
+    super.key,
+    required this.memories,
+    required this.theme,
+  });
+
+  @override
+  State<MemoriesMapScreen> createState() => _MemoriesMapScreenState();
+}
+
+class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
+  late final MapController _mapController;
+  late List<_MemoryCluster> _clusters;
+  _MemoryCluster? _selectedCluster;
+
+  static const double _clusterRadius = 0.8; // degrees — ~90km grid cell
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+    _clusters = _buildClusters();
+  }
+
+  List<_MemoryCluster> _buildClusters() {
+    final geoMemories = widget.memories
+        .where((m) => m.latitude != null && m.longitude != null)
+        .toList();
+
+    final Map<String, List<Memory>> grid = {};
+    for (final m in geoMemories) {
+      final gridLat = (m.latitude! / _clusterRadius).floor() * _clusterRadius;
+      final gridLng = (m.longitude! / _clusterRadius).floor() * _clusterRadius;
+      final key = '${gridLat.toStringAsFixed(1)}_${gridLng.toStringAsFixed(1)}';
+      grid.putIfAbsent(key, () => []).add(m);
+    }
+
+    return grid.values.map((list) {
+      final avgLat = list.map((m) => m.latitude!).reduce((a, b) => a + b) / list.length;
+      final avgLng = list.map((m) => m.longitude!).reduce((a, b) => a + b) / list.length;
+      return _MemoryCluster(center: LatLng(avgLat, avgLng), memories: list);
+    }).toList();
+  }
+
+  double _markerSize(_MemoryCluster c) {
+    if (c.count == 1) return 40;
+    if (c.count <= 3) return 50;
+    if (c.count <= 8) return 62;
+    return 74;
+  }
+
+  Color _markerColor(_MemoryCluster c) {
+    final t = widget.theme;
+    if (c.count == 1) return t.primary.withOpacity(0.85);
+    if (c.count <= 3) return t.primary;
+    if (c.count <= 8) return Color.lerp(t.primary, Colors.deepPurple, 0.35)!;
+    return Color.lerp(t.primary, Colors.deepPurple, 0.65)!;
+  }
+
+  LatLng? _boundsCenter() {
+    if (_clusters.isEmpty) return null;
+    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    for (final c in _clusters) {
+      minLat = min(minLat, c.center.latitude);
+      maxLat = max(maxLat, c.center.latitude);
+      minLng = min(minLng, c.center.longitude);
+      maxLng = max(maxLng, c.center.longitude);
+    }
+    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+  }
+
+  void _onClusterTap(_MemoryCluster cluster) {
+    setState(() {
+      _selectedCluster = cluster == _selectedCluster ? null : cluster;
+    });
+    _mapController.move(cluster.center, 10.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    final center = _boundsCenter() ?? const LatLng(48.0, 15.0);
+
+    return Scaffold(
+      backgroundColor: t.bgGradient[0],
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: _clusters.isEmpty ? 2.0 : 3.5,
+              minZoom: 1.5,
+              maxZoom: 18,
+              onTap: (_, __) => setState(() => _selectedCluster = null),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.togetherly.love',
+                maxNativeZoom: 19,
+              ),
+              MarkerLayer(
+                markers: _clusters.map((c) {
+                  final size = _markerSize(c);
+                  final color = _markerColor(c);
+                  final isSelected = _selectedCluster == c;
+                  return Marker(
+                    point: c.center,
+                    width: size + 12,
+                    height: size + 12,
+                    child: GestureDetector(
+                      onTap: () => _onClusterTap(c),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: size + (isSelected ? 12 : 0),
+                        height: size + (isSelected ? 12 : 0),
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: isSelected ? 3 : 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(0.45),
+                              blurRadius: isSelected ? 20 : 12,
+                              spreadRadius: isSelected ? 4 : 2,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${c.count}',
+                            style: GoogleFonts.rubik(
+                              fontSize: size * 0.32,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+
+          // AppBar overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.black87,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.map_rounded, size: 16, color: t.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Карта воспоминаний',
+                              style: GoogleFonts.rubik(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade900,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_clusters.fold(0, (s, c) => s + c.count)}',
+                                style: GoogleFonts.rubik(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: t.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Empty state
+          if (_clusters.isEmpty)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_off_rounded,
+                        size: 48, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Нет воспоминаний с геолокацией',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.rubik(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Добавьте место к воспоминанию\nчерез долгое нажатие',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.rubik(
+                        fontSize: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Cluster popup panel
+          if (_selectedCluster != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildClusterPanel(_selectedCluster!),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClusterPanel(_MemoryCluster cluster) {
+    final t = widget.theme;
+    final photos = cluster.memories
+        .where((m) =>
+            m.type == MemoryType.photo &&
+            (m.imageUrls?.isNotEmpty == true || m.imageUrl?.isNotEmpty == true))
+        .take(6)
+        .toList();
+    final firstPhoto = photos.isNotEmpty
+        ? (photos.first.imageUrls?.firstOrNull ?? photos.first.imageUrl)
+        : null;
+    final locationName = cluster.memories
+        .firstWhere(
+          (m) => m.locationName?.isNotEmpty == true,
+          orElse: () => cluster.memories.first,
+        )
+        .locationName;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 24,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: t.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.location_on_rounded,
+                      size: 18, color: t.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        locationName ?? 'Место',
+                        style: GoogleFonts.rubik(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${cluster.count} '
+                        '${_pluralMemory(cluster.count)}',
+                        style: GoogleFonts.rubik(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (photos.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 72,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: photos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final url =
+                        photos[i].imageUrls?.firstOrNull ?? photos[i].imageUrl;
+                    if (url == null) return const SizedBox.shrink();
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        url,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 72,
+                          height: 72,
+                          color: Colors.grey.shade100,
+                          child: Icon(Icons.broken_image_rounded,
+                              color: Colors.grey.shade300),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _pluralMemory(int n) {
+    if (n % 10 == 1 && n % 100 != 11) return 'воспоминание';
+    if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
+      return 'воспоминания';
+    }
+    return 'воспоминаний';
+  }
+}
