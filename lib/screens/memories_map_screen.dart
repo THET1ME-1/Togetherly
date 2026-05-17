@@ -6,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
 import '../theme/app_theme.dart';
 
-/// A cluster of nearby memories shown as a single marker.
 class _MemoryCluster {
   final LatLng center;
   final List<Memory> memories;
@@ -16,8 +15,6 @@ class _MemoryCluster {
   int get count => memories.length;
 }
 
-/// Full-screen world map showing all memories with geo-coordinates as
-/// colored circle clusters. Circle size grows with the number of memories.
 class MemoriesMapScreen extends StatefulWidget {
   final List<Memory> memories;
   final AppTheme theme;
@@ -39,34 +36,14 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
   late List<_MemoryCluster> _clusters;
   _MemoryCluster? _selectedCluster;
 
-  // ~25km grid for unnamed points (fallback)
-  static const double _coordCellDeg = 0.25;
+  // ~1.5 km grid cell (0.015° ≈ 1.5 km at mid-latitudes)
+  static const double _cellDeg = 0.015;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
     _clusters = _buildClusters();
-  }
-
-  /// Returns a stable cluster key for a memory.
-  /// Named locations → normalized "City, Country" (last 1–2 comma parts).
-  /// Unnamed → coordinate grid cell so nearby pins still group.
-  static String _clusterKey(Memory m) {
-    final name = m.locationName?.trim() ?? '';
-    if (name.isNotEmpty) {
-      // Strip exact-address prefix: keep only last 1-2 comma-separated parts.
-      final parts = name.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      if (parts.length >= 2) {
-        // last two: usually "City, Country" or "District, City"
-        return '${parts[parts.length - 2]}, ${parts[parts.length - 1]}'.toLowerCase();
-      }
-      return parts.last.toLowerCase();
-    }
-    // Fallback: ~25 km coordinate cell
-    final gridLat = (m.latitude! / _coordCellDeg).floor();
-    final gridLng = (m.longitude! / _coordCellDeg).floor();
-    return 'coord_${gridLat}_$gridLng';
   }
 
   List<_MemoryCluster> _buildClusters() {
@@ -76,7 +53,10 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
 
     final Map<String, List<Memory>> groups = {};
     for (final m in geoMemories) {
-      groups.putIfAbsent(_clusterKey(m), () => []).add(m);
+      final cellLat = (m.latitude! / _cellDeg).floor();
+      final cellLng = (m.longitude! / _cellDeg).floor();
+      final key = '${cellLat}_$cellLng';
+      groups.putIfAbsent(key, () => []).add(m);
     }
 
     return groups.values.map((list) {
@@ -97,12 +77,10 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
     final t = widget.theme;
     final uid = widget.currentUserUid;
 
-    // Determine dominant author in the cluster
     final bool isMine = uid != null &&
         c.memories.where((m) => m.authorUid == uid).length >
             c.memories.length / 2;
 
-    // My memories → theme primary; partner's → teal/cyan to distinguish
     final base = isMine ? t.primary : Colors.teal.shade400;
     if (c.count == 1) return base.withValues(alpha: 0.85);
     if (c.count <= 3) return base;
@@ -177,7 +155,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: color.withOpacity(0.45),
+                              color: color.withValues(alpha: 0.45),
                               blurRadius: isSelected ? 20 : 12,
                               spreadRadius: isSelected ? 4 : 2,
                             ),
@@ -221,7 +199,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.12),
+                              color: Colors.black.withValues(alpha: 0.12),
                               blurRadius: 10,
                             ),
                           ],
@@ -245,7 +223,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 10,
                             ),
                           ],
@@ -269,7 +247,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: t.primary.withOpacity(0.1),
+                                color: t.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -302,7 +280,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 20,
                     ),
                   ],
@@ -357,9 +335,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
             (m.imageUrls?.isNotEmpty == true || m.imageUrl?.isNotEmpty == true))
         .take(6)
         .toList();
-    final firstPhoto = photos.isNotEmpty
-        ? (photos.first.imageUrls?.firstOrNull ?? photos.first.imageUrl)
-        : null;
     final locationName = cluster.memories
         .firstWhere(
           (m) => m.locationName?.isNotEmpty == true,
@@ -377,7 +352,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 24,
               offset: const Offset(0, -4),
             ),
@@ -392,7 +367,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: t.primary.withOpacity(0.1),
+                    color: t.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.location_on_rounded,
@@ -414,8 +389,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${cluster.count} '
-                        '${_pluralMemory(cluster.count)}',
+                        '${cluster.count} ${_pluralMemory(cluster.count)}',
                         style: GoogleFonts.rubik(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -434,7 +408,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                   scrollDirection: Axis.horizontal,
                   itemCount: photos.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
+                  itemBuilder: (context, i) {
                     final url =
                         photos[i].imageUrls?.firstOrNull ?? photos[i].imageUrl;
                     if (url == null) return const SizedBox.shrink();
@@ -445,7 +419,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (context, _, e) => Container(
                           width: 72,
                           height: 72,
                           color: Colors.grey.shade100,

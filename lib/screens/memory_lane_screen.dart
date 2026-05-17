@@ -5774,21 +5774,36 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   Future<void> _fetchUserLocation() async {
     try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
       LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.always ||
-          perm == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 10),
-          ),
-        );
-        if (mounted) {
-          setState(() {
-            _userLat = pos.latitude;
-            _userLng = pos.longitude;
-          });
-        }
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever) return;
+      if (perm != LocationPermission.always &&
+          perm != LocationPermission.whileInUse) { return; }
+
+      // Use last known position instantly so pills show right away
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null && mounted) {
+        setState(() {
+          _userLat = last.latitude;
+          _userLng = last.longitude;
+        });
+      }
+
+      // Then get a fresh fix and update
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          _userLat = pos.latitude;
+          _userLng = pos.longitude;
+        });
       }
     } catch (e) {
       debugPrint('Failed to get user location: $e');
