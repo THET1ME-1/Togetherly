@@ -66,16 +66,31 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
 
   Future<void> _loadPhotos() async {
     try {
+      // NOTE: Don't combine .where() + .orderBy() in one Firestore query —
+      // that requires a composite index which may not exist.
+      // Instead: filter by type only, then sort by createdAt in Dart.
       final snap = await FirebaseFirestore.instance
           .collection('groups')
           .doc(widget.groupId)
           .collection('memories')
           .where('type', isEqualTo: 'photo')
-          .orderBy('createdAt', descending: true)
           .get();
 
+      // Sort newest-first in Dart (no composite index required)
+      final docs = snap.docs.toList()
+        ..sort((a, b) {
+          final aTs = a.data()['createdAt'];
+          final bTs = b.data()['createdAt'];
+          if (aTs == null && bTs == null) return 0;
+          if (aTs == null) return 1;
+          if (bTs == null) return -1;
+          final aTime = (aTs as Timestamp).toDate();
+          final bTime = (bTs as Timestamp).toDate();
+          return bTime.compareTo(aTime);
+        });
+
       final photos = <_Photo>[];
-      for (final doc in snap.docs) {
+      for (final doc in docs) {
         final data = doc.data();
         final caption = data['caption'] as String?;
         final url = data['imageUrl'] as String?;

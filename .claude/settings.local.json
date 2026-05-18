@@ -16,7 +16,8 @@
       "Bash(grep -E \"\\\\.dart$\")",
       "Bash(flutter analyze *)",
       "Bash(xargs grep -l \"showModalBottomSheet\\\\|BottomSheet\")",
-      "Bash(xargs grep -l \"showModalBottomSheet\\\\|ModalBottomSheet\\\\|DraggableScrollableSheet\")"
+      "Bash(xargs grep -l \"showModalBottomSheet\\\\|ModalBottomSheet\\\\|DraggableScrollableSheet\")",
+      "Bash(xargs grep -l \"index\\\\|Index\")"
     ]
   }
 }
