@@ -228,12 +228,26 @@ class _HomeScreenState extends State<HomeScreen> {
     _startMemoryListener();
 
     if (isPaired && _pairData.startDate != null) {
-      // Rebind services if group changed or first time
+      // Rebind services only when group actually changed or pairing state flipped.
+      // Restarting listenToPartner() on every trivial PairData change causes a
+      // cascade: Firestore re-emits → MoodService notifies → _onMoodServiceChanged
+      // → pairData.setMood → PairData notifies → _handlePairChanged again → loop.
       if (groupChanged || _wasPaired != isPaired) {
         // Unbind from old group first
         await _timerService.unbindFromGroup();
         _moodService.unbindFromGroup();
         await _widgetService.unbindFromGroup();
+
+        // Bind mood service to group for Firestore sync
+        _moodService.bindToGroup(_pairData.pairId);
+
+        // Bind widget service to group for Firestore sync
+        await _widgetService.bindToGroup(_pairData.pairId);
+        for (final p in _pairData.partners) {
+          _widgetService.listenToPartner(p.uid);
+          // Subscribe to partner moods so MoodWidgetProvider stays updated
+          _moodService.listenToPartner(p.uid);
+        }
       }
 
       // Bind mascot service and record today's activity.
@@ -241,17 +255,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Bind timer service to group for Firestore sync
       await _timerService.bindToGroup(_pairData.pairId);
-
-      // Bind mood service to group for Firestore sync
-      _moodService.bindToGroup(_pairData.pairId);
-
-      // Bind widget service to group for Firestore sync
-      await _widgetService.bindToGroup(_pairData.pairId);
-      for (final p in _pairData.partners) {
-        _widgetService.listenToPartner(p.uid);
-        // Subscribe to partner moods so MoodWidgetProvider stays updated
-        _moodService.listenToPartner(p.uid);
-      }
 
       // Create system timer if it doesn't exist yet
       await _timerService.createSystemTimer(
@@ -407,21 +410,12 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Обновление MoodService: применять изменения настроения из pairData
   /// и синхронизировать виджет настроения при изменении состояния.
   void _onMoodServiceChanged() {
-    if (!mounted || !_pairData.isPaired) return;
-    final today = DateTime.now();
-    final todayEntries = _moodService.myEntriesForDay(today);
-    final current = _pairData.myMood;
-    if (todayEntries.isNotEmpty) {
-      final entry = todayEntries.first;
-      if (current.imagePath != entry.imagePath) {
-        _pairData.setMood(entry.imagePath, entry.label);
-      }
-    } else {
-      if (current.isNotEmpty) {
-        _pairData.clearMood();
-      }
-    }
-    // Синхронизируем виджет настроения после обновления
+    if (!mounted) return;
+    // Sync the Android home-screen mood widget and rebuild the in-app UI.
+    // Do NOT call _pairData.setMood() / clearMood() here: that would write to
+    // Firestore and call PairData.notifyListeners(), triggering _handlePairChanged
+    // which restarts Firestore listeners and creates a feedback loop (blinking).
+    // memberMoods stays in sync via the group-document Firestore listener.
     _syncMoodWidget();
     if (mounted) setState(() {});
   }
