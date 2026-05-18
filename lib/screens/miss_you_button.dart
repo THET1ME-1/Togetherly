@@ -7,9 +7,15 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 /// Кнопка «Я скучаю» — соревновательный режим.
-/// • Слева — мой счётчик, справа — счётчик партнёра
-/// • Заливка как у дня в мини-календаре: мой цвет слева, цвет партнёра справа
-/// • Анимация нажатия (scale bounce) + летящие сердечки
+///
+/// Архитектура состояния:
+///   _myCount      — последнее подтверждённое значение из Firebase
+///   _partnerCount — то же для партнёра
+///   _inFlightTaps — тапы, отправленные в Firebase но ещё не подтверждённые
+///
+/// Отображаемое значение = _myCount + _inFlightTaps.
+/// При подтверждении Firebase delta вычитается из _inFlightTaps.
+/// При ошибке записи — _inFlightTaps откатывается.
 class MissYouButton extends StatefulWidget {
   final AppTheme theme;
   final String groupId;
@@ -32,16 +38,18 @@ class _MissYouButtonState extends State<MissYouButton>
     with TickerProviderStateMixin {
   final FirebaseService _fb = FirebaseService();
 
-  // -- Per-user counters --
+  // -- Подтверждённые Firebase-счётчики --
   int _myCount = 0;
   int _partnerCount = 0;
   StreamSubscription? _countSub;
 
-  // -- Fill ratio animation --
-  double _prevRatio = 0.5;
-  double _currentRatio = 0.5;
+  // -- Тапы в полёте (отправлены, но Firebase ещё не подтвердил) --
+  int _inFlightTaps = 0;
 
-  // -- Scale animation --
+  // -- Fill ratio animation (value = ratio, 0..1) --
+  late AnimationController _fillController;
+
+  // -- Scale animation (bounce при тапе) --
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
 
@@ -52,6 +60,14 @@ class _MissYouButtonState extends State<MissYouButton>
   @override
   void initState() {
     super.initState();
+
+    _fillController = AnimationController(
+      vsync: this,
+      value: 0.5,
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+
     _scaleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 480),
@@ -68,6 +84,7 @@ class _MissYouButtonState extends State<MissYouButton>
         weight: 82,
       ),
     ]).animate(_scaleController);
+
     _startListening();
   }
 
@@ -76,6 +93,7 @@ class _MissYouButtonState extends State<MissYouButton>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.groupId != widget.groupId) {
       _countSub?.cancel();
+      _inFlightTaps = 0;
       _startListening();
     }
   }
@@ -88,19 +106,37 @@ class _MissYouButtonState extends State<MissYouButton>
       onData: (counts) {
         if (!mounted) return;
         final myUid = _fb.uid ?? '';
-        final myC = counts[myUid] ?? 0;
-        final partnerC = counts.entries
+        final newMyCount = counts[myUid] ?? 0;
+        final newPartnerCount = counts.entries
             .where((e) => e.key != myUid)
             .fold(0, (sum, e) => sum + e.value);
-        final total = myC + partnerC;
-        final newRatio = total == 0 ? 0.5 : (myC / total).clamp(0.0, 1.0);
-        setState(() {
-          _prevRatio = _currentRatio;
-          _currentRatio = newRatio;
-          _myCount = myC;
-          _partnerCount = partnerC;
-        });
+
+        // Вычитаем из _inFlightTaps подтверждённую дельту
+        final confirmed = newMyCount - _myCount;
+        if (confirmed > 0) {
+          _inFlightTaps = max(0, _inFlightTaps - confirmed);
+        }
+
+        _myCount = newMyCount;
+        _partnerCount = newPartnerCount;
+
+        // Анимируем с учётом оставшихся in-flight тапов
+        _animateToCurrentRatio();
+
+        if (mounted) setState(() {});
       },
+    );
+  }
+
+  /// Вычисляет ратио на основе (_myCount + _inFlightTaps) и анимирует к нему.
+  void _animateToCurrentRatio() {
+    final displayMy = _myCount + _inFlightTaps;
+    final total = displayMy + _partnerCount;
+    final ratio = total == 0 ? 0.5 : (displayMy / total).clamp(0.0, 1.0);
+    _fillController.animateTo(
+      ratio,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -109,10 +145,26 @@ class _MissYouButtonState extends State<MissYouButton>
     HapticFeedback.mediumImpact();
     _scaleController.forward(from: 0);
     _spawnHearts();
-    await _fb.sendMissYou(
-      groupId: widget.groupId,
-      senderName: widget.senderName,
-    );
+
+    // Оптимистичный инкремент — немедленно показываем результат
+    _inFlightTaps++;
+    _animateToCurrentRatio();
+    if (mounted) setState(() {});
+
+    try {
+      await _fb.sendMissYou(
+        groupId: widget.groupId,
+        senderName: widget.senderName,
+      );
+      // Firebase-снимок придёт через _startListening и сам вычтет из _inFlightTaps.
+      // Здесь ничего не делаем, чтобы избежать двойного декремента.
+    } catch (_) {
+      // Запись упала — откатываем in-flight тап
+      if (mounted) {
+        setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
+        _animateToCurrentRatio();
+      }
+    }
   }
 
   void _spawnHearts() {
@@ -138,6 +190,7 @@ class _MissYouButtonState extends State<MissYouButton>
 
   @override
   void dispose() {
+    _fillController.dispose();
     _scaleController.dispose();
     _countSub?.cancel();
     for (final h in _hearts) {
@@ -150,7 +203,9 @@ class _MissYouButtonState extends State<MissYouButton>
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final btnColor = widget.theme.promptButtonColor;
-    final total = _myCount + _partnerCount;
+    // Для отображения счётчика показываем оптимистичное значение
+    final displayMy = _myCount + _inFlightTaps;
+    final total = displayMy + _partnerCount;
     final hasData = total > 0;
 
     return Opacity(
@@ -163,7 +218,7 @@ class _MissYouButtonState extends State<MissYouButton>
           ..._hearts.map(
             (h) => AnimatedBuilder(
               animation: h.controller,
-              builder: (_, __) {
+              builder: (_, child) {
                 final t = h.controller.value;
                 final ct = Curves.easeOut.transform(t);
                 return Positioned(
@@ -185,11 +240,10 @@ class _MissYouButtonState extends State<MissYouButton>
                 Transform.scale(scale: _scaleAnimation.value, child: child),
             child: GestureDetector(
               onTap: _onTap,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: _prevRatio, end: _currentRatio),
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeInOut,
-                builder: (_, ratio, __) {
+              child: AnimatedBuilder(
+                animation: _fillController,
+                builder: (_, child) {
+                  final ratio = _fillController.value;
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(22),
                     child: Container(
@@ -202,20 +256,23 @@ class _MissYouButtonState extends State<MissYouButton>
                             ? LinearGradient(
                                 stops: [ratio, ratio],
                                 colors: [
-                                  btnColor.withOpacity(0.78),
-                                  btnColor.withOpacity(0.28),
+                                  btnColor.withValues(alpha: 0.78),
+                                  btnColor.withValues(alpha: 0.28),
                                 ],
                               )
                             : null,
-                        color: hasData ? null : btnColor.withOpacity(0.11),
+                        color: hasData
+                            ? null
+                            : btnColor.withValues(alpha: 0.11),
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: btnColor.withOpacity(hasData ? 0.0 : 0.22),
+                          color: btnColor
+                              .withValues(alpha: hasData ? 0.0 : 0.22),
                         ),
                         boxShadow: hasData
                             ? [
                                 BoxShadow(
-                                  color: btnColor.withOpacity(0.18),
+                                  color: btnColor.withValues(alpha: 0.18),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -226,7 +283,7 @@ class _MissYouButtonState extends State<MissYouButton>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _CountBadge(
-                            count: _myCount,
+                            count: displayMy,
                             color: btnColor,
                             hasData: hasData,
                             isOnDarkSide: hasData && ratio > 0.15,
@@ -278,8 +335,8 @@ class _CountBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final textColor = isOnDarkSide ? Colors.white : color;
     final bgColor = isOnDarkSide
-        ? Colors.white.withOpacity(0.20)
-        : color.withOpacity(0.12);
+        ? Colors.white.withValues(alpha: 0.20)
+        : color.withValues(alpha: 0.12);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),

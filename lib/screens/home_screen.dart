@@ -483,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 if (_isLoading)
-                  const HomeSkeletonHeader()
+                  HomeSkeletonHeader(primary: _t.primary)
                 else
                   HomeHeader(
                     theme: _t,
@@ -529,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody() {
     if (_isLoading && _selectedNavIndex == 0) {
-      return const HomeSkeletonBody();
+      return HomeSkeletonBody(primary: _t.primary);
     }
     switch (_selectedNavIndex) {
       case 0:

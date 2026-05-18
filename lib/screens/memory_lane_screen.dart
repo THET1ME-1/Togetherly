@@ -771,39 +771,91 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Right: square photo thumbnail (48×48) – blurred for 18+
+                    // Right: stacked deck preview (up to 3 photos)
                     Builder(
                       builder: (_) {
-                        final thumb = Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: hasPhotos
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: CachedNetworkImage(
-                                    imageUrl: allPhotos.first,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 96,
-                                    memCacheHeight: 96,
-                                    errorWidget: (_, __, ___) => Icon(
-                                      Icons.broken_image_rounded,
-                                      color: Colors.grey.shade300,
-                                      size: 22,
-                                    ),
+                        if (!hasPhotos) {
+                          return Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.image_rounded,
+                              color: primary.withValues(alpha: 0.4),
+                              size: 22,
+                            ),
+                          );
+                        }
+                        final deckPhotos = allPhotos.take(3).toList();
+                        const cardSize = 48.0;
+                        const offset = 7.0;
+                        final totalWidth =
+                            cardSize + (deckPhotos.length - 1) * offset;
+                        return SizedBox(
+                          width: totalWidth,
+                          height: cardSize,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              for (int i = deckPhotos.length - 1; i >= 0; i--)
+                                Positioned(
+                                  left: i * offset,
+                                  top: 0,
+                                  child: Transform.rotate(
+                                    angle: i * 0.07,
+                                    alignment: Alignment.bottomLeft,
+                                    child: Builder(builder: (_) {
+                                      final card = Container(
+                                        width: cardSize,
+                                        height: cardSize,
+                                        decoration: BoxDecoration(
+                                          color: primary.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.12),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: CachedNetworkImage(
+                                            imageUrl: deckPhotos[i],
+                                            fit: BoxFit.cover,
+                                            memCacheWidth: 96,
+                                            memCacheHeight: 96,
+                                            errorWidget: (ctx, err, w) => Icon(
+                                              Icons.broken_image_rounded,
+                                              color: Colors.grey.shade300,
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                      if (memory.isAdult) {
+                                        return _BlurAfterTap(child: card);
+                                      }
+                                      return card;
+                                    }),
                                   ),
-                                )
-                              : Icon(
-                                  Icons.image_rounded,
-                                  color: primary.withOpacity(0.4),
-                                  size: 22,
                                 ),
+                            ],
+                          ),
                         );
-                        if (memory.isAdult) return _BlurAfterTap(child: thumb);
-                        return thumb;
                       },
                     ),
                   ],
@@ -811,45 +863,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
           ),
-          // ── Multi-photo strip (shown when > 1 photo) ──
-          if (allPhotos.length > 1) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 72,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                itemCount: allPhotos.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final img = ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: CachedNetworkImage(
-                      imageUrl: allPhotos[i],
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 144,
-                      memCacheHeight: 144,
-                      errorWidget: (_, __, ___) => Container(
-                        width: 72,
-                        height: 72,
-                        color: Colors.grey.shade100,
-                        child: Icon(
-                          Icons.broken_image_rounded,
-                          color: Colors.grey.shade300,
-                        ),
-                      ),
-                    ),
-                  );
-                  return GestureDetector(
-                    onTap: () => _openFullscreenGallery(context, allPhotos, i),
-                    child: memory.isAdult ? _BlurAfterTap(child: img) : img,
-                  );
-                },
-              ),
-            ),
-          ],
           _locationDistancePill(memory),
           const SizedBox(height: 12),
         ],
@@ -1858,6 +1871,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         onDownload: () => _downloadMemoryMedia(memory),
         onEdit: () => _editMemory(memory),
         onDelete: () => _confirmDelete(memory),
+        onSetLocation: () => _setLocationOnMemory(memory),
       ),
     );
   }
@@ -7042,6 +7056,7 @@ class _MemoryDetailSheet extends StatefulWidget {
   final VoidCallback onDownload;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onSetLocation;
 
   const _MemoryDetailSheet({
     required this.memory,
@@ -7057,6 +7072,7 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.onDownload,
     required this.onEdit,
     required this.onDelete,
+    this.onSetLocation,
   });
 
   @override
@@ -8205,6 +8221,26 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ),
             ],
           ),
+          // Show "Set Location" only when the memory has no location yet
+          if (widget.onSetLocation != null &&
+              widget.memory.type != MemoryType.location &&
+              widget.memory.latitude == null &&
+              widget.memory.longitude == null &&
+              (widget.memory.locationName?.isEmpty ?? true)) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: _actionBtn(
+                icon: Icons.add_location_alt_rounded,
+                label: LocaleService.current.selectLocation,
+                color: const Color(0xFF10B981),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onSetLocation!();
+                },
+              ),
+            ),
+          ],
         ],
       ],
     );
