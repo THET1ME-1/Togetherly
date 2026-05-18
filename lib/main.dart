@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
@@ -25,6 +26,21 @@ void main() async {
 
   // Firebase — инициализация
   await Firebase.initializeApp();
+
+  // При первом запуске после установки — выходим из любой сохранённой сессии.
+  // SharedPreferences очищаются при удалении приложения, поэтому отсутствие
+  // флага означает свежую установку. Это предотвращает подхват устаревших
+  // pairIds из Firestore, оставшихся от debug-сессий.
+  final prefs = await SharedPreferences.getInstance();
+  const kInstallKey = 'app_installed_v1';
+  if (!prefs.containsKey(kInstallKey)) {
+    try {
+      if (FirebaseService().isLoggedIn) {
+        await FirebaseService().signOut();
+      }
+    } catch (_) {}
+    await prefs.setBool(kInstallKey, true);
+  }
 
   // FCM background handler — регистрируем до чего угодно
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

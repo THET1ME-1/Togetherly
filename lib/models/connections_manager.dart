@@ -286,6 +286,7 @@ class ConnectionsManager extends ChangeNotifier {
   Future<void> _cleanupStaleConnections() async {
     final toRemove = <Connection>[];
 
+    // 1) Orphaned groups — paired but no partners left
     for (final conn in _connections) {
       if (conn.isSolo) continue;
       if (!conn.isPaired || conn.pairId.isEmpty) continue;
@@ -296,6 +297,28 @@ class ConnectionsManager extends ChangeNotifier {
       );
       await _fb.removeStaleGroupFromUser(conn.pairId);
       toRemove.add(conn);
+    }
+
+    // 2) Duplicate groups — same partner set already in another connection.
+    //    Keeps the first occurrence (loaded from SharedPreferences, which is the
+    //    primary production group). Removes later duplicates left by debug runs.
+    final seenPartnerKeys = <String>{};
+    for (final conn in _connections) {
+      if (conn.isSolo || toRemove.contains(conn)) continue;
+      if (!conn.isPaired || conn.partners.isEmpty) continue;
+
+      final partnerUids = conn.partners.map((p) => p.uid).toList()..sort();
+      final partnerKey = partnerUids.join(',');
+
+      if (seenPartnerKeys.contains(partnerKey)) {
+        debugPrint(
+          '_cleanupStaleConnections: removing duplicate group ${conn.pairId} (same partners already in another group)',
+        );
+        await _fb.removeStaleGroupFromUser(conn.pairId);
+        toRemove.add(conn);
+      } else {
+        seenPartnerKeys.add(partnerKey);
+      }
     }
 
     for (final conn in toRemove) {
@@ -361,6 +384,38 @@ class ConnectionsManager extends ChangeNotifier {
 
     for (var remotePairId in remotePairIds) {
       if (claimedIds.contains(remotePairId)) continue;
+
+      // Pre-check: load group data and skip if all its partners are already in
+      // another connection. This removes duplicate groups left by debug sessions
+      // (where the same partner appears in both a debug group and a release group).
+      try {
+        final preloadedData = await _fb.loadPairById(remotePairId);
+        if (preloadedData != null) {
+          final membersList = (preloadedData['members'] as List<dynamic>?) ?? [];
+          final myUid = _fb.uid ?? '';
+          final newPartnerUids = membersList
+              .map((m) => (m as Map)['uid']?.toString() ?? '')
+              .where((uid) => uid.isNotEmpty && uid != myUid)
+              .toSet();
+
+          if (newPartnerUids.isNotEmpty) {
+            final existingPartnerUids = _connections
+                .where((c) => c.isPaired && c.partners.isNotEmpty)
+                .expand((c) => c.partners.map((p) => p.uid))
+                .toSet();
+
+            if (newPartnerUids.every((uid) => existingPartnerUids.contains(uid))) {
+              debugPrint(
+                'Real-time: duplicate group $remotePairId — partners already in another group, removing',
+              );
+              await _fb.removeStaleGroupFromUser(remotePairId);
+              continue;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Real-time: pre-check for $remotePairId failed: $e');
+      }
 
       // Нашли новую пару — назначаем первому unpaired non-solo connection.
       // Solo connection пропускаем: он существует только для одиночного режима.

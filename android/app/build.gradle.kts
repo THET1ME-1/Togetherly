@@ -54,6 +54,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Debug builds get a separate package name so they cannot share
+            // Firebase data (Firestore pairIds) with the production release.
+            // IMPORTANT: register com.togetherly.love.debug in Firebase Console
+            // (add Android app with this package name + debug SHA-1 fingerprint)
+            // and re-download google-services.json before running debug builds.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             signingConfig = if (keyPropertiesFile.exists())
                 signingConfigs.getByName("release")
