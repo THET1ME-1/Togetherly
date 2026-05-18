@@ -13,6 +13,8 @@ class ConnectionsManager extends ChangeNotifier {
   String _preferredPartnerUid = '';
   bool _loading = false;
   StreamSubscription? _userDocSub;
+  // Prevents concurrent _startListeningForNewPairs callbacks from racing
+  bool _processingPairUpdate = false;
 
   // ── Getters ──
   List<Connection> get connections => List.unmodifiable(_connections);
@@ -119,6 +121,12 @@ class ConnectionsManager extends ChangeNotifier {
         }
       }
     }
+
+    // Remove stale connections: paired groups that have no partners left
+    // (e.g. test groups created during debug testing, or groups where the
+    // only other member has since left). This runs before the real-time
+    // listener starts so the UI never shows orphaned groups.
+    await _cleanupStaleConnections();
 
     await _saveLocal();
     _loading = false;
@@ -272,6 +280,42 @@ class ConnectionsManager extends ChangeNotifier {
   }
 
   /// Слушаем документ юзера в реальном времени.
+  /// Remove connections that are paired but have no partners (orphaned groups).
+  /// This handles stale groups created during debug testing sessions where the
+  /// group only has the current user as a member.
+  Future<void> _cleanupStaleConnections() async {
+    final toRemove = <Connection>[];
+
+    for (final conn in _connections) {
+      if (conn.isSolo) continue;
+      if (!conn.isPaired || conn.pairId.isEmpty) continue;
+      if (conn.partners.isNotEmpty) continue;
+
+      debugPrint(
+        '_cleanupStaleConnections: removing orphaned group ${conn.pairId}',
+      );
+      await _fb.removeStaleGroupFromUser(conn.pairId);
+      toRemove.add(conn);
+    }
+
+    for (final conn in toRemove) {
+      conn.dispose();
+      _connections.remove(conn);
+    }
+
+    if (toRemove.isNotEmpty) {
+      // Ensure at least one non-solo connection exists
+      if (_connections.where((c) => !c.isSolo).isEmpty) {
+        await _createNewConnection();
+      }
+      // Keep active index in bounds
+      if (_activeConnectionIndex >= _connections.length) {
+        _activeConnectionIndex =
+            _connections.length > 1 ? 1 : _connections.length - 1;
+      }
+    }
+  }
+
   /// Когда партнёр принимает инвайт, pairId обновляется —
   /// мы сразу подхватываем пару без перезапуска.
   void _startListeningForNewPairs() {
@@ -281,75 +325,103 @@ class ConnectionsManager extends ChangeNotifier {
     _userDocSub = _fb.listenToUserDoc(
       onData: (data) async {
         if (data == null) return;
-
-        // Собираем все pairId из user-документа
-        final Set<String> remotePairIds = {};
-        final pairId = data['pairId'] as String?;
-        if (pairId != null && pairId.isNotEmpty) {
-          remotePairIds.add(pairId);
-        }
-        final pairIdsRaw = data['pairIds'] as List<dynamic>?;
-        if (pairIdsRaw != null) {
-          for (var id in pairIdsRaw) {
-            final s = id.toString();
-            if (s.isNotEmpty) remotePairIds.add(s);
-          }
-        }
-
-        // Ищем pairId, которые ещё не привязаны ни к одному connection
-        final claimedIds = _connections
-            .where((c) => c.pairId.isNotEmpty)
-            .map((c) => c.pairId)
-            .toSet();
-
-        for (var remotePairId in remotePairIds) {
-          if (claimedIds.contains(remotePairId)) continue;
-
-          // Нашли новую пару — назначаем первому unpaired non-solo connection.
-          // Solo connection пропускаем: он существует только для одиночного режима.
-          Connection? unpaired = _connections.cast<Connection?>().firstWhere(
-            (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
-            orElse: () => null,
-          );
-
-          if (unpaired == null) {
-            unpaired = Connection(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              firebaseService: _fb,
-              onChanged: () {
-                _saveLocal();
-                notifyListeners();
-              },
-            );
-            _connections.add(unpaired);
-          }
-
-          debugPrint('Real-time: detected new pair $remotePairId');
-          await unpaired.claimPair(remotePairId);
-          await _saveLocal();
-          notifyListeners();
-        }
-
-        // Обрабатываем удалённые pairId — партнёр мог выйти из группы
-        // и groupId исчез из нашего user doc
-        bool removedAny = false;
-        for (var connection in _connections) {
-          if (connection.pairId.isNotEmpty &&
-              !remotePairIds.contains(connection.pairId) &&
-              connection.isPaired) {
-            debugPrint(
-              'Real-time: pairId ${connection.pairId} removed from user doc, marking as unpaired',
-            );
-            connection.markUnpaired();
-            removedAny = true;
-          }
-        }
-        if (removedAny) {
-          await _saveLocal();
-          notifyListeners();
+        // Prevent concurrent callbacks from racing (Firestore may fire twice
+        // in quick succession — once from cache, once from server).
+        if (_processingPairUpdate) return;
+        _processingPairUpdate = true;
+        try {
+          await _handlePairUpdate(data);
+        } finally {
+          _processingPairUpdate = false;
         }
       },
     );
+  }
+
+  Future<void> _handlePairUpdate(Map<String, dynamic> data) async {
+    // Собираем все pairId из user-документа
+    final Set<String> remotePairIds = {};
+    final pairId = data['pairId'] as String?;
+    if (pairId != null && pairId.isNotEmpty) {
+      remotePairIds.add(pairId);
+    }
+    final pairIdsRaw = data['pairIds'] as List<dynamic>?;
+    if (pairIdsRaw != null) {
+      for (var id in pairIdsRaw) {
+        final s = id.toString();
+        if (s.isNotEmpty) remotePairIds.add(s);
+      }
+    }
+
+    // Ищем pairId, которые ещё не привязаны ни к одному connection
+    final claimedIds = _connections
+        .where((c) => c.pairId.isNotEmpty)
+        .map((c) => c.pairId)
+        .toSet();
+
+    for (var remotePairId in remotePairIds) {
+      if (claimedIds.contains(remotePairId)) continue;
+
+      // Нашли новую пару — назначаем первому unpaired non-solo connection.
+      // Solo connection пропускаем: он существует только для одиночного режима.
+      bool wasNewlyCreated = false;
+      Connection? unpaired = _connections.cast<Connection?>().firstWhere(
+        (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
+        orElse: () => null,
+      );
+
+      if (unpaired == null) {
+        unpaired = Connection(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          firebaseService: _fb,
+          onChanged: () {
+            _saveLocal();
+            notifyListeners();
+          },
+        );
+        _connections.add(unpaired);
+        wasNewlyCreated = true;
+      }
+
+      debugPrint('Real-time: detected new pair $remotePairId');
+      await unpaired.claimPair(remotePairId);
+
+      // Validate: a claimed group must have at least one partner besides us.
+      // A group with only the current user is stale (e.g. from debug testing).
+      if (!unpaired.isPaired || unpaired.partners.isEmpty) {
+        debugPrint(
+          'Real-time: stale/invalid group $remotePairId (no partners), cleaning up',
+        );
+        unpaired.markUnpaired();
+        if (wasNewlyCreated) {
+          _connections.remove(unpaired);
+        }
+        await _fb.removeStaleGroupFromUser(remotePairId);
+        continue;
+      }
+
+      await _saveLocal();
+      notifyListeners();
+    }
+
+    // Обрабатываем удалённые pairId — партнёр мог выйти из группы
+    // и groupId исчез из нашего user doc
+    bool removedAny = false;
+    for (var connection in _connections) {
+      if (connection.pairId.isNotEmpty &&
+          !remotePairIds.contains(connection.pairId) &&
+          connection.isPaired) {
+        debugPrint(
+          'Real-time: pairId ${connection.pairId} removed from user doc, marking as unpaired',
+        );
+        connection.markUnpaired();
+        removedAny = true;
+      }
+    }
+    if (removedAny) {
+      await _saveLocal();
+      notifyListeners();
+    }
   }
 
   /// Ensures solo connection exists at index 0 (for single user mode)
@@ -514,9 +586,7 @@ class ConnectionsManager extends ChangeNotifier {
 
   Future<void> switchToConnection(int index) async {
     if (index < 0 || index >= _connections.length) return;
-    final oldGroupId = _connections[_activeConnectionIndex].pairId;
     _activeConnectionIndex = index;
-    final newGroupId = _connections[index].pairId;
 
     // Generate invite code if the connection doesn't have one
     final connection = _connections[index];

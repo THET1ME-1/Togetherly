@@ -92,7 +92,11 @@ class UserData extends ChangeNotifier {
       if (data != null) {
         _displayName = data['displayName'] ?? _displayName;
         _email = data['email'] ?? _email;
-        _avatarUrl = data['avatarUrl'] ?? _avatarUrl;
+        // Only overwrite local avatar if Firestore has a real non-empty value.
+        // An empty string in Firestore means the field was accidentally cleared —
+        // preserve whatever the user set locally in that case.
+        final firestoreAvatar = data['avatarUrl'] as String? ?? '';
+        if (firestoreAvatar.isNotEmpty) _avatarUrl = firestoreAvatar;
         final g = data['gender'] as String?;
         if (g == 'male') _gender = Gender.male;
         if (g == 'female') _gender = Gender.female;

@@ -527,13 +527,17 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
-      final data = {
+      final data = <String, dynamic>{
         'displayName': displayName,
         'email': email,
         'gender': gender,
-        'avatarUrl': avatarUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+
+      // Only write avatarUrl if non-empty — never overwrite a real avatar with ''
+      if (avatarUrl.isNotEmpty) {
+        data['avatarUrl'] = avatarUrl;
+      }
 
       // Clear pair data if this is a new registration
       if (clearPairData) {
@@ -1411,6 +1415,21 @@ class FirebaseService {
     } catch (e) {
       debugPrint('loadPairData failed: $e');
       return null;
+    }
+  }
+
+  /// Remove a stale groupId from the user's pairIds list in Firestore.
+  /// Called when a group turns out to have no partners (orphaned after testing).
+  Future<void> removeStaleGroupFromUser(String groupId) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('users').doc(u.uid).update({
+        'pairIds': FieldValue.arrayRemove([groupId]),
+      }).timeout(const Duration(seconds: 10));
+      debugPrint('removeStaleGroupFromUser: removed $groupId from user doc');
+    } catch (e) {
+      debugPrint('removeStaleGroupFromUser failed: $e');
     }
   }
 

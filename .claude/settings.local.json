@@ -9,7 +9,12 @@
       "Bash(Select-Object FullName)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\lib\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" -Recurse -Directory)",
+      "Bash(Sort-Object FullName)",
+      "PowerShell(head -50)",
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(flutter analyze *)"
     ]
   }
 }
