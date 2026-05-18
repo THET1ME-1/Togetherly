@@ -14,7 +14,9 @@
       "Bash(Sort-Object FullName)",
       "PowerShell(head -50)",
       "Bash(grep -E \"\\\\.dart$\")",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(xargs grep -l \"showModalBottomSheet\\\\|BottomSheet\")",
+      "Bash(xargs grep -l \"showModalBottomSheet\\\\|ModalBottomSheet\\\\|DraggableScrollableSheet\")"
     ]
   }
 }

@@ -7069,6 +7069,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
+  // Cached to avoid recomputing Color.lerp on every build frame
+  late final List<Color> _bannerGradient;
 
   @override
   void initState() {
@@ -7082,6 +7084,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       begin: const Offset(0, 0.06),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
+    _bannerGradient = [
+      widget.primary,
+      Color.lerp(widget.primary, Colors.white, 0.30)!,
+    ];
     _animCtrl.forward();
   }
 
@@ -7090,11 +7096,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     _animCtrl.dispose();
     _audioPlayer?.dispose();
     super.dispose();
-  }
-
-  List<Color> get _bannerGradient {
-    final p = widget.primary;
-    return [p, Color.lerp(p, Colors.white, 0.30)!];
   }
 
   @override
@@ -7117,32 +7118,40 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             children: [
               _buildHeader(memory, p),
               Expanded(
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: SingleChildScrollView(
-                      controller: sc,
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildMedia(memory, p),
-                          _buildCaption(memory),
-                          _buildLocationRow(memory, p),
-                          const SizedBox(height: 20),
-                          _buildActions(memory, p),
-                          const SizedBox(height: 24),
-                          RepaintBoundary(
-                            child: _CommentsSection(
-                              groupId: widget.groupId,
-                              memoryId: widget.memory.id,
-                              fb: widget.fb,
-                              primary: p,
+                // RepaintBoundary isolates the animated entry from the static
+                // header so the header layer doesn't repaint every animation frame.
+                child: RepaintBoundary(
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: SlideTransition(
+                      position: _slideAnim,
+                      child: SingleChildScrollView(
+                        controller: sc,
+                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Images/video are GPU-heavy; isolate them so that
+                            // caption/location/action repaints don't touch them.
+                            RepaintBoundary(child: _buildMedia(memory, p)),
+                            _buildCaption(memory),
+                            _buildLocationRow(memory, p),
+                            const SizedBox(height: 20),
+                            // Action buttons are static after build; isolate them
+                            // so comments StreamBuilder repaints don't cascade up.
+                            RepaintBoundary(child: _buildActions(memory, p)),
+                            const SizedBox(height: 24),
+                            RepaintBoundary(
+                              child: _CommentsSection(
+                                groupId: widget.groupId,
+                                memoryId: widget.memory.id,
+                                fb: widget.fb,
+                                primary: p,
+                              ),
                             ),
-                          ),
-                          const _KeyboardPaddingBox(),
-                        ],
+                            const _KeyboardPaddingBox(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -8207,14 +8216,17 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     required Color color,
     required VoidCallback onTap,
   }) {
+    // Compute withOpacity values once instead of on every build call
+    final bgColor = color.withValues(alpha: 0.08);
+    final borderColor = color.withValues(alpha: 0.22);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: bgColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.22), width: 1),
+          border: Border.all(color: borderColor, width: 1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -8363,12 +8375,15 @@ class _CommentsSectionState extends State<_CommentsSection> {
                 ),
               );
             }
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: comments.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _commentBubble(comments[i]),
+            // Column is faster than shrinkWrap ListView inside a ScrollView:
+            // shrinkWrap forces a full second-pass layout on every rebuild.
+            return Column(
+              children: [
+                for (int i = 0; i < comments.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 10),
+                  _commentBubble(comments[i]),
+                ],
+              ],
             );
           },
         ),
@@ -8452,7 +8467,16 @@ class _CommentsSectionState extends State<_CommentsSection> {
           if (comment.authorAvatar.isNotEmpty)
             CircleAvatar(
               radius: 14,
-              backgroundImage: NetworkImage(comment.authorAvatar),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: comment.authorAvatar,
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 56,
+                  memCacheHeight: 56,
+                ),
+              ),
             )
           else
             CircleAvatar(
@@ -8785,21 +8809,24 @@ class _BlurAfterTapState extends State<_BlurAfterTap> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => setState(() => _revealed = !_revealed),
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
-        children: [
-          widget.child,
-          if (!_revealed)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+      // RepaintBoundary isolates the expensive BackdropFilter GPU pass so it
+      // doesn't invalidate the surrounding layout on every frame.
+      child: RepaintBoundary(
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            widget.child,
+            if (!_revealed)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     child: const Center(
                       child: Icon(
                         Icons.lock_rounded,
@@ -8812,6 +8839,7 @@ class _BlurAfterTapState extends State<_BlurAfterTap> {
               ),
             ),
         ],
+        ),
       ),
     );
   }
