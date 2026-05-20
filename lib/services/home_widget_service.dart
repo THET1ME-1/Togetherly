@@ -39,6 +39,9 @@ class HomeWidgetService {
   /// Последний известный флаг романтической темы — fallback в syncTimer.
   bool _lastIsRomantic = true;
 
+  /// Последний известный индекс темы приложения — fallback в syncTimer.
+  int _lastThemeIndex = 0;
+
   // ════════════════════════════════════════════════════════════════════════
   //  ПРИВЯЗКА ВИДЖЕТОВ К ГРУППАМ
   // ════════════════════════════════════════════════════════════════════════
@@ -508,6 +511,7 @@ class HomeWidgetService {
     TimerItem timer, {
     String relationshipStatusId = '',
     bool? isRomantic,
+    int? themeIndex,
   }) async {
     try {
       debugPrint(
@@ -516,6 +520,9 @@ class HomeWidgetService {
       // isRomantic явно передан → запоминаем; иначе используем последнее известное значение
       final effectiveRomantic = isRomantic ?? _lastIsRomantic;
       if (isRomantic != null) _lastIsRomantic = isRomantic;
+
+      final effectiveThemeIndex = themeIndex ?? _lastThemeIndex;
+      if (themeIndex != null) _lastThemeIndex = themeIndex;
 
       // statusId — для обратной совместимости
       final effectiveStatusId = relationshipStatusId.isNotEmpty
@@ -551,6 +558,11 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>(
         'timer_is_romantic',
         effectiveRomantic ? '1' : '0',
+      );
+      // Индекс темы приложения (0=pink,1=purple,2=blue,3=orange,4=green) для лепесткового виджета
+      await HomeWidget.saveWidgetData<String>(
+        'petal_theme_index',
+        effectiveThemeIndex.toString(),
       );
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
@@ -1375,6 +1387,7 @@ class HomeWidgetService {
     String partnerGender = '',
     String relationshipStatusId = '',
     bool isRomantic = true,
+    int themeIndex = 0,
   }) async {
     try {
       debugPrint(
@@ -1408,6 +1421,7 @@ class HomeWidgetService {
           groupId: activeGroupId,
           relationshipStatusId: relationshipStatusId,
           isRomantic: isRomantic,
+          themeIndex: themeIndex,
         );
       } else {
         debugPrint('  timer → SKIP (bound=$timerGroup, active=$activeGroupId)');
@@ -1491,6 +1505,7 @@ class HomeWidgetService {
     required String groupId,
     String relationshipStatusId = '',
     bool isRomantic = true,
+    int themeIndex = 0,
   }) async {
     if (activeTimers.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -1510,7 +1525,7 @@ class HomeWidgetService {
         orElse: () => activeTimers.first,
       ),
     );
-    await syncTimer(timer, relationshipStatusId: relationshipStatusId, isRomantic: isRomantic);
+    await syncTimer(timer, relationshipStatusId: relationshipStatusId, isRomantic: isRomantic, themeIndex: themeIndex);
   }
 
   String _formatDate(DateTime d) =>

@@ -18,8 +18,13 @@ import kotlin.math.*
 
 class PetalTimerWidgetProvider : HomeWidgetProvider() {
 
-    private val colorPetalBg = Color.parseColor("#2D1F48")
-    private val colorPetalFg = Color.parseColor("#EC4899")
+    // ─── Цветовые палитры по теме ───────────────────────────────────────────
+    // Индексы: 0=pink, 1=purple, 2=blue, 3=orange, 4=green
+    private val ROMANTIC_BG = arrayOf("#2D1F48", "#231E3A", "#1B2035", "#2A1E18", "#1A2A1F")
+    private val ROMANTIC_FG = arrayOf("#FF7E8B", "#9B86BD", "#7898BF", "#CF7E5E", "#7EA876")
+    private val NEUTRAL_BG  = "#2A2010"
+    private val NEUTRAL_FG  = "#E8A020"
+
     private val colorTextVal = Color.WHITE
     private val colorTextLbl = Color.argb(165, 255, 255, 255)
 
@@ -40,12 +45,19 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
                 )
                 setOnClickPendingIntent(R.id.widget_root, pi)
 
-                val countdown = widgetData.getString("timer_is_countdown", "0") == "1"
-                val startMs   = widgetData.getString("timer_start_ms", "0")?.toLongOrNull() ?: 0L
+                val countdown  = widgetData.getString("timer_is_countdown", "0") == "1"
+                val startMs    = widgetData.getString("timer_start_ms", "0")?.toLongOrNull() ?: 0L
+                val isRomantic = widgetData.getString("timer_is_romantic", "1") != "0"
+                val themeIdx   = (widgetData.getString("petal_theme_index", "0")?.toIntOrNull() ?: 0)
+                                     .coerceIn(0, ROMANTIC_BG.lastIndex)
+
+                val bgHex = if (isRomantic) ROMANTIC_BG[themeIdx] else NEUTRAL_BG
+                val fgHex = if (isRomantic) ROMANTIC_FG[themeIdx] else NEUTRAL_FG
 
                 val bmpSize = 400
                 val bmp = Bitmap.createBitmap(bmpSize, bmpSize, Bitmap.Config.ARGB_8888)
-                drawDial(Canvas(bmp), bmpSize.toFloat(), startMs, countdown)
+                drawDial(Canvas(bmp), bmpSize.toFloat(), startMs, countdown,
+                         Color.parseColor(bgHex), Color.parseColor(fgHex))
                 setImageViewBitmap(R.id.petal_dial_image, bmp)
             }
             appWidgetManager.updateAppWidget(widgetId, views)
@@ -148,7 +160,8 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
     //  Рисование циферблата (прозрачный фон)
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun drawDial(canvas: Canvas, size: Float, startMs: Long, countdown: Boolean) {
+    private fun drawDial(canvas: Canvas, size: Float, startMs: Long, countdown: Boolean,
+                         colorPetalBg: Int, colorPetalFg: Int) {
         val petals = computePetals(startMs, countdown)
         val scale  = size / 280f
 

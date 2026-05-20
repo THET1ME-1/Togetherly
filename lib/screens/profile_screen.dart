@@ -988,6 +988,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           relationshipStatusId: widget.pairData.relationshipStatusId,
           isRomantic: widget.pairData.relationshipType == RelationshipType.couple ||
               widget.pairData.relationshipType == RelationshipType.married,
+          themeIndex: widget.userData.themeId,
         );
 
         setState(() {});

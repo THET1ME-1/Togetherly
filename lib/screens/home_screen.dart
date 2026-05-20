@@ -338,6 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
       relationshipStatusId: _pairData.relationshipStatusId,
       isRomantic: _pairData.relationshipType == RelationshipType.couple ||
           _pairData.relationshipType == RelationshipType.married,
+      themeIndex: widget.userData.themeId,
     );
 
     // Sync the mood widget from today's Mood Calendar entries
