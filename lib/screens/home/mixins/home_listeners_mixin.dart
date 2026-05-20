@@ -84,6 +84,9 @@ mixin HomeListenersMixin<T extends StatefulWidget> on State<T> {
       emoji: pairData.relationshipEmoji,
       myGender: myGender,
       partnerGender: partnerGender,
+      relationshipStatusId: pairData.relationshipStatusId,
+      isRomantic: pairData.relationshipType == RelationshipType.couple ||
+          pairData.relationshipType == RelationshipType.married,
     );
 
     // Sync the mood widget from today's Mood Calendar entries

@@ -33,6 +33,12 @@ class HomeWidgetService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Последний известный статус группы — для обратной совместимости.
+  String _lastRelationshipStatusId = '';
+
+  /// Последний известный флаг романтической темы — fallback в syncTimer.
+  bool _lastIsRomantic = true;
+
   // ════════════════════════════════════════════════════════════════════════
   //  ПРИВЯЗКА ВИДЖЕТОВ К ГРУППАМ
   // ════════════════════════════════════════════════════════════════════════
@@ -498,11 +504,26 @@ class HomeWidgetService {
   /// Синхронизирует данные выбранного таймера.
   ///
   /// Передаётся [TimerItem] — текущий дефолтный или выбранный таймер.
-  Future<void> syncTimer(TimerItem timer) async {
+  Future<void> syncTimer(
+    TimerItem timer, {
+    String relationshipStatusId = '',
+    bool? isRomantic,
+  }) async {
     try {
       debugPrint(
         'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch}',
       );
+      // isRomantic явно передан → запоминаем; иначе используем последнее известное значение
+      final effectiveRomantic = isRomantic ?? _lastIsRomantic;
+      if (isRomantic != null) _lastIsRomantic = isRomantic;
+
+      // statusId — для обратной совместимости
+      final effectiveStatusId = relationshipStatusId.isNotEmpty
+          ? relationshipStatusId
+          : _lastRelationshipStatusId;
+      if (relationshipStatusId.isNotEmpty) {
+        _lastRelationshipStatusId = relationshipStatusId;
+      }
       await HomeWidget.saveWidgetData<String>('timer_title', timer.title);
       await HomeWidget.saveWidgetData<String>(
         'timer_days',
@@ -521,6 +542,15 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>(
         'timer_start_ms',
         timer.startDate.millisecondsSinceEpoch.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'timer_relationship_status_id',
+        effectiveStatusId,
+      );
+      // Флаг темы: 1 = романтическая (сердце/розовый), 0 = нейтральная (звезда/жёлтый)
+      await HomeWidget.saveWidgetData<String>(
+        'timer_is_romantic',
+        effectiveRomantic ? '1' : '0',
       );
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
@@ -1343,6 +1373,8 @@ class HomeWidgetService {
     required String emoji,
     String myGender = '',
     String partnerGender = '',
+    String relationshipStatusId = '',
+    bool isRomantic = true,
   }) async {
     try {
       debugPrint(
@@ -1374,6 +1406,8 @@ class HomeWidgetService {
         await _syncTimerFromMemory(
           activeTimers: activeTimers,
           groupId: activeGroupId,
+          relationshipStatusId: relationshipStatusId,
+          isRomantic: isRomantic,
         );
       } else {
         debugPrint('  timer → SKIP (bound=$timerGroup, active=$activeGroupId)');
@@ -1455,6 +1489,8 @@ class HomeWidgetService {
   Future<void> _syncTimerFromMemory({
     required List<TimerItem> activeTimers,
     required String groupId,
+    String relationshipStatusId = '',
+    bool isRomantic = true,
   }) async {
     if (activeTimers.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -1474,7 +1510,7 @@ class HomeWidgetService {
         orElse: () => activeTimers.first,
       ),
     );
-    await syncTimer(timer);
+    await syncTimer(timer, relationshipStatusId: relationshipStatusId, isRomantic: isRomantic);
   }
 
   String _formatDate(DateTime d) =>

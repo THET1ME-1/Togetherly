@@ -971,7 +971,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await HomeWidget.updateWidget(
           name: 'DaysCounterWidgetProvider',
           qualifiedAndroidName:
-              'com.example.love_app.DaysCounterWidgetProvider',
+              'com.togetherly.love.DaysCounterWidgetProvider',
         );
 
         await HomeWidgetService.instance.syncAllBoundWidgets(
@@ -985,6 +985,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           emoji: sysTimer?.emoji ?? widget.pairData.relationshipEmoji,
           myGender: selectedGender.name,
           partnerGender: partnerGender,
+          relationshipStatusId: widget.pairData.relationshipStatusId,
+          isRomantic: widget.pairData.relationshipType == RelationshipType.couple ||
+              widget.pairData.relationshipType == RelationshipType.married,
         );
 
         setState(() {});

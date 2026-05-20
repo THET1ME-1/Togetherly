@@ -70,6 +70,7 @@ class PairData extends ChangeNotifier {
   // ── Relationship Type Helpers ──
   String get relationshipLabel => _active?.relationshipLabel ?? 'In Love';
   String get relationshipEmoji => _active?.relationshipEmoji ?? '❤️';
+  String get relationshipStatusId => _active?.currentStatus?.id ?? '';
 
   // ── Mood ──
   MemberMood get myMood => _active?.myMood ?? const MemberMood();

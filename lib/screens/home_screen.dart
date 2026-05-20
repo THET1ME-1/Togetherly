@@ -335,6 +335,9 @@ class _HomeScreenState extends State<HomeScreen> {
       emoji: _pairData.relationshipEmoji,
       myGender: myGender,
       partnerGender: partnerGender,
+      relationshipStatusId: _pairData.relationshipStatusId,
+      isRomantic: _pairData.relationshipType == RelationshipType.couple ||
+          _pairData.relationshipType == RelationshipType.married,
     );
 
     // Sync the mood widget from today's Mood Calendar entries

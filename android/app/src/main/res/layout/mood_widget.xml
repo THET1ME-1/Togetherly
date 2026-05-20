@@ -1,251 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/mood_widget_preview_bg">
+    android:orientation="horizontal"
+    android:gravity="center"
+    android:weightSum="2">
 
-    <!-- =========== LAYOUT 2 USERS =========== -->
-    <LinearLayout
-        android:id="@+id/layout_2_users"
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/heart_2_0"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:weightSum="2"
-        android:baselineAligned="false"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="18dp"
-        android:paddingBottom="18dp"
-        android:visibility="gone">
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center_horizontal">
-            <TextView
-                android:id="@+id/name_2_0"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Вы"
-                android:textColor="#737373"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:gravity="start"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:letterSpacing="0.03" />
-            <ImageView
-                android:id="@+id/heart_2_0"
-                android:layout_width="70dp"
-                android:layout_height="70dp"
-                android:layout_marginTop="10dp"
-                android:scaleType="fitCenter" />
-            <TextView
-                android:id="@+id/rating_2_0"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Оценка 0 из 5"
-                android:textColor="#9CA3AF"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:gravity="start"
-                android:maxLines="1"
-                android:ellipsize="end" />
-            <TextView
-                android:id="@+id/label_2_0"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Пока нет данных"
-                android:textColor="#9CA3AF"
-                android:textSize="11.5sp"
-                android:gravity="start"
-                android:maxLines="1"
-                android:ellipsize="end" />
-        </LinearLayout>
-        <View
-            android:layout_width="1dp"
-            android:layout_height="100dp"
-            android:layout_marginLeft="12dp"
-            android:layout_marginRight="12dp"
-            android:layout_marginTop="4dp"
-            android:background="#40D1D5DB" />
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center_horizontal">
-            <TextView
-                android:id="@+id/name_2_1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Партнёр"
-                android:textColor="#737373"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:letterSpacing="0.03" />
-            <ImageView
-                android:id="@+id/heart_2_1"
-                android:layout_width="70dp"
-                android:layout_height="70dp"
-                android:layout_marginTop="10dp"
-                android:scaleType="fitCenter" />
-            <TextView
-                android:id="@+id/rating_2_1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="Оценка 0 из 5"
-                android:textColor="#9CA3AF"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end" />
-            <TextView
-                android:id="@+id/label_2_1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Пока нет данных"
-                android:textColor="#9CA3AF"
-                android:textSize="11.5sp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end" />
-        </LinearLayout>
-    </LinearLayout>
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:padding="8dp" />
 
-    <!-- =========== LAYOUT 3 USERS =========== -->
-    <LinearLayout
-        android:id="@+id/layout_3_users"
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/heart_2_1"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:weightSum="3"
-        android:baselineAligned="false"
-        android:visibility="gone">
-        <RelativeLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/mood_widget_bg_0"
-            android:layout_marginEnd="4dp">
-            <FrameLayout android:layout_width="52dp" android:layout_height="52dp" android:layout_centerInParent="true">
-                <ImageView android:id="@+id/emoji_3_0" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                <TextView android:id="@+id/placeholder_3_0" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="36sp" android:gravity="center" android:visibility="visible" />
-            </FrameLayout>
-            <ImageView android:id="@+id/avatar_3_0" android:layout_width="24dp" android:layout_height="24dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="8dp" android:layout_marginStart="8dp" android:scaleType="fitCenter" android:visibility="gone" />
-        </RelativeLayout>
-        <RelativeLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/mood_widget_bg_1"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp">
-            <FrameLayout android:layout_width="52dp" android:layout_height="52dp" android:layout_centerInParent="true">
-                <ImageView android:id="@+id/emoji_3_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                <TextView android:id="@+id/placeholder_3_1" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="36sp" android:gravity="center" android:visibility="visible" />
-            </FrameLayout>
-            <ImageView android:id="@+id/avatar_3_1" android:layout_width="24dp" android:layout_height="24dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="8dp" android:layout_marginStart="8dp" android:scaleType="fitCenter" android:visibility="gone" />
-        </RelativeLayout>
-        <RelativeLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/mood_widget_bg_2"
-            android:layout_marginStart="4dp">
-            <FrameLayout android:layout_width="52dp" android:layout_height="52dp" android:layout_centerInParent="true">
-                <ImageView android:id="@+id/emoji_3_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                <TextView android:id="@+id/placeholder_3_2" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="36sp" android:gravity="center" android:visibility="visible" />
-            </FrameLayout>
-            <ImageView android:id="@+id/avatar_3_2" android:layout_width="24dp" android:layout_height="24dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="8dp" android:layout_marginStart="8dp" android:scaleType="fitCenter" android:visibility="gone" />
-        </RelativeLayout>
-    </LinearLayout>
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:padding="8dp" />
 
-    <!-- =========== LAYOUT 4 USERS (2x2 GRID) =========== -->
-    <LinearLayout
-        android:id="@+id/layout_4_users"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:weightSum="2"
-        android:visibility="gone">
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:weightSum="2"
-            android:baselineAligned="false"
-            android:layout_marginBottom="4dp">
-            <RelativeLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/mood_widget_bg_0"
-                android:layout_marginEnd="4dp">
-                <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:layout_centerInParent="true">
-                    <ImageView android:id="@+id/emoji_4_0" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                    <TextView android:id="@+id/placeholder_4_0" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="24sp" android:gravity="center" android:visibility="visible" />
-                </FrameLayout>
-                <ImageView android:id="@+id/avatar_4_0" android:layout_width="16dp" android:layout_height="16dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="4dp" android:layout_marginStart="4dp" android:scaleType="fitCenter" android:visibility="gone" />
-            </RelativeLayout>
-            <RelativeLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/mood_widget_bg_1"
-                android:layout_marginStart="4dp">
-                <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:layout_centerInParent="true">
-                    <ImageView android:id="@+id/emoji_4_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                    <TextView android:id="@+id/placeholder_4_1" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="24sp" android:gravity="center" android:visibility="visible" />
-                </FrameLayout>
-                <ImageView android:id="@+id/avatar_4_1" android:layout_width="16dp" android:layout_height="16dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="4dp" android:layout_marginStart="4dp" android:scaleType="fitCenter" android:visibility="gone" />
-            </RelativeLayout>
-        </LinearLayout>
-        
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:weightSum="2"
-            android:baselineAligned="false"
-            android:layout_marginTop="4dp">
-            <RelativeLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/mood_widget_bg_2"
-                android:layout_marginEnd="4dp">
-                <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:layout_centerInParent="true">
-                    <ImageView android:id="@+id/emoji_4_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                    <TextView android:id="@+id/placeholder_4_2" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="24sp" android:gravity="center" android:visibility="visible" />
-                </FrameLayout>
-                <ImageView android:id="@+id/avatar_4_2" android:layout_width="16dp" android:layout_height="16dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="4dp" android:layout_marginStart="4dp" android:scaleType="fitCenter" android:visibility="gone" />
-            </RelativeLayout>
-            <RelativeLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/mood_widget_bg_3"
-                android:layout_marginStart="4dp">
-                <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:layout_centerInParent="true">
-                    <ImageView android:id="@+id/emoji_4_3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:visibility="gone" />
-                    <TextView android:id="@+id/placeholder_4_3" android:layout_width="match_parent" android:layout_height="match_parent" android:text="😶" android:textSize="24sp" android:gravity="center" android:visibility="visible" />
-                </FrameLayout>
-                <ImageView android:id="@+id/avatar_4_3" android:layout_width="16dp" android:layout_height="16dp" android:layout_alignParentBottom="true" android:layout_alignParentStart="true" android:layout_marginBottom="4dp" android:layout_marginStart="4dp" android:scaleType="fitCenter" android:visibility="gone" />
-            </RelativeLayout>
-        </LinearLayout>
-    </LinearLayout>
-
-</FrameLayout>
+</LinearLayout>

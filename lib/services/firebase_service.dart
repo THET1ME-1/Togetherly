@@ -449,7 +449,7 @@ class FirebaseService {
         // URL для перенаправления - используем web.app домен
         url: 'https://togetherly-d4856.web.app/',
         handleCodeInApp: true,
-        androidPackageName: 'com.example.love_app',
+        androidPackageName: 'com.togetherly.love',
         androidInstallApp: true,
         androidMinimumVersion: '21',
       );

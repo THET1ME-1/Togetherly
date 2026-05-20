@@ -133,6 +133,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _pair.addListener(_onDataChanged);
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
@@ -966,6 +967,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _missYouSub?.cancel();
+    _pair.removeListener(_onDataChanged);
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
     _moodService.removeListener(_onDataChanged);
@@ -1372,7 +1374,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: LocaleService.current.pairWidgetTitle,
             subtitle: LocaleService.current.pairWidgetSubtitle,
             svgString: _heartSvg,
-            qualifiedName: 'com.example.love_app.LoveWidgetProvider',
+            qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
             preview: _buildWidgetPreview(),
             widgetType: 'pair',
             expandedContent: _buildPairWidgetExpandedContent(),
@@ -1387,7 +1389,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: LocaleService.current.daysTogetherStat,
             subtitle: LocaleService.current.daysCounterSubtitle,
             svgString: _calendarSvg,
-            qualifiedName: 'com.example.love_app.DaysCounterWidgetProvider',
+            qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
             preview: _buildDaysCounterPreview(),
             widgetType: 'days_counter',
           ),
@@ -1399,7 +1401,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           title: LocaleService.current.timerWidgetTitle,
           subtitle: LocaleService.current.timerWidgetSubtitle,
           svgString: _timerSvg,
-          qualifiedName: 'com.example.love_app.TimerWidgetProvider',
+          qualifiedName: 'com.togetherly.love.TimerWidgetProvider',
           preview: _buildTimerPreview(),
           widgetType: 'timer',
           expandedContent: _buildTimerSelector(),
@@ -1431,7 +1433,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: 'Фото-виджет',
             subtitle: 'Личная карусель: 1–10 фото с автосменой',
             svgString: _photoSvg,
-            qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+            qualifiedName: 'com.togetherly.love.PhotoDayWidgetProvider',
             widgetType: 'photo_day_self',
             expandedContent: _buildPhotoDayExpandedContent(),
             isExpanded: _photoDayExpanded,
@@ -1446,7 +1448,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               title: LocaleService.current.widgetModePartner,
               subtitle: LocaleService.current.photoDayPartnerSubtitle,
               svgString: _photoSvg,
-              qualifiedName: 'com.example.love_app.PhotoDayWidgetProvider',
+              qualifiedName: 'com.togetherly.love.PhotoDayWidgetProvider',
               widgetType: 'photo_day_partner',
               expandedContent: _buildPartnerPhotoExpandedContent(),
               isExpanded: _partnerPhotoExpanded,
@@ -1464,7 +1466,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: LocaleService.current.mood,
             subtitle: LocaleService.current.moodWidgetSubtitle,
             svgString: _moodSvg,
-            qualifiedName: 'com.example.love_app.MoodWidgetProvider',
+            qualifiedName: 'com.togetherly.love.MoodWidgetProvider',
             preview: _buildMoodPreview(),
             widgetType: 'mood',
           ),
@@ -1479,7 +1481,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: LocaleService.current.photoGridWidget,
             subtitle: LocaleService.current.photoGridWidgetSubtitle,
             svgString: _photoSvg,
-            qualifiedName: 'com.example.love_app.PhotoGridWidgetProvider',
+            qualifiedName: 'com.togetherly.love.PhotoGridWidgetProvider',
             preview: _buildPhotoGridPreview(),
             widgetType: 'photo_grid',
             expandedContent: _buildPhotoGridExpandedContent(),
@@ -1495,7 +1497,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             subtitle: LocaleService.current.relationshipStatsSubtitle,
             svgString: _statsSvg,
             qualifiedName:
-                'com.example.love_app.RelationshipStatsWidgetProvider',
+                'com.togetherly.love.RelationshipStatsWidgetProvider',
             preview: _buildRelationshipStatsPreview(),
             widgetType: 'relationship_stats',
           ),
@@ -1750,31 +1752,21 @@ class _WidgetScreenState extends State<WidgetScreen>
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
         decoration: BoxDecoration(
           color: _t.primary.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(color: _t.primary.withOpacity(0.08)),
         ),
         child: Column(
           children: [
-            Icon(
-              Icons.timer_off_rounded,
-              size: 36,
-              color: Colors.grey.shade400,
-            ),
+            Icon(Icons.timer_off_rounded, size: 36, color: Colors.grey.shade400),
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
-              style: GoogleFonts.rubik(
-                fontSize: 13,
-                color: Colors.grey.shade500,
-              ),
+              style: GoogleFonts.rubik(fontSize: 13, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 4),
             Text(
               LocaleService.current.addTimerHint,
-              style: GoogleFonts.rubik(
-                fontSize: 11,
-                color: Colors.grey.shade400,
-              ),
+              style: GoogleFonts.rubik(fontSize: 11, color: Colors.grey.shade400),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1782,72 +1774,129 @@ class _WidgetScreenState extends State<WidgetScreen>
       );
     }
 
-    final title = timer.title;
-    final emoji = timer.emoji;
     final days = timer.daysElapsed.abs();
     final isCountdown = timer.isCountdown;
     final daysLabel = isCountdown
         ? LocaleService.current.daysLeft
         : LocaleService.current.daysElapsed;
     final date = timer.formattedStartDate;
+    final isRomantic = _pair.relationshipType == RelationshipType.couple ||
+        _pair.relationshipType == RelationshipType.married;
+
+    final bgColors = isRomantic
+        ? [const Color(0xFFFDF2F8), const Color(0xFFEDE9FE)]
+        : [const Color(0xFFFFFBF0), const Color(0xFFFEF3C7)];
+    final borderColor = isRomantic
+        ? const Color(0xFFEDD5EA)
+        : const Color(0xFFE8D5A3);
+    final numberColor = isRomantic
+        ? const Color(0xFFB5488A)
+        : const Color(0xFFC2760A);
+    final titleColor = isRomantic
+        ? const Color(0xFFC084B8)
+        : const Color(0xFF9C7A3A);
+    final labelColor = isRomantic
+        ? const Color(0xFF9B7AA8)
+        : const Color(0xFFA8936A);
+    final dateColor = isRomantic
+        ? const Color(0xFFC4A8D4)
+        : const Color(0xFFC4B080);
+    final iconColor = isRomantic
+        ? const Color(0xFFD4609A)
+        : const Color(0xFFE8A020);
+    final decoColor = isRomantic
+        ? const Color(0xFFD4609A)
+        : const Color(0xFFE8A020);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      height: 116,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_t.primary.withOpacity(0.06), _t.primary.withOpacity(0.12)],
+          colors: bgColors,
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _t.primary.withOpacity(0.1)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  title,
-                  style: GoogleFonts.rubik(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          // Декоративная иконка справа (полупрозрачная)
+          Positioned(
+            right: 8,
+            top: 0,
+            bottom: 0,
+            child: Opacity(
+              opacity: 0.12,
+              child: Icon(
+                isRomantic ? Icons.favorite_rounded : Icons.star_rounded,
+                size: 90,
+                color: decoColor,
+              ),
+            ),
+          ),
+          // Контент слева
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 100, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Иконка + заголовок
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isRomantic ? Icons.favorite_rounded : Icons.star_rounded,
+                      size: 12,
+                      color: iconColor,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        timer.title,
+                        style: GoogleFonts.rubik(
+                          fontSize: 10,
+                          color: titleColor,
+                          letterSpacing: 0.4,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$days',
-            style: GoogleFonts.rubik(
-              fontSize: 44,
-              fontWeight: FontWeight.w900,
-              color: _t.primary,
-              height: 1.1,
+                // Большое число
+                Text(
+                  '$days',
+                  style: GoogleFonts.rubik(
+                    fontSize: 42,
+                    fontWeight: FontWeight.w900,
+                    color: numberColor,
+                    height: 1.05,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                // Подпись
+                Text(
+                  daysLabel,
+                  style: GoogleFonts.rubik(fontSize: 11, color: labelColor),
+                ),
+                if (date.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    date,
+                    style: GoogleFonts.rubik(
+                      fontSize: 9,
+                      color: dateColor,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          Text(
-            daysLabel,
-            style: GoogleFonts.rubik(fontSize: 14, color: Colors.grey.shade500),
-          ),
-          if (date.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              date,
-              style: GoogleFonts.rubik(
-                fontSize: 10,
-                color: Colors.grey.shade400,
-              ),
-            ),
-          ],
         ],
       ),
     );

@@ -4,17 +4,14 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
 import android.util.Log
-import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -34,26 +31,19 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val views = RemoteViews(context.packageName, R.layout.mood_widget)
             try {
-                val views = RemoteViews(context.packageName, R.layout.mood_widget)
-
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
                     MainActivity::class.java,
                     Uri.parse("loveapp://mood")
                 )
                 views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-
-                views.setViewVisibility(R.id.layout_2_users, View.VISIBLE)
-                views.setViewVisibility(R.id.layout_3_users, View.GONE)
-                views.setViewVisibility(R.id.layout_4_users, View.GONE)
-
                 populateMoodPreview(views, widgetData)
-
-                appWidgetManager.updateAppWidget(widgetId, views)
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating widget $widgetId", e)
             }
+            appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
 
@@ -63,45 +53,14 @@ class MoodWidgetProvider : HomeWidgetProvider() {
     ) {
         for (i in 0..1) {
             try {
-                val name = widgetData.getString("user_${i}_name", "") ?: ""
-                val label = widgetData.getString("user_${i}_label", "") ?: ""
                 val score = widgetData.getInt("user_${i}_score", 0).coerceIn(0, 5)
                 val colorHex = widgetData.getString("user_${i}_color", "") ?: ""
-                val noMoodText = widgetData.getString("no_mood_text", "Пока нет данных") ?: "Пока нет данных"
-                val nameFallback0 = widgetData.getString("name_fallback_me", "Вы") ?: "Вы"
-                val nameFallback1 = widgetData.getString("name_fallback_partner", "Партнёр") ?: "Партнёр"
-                val ratingPrefix = widgetData.getString("rating_prefix", "Оценка") ?: "Оценка"
-
-                val ratingText = if (score > 0) "$ratingPrefix $score из 5" else ""
-
-                val nameId = if (i == 0) R.id.name_2_0 else R.id.name_2_1
                 val heartId = if (i == 0) R.id.heart_2_0 else R.id.heart_2_1
-                val ratingId = if (i == 0) R.id.rating_2_0 else R.id.rating_2_1
-                val labelId = if (i == 0) R.id.label_2_0 else R.id.label_2_1
-
-                val displayName = when {
-                    name.isNotEmpty() -> name
-                    i == 0 -> nameFallback0
-                    else -> nameFallback1
-                }
-
                 val waterColor = parseColor(colorHex)
-                // Apply easeOutCubic to match Flutter preview: f(t) = 1 - (1 - t)^3
                 val t = score / 5.0
                 val easedFill = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
-                val heartBitmap = createWaterHeartBitmap(70, easedFill, waterColor)
-
-                views.setTextViewText(nameId, displayName)
+                val heartBitmap = createWaterHeartBitmap(120, easedFill, waterColor)
                 views.setImageViewBitmap(heartId, heartBitmap)
-
-                // Rating row: hide completely when no mood (matches Flutter behaviour)
-                views.setViewVisibility(ratingId, if (ratingText.isNotEmpty()) View.VISIBLE else View.GONE)
-                views.setTextViewText(ratingId, ratingText)
-                views.setTextColor(ratingId, waterColor)
-
-                val hasLabel = label.isNotEmpty()
-                views.setTextViewText(labelId, if (hasLabel) label else noMoodText)
-                views.setTextColor(labelId, if (hasLabel) waterColor else Color.parseColor("#9CA3AF"))
             } catch (e: Exception) {
                 Log.e(TAG, "Error populating mood for user $i", e)
             }
