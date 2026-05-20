@@ -39,16 +39,17 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val g = WidgetGroupHelper.getOrBind(context, "petal_timer", widgetId, "timer")
             val views = RemoteViews(context.packageName, R.layout.petal_timer_widget).apply {
                 val pi = HomeWidgetLaunchIntent.getActivity(
                     context, MainActivity::class.java, Uri.parse("loveapp://home")
                 )
                 setOnClickPendingIntent(R.id.widget_root, pi)
 
-                val countdown  = widgetData.getString("timer_is_countdown", "0") == "1"
-                val startMs    = widgetData.getString("timer_start_ms", "0")?.toLongOrNull() ?: 0L
-                val isRomantic = widgetData.getString("timer_is_romantic", "1") != "0"
-                val themeIdx   = (widgetData.getString("petal_theme_index", "0")?.toIntOrNull() ?: 0)
+                val countdown  = if (g.isEmpty()) false else widgetData.getString("timer_${g}_is_countdown", "0") == "1"
+                val startMs    = if (g.isEmpty()) 0L else widgetData.getString("timer_${g}_start_ms", "0")?.toLongOrNull() ?: 0L
+                val isRomantic = if (g.isEmpty()) true else widgetData.getString("timer_${g}_is_romantic", "1") != "0"
+                val themeIdx   = (if (g.isEmpty()) 0 else widgetData.getString("timer_${g}_petal_theme", "0")?.toIntOrNull() ?: 0)
                                      .coerceIn(0, ROMANTIC_BG.lastIndex)
 
                 val bgHex = if (isRomantic) ROMANTIC_BG[themeIdx] else NEUTRAL_BG
@@ -68,6 +69,11 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
     // ─────────────────────────────────────────────────────────────────────────
     //  Lifecycle
     // ─────────────────────────────────────────────────────────────────────────
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "petal_timer", appWidgetIds)
+    }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)

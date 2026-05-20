@@ -31,6 +31,7 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val g = WidgetGroupHelper.getOrBind(context, "mood", widgetId)
             val views = RemoteViews(context.packageName, R.layout.mood_widget)
             try {
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
@@ -39,7 +40,7 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                     Uri.parse("loveapp://mood")
                 )
                 views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                populateMoodPreview(views, widgetData)
+                populateMoodPreview(views, widgetData, g)
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating widget $widgetId", e)
             }
@@ -47,14 +48,22 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "mood", appWidgetIds)
+    }
+
     private fun populateMoodPreview(
         views: RemoteViews,
         widgetData: SharedPreferences,
+        g: String,
     ) {
         for (i in 0..1) {
             try {
-                val score = widgetData.getInt("user_${i}_score", 0).coerceIn(0, 5)
-                val colorHex = widgetData.getString("user_${i}_color", "") ?: ""
+                val scoreKey = if (g.isEmpty()) "user_${i}_score" else "mood_${g}_user_${i}_score"
+                val colorKey = if (g.isEmpty()) "user_${i}_color" else "mood_${g}_user_${i}_color"
+                val score = widgetData.getInt(scoreKey, 0).coerceIn(0, 5)
+                val colorHex = widgetData.getString(colorKey, "") ?: ""
                 val heartId = if (i == 0) R.id.heart_2_0 else R.id.heart_2_1
                 val waterColor = parseColor(colorHex)
                 val t = score / 5.0

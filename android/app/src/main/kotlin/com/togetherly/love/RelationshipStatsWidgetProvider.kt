@@ -21,6 +21,7 @@ class RelationshipStatsWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val g = WidgetGroupHelper.getOrBind(context, "stats", widgetId)
             val views = RemoteViews(context.packageName, R.layout.relationship_stats_widget).apply {
 
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
@@ -31,16 +32,16 @@ class RelationshipStatsWidgetProvider : HomeWidgetProvider() {
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
                 // ── Data ──
-                val days = widgetData.getString("stats_days_together", "0") ?: "0"
-                val memories = widgetData.getString("stats_memories_count", "0") ?: "0"
-                val drawings = widgetData.getString("stats_drawings_count", "0") ?: "0"
-                val missYou = widgetData.getString("stats_miss_you_count", "0") ?: "0"
+                val days = if (g.isEmpty()) "0" else widgetData.getString("stats_${g}_days", "0") ?: "0"
+                val memories = if (g.isEmpty()) "0" else widgetData.getString("stats_${g}_memories", "0") ?: "0"
+                val drawings = if (g.isEmpty()) "0" else widgetData.getString("stats_${g}_drawings", "0") ?: "0"
+                val missYou = if (g.isEmpty()) "0" else widgetData.getString("stats_${g}_miss_you", "0") ?: "0"
 
                 // ── Labels ──
-                val daysLabel = widgetData.getString("stats_days_label", "Days Together") ?: "Days Together"
-                val memoriesLabel = widgetData.getString("stats_memories_label", "Memories") ?: "Memories"
-                val drawingsLabel = widgetData.getString("stats_drawings_label", "Drawings") ?: "Drawings"
-                val missYouLabel = widgetData.getString("stats_miss_you_label", "Miss Yous") ?: "Miss Yous"
+                val daysLabel = if (g.isEmpty()) "Days Together" else widgetData.getString("stats_${g}_days_label", "Days Together") ?: "Days Together"
+                val memoriesLabel = if (g.isEmpty()) "Memories" else widgetData.getString("stats_${g}_memories_label", "Memories") ?: "Memories"
+                val drawingsLabel = if (g.isEmpty()) "Drawings" else widgetData.getString("stats_${g}_drawings_label", "Drawings") ?: "Drawings"
+                val missYouLabel = if (g.isEmpty()) "Miss Yous" else widgetData.getString("stats_${g}_miss_you_label", "Miss Yous") ?: "Miss Yous"
 
                 // ── Populate Views ──
                 setTextViewText(R.id.stat_days_value, days)
@@ -58,5 +59,10 @@ class RelationshipStatsWidgetProvider : HomeWidgetProvider() {
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "stats", appWidgetIds)
     }
 }

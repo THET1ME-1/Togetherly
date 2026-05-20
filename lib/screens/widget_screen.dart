@@ -752,7 +752,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_widgetTimerKey, timer.id);
     setState(() => _widgetTimerId = timer.id);
-    await HomeWidgetService.instance.syncTimer(timer);
+    await HomeWidgetService.instance.syncTimer(timer, groupId: _pair.pairId);
   }
 
   Future<void> _checkPinSupport() async {
@@ -791,6 +791,22 @@ class _WidgetScreenState extends State<WidgetScreen>
           groupId: _pair.pairId,
           mode: 'random',
           kind: 'partner',
+        );
+      }
+
+      // Save next_bind_group so Kotlin picks it up on first onUpdate
+      if (widgetType != null && !widgetType.startsWith('photo_day') && widgetType != 'pair') {
+        final realType = widgetType;
+        final bindTypeKey = switch (realType) {
+          'petal_timer' => 'petal_timer',
+          'days_counter' => 'days_counter',
+          'mood' => 'mood',
+          'stats' || 'relationship_stats' => 'stats',
+          _ => 'timer', // 'timer' and others
+        };
+        await HomeWidget.saveWidgetData<String>(
+          '${bindTypeKey}_next_bind_group',
+          _pair.pairId,
         );
       }
 
@@ -855,6 +871,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             : '';
         final names = _pair.partnerName.isNotEmpty ? _pair.partnerName : '';
         await hws.syncDaysCounter(
+          groupId: _pair.pairId,
           daysCount: days,
           coupleNames: names,
           emoji: emoji,
@@ -864,7 +881,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       case 'timer':
       case 'petal_timer':
         final timer = _widgetTimer;
-        if (timer != null) await hws.syncTimer(timer);
+        if (timer != null) await hws.syncTimer(timer, groupId: _pair.pairId);
         break;
       case 'photo_day_self':
       case 'photo_day_partner':
@@ -915,6 +932,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               ? partnerEntries.first
               : null;
           await hws.syncMood(
+            groupId: _pair.pairId,
             moodEmojiAssetPath: myEntry?.imagePath ?? '',
             moodLabel: myEntry?.localizedLabel ?? '',
             moodScore: myEntry?.score ?? 0,
@@ -936,6 +954,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         final sysTimer = _timerService.systemTimer;
         final start = sysTimer?.startDate ?? _pair.startDate;
         await hws.syncRelationshipStats(
+          groupId: _pair.pairId,
           daysTogether: start != null
               ? DateTime.now().difference(start).inDays
               : 0,

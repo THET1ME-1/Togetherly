@@ -462,11 +462,13 @@ class HomeWidgetService {
 
   /// Синхронизирует данные для виджета «Дни вместе».
   ///
+  /// [groupId]    — идентификатор группы (обязательный).
   /// [daysCount]  — количество дней (int).
   /// [coupleNames] — «Алекс & Юля».
   /// [emoji]       — эмодзи отношений (❤️).
   /// [startDate]   — дата начала в читаемом формате (01.06.2024).
   Future<void> syncDaysCounter({
+    required String groupId,
     required int daysCount,
     required String coupleNames,
     String emoji = '❤️',
@@ -475,26 +477,29 @@ class HomeWidgetService {
     String partnerGender = '',
   }) async {
     try {
+      final g = groupId;
       await HomeWidget.saveWidgetData<String>(
-        'days_count',
+        'days_${g}_count',
         daysCount.toString(),
       );
-      await HomeWidget.saveWidgetData<String>('couple_names', coupleNames);
-      await HomeWidget.saveWidgetData<String>('relationship_emoji', emoji);
-      await HomeWidget.saveWidgetData<String>('start_date_label', startDate);
+      await HomeWidget.saveWidgetData<String>('days_${g}_couple_names', coupleNames);
+      await HomeWidget.saveWidgetData<String>('days_${g}_relationship_emoji', emoji);
+      await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
       await HomeWidget.saveWidgetData<String>(
-        'my_gender',
+        'days_${g}_my_gender',
         myGender.isNotEmpty ? myGender : 'male',
       );
       await HomeWidget.saveWidgetData<String>(
-        'partner_gender',
+        'days_${g}_partner_gender',
         partnerGender.isNotEmpty ? partnerGender : 'female',
       );
+      // Save latest group for fallback binding
+      await HomeWidget.saveWidgetData<String>('days_latest_group', groupId);
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         androidName: 'DaysCounterWidgetProvider',
       );
-      debugPrint('HomeWidgetService: days counter synced — $daysCount days');
+      debugPrint('HomeWidgetService: days counter synced — $daysCount days (group=$groupId)');
     } catch (e) {
       debugPrint('HomeWidgetService.syncDaysCounter failed: $e');
     }
@@ -507,63 +512,52 @@ class HomeWidgetService {
   /// Синхронизирует данные выбранного таймера.
   ///
   /// Передаётся [TimerItem] — текущий дефолтный или выбранный таймер.
+  /// [groupId] — идентификатор группы (обязательный).
   Future<void> syncTimer(
     TimerItem timer, {
-    String relationshipStatusId = '',
-    bool? isRomantic,
-    int? themeIndex,
+    required String groupId,
+    bool isRomantic = true,
+    int themeIndex = 0,
   }) async {
     try {
+      final g = groupId;
       debugPrint(
-        'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch}',
+        'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch} group=$g',
       );
-      // isRomantic явно передан → запоминаем; иначе используем последнее известное значение
-      final effectiveRomantic = isRomantic ?? _lastIsRomantic;
-      if (isRomantic != null) _lastIsRomantic = isRomantic;
+      if (isRomantic) _lastIsRomantic = true;
+      _lastThemeIndex = themeIndex;
 
-      final effectiveThemeIndex = themeIndex ?? _lastThemeIndex;
-      if (themeIndex != null) _lastThemeIndex = themeIndex;
-
-      // statusId — для обратной совместимости
-      final effectiveStatusId = relationshipStatusId.isNotEmpty
-          ? relationshipStatusId
-          : _lastRelationshipStatusId;
-      if (relationshipStatusId.isNotEmpty) {
-        _lastRelationshipStatusId = relationshipStatusId;
-      }
-      await HomeWidget.saveWidgetData<String>('timer_title', timer.title);
+      await HomeWidget.saveWidgetData<String>('timer_${g}_title', timer.title);
       await HomeWidget.saveWidgetData<String>(
-        'timer_days',
+        'timer_${g}_days',
         timer.daysElapsed.toString(),
       );
-      await HomeWidget.saveWidgetData<String>('timer_emoji', timer.emoji);
       await HomeWidget.saveWidgetData<String>(
-        'timer_is_countdown',
+        'timer_${g}_is_countdown',
         timer.isCountdown ? '1' : '0',
       );
       await HomeWidget.saveWidgetData<String>(
-        'timer_date',
+        'timer_${g}_date',
         timer.formattedStartDate,
       );
       // Дата старта в мс — нужна PetalTimerWidgetProvider для вычисления лепестков
       await HomeWidget.saveWidgetData<String>(
-        'timer_start_ms',
+        'timer_${g}_start_ms',
         timer.startDate.millisecondsSinceEpoch.toString(),
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'timer_relationship_status_id',
-        effectiveStatusId,
       );
       // Флаг темы: 1 = романтическая (сердце/розовый), 0 = нейтральная (звезда/жёлтый)
       await HomeWidget.saveWidgetData<String>(
-        'timer_is_romantic',
-        effectiveRomantic ? '1' : '0',
+        'timer_${g}_is_romantic',
+        isRomantic ? '1' : '0',
       );
       // Индекс темы приложения (0=pink,1=purple,2=blue,3=orange,4=green) для лепесткового виджета
       await HomeWidget.saveWidgetData<String>(
-        'petal_theme_index',
-        effectiveThemeIndex.toString(),
+        'timer_${g}_petal_theme',
+        themeIndex.toString(),
       );
+      // Save latest group for fallback binding
+      await HomeWidget.saveWidgetData<String>('timer_latest_group', groupId);
+      await HomeWidget.saveWidgetData<String>('petal_timer_latest_group', groupId);
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
         androidName: 'TimerWidgetProvider',
@@ -573,7 +567,7 @@ class HomeWidgetService {
         androidName: 'PetalTimerWidgetProvider',
       );
       debugPrint(
-        'HomeWidgetService: timer synced — ${timer.title}, days=${timer.daysElapsed}, startMs=${timer.startDate.millisecondsSinceEpoch}',
+        'HomeWidgetService: timer synced — ${timer.title}, days=${timer.daysElapsed}, startMs=${timer.startDate.millisecondsSinceEpoch}, group=$g',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.syncTimer failed: $e');
@@ -1113,6 +1107,7 @@ class HomeWidgetService {
   /// [nameFallbackPartner]       — локализованный «Партнёр/Partner».
   /// [ratingPrefix]              — локализованный «Оценка/Rating».
   Future<void> syncMood({
+    required String groupId,
     required String moodEmojiAssetPath,
     required String moodLabel,
     required int moodScore,
@@ -1139,6 +1134,7 @@ class HomeWidgetService {
     }
 
     try {
+      final g = groupId;
       // ── Моё настроение ──
       String myLocalPath = '';
       if (moodEmojiAssetPath.isNotEmpty) {
@@ -1154,8 +1150,9 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('user_0_name', userName);
       await HomeWidget.saveWidgetData<String>('user_0_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('user_0_avatar_path', '');
-      await HomeWidget.saveWidgetData<int>('user_0_score', moodScore);
-      await HomeWidget.saveWidgetData<String>('user_0_color', moodColor);
+      // Group-prefixed score and color keys (read by MoodWidgetProvider)
+      await HomeWidget.saveWidgetData<int>('mood_${g}_user_0_score', moodScore);
+      await HomeWidget.saveWidgetData<String>('mood_${g}_user_0_color', moodColor);
 
       // ── Настроение партнёра ──
       String partnerLocalPath = '';
@@ -1181,12 +1178,15 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('user_1_name', partnerUserName);
       await HomeWidget.saveWidgetData<String>('user_1_label', partnerMoodLabel);
       await HomeWidget.saveWidgetData<String>('user_1_avatar_path', '');
-      await HomeWidget.saveWidgetData<int>('user_1_score', partnerMoodScore);
-      await HomeWidget.saveWidgetData<String>('user_1_color', partnerMoodColor);
+      // Group-prefixed score and color keys (read by MoodWidgetProvider)
+      await HomeWidget.saveWidgetData<int>('mood_${g}_user_1_score', partnerMoodScore);
+      await HomeWidget.saveWidgetData<String>('mood_${g}_user_1_color', partnerMoodColor);
       await HomeWidget.saveWidgetData<int>(
         'partner_mood_score',
         partnerMoodScore,
       );
+      // Save latest group for fallback binding
+      await HomeWidget.saveWidgetData<String>('mood_latest_group', groupId);
 
       // ── Локализованные строки для нативного виджета ──
       await HomeWidget.saveWidgetData<String>(
@@ -1258,7 +1258,9 @@ class HomeWidgetService {
   // ════════════════════════════════════════════════════════════════════════
 
   /// Синхронизирует данные для виджета «Статистика отношений».
+  /// [groupId] — идентификатор группы (обязательный).
   Future<void> syncRelationshipStats({
+    required String groupId,
     required int daysTogether,
     required int memoriesCount,
     required int drawingsCount,
@@ -1269,46 +1271,50 @@ class HomeWidgetService {
     String? missYouLabel,
   }) async {
     try {
+      final g = groupId;
       await HomeWidget.saveWidgetData<String>(
-        'stats_days_together',
+        'stats_${g}_days',
         daysTogether.toString(),
       );
       await HomeWidget.saveWidgetData<String>(
-        'stats_memories_count',
+        'stats_${g}_memories',
         memoriesCount.toString(),
       );
       await HomeWidget.saveWidgetData<String>(
-        'stats_drawings_count',
+        'stats_${g}_drawings',
         drawingsCount.toString(),
       );
       await HomeWidget.saveWidgetData<String>(
-        'stats_miss_you_count',
+        'stats_${g}_miss_you',
         missYouCount.toString(),
       );
 
       if (daysLabel != null)
-        await HomeWidget.saveWidgetData<String>('stats_days_label', daysLabel);
+        await HomeWidget.saveWidgetData<String>('stats_${g}_days_label', daysLabel);
       if (memoriesLabel != null)
         await HomeWidget.saveWidgetData<String>(
-          'stats_memories_label',
+          'stats_${g}_memories_label',
           memoriesLabel,
         );
       if (drawingsLabel != null)
         await HomeWidget.saveWidgetData<String>(
-          'stats_drawings_label',
+          'stats_${g}_drawings_label',
           drawingsLabel,
         );
       if (missYouLabel != null)
         await HomeWidget.saveWidgetData<String>(
-          'stats_miss_you_label',
+          'stats_${g}_miss_you_label',
           missYouLabel,
         );
+
+      // Save latest group for fallback binding
+      await HomeWidget.saveWidgetData<String>('stats_latest_group', groupId);
 
       await HomeWidget.updateWidget(
         name: 'RelationshipStatsWidgetProvider',
         androidName: 'RelationshipStatsWidgetProvider',
       );
-      debugPrint('HomeWidgetService: relationship stats synced');
+      debugPrint('HomeWidgetService: relationship stats synced (group=$groupId)');
     } catch (e) {
       debugPrint('HomeWidgetService.syncRelationshipStats failed: $e');
     }
@@ -1352,6 +1358,7 @@ class HomeWidgetService {
       }
 
       await syncRelationshipStats(
+        groupId: groupId,
         daysTogether: days,
         memoriesCount: memSnap.count ?? 0,
         drawingsCount: drawSnap.count ?? 0,
@@ -1395,37 +1402,26 @@ class HomeWidgetService {
       );
 
       // ── Days Counter ──
-      final daysGroup = await getBoundGroup('days_counter');
-      if (daysGroup == null || daysGroup == activeGroupId) {
-        debugPrint('  days_counter → syncing (bound=$daysGroup)');
-        await _syncDaysCounterFromMemory(
-          activeSysTimer: activeSysTimer,
-          activeStartDate: activeStartDate,
-          coupleNames: coupleNames,
-          emoji: emoji,
-          myGender: myGender,
-          partnerGender: partnerGender,
-        );
-      } else {
-        debugPrint(
-          '  days_counter → SKIP (bound=$daysGroup, active=$activeGroupId)',
-        );
-      }
+      debugPrint('  days_counter → syncing (activeGroup=$activeGroupId)');
+      await _syncDaysCounterFromMemory(
+        activeGroupId: activeGroupId,
+        activeSysTimer: activeSysTimer,
+        activeStartDate: activeStartDate,
+        coupleNames: coupleNames,
+        emoji: emoji,
+        myGender: myGender,
+        partnerGender: partnerGender,
+      );
 
       // ── Timer ──
-      final timerGroup = await getBoundGroup('timer');
-      if (timerGroup == null || timerGroup == activeGroupId) {
-        debugPrint('  timer → syncing (bound=$timerGroup)');
-        await _syncTimerFromMemory(
-          activeTimers: activeTimers,
-          groupId: activeGroupId,
-          relationshipStatusId: relationshipStatusId,
-          isRomantic: isRomantic,
-          themeIndex: themeIndex,
-        );
-      } else {
-        debugPrint('  timer → SKIP (bound=$timerGroup, active=$activeGroupId)');
-      }
+      debugPrint('  timer → syncing (activeGroup=$activeGroupId)');
+      await _syncTimerFromMemory(
+        activeTimers: activeTimers,
+        groupId: activeGroupId,
+        relationshipStatusId: relationshipStatusId,
+        isRomantic: isRomantic,
+        themeIndex: themeIndex,
+      );
 
       // ── Photo of Day ──
       final widgetIds = await getPhotoDayWidgetIds();
@@ -1448,18 +1444,11 @@ class HomeWidgetService {
       }
 
       // ── Relationship Stats ──
-      final statsGroup = await getBoundGroup('relationship_stats');
-      if (statsGroup == null || statsGroup == activeGroupId) {
-        debugPrint('  relationship_stats → syncing (bound=$statsGroup)');
-        await refreshRelationshipStats(
-          activeGroupId,
-          startDate: activeSysTimer?.startDate ?? activeStartDate,
-        );
-      } else {
-        debugPrint(
-          '  relationship_stats → SKIP (bound=$statsGroup, active=$activeGroupId)',
-        );
-      }
+      debugPrint('  relationship_stats → syncing (activeGroup=$activeGroupId)');
+      await refreshRelationshipStats(
+        activeGroupId,
+        startDate: activeSysTimer?.startDate ?? activeStartDate,
+      );
 
       // ── Mood — привязан к пользователю, не к группе ──
       // (mood синхронизируется в WidgetService при изменении)
@@ -1470,6 +1459,7 @@ class HomeWidgetService {
 
   /// Синхронизирует счётчик дней из данных в памяти (текущая группа).
   Future<void> _syncDaysCounterFromMemory({
+    required String activeGroupId,
     TimerItem? activeSysTimer,
     DateTime? activeStartDate,
     required String coupleNames,
@@ -1480,6 +1470,7 @@ class HomeWidgetService {
     if (activeSysTimer != null) {
       final start = activeSysTimer.startDate;
       await syncDaysCounter(
+        groupId: activeGroupId,
         daysCount: activeSysTimer.daysElapsed.abs(),
         coupleNames: coupleNames,
         emoji: activeSysTimer.emoji,
@@ -1489,6 +1480,7 @@ class HomeWidgetService {
       );
     } else if (activeStartDate != null) {
       await syncDaysCounter(
+        groupId: activeGroupId,
         daysCount: DateTime.now().difference(activeStartDate).inDays,
         coupleNames: coupleNames,
         emoji: emoji,
@@ -1525,7 +1517,7 @@ class HomeWidgetService {
         orElse: () => activeTimers.first,
       ),
     );
-    await syncTimer(timer, relationshipStatusId: relationshipStatusId, isRomantic: isRomantic, themeIndex: themeIndex);
+    await syncTimer(timer, groupId: groupId, isRomantic: isRomantic, themeIndex: themeIndex);
   }
 
   String _formatDate(DateTime d) =>

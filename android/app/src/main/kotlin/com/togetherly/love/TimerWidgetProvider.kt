@@ -33,21 +33,22 @@ class TimerWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val g = WidgetGroupHelper.getOrBind(context, "timer", widgetId)
             val views = RemoteViews(context.packageName, R.layout.timer_widget).apply {
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context, MainActivity::class.java, Uri.parse("loveapp://home")
                 )
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
-                val title = widgetData.getString("timer_title", null)
+                val title = if (g.isEmpty()) "—" else widgetData.getString("timer_${g}_title", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "Таймер"
-                val daysStr = widgetData.getString("timer_days", null)
+                val daysStr = if (g.isEmpty()) "0" else widgetData.getString("timer_${g}_days", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "0"
                 val days = abs(daysStr.toIntOrNull() ?: 0)
-                val isCountdown = widgetData.getString("timer_is_countdown", "0") == "1"
-                val date = widgetData.getString("timer_date", null)
+                val isCountdown = if (g.isEmpty()) false else widgetData.getString("timer_${g}_is_countdown", "0") == "1"
+                val date = if (g.isEmpty()) "" else widgetData.getString("timer_${g}_date", null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""
-                val isRomantic = widgetData.getString("timer_is_romantic", "1") != "0"
+                val isRomantic = if (g.isEmpty()) true else widgetData.getString("timer_${g}_is_romantic", "1") != "0"
 
                 val theme = if (isRomantic) Theme.ROMANTIC else Theme.NEUTRAL
                 val colors = themeColors(theme)
@@ -135,6 +136,11 @@ class TimerWidgetProvider : HomeWidgetProvider() {
         }
         canvas.drawPath(path, paint)
         return bmp
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "timer", appWidgetIds)
     }
 
     // ─── Рисование звезды ───────────────────────────────────────────────

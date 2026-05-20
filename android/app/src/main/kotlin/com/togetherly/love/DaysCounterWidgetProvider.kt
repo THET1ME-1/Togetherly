@@ -21,6 +21,7 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val g = WidgetGroupHelper.getOrBind(context, "days_counter", widgetId)
             val views = RemoteViews(context.packageName, R.layout.days_counter_widget).apply {
 
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
@@ -31,16 +32,16 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
                 // ── Данные ──
-                val daysStr = widgetData.getString("days_count", null)
+                val daysStr = if (g.isEmpty()) "0" else widgetData.getString("days_${g}_count", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "0"
                 val totalDays = daysStr.toIntOrNull() ?: 0
 
-                val startDate = widgetData.getString("start_date_label", null)
+                val startDate = if (g.isEmpty()) "" else widgetData.getString("days_${g}_start_date", null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""
 
                 // ── Гендер и выбор картинки пары ──
-                val myGender = widgetData.getString("my_gender", "male") ?: "male"
-                val partnerGender = widgetData.getString("partner_gender", "female") ?: "female"
+                val myGender = if (g.isEmpty()) "male" else widgetData.getString("days_${g}_my_gender", "male") ?: "male"
+                val partnerGender = if (g.isEmpty()) "female" else widgetData.getString("days_${g}_partner_gender", "female") ?: "female"
 
                 val coupleResName = when {
                     myGender == "female" && partnerGender == "female" -> "widget_couple_ff"
@@ -75,5 +76,10 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "days_counter", appWidgetIds)
     }
 }

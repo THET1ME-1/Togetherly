@@ -374,6 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     await HomeWidgetService.instance.syncMood(
+      groupId: _pairData.pairId,
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
       moodLabel: myEntry?.localizedLabel ?? '',
       moodScore: myEntry?.score ?? 0,
