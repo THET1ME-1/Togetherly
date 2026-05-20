@@ -1853,6 +1853,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      elevation: 0,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -7093,7 +7094,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     super.initState();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 300),
     );
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(
@@ -7126,11 +7127,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       expand: false,
       initialChildSize: isLarge ? 0.88 : 0.75,
       maxChildSize: 0.95,
-      builder: (_, sc) => ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: Container(
-          color: Colors.white,
-          child: Column(
+      builder: (_, sc) => Container(
+        color: Colors.white,
+        child: Column(
             children: [
               _buildHeader(memory, p),
               Expanded(
@@ -7176,7 +7175,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -7403,62 +7401,154 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             child: CachedNetworkImage(
               imageUrl: allPhotos.first,
               fit: BoxFit.cover,
+              memCacheWidth: 800,
+              memCacheHeight: 800,
               errorWidget: (_, __, ___) => _noImgBox(200),
             ),
           ),
         ),
       );
     } else {
-      photoWidget = Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: AspectRatio(
-              aspectRatio: 1.0,
-              child: PageView.builder(
-                itemCount: allPhotos.length,
-                itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => openGallery(i),
-                  child: CachedNetworkImage(
-                    imageUrl: allPhotos[i],
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _noImgBox(200),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 60,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: allPhotos.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () => openGallery(i),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: CachedNetworkImage(
-                    imageUrl: allPhotos[i],
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 120,
-                    memCacheHeight: 120,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
+      photoWidget = _buildPhotoGrid(allPhotos, openGallery);
     }
 
     if (memory.isAdult) {
       return _BlurAfterTap(child: photoWidget);
     }
     return photoWidget;
+  }
+
+  // ── SMART PHOTO GRID ─────────────────────────────────────────────────────────
+  // Adapts layout to photo count: 1→square, 2→side-by-side, 3→big+two,
+  // 4→2×2, 5→2+3, 6→3+3, 7-8→3+3 with +N badge, 9→3×3, 10+→3×3 with badge.
+  Widget _buildPhotoGrid(List<String> photos, void Function(int) onTap) {
+    final n = photos.length;
+    const gap = 3.0;
+    const innerR = BorderRadius.all(Radius.circular(8));
+    const outerR = BorderRadius.all(Radius.circular(18));
+
+    Widget cell(int index, {double? aspect, int? extraCount}) {
+      return GestureDetector(
+        onTap: () => onTap(index),
+        child: ClipRRect(
+          borderRadius: innerR,
+          child: AspectRatio(
+            aspectRatio: aspect ?? 1.0,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: photos[index],
+                  fit: BoxFit.cover,
+                  memCacheWidth: 600,
+                  memCacheHeight: 600,
+                  fadeInDuration: const Duration(milliseconds: 180),
+                  errorWidget: (_, __, ___) => Container(
+                    color: Colors.grey.shade100,
+                    child: Icon(Icons.image_not_supported_rounded,
+                        color: Colors.grey.shade400, size: 28),
+                  ),
+                ),
+                if (extraCount != null && extraCount > 0)
+                  Container(
+                    color: Colors.black54,
+                    alignment: Alignment.center,
+                    child: Text(
+                      '+$extraCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget photoRow(List<int> indices, {int? moreCount}) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int k = 0; k < indices.length; k++) ...[
+            if (k > 0) const SizedBox(width: gap),
+            Expanded(
+              child: cell(
+                indices[k],
+                extraCount: k == indices.length - 1 ? moreCount : null,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    late Widget body;
+    if (n == 1) {
+      body = cell(0, aspect: 1.0);
+    } else if (n == 2) {
+      body = photoRow([0, 1]);
+    } else if (n == 3) {
+      body = Column(
+        children: [
+          cell(0, aspect: 16 / 9),
+          const SizedBox(height: gap),
+          photoRow([1, 2]),
+        ],
+      );
+    } else if (n == 4) {
+      body = Column(
+        children: [
+          photoRow([0, 1]),
+          const SizedBox(height: gap),
+          photoRow([2, 3]),
+        ],
+      );
+    } else if (n == 5) {
+      body = Column(
+        children: [
+          photoRow([0, 1]),
+          const SizedBox(height: gap),
+          photoRow([2, 3, 4]),
+        ],
+      );
+    } else if (n == 6) {
+      body = Column(
+        children: [
+          photoRow([0, 1, 2]),
+          const SizedBox(height: gap),
+          photoRow([3, 4, 5]),
+        ],
+      );
+    } else if (n <= 8) {
+      body = Column(
+        children: [
+          photoRow([0, 1, 2]),
+          const SizedBox(height: gap),
+          photoRow([3, 4, 5], moreCount: n - 6),
+        ],
+      );
+    } else {
+      // 9+: 3×3, last cell shows +N if more than 9
+      body = Column(
+        children: [
+          photoRow([0, 1, 2]),
+          const SizedBox(height: gap),
+          photoRow([3, 4, 5]),
+          const SizedBox(height: gap),
+          photoRow([6, 7, 8], moreCount: n > 9 ? n - 9 : null),
+        ],
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: outerR,
+      child: body,
+    );
   }
 
   Widget _buildVideoMedia(Memory memory, Color p) {
