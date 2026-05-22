@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../utils/photo_crop.dart';
 
 /// Bottom-sheet редактор карусели для одного виджета "Фото-виджет".
 ///
@@ -92,10 +93,18 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       );
       if (picked.isEmpty) return;
 
-      final taken = picked.take(remaining).map((x) => x.path).toList();
-      setState(() {
-        _paths.addAll(taken);
-      });
+      final taken = picked.take(remaining).toList();
+      if (taken.length == 1) {
+        // Одно фото — предлагаем кроппер
+        final croppedPath = await cropPhoto(
+          taken.first.path,
+          accentColor: widget.theme.primary,
+        );
+        if (mounted) setState(() => _paths.add(croppedPath ?? taken.first.path));
+      } else {
+        // Несколько фото — добавляем без обрезки
+        if (mounted) setState(() => _paths.addAll(taken.map((x) => x.path)));
+      }
     } catch (_) {
       final XFile? single = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -103,9 +112,12 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         maxWidth: 1920,
         maxHeight: 1920,
       );
-      if (single != null) {
-        setState(() => _paths.add(single.path));
-      }
+      if (single == null) return;
+      final croppedPath = await cropPhoto(
+        single.path,
+        accentColor: widget.theme.primary,
+      );
+      if (mounted) setState(() => _paths.add(croppedPath ?? single.path));
     }
   }
 
@@ -116,9 +128,12 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       maxWidth: 1920,
       maxHeight: 1920,
     );
-    if (picked != null) {
-      setState(() => _paths[index] = picked.path);
-    }
+    if (picked == null) return;
+    final croppedPath = await cropPhoto(
+      picked.path,
+      accentColor: widget.theme.primary,
+    );
+    if (mounted) setState(() => _paths[index] = croppedPath ?? picked.path);
   }
 
   void _removePhoto(int index) {

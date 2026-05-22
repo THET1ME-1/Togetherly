@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/photo_crop.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
@@ -900,12 +901,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (photo == null || !mounted) return;
 
+    final croppedPath = await cropPhoto(photo.path, accentColor: _t.primary);
+    if (!mounted) return;
+    final effectivePath = croppedPath ?? photo.path;
+
     // Extract EXIF geolocation from photo
     double? photoLat;
     double? photoLng;
     String? photoLocationName;
     try {
-      final bytes = await File(photo.path).readAsBytes();
+      final bytes = await File(effectivePath).readAsBytes();
       final exifData = await readExifFromBytes(bytes);
       final latTag = exifData['GPS GPSLatitude'];
       final lngTag = exifData['GPS GPSLongitude'];
@@ -1004,10 +1009,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       // Upload to Firebase Storage
-      final ext = photo.path.split('.').last;
+      final ext = effectivePath.split('.').last;
       final destination =
           'memories/${_pairData.pairId}/${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final downloadUrl = await _fb.uploadFile(photo.path, destination);
+      final downloadUrl = await _fb.uploadFile(effectivePath, destination);
 
       if (downloadUrl == null) {
         if (mounted) Navigator.of(context).pop(); // dismiss loading

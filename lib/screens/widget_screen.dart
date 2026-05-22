@@ -75,6 +75,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   int? _drawingsCount;
   int? _missYouCount;
   StreamSubscription? _missYouSub;
+  Timer? _loadPhotoDayDebounce;
 
   // Экран блокировки: настроение
   bool _lockScreenMoodEnabled = false;
@@ -988,6 +989,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _missYouSub?.cancel();
+    _loadPhotoDayDebounce?.cancel();
     _pair.removeListener(_onDataChanged);
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
@@ -1007,7 +1009,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       HomeWidgetService.instance.refreshPhotoGrid(_pair.pairId);
     }
     if (_pair.pairId.isNotEmpty) {
-      _loadPhotoDayWidgets();
+      _loadPhotoDayDebounce?.cancel();
+      _loadPhotoDayDebounce = Timer(
+        const Duration(milliseconds: 500),
+        _loadPhotoDayWidgets,
+      );
     }
   }
 
@@ -1202,9 +1208,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
-              child: Padding(
+            child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
@@ -1248,7 +1252,6 @@ class _WidgetScreenState extends State<WidgetScreen>
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1960,13 +1963,15 @@ class _WidgetScreenState extends State<WidgetScreen>
     }
 
     return Center(
-      child: SizedBox(
-        width: 200,
-        height: 200,
-        child: PetalTimerDial(
-          theme: _t,
-          startDate: timer.startDate,
-          isCountdown: timer.isCountdown,
+      child: RepaintBoundary(
+        child: SizedBox(
+          width: 200,
+          height: 200,
+          child: PetalTimerDial(
+            theme: _t,
+            startDate: timer.startDate,
+            isCountdown: timer.isCountdown,
+          ),
         ),
       ),
     );
