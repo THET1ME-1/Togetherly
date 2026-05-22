@@ -99,6 +99,9 @@ class WidgetService extends ChangeNotifier {
         _loadPartnerFallback(partnerUid);
       }
       _syncToNativeWidget();
+      if (_groupId.isNotEmpty) {
+        HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
+      }
       notifyListeners();
     }, onError: (e) => debugPrint('WidgetService partner listener error: $e'));
   }
@@ -142,6 +145,9 @@ class WidgetService extends ChangeNotifier {
         _initializeMyWidgetData(uid);
       }
       _syncToNativeWidget();
+      if (_groupId.isNotEmpty) {
+        HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
+      }
       notifyListeners();
     }, onError: (e) => debugPrint('WidgetService my data listener error: $e'));
   }

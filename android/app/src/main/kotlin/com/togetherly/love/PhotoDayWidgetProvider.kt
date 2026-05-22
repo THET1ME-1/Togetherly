@@ -26,6 +26,8 @@ import android.os.SystemClock
  */
 open class PhotoDayWidgetProvider : HomeWidgetProvider() {
 
+    protected open fun expectedKind(): String? = null
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -78,7 +80,7 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         val manager = AppWidgetManager.getInstance(context)
-        val component = ComponentName(context, PhotoDayWidgetProvider::class.java)
+        val component = ComponentName(context, javaClass)
         val existingIds = manager.getAppWidgetIds(component).toSet()
         val pendingRaw = widgetData.getString(PENDING_CONFIGS_KEY, null) ?: return
         val pending = try {
@@ -97,9 +99,12 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
 
         val remaining = JSONArray()
         val editor = widgetData.edit()
+        val requiredKind = expectedKind()
         for (i in 0 until pending.length()) {
             val item = pending.optJSONObject(i) ?: continue
-            if (unassignedIds.isNotEmpty()) {
+            val itemKind = item.optString("kind", "")
+            val kindMatches = requiredKind == null || itemKind.isEmpty() || itemKind == requiredKind
+            if (unassignedIds.isNotEmpty() && kindMatches) {
                 val widgetId = unassignedIds.removeAt(0)
                 assignConfig(editor, widgetId, item)
             } else {

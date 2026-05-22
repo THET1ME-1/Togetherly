@@ -126,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onResume: () {
         if (_pairData.isPaired) {
           _mascotService.recordDailyActivity();
+          HomeWidgetService.instance.refreshPhotoOfDay(_pairData.pairId);
         }
       },
     );

@@ -32,6 +32,21 @@ class HomeWidgetService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  Future<void> _updateAllPhotoWidgetProviders() async {
+    await HomeWidget.updateWidget(
+      name: 'PhotoDayWidgetProvider',
+      androidName: 'PhotoDayWidgetProvider',
+    );
+    await HomeWidget.updateWidget(
+      name: 'SelfPhotoWidgetProvider',
+      androidName: 'SelfPhotoWidgetProvider',
+    );
+    await HomeWidget.updateWidget(
+      name: 'PartnerPhotoWidgetProvider',
+      androidName: 'PartnerPhotoWidgetProvider',
+    );
+  }
+
   /// Последний известный статус группы — для обратной совместимости.
   String _lastRelationshipStatusId = '';
 
@@ -294,10 +309,7 @@ class HomeWidgetService {
       if (groupId != null) 'group_id': groupId,
     });
 
-    await HomeWidget.updateWidget(
-      name: 'PhotoDayWidgetProvider',
-      androidName: 'PhotoDayWidgetProvider',
-    );
+    await _updateAllPhotoWidgetProviders();
   }
 
   Future<void> clearPhotoDayWidget(int widgetId, String groupId) async {
@@ -694,10 +706,7 @@ class HomeWidgetService {
         });
       }
 
-      await HomeWidget.updateWidget(
-        name: 'PhotoDayWidgetProvider',
-        androidName: 'PhotoDayWidgetProvider',
-      );
+      await _updateAllPhotoWidgetProviders();
       debugPrint(
         'HomeWidgetService: carousel synced — ${localPaths.length} photos',
       );
@@ -776,10 +785,7 @@ class HomeWidgetService {
           viewerName,
         );
       }
-      await HomeWidget.updateWidget(
-        name: 'PhotoDayWidgetProvider',
-        androidName: 'PhotoDayWidgetProvider',
-      );
+      await _updateAllPhotoWidgetProviders();
       debugPrint(
         'HomeWidgetService: photo of day synced — $memoryId (path=$localPath)',
       );
@@ -966,10 +972,7 @@ class HomeWidgetService {
         });
       }
 
-      await HomeWidget.updateWidget(
-        name: 'PhotoDayWidgetProvider',
-        androidName: 'PhotoDayWidgetProvider',
-      );
+      await _updateAllPhotoWidgetProviders();
       debugPrint(
         'HomeWidgetService: photo day (single user) synced for widget $widgetId',
       );
@@ -997,10 +1000,7 @@ class HomeWidgetService {
         await HomeWidget.saveWidgetData<String>('photo_day_caption', '');
         await HomeWidget.saveWidgetData<String>('photo_day_memory_id', '');
         await HomeWidget.saveWidgetData<String>('photo_day_author', '');
-        await HomeWidget.updateWidget(
-          name: 'PhotoDayWidgetProvider',
-          androidName: 'PhotoDayWidgetProvider',
-        );
+        await _updateAllPhotoWidgetProviders();
 
         // Пытаемся загрузить новое случайное фото
         await refreshPhotoOfDay(groupId);
@@ -1464,10 +1464,7 @@ class HomeWidgetService {
         name: 'TimerWidgetProvider',
         androidName: 'TimerWidgetProvider',
       );
-      await HomeWidget.updateWidget(
-        name: 'PhotoDayWidgetProvider',
-        androidName: 'PhotoDayWidgetProvider',
-      );
+      await _updateAllPhotoWidgetProviders();
       await HomeWidget.updateWidget(
         name: 'MoodWidgetProvider',
         androidName: 'MoodWidgetProvider',
