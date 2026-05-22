@@ -43,7 +43,7 @@ android {
 
     defaultConfig {
         applicationId = "com.togetherly.love"
-        minSdk = flutter.minSdkVersion  // Android 6.0+; Firebase Auth minimum. Flutter default (24) excluded Android 6 phones.
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
