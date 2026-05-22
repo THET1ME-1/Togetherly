@@ -1150,9 +1150,10 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('user_0_name', userName);
       await HomeWidget.saveWidgetData<String>('user_0_label', moodLabel);
       await HomeWidget.saveWidgetData<String>('user_0_avatar_path', '');
-      // Group-prefixed score and color keys (read by MoodWidgetProvider)
+      // Group-prefixed score, color and label keys (read by MoodWidgetProvider)
       await HomeWidget.saveWidgetData<int>('mood_${g}_user_0_score', moodScore);
       await HomeWidget.saveWidgetData<String>('mood_${g}_user_0_color', moodColor);
+      await HomeWidget.saveWidgetData<String>('mood_${g}_user_0_label', moodLabel);
 
       // ── Настроение партнёра ──
       String partnerLocalPath = '';
@@ -1178,9 +1179,10 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('user_1_name', partnerUserName);
       await HomeWidget.saveWidgetData<String>('user_1_label', partnerMoodLabel);
       await HomeWidget.saveWidgetData<String>('user_1_avatar_path', '');
-      // Group-prefixed score and color keys (read by MoodWidgetProvider)
+      // Group-prefixed score, color and label keys (read by MoodWidgetProvider)
       await HomeWidget.saveWidgetData<int>('mood_${g}_user_1_score', partnerMoodScore);
       await HomeWidget.saveWidgetData<String>('mood_${g}_user_1_color', partnerMoodColor);
+      await HomeWidget.saveWidgetData<String>('mood_${g}_user_1_label', partnerMoodLabel);
       await HomeWidget.saveWidgetData<int>(
         'partner_mood_score',
         partnerMoodScore,

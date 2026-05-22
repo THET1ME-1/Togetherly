@@ -7,34 +7,62 @@
     android:background="#FAFAFA"
     android:weightSum="2">
 
-    <FrameLayout
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
         android:padding="12dp">
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:src="@drawable/ic_heart_timer"
             android:scaleType="fitCenter"
             android:tint="#FFD4609A" />
 
-    </FrameLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="Happy"
+            android:textSize="9sp"
+            android:textColor="#AAD4609A"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:paddingTop="3dp" />
 
-    <FrameLayout
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
         android:padding="12dp">
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:src="@drawable/ic_heart_timer"
             android:scaleType="fitCenter"
             android:tint="#FFAD6BD8" />
 
-    </FrameLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="In Love"
+            android:textSize="9sp"
+            android:textColor="#AAAD6BD8"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:paddingTop="3dp" />
+
+    </LinearLayout>
 
 </LinearLayout>

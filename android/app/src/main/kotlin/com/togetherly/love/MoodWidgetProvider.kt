@@ -62,14 +62,19 @@ class MoodWidgetProvider : HomeWidgetProvider() {
             try {
                 val scoreKey = if (g.isEmpty()) "user_${i}_score" else "mood_${g}_user_${i}_score"
                 val colorKey = if (g.isEmpty()) "user_${i}_color" else "mood_${g}_user_${i}_color"
+                val labelKey = if (g.isEmpty()) "user_${i}_label" else "mood_${g}_user_${i}_label"
                 val score = widgetData.getInt(scoreKey, 0).coerceIn(0, 5)
                 val colorHex = widgetData.getString(colorKey, "") ?: ""
+                val label = widgetData.getString(labelKey, "")
+                    ?: widgetData.getString("user_${i}_label", "") ?: ""
                 val heartId = if (i == 0) R.id.heart_2_0 else R.id.heart_2_1
+                val labelId = if (i == 0) R.id.label_2_0 else R.id.label_2_1
                 val waterColor = parseColor(colorHex)
                 val t = score / 5.0
                 val easedFill = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
                 val heartBitmap = createWaterHeartBitmap(120, easedFill, waterColor)
                 views.setImageViewBitmap(heartId, heartBitmap)
+                views.setTextViewText(labelId, label)
             } catch (e: Exception) {
                 Log.e(TAG, "Error populating mood for user $i", e)
             }
