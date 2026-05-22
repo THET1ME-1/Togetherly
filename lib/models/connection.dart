@@ -119,26 +119,12 @@ class Connection {
 
   String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
 
-  /// Max members allowed for this relationship type
-  int get maxMembers {
-    switch (relationshipType) {
-      case RelationshipType.couple:
-      case RelationshipType.married:
-        return 2;
-      case RelationshipType.friends:
-      case RelationshipType.buddies:
-      case RelationshipType.custom:
-        return 10;
-    }
-  }
+  /// Max members allowed — always 2 (couples only)
+  int get maxMembers => 2;
 
   /// Can invite more members?
   bool get canInviteMore {
     if (!isPaired) return true; // not yet connected, invite is needed
-    if (relationshipType == RelationshipType.couple ||
-        relationshipType == RelationshipType.married) {
-      return false;
-    }
     return members.length < maxMembers;
   }
 

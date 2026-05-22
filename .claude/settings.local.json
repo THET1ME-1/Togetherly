@@ -17,7 +17,9 @@
       "Bash(flutter analyze *)",
       "Bash(xargs grep -l \"showModalBottomSheet\\\\|BottomSheet\")",
       "Bash(xargs grep -l \"showModalBottomSheet\\\\|ModalBottomSheet\\\\|DraggableScrollableSheet\")",
-      "Bash(xargs grep -l \"index\\\\|Index\")"
+      "Bash(xargs grep -l \"index\\\\|Index\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" -Directory)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

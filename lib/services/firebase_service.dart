@@ -913,6 +913,21 @@ class FirebaseService {
         }
       }
 
+      // Check if there's a disbanded group between these two users to restore
+      final disbandedId = await _findDisbandedGroup(ownerUid);
+      if (disbandedId != null) {
+        debugPrint(
+          'acceptInviteCode: restoring disbanded group $disbandedId',
+        );
+        return _restoreGroup(
+          groupId: disbandedId,
+          code: code,
+          ownerUid: ownerUid,
+          ownerData: ownerData,
+          myData: myData,
+        );
+      }
+
       // Owner has no group yet — create a new 2-person group (pair)
       debugPrint(
         'acceptInviteCode: creating new group for $ownerUid + ${u.uid}',
@@ -1016,6 +1031,143 @@ class FirebaseService {
     };
   }
 
+  /// Find a disbanded group that contains both the current user and [ownerUid].
+  /// Returns the groupId of the most recently disbanded match, or null.
+  Future<String?> _findDisbandedGroup(String ownerUid) async {
+    final u = currentUser;
+    if (u == null) return null;
+    try {
+      final query = await _db
+          .collection('groups')
+          .where('members', arrayContains: u.uid)
+          .get();
+      String? bestId;
+      Timestamp? bestTs;
+      for (final doc in query.docs) {
+        final data = doc.data();
+        if (data['disbanded'] != true) continue;
+        final docMembers = List<String>.from(data['members'] ?? []);
+        if (!docMembers.contains(ownerUid)) continue;
+        final ts = data['disbandedAt'] as Timestamp?;
+        if (bestId == null ||
+            (ts != null &&
+                (bestTs == null || ts.compareTo(bestTs) > 0))) {
+          bestId = doc.id;
+          bestTs = ts;
+        }
+      }
+      return bestId;
+    } catch (e) {
+      debugPrint('_findDisbandedGroup error: $e');
+      return null;
+    }
+  }
+
+  /// Restore a disbanded group when the same two users reconnect.
+  Future<Map<String, dynamic>> _restoreGroup({
+    required String groupId,
+    required String code,
+    required String ownerUid,
+    required Map<String, dynamic> ownerData,
+    required Map<String, dynamic> myData,
+  }) async {
+    final u = currentUser!;
+    Map<String, dynamic> groupData;
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (!groupDoc.exists) {
+        return _createNewGroup(
+          code: code,
+          ownerUid: ownerUid,
+          ownerData: ownerData,
+          myData: myData,
+        );
+      }
+      groupData = groupDoc.data()!;
+    } catch (e) {
+      debugPrint('_restoreGroup: read failed, creating new: $e');
+      return _createNewGroup(
+        code: code,
+        ownerUid: ownerUid,
+        ownerData: ownerData,
+        myData: myData,
+      );
+    }
+
+    // Restore: clear disbanded flag, refresh member display info
+    await _db.collection('groups').doc(groupId).update({
+      'disbanded': FieldValue.delete(),
+      'disbandedAt': FieldValue.delete(),
+      'memberNames.$ownerUid': ownerData['displayName'] ?? 'Partner',
+      'memberAvatars.$ownerUid': ownerData['avatarUrl'] ?? '',
+      'memberNames.${u.uid}':
+          myData['displayName'] ?? u.displayName ?? 'Partner',
+      'memberAvatars.${u.uid}': myData['avatarUrl'] ?? u.photoURL ?? '',
+    });
+    debugPrint('_restoreGroup: group $groupId restored');
+
+    // Add group back to both users' pairIds
+    await _db.collection('users').doc(u.uid).update({
+      'pairId': groupId,
+      'pairIds': FieldValue.arrayUnion([groupId]),
+    });
+    try {
+      await _db.collection('users').doc(ownerUid).update({
+        'pairId': groupId,
+        'pairIds': FieldValue.arrayUnion([groupId]),
+      });
+    } catch (e) {
+      debugPrint('_restoreGroup: owner update failed: $e');
+    }
+
+    // Delete invite code
+    try {
+      await _db.collection('inviteCodes').doc(code).delete();
+    } catch (e) {
+      debugPrint('_restoreGroup: code delete failed: $e');
+    }
+
+    final members = List<String>.from(groupData['members'] ?? []);
+    final memberNames =
+        Map<String, dynamic>.from(groupData['memberNames'] ?? {});
+    final memberAvatars =
+        Map<String, dynamic>.from(groupData['memberAvatars'] ?? {});
+    memberNames[ownerUid] = ownerData['displayName'] ?? 'Partner';
+    memberAvatars[ownerUid] = ownerData['avatarUrl'] ?? '';
+    memberNames[u.uid] =
+        myData['displayName'] ?? u.displayName ?? 'Partner';
+    memberAvatars[u.uid] = myData['avatarUrl'] ?? u.photoURL ?? '';
+
+    return {
+      'success': true,
+      'message': 'Reconnected!',
+      'partnerName': ownerData['displayName'] ?? 'Partner',
+      'partnerAvatar': ownerData['avatarUrl'] ?? '',
+      'pairId': groupId,
+      'startDate':
+          (groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      'relationshipType':
+          groupData['relationshipType'] as String? ?? 'couple',
+      'customRelationshipLabel':
+          groupData['customRelationshipLabel'] as String? ?? '',
+      'customRelationshipEmoji':
+          groupData['customRelationshipEmoji'] as String? ?? '',
+      'customRelationshipTypes':
+          groupData['customRelationshipTypes'] as List<dynamic>? ??
+          <dynamic>[],
+      'members': members
+          .map(
+            (uid) => {
+              'uid': uid,
+              'name': memberNames[uid] ?? '',
+              'avatar': memberAvatars[uid] ?? '',
+            },
+          )
+          .toList(),
+      'restored': true,
+    };
+  }
+
   /// Join an existing group by groupId.
   Future<Map<String, dynamic>> _joinExistingGroup({
     required String groupId,
@@ -1048,7 +1200,7 @@ class FirebaseService {
         '_joinExistingGroup: cant read group (expected), will add self directly',
       );
       members = [ownerUid]; // We know owner is there
-      maxMembers = 10;
+      maxMembers = 2;
       groupData = null;
     }
 
@@ -1299,7 +1451,9 @@ class FirebaseService {
         return _parseLegacyPairDoc(pairId, pairDoc.data()!);
       }
 
-      return _parseGroupDoc(pairId, doc.data()!);
+      final docData = doc.data()!;
+      if (docData['disbanded'] == true) return null;
+      return _parseGroupDoc(pairId, docData);
     } catch (e) {
       debugPrint('loadPairById($pairId) failed: $e');
       return null;
@@ -1444,7 +1598,13 @@ class FirebaseService {
         .snapshots(includeMetadataChanges: true)
         .listen((snap) async {
           if (snap.exists) {
-            final parsedData = _parseGroupDoc(pairId, snap.data()!);
+            final rawData = snap.data()!;
+            if (rawData['disbanded'] == true) {
+              debugPrint('listenToPair: group disbanded, treating as deleted');
+              onData(null);
+              return;
+            }
+            final parsedData = _parseGroupDoc(pairId, rawData);
             debugPrint(
               'listenToPair: updated group data, members=${parsedData['members']?.length}',
             );
@@ -1480,9 +1640,12 @@ class FirebaseService {
       final members = List<String>.from(data['members'] ?? []);
 
       if (members.length <= 2) {
-        // Delete the whole group
+        // Soft-delete: mark as disbanded so data can be restored on reconnect
         final batch = _db.batch();
-        batch.delete(_db.collection('groups').doc(groupId));
+        batch.update(_db.collection('groups').doc(groupId), {
+          'disbanded': true,
+          'disbandedAt': FieldValue.serverTimestamp(),
+        });
         for (final member in members) {
           batch.update(_db.collection('users').doc(member), {
             'pairIds': FieldValue.arrayRemove([groupId]),
