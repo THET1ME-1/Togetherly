@@ -42,12 +42,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.togetherly.love"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // Firebase Auth + image_picker requires minSdk 23+
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion  // Android 6.0+; Firebase Auth minimum. Flutter default (24) excluded Android 6 phones.
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
