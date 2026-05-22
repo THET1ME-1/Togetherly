@@ -837,6 +837,8 @@ class FirebaseService {
 
       // Code has no groupId — check if the owner already has a group
       final ownerPairId = ownerData['pairId'] as String?;
+      bool canJoinOwnerGroup = false;
+
       if (ownerPairId != null && ownerPairId.isNotEmpty) {
         debugPrint(
           'acceptInviteCode: owner has pairId=$ownerPairId, trying to join',
@@ -859,13 +861,26 @@ class FirebaseService {
             }
             if (groupMembers.contains(ownerUid) &&
                 !groupMembers.contains(u.uid)) {
-              return _joinExistingGroup(
-                groupId: ownerPairId,
-                code: code,
-                myData: myData,
-                ownerUid: ownerUid,
-                ownerData: ownerData,
-              );
+              // Check if I already have a different pairId
+              final myPairId = myData['pairId'] as String?;
+              if (myPairId != null &&
+                  myPairId.isNotEmpty &&
+                  myPairId != ownerPairId) {
+                // I'm already in a different group — don't join, create new group instead
+                debugPrint(
+                  'acceptInviteCode: I have different group $myPairId, cannot join $ownerPairId',
+                );
+                canJoinOwnerGroup = false;
+              } else {
+                canJoinOwnerGroup = true;
+                return _joinExistingGroup(
+                  groupId: ownerPairId,
+                  code: code,
+                  myData: myData,
+                  ownerUid: ownerUid,
+                  ownerData: ownerData,
+                );
+              }
             }
           }
         } catch (e) {
@@ -876,7 +891,9 @@ class FirebaseService {
 
       // Also check owner's pairIds list for any group we can join
       final ownerPairIds = ownerData['pairIds'] as List<dynamic>?;
-      if (ownerPairIds != null && ownerPairIds.isNotEmpty) {
+      if (ownerPairIds != null &&
+          ownerPairIds.isNotEmpty &&
+          !canJoinOwnerGroup) {
         for (var pid in ownerPairIds) {
           final pidStr = pid.toString();
           if (pidStr.isEmpty) continue;
@@ -897,6 +914,17 @@ class FirebaseService {
               }
               if (groupMembers.contains(ownerUid) &&
                   !groupMembers.contains(u.uid)) {
+                // Check if I already have a different pairId
+                final myPairId = myData['pairId'] as String?;
+                if (myPairId != null &&
+                    myPairId.isNotEmpty &&
+                    myPairId != pidStr) {
+                  // I'm already in a different group — skip this one and try next
+                  debugPrint(
+                    'acceptInviteCode: I have different group $myPairId, cannot join $pidStr',
+                  );
+                  continue;
+                }
                 return _joinExistingGroup(
                   groupId: pidStr,
                   code: code,
@@ -916,9 +944,7 @@ class FirebaseService {
       // Check if there's a disbanded group between these two users to restore
       final disbandedId = await _findDisbandedGroup(ownerUid);
       if (disbandedId != null) {
-        debugPrint(
-          'acceptInviteCode: restoring disbanded group $disbandedId',
-        );
+        debugPrint('acceptInviteCode: restoring disbanded group $disbandedId');
         return _restoreGroup(
           groupId: disbandedId,
           code: code,
@@ -1050,8 +1076,7 @@ class FirebaseService {
         if (!docMembers.contains(ownerUid)) continue;
         final ts = data['disbandedAt'] as Timestamp?;
         if (bestId == null ||
-            (ts != null &&
-                (bestTs == null || ts.compareTo(bestTs) > 0))) {
+            (ts != null && (bestTs == null || ts.compareTo(bestTs) > 0))) {
           bestId = doc.id;
           bestTs = ts;
         }
@@ -1128,14 +1153,15 @@ class FirebaseService {
     }
 
     final members = List<String>.from(groupData['members'] ?? []);
-    final memberNames =
-        Map<String, dynamic>.from(groupData['memberNames'] ?? {});
-    final memberAvatars =
-        Map<String, dynamic>.from(groupData['memberAvatars'] ?? {});
+    final memberNames = Map<String, dynamic>.from(
+      groupData['memberNames'] ?? {},
+    );
+    final memberAvatars = Map<String, dynamic>.from(
+      groupData['memberAvatars'] ?? {},
+    );
     memberNames[ownerUid] = ownerData['displayName'] ?? 'Partner';
     memberAvatars[ownerUid] = ownerData['avatarUrl'] ?? '';
-    memberNames[u.uid] =
-        myData['displayName'] ?? u.displayName ?? 'Partner';
+    memberNames[u.uid] = myData['displayName'] ?? u.displayName ?? 'Partner';
     memberAvatars[u.uid] = myData['avatarUrl'] ?? u.photoURL ?? '';
 
     return {
@@ -1146,15 +1172,13 @@ class FirebaseService {
       'pairId': groupId,
       'startDate':
           (groupData['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      'relationshipType':
-          groupData['relationshipType'] as String? ?? 'couple',
+      'relationshipType': groupData['relationshipType'] as String? ?? 'couple',
       'customRelationshipLabel':
           groupData['customRelationshipLabel'] as String? ?? '',
       'customRelationshipEmoji':
           groupData['customRelationshipEmoji'] as String? ?? '',
       'customRelationshipTypes':
-          groupData['customRelationshipTypes'] as List<dynamic>? ??
-          <dynamic>[],
+          groupData['customRelationshipTypes'] as List<dynamic>? ?? <dynamic>[],
       'members': members
           .map(
             (uid) => {
@@ -1578,9 +1602,13 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
     try {
-      await _db.collection('users').doc(u.uid).update({
-        'pairIds': FieldValue.arrayRemove([groupId]),
-      }).timeout(const Duration(seconds: 10));
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .update({
+            'pairIds': FieldValue.arrayRemove([groupId]),
+          })
+          .timeout(const Duration(seconds: 10));
       debugPrint('removeStaleGroupFromUser: removed $groupId from user doc');
     } catch (e) {
       debugPrint('removeStaleGroupFromUser failed: $e');

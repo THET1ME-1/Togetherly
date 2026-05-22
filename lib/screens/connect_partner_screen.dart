@@ -2342,9 +2342,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             if (rawValue != null) {
               String code = rawValue;
 
-              if (rawValue.contains('togetherly.app/invite/')) {
-                code = rawValue.split('/invite/').last;
-              } else if (rawValue.contains('loveapp://invite/')) {
+              if (rawValue.contains('/invite/')) {
                 code = rawValue.split('/invite/').last;
               }
 
