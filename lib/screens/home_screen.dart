@@ -1042,7 +1042,7 @@ class _HomeScreenState extends State<HomeScreen> {
         try {
           final prefs = await SharedPreferences.getInstance();
           await _widgetService.setPhotoDayMode('custom');
-          await _widgetService.updatePhotoUrl(downloadUrl);
+          await _widgetService.updatePhotoDayUrl(downloadUrl);
           await prefs.setString(
             'photo_day_path_${_pairData.pairId}',
             photo.path,

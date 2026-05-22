@@ -320,10 +320,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       widgetRotationInterval[widgetId] = await hws
           .getPhotoDayWidgetRotationInterval(widgetId);
 
-      String? preferredOwnPath;
-      if (urls.isNotEmpty) {
-        preferredOwnPath = urls.first;
-      }
+      final preferredOwnPath = _resolveWidgetPreviewPath(
+        isPartner: widgetDisplay == 'partner',
+        widgetUrls: urls,
+        widgetPreviewPath: preview['path'],
+      );
 
       final widgetState = PhotoDayWidgetLogic.resolveState(
         selectedWidgetId: widgetId,
@@ -332,9 +333,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         widgetPreviewPath: preview['path'],
         widgetCustomPath: customPath,
         myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
+        fallbackPartnerPhotoPath: _partnerSharedPreviewPath,
       );
       widgetOwnPhotoPaths[widgetId] =
-          preferredOwnPath ?? widgetState.ownPhotoPath;
+           preferredOwnPath ?? widgetState.ownPhotoPath;
     }
 
     return {
@@ -477,11 +479,13 @@ class _WidgetScreenState extends State<WidgetScreen>
       widgetRotationInterval[widgetId] = await hws
           .getPhotoDayWidgetRotationInterval(widgetId);
 
-      // Превью: сначала свои локальные URL, иначе fallback по логике.
-      String? preferredOwnPath;
-      if (urls.isNotEmpty) {
-        preferredOwnPath = urls.first;
-      }
+      // Превью: для личного виджета сначала свои URL, для партнёрского —
+      // фото партнёра из Firestore, чтобы карточка сразу показывала именно его.
+      final preferredOwnPath = _resolveWidgetPreviewPath(
+        isPartner: widgetDisplay == 'partner',
+        widgetUrls: urls,
+        widgetPreviewPath: preview['path'],
+      );
 
       // myPhotoUrl (Firestore) используется только если у виджета есть
       // собственные URL — иначе новый виджет копировал бы превью уже
@@ -493,9 +497,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         widgetPreviewPath: preview['path'],
         widgetCustomPath: customPath,
         myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
+        fallbackPartnerPhotoPath: _partnerSharedPreviewPath,
       );
       widgetOwnPhotoPaths[widgetId] =
-          preferredOwnPath ?? widgetState.ownPhotoPath;
+           preferredOwnPath ?? widgetState.ownPhotoPath;
     }
 
     if (!mounted) return;
@@ -529,6 +534,29 @@ class _WidgetScreenState extends State<WidgetScreen>
     final hws = HomeWidgetService.instance;
     await hws.setPhotoDaySaveMemory(_pair.pairId, value);
     setState(() => _savePhotoAsMemory = value);
+  }
+
+  String? get _partnerSharedPreviewPath {
+    final partnerUrls = _ws.firstPartnerData?.photoDayUrls ?? const <String>[];
+    if (partnerUrls.isNotEmpty) return partnerUrls.first;
+
+    final singleUrl = _ws.firstPartnerData?.photoDayUrl;
+    if (singleUrl != null && singleUrl.isNotEmpty) return singleUrl;
+
+    return null;
+  }
+
+  String? _resolveWidgetPreviewPath({
+    required bool isPartner,
+    required List<String> widgetUrls,
+    required String? widgetPreviewPath,
+  }) {
+    if (isPartner) {
+      return _partnerSharedPreviewPath ?? widgetPreviewPath;
+    }
+
+    if (widgetUrls.isNotEmpty) return widgetUrls.first;
+    return widgetPreviewPath;
   }
 
   /// Загружает МОИ настройки сетки (count) из Firestore, чтобы чипы отражали
