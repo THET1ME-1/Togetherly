@@ -798,16 +798,26 @@ class HomeWidgetService {
   ///
   /// [forceNext] — если true, инкрементирует seed, чтобы выбрать следующее фото.
   /// [widgetId] — конкретный ID виджета (null = все виджеты этого groupId).
+  /// [overrideKind] — явный тип виджета ('partner'/'self'), обходит SharedPreferences.
+  ///   Используется для предотвращения race condition при первом запуске.
   /// Works for both group mode and single user mode (no group).
   Future<void> refreshPhotoOfDay(
     String groupId, {
     bool forceNext = false,
     int? widgetId,
+    String? overrideKind,
   }) async {
     try {
       // If no widgetId specified, refresh all photo day widgets for this group
       if (widgetId == null) {
         final allIds = await getPhotoDayWidgetIds();
+        // Определяем partner-виджеты заранее, чтобы принудительно передать kind='partner'.
+        // Без этого race condition: если refreshPhotoOfDay сработает до Kotlin onUpdate(),
+        // SharedPreferences будет пустым и kind вернётся как 'self', что сломает виджет навсегда.
+        Set<int> partnerIds = const {};
+        if (Platform.isAndroid) {
+          partnerIds = (await getPartnerPhotoWidgetIds()).toSet();
+        }
         for (final id in allIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(id);
           // Sync if: no group bound, or bound to current group, or no groupId at all (single user)
@@ -818,6 +828,7 @@ class HomeWidgetService {
               groupId,
               widgetId: id,
               forceNext: forceNext,
+              overrideKind: partnerIds.contains(id) ? 'partner' : null,
             );
           }
         }
@@ -830,7 +841,9 @@ class HomeWidgetService {
         return;
       }
 
-      final selectedKind = await getPhotoDayWidgetKind(widgetId);
+      // overrideKind предотвращает race condition: если kind ещё не записан Kotlin-ом,
+      // getPhotoDayWidgetKind вернёт 'self' по умолчанию и permanently сломает виджет.
+      final selectedKind = overrideKind ?? await getPhotoDayWidgetKind(widgetId);
 
       // Сохраняем текущий профиль (viewer) для различения моего/партнёрского фото
       final currentUserUid = FirebaseService().uid ?? '';
@@ -1350,6 +1363,11 @@ class HomeWidgetService {
       if (widgetIds.isEmpty) {
         await refreshPhotoOfDay(activeGroupId);
       } else {
+        // Определяем partner-виджеты заранее для корректного kind (см. refreshPhotoOfDay)
+        Set<int> partnerIds = const {};
+        if (Platform.isAndroid) {
+          partnerIds = (await getPartnerPhotoWidgetIds()).toSet();
+        }
         for (final widgetId in widgetIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(widgetId);
           // For solo mode (empty activeGroupId), sync widgets without bound group or with empty group
@@ -1360,7 +1378,11 @@ class HomeWidgetService {
             debugPrint(
               '  photo_day#$widgetId → syncing (group=$widgetGroupId)',
             );
-            await refreshPhotoOfDay(activeGroupId, widgetId: widgetId);
+            await refreshPhotoOfDay(
+              activeGroupId,
+              widgetId: widgetId,
+              overrideKind: partnerIds.contains(widgetId) ? 'partner' : null,
+            );
           }
         }
       }

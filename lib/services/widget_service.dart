@@ -304,6 +304,7 @@ class WidgetService extends ChangeNotifier {
   }
 
   /// Фото, которым я делюсь с партнёром для partner-widget.
+  /// Заменяет карусель одним фото — используется для «живого» фото с камеры.
   Future<void> updatePhotoForPartnerUrl(String url) async {
     await _updateField({
       'photoForPartnerUrl': url,

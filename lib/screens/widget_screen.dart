@@ -826,7 +826,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     }
 
     await _ws.updatePhotoForPartnerCarousel(uploadedUrls);
-    await HomeWidgetService.instance.refreshPhotoOfDay(groupId);
+    // Не вызываем refreshPhotoOfDay здесь: виджет «Фото партнёра» на ЭТОМ устройстве
+    // показывает фото ПАРТНЁРА, а не мои. Устройство партнёра обновится само через
+    // Firestore-листенер, когда получит изменение моего документа.
     await _loadPhotoDayWidgets();
   }
 
@@ -1000,6 +1002,9 @@ class _WidgetScreenState extends State<WidgetScreen>
         // на рабочий стол). Без задержки новый виджет ещё не виден в getPhotoDayWidgetIds.
         await Future<void>.delayed(const Duration(milliseconds: 1500));
         final ids = await hws.getPhotoDayWidgetIds();
+        // Передаём kind явно, чтобы не было race condition когда Kotlin ещё
+        // не записал kind='partner' в SharedPreferences через assignConfig().
+        final partnerIds = (await hws.getPartnerPhotoWidgetIds()).toSet();
         for (final widgetId in ids) {
           final widgetGroupId = await hws.getPhotoDayWidgetGroupId(widgetId);
           // For solo mode, sync widgets without group or with empty group
@@ -1007,7 +1012,11 @@ class _WidgetScreenState extends State<WidgetScreen>
               ? (widgetGroupId == null || widgetGroupId.isEmpty)
               : (widgetGroupId == _pair.pairId || widgetGroupId == null);
           if (shouldSync) {
-            await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
+            await hws.refreshPhotoOfDay(
+              _pair.pairId,
+              widgetId: widgetId,
+              overrideKind: partnerIds.contains(widgetId) ? 'partner' : null,
+            );
           }
         }
         if (ids.isEmpty) {
