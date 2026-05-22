@@ -1741,7 +1741,7 @@ class _RuStrings extends AppStrings {
   String get fetchData => 'Получить данные';
   @override
   String get supportedPlatformsHint =>
-      'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub и другие';
+      'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, VK и другие';
   @override
   String get supportedPlatforms => 'Поддерживаемые платформы';
   @override
@@ -3173,7 +3173,7 @@ class _EnStrings extends AppStrings {
   String get fetchData => 'Fetch data';
   @override
   String get supportedPlatformsHint =>
-      'Supported: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, PornHub and more';
+      'Supported: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, VK and more';
   @override
   String get supportedPlatforms => 'Supported Platforms';
   @override

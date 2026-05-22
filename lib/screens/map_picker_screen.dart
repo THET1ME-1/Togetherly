@@ -589,7 +589,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           // ─ My location FAB ─────────────────────────────────────────────
           Positioned(
             right: 14,
-            bottom: bottom + 124,
+            bottom: bottom + 170,
             child: GestureDetector(
               onTap: _goToMyLocation,
               child: Container(

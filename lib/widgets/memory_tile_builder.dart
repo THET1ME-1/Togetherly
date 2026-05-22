@@ -1040,8 +1040,6 @@ class MemoryTileBuilder {
     final platformColor = platform['color'] as Color;
     final hasThumb = memory.imageUrl?.isNotEmpty == true;
     final author = memory.musicArtist;
-    final isAdult = _isAdultPlatform(platformName);
-
     final card = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1225,7 +1223,7 @@ class MemoryTileBuilder {
     );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: isAdult ? _AdultBlurWrapper(child: card) : card,
+      child: card,
     );
   }
 
@@ -1248,14 +1246,6 @@ class MemoryTileBuilder {
       return {'name': 'Vimeo', 'color': const Color(0xFF1AB7EA)};
     } else if (lower.contains('dailymotion.com')) {
       return {'name': 'Dailymotion', 'color': const Color(0xFF0066DC)};
-    } else if (lower.contains('pornhub.com')) {
-      return {'name': 'PornHub', 'color': const Color(0xFFFF9000)};
-    } else if (lower.contains('xvideos.com')) {
-      return {'name': 'xVideos', 'color': const Color(0xFF1A1A1A)};
-    } else if (lower.contains('xhamster.com')) {
-      return {'name': 'xHamster', 'color': const Color(0xFFFF7900)};
-    } else if (lower.contains('redtube.com')) {
-      return {'name': 'RedTube', 'color': const Color(0xFFCC0000)};
     } else if (lower.contains('twitch.tv')) {
       return {'name': 'Twitch', 'color': const Color(0xFF9146FF)};
     } else if (lower.contains('tiktok.com')) {
@@ -1289,10 +1279,6 @@ class MemoryTileBuilder {
     }
   }
 
-  static bool _isAdultPlatform(String name) {
-    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
-    return adultPlatforms.contains(name);
-  }
 }
 
 // ─── 18+ Blur Wrapper ───────────────────────────────────────────────────────

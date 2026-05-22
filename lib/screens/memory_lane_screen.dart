@@ -74,8 +74,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   StreamSubscription? _memorySub;
   bool _loading = true;
 
-  // IDs of 18+ video tiles that the user has chosen to reveal
-  final Set<String> _revealedAdultContent = {};
+
 
   // User location for distance display
   double? _userLat;
@@ -1302,8 +1301,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final platformColor = platform['color'] as Color;
     final platformName = platform['name'] as String;
     final hasThumb = memory.imageUrl?.isNotEmpty == true;
-    final isAdult = _isAdultPlatform(platformName);
-    final isRevealed = _revealedAdultContent.contains(memory.id);
 
     Widget buildSubCard() => Container(
       padding: const EdgeInsets.all(12),
@@ -1534,70 +1531,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // ── Video link sub-card ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: isAdult && !isRevealed
-                ? GestureDetector(
-                    onTap: () =>
-                        setState(() => _revealedAdultContent.add(memory.id)),
-                    child: Stack(
-                      clipBehavior: Clip.hardEdge,
-                      children: [
-                        buildSubCard(),
-                        Positioned.fill(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: BackdropFilter(
-                              filter: ui.ImageFilter.blur(
-                                sigmaX: 14,
-                                sigmaY: 14,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.18),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.lock_rounded,
-                                        color: Colors.white,
-                                        size: 22,
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        '18+',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        LocaleService.current.tapToOpen,
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+            child: platformName == 'YouTube'
+                ? _YouTubeInlineCard(
+                    memory: memory,
+                    platformColor: platformColor,
+                    platformName: platformName,
                   )
-                : (platformName == 'YouTube'
-                      ? _YouTubeInlineCard(
-                          memory: memory,
-                          platformColor: platformColor,
-                          platformName: platformName,
-                        )
-                      : buildSubCard()),
+                : buildSubCard(),
           ),
           const SizedBox(height: 12),
         ],
@@ -1634,14 +1574,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       return {'name': 'Vimeo', 'color': const Color(0xFF1AB7EA)};
     } else if (lower.contains('dailymotion.com')) {
       return {'name': 'Dailymotion', 'color': const Color(0xFF0066DC)};
-    } else if (lower.contains('pornhub.com')) {
-      return {'name': 'PornHub', 'color': const Color(0xFFFF9000)};
-    } else if (lower.contains('xvideos.com')) {
-      return {'name': 'xVideos', 'color': const Color(0xFF8B0000)};
-    } else if (lower.contains('xhamster.com')) {
-      return {'name': 'xHamster', 'color': const Color(0xFFE5673B)};
-    } else if (lower.contains('redtube.com')) {
-      return {'name': 'RedTube', 'color': const Color(0xFFD11F1F)};
     } else if (lower.contains('twitch.tv')) {
       return {'name': 'Twitch', 'color': const Color(0xFF9146FF)};
     } else if (lower.contains('tiktok.com')) {
@@ -3173,10 +3105,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     },
   ];
 
-  static bool _isAdultPlatform(String name) {
-    const adultPlatforms = {'PornHub', 'xVideos', 'xHamster', 'RedTube'};
-    return adultPlatforms.contains(name);
-  }
+
 
   static const List<Map<String, dynamic>> _supportedVideoServices = [
     {
