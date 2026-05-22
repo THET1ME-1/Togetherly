@@ -683,8 +683,9 @@ class Connection {
       pairId: pairId,
       onData: (data) {
         if (data == null) {
-          // Group was deleted
+          // Group was deleted or disbanded
           debugPrint('_listenToPair: group deleted');
+          final staleId = pairId;
           isPaired = false;
           pairId = '';
           partnerName = '';
@@ -692,6 +693,7 @@ class Connection {
           startDate = null;
           members = [];
           onChanged?.call();
+          if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
           return;
         }
 
@@ -719,6 +721,7 @@ class Connection {
           if (!imInGroup) {
             // I've been removed from the group (shouldn't happen, but handle it)
             debugPrint('_listenToPair: removed from group');
+            final staleId = pairId;
             isPaired = false;
             pairId = '';
             partnerName = '';
@@ -726,6 +729,7 @@ class Connection {
             startDate = null;
             members = [];
             onChanged?.call();
+            if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
             return;
           }
 
@@ -735,6 +739,7 @@ class Connection {
           final partnersCount = members.where((m) => m.uid != myUid).length;
           if (partnersCount == 0 && isPaired) {
             debugPrint('_listenToPair: all partners left, marking as unpaired');
+            final staleId = pairId;
             isPaired = false;
             partnerName = '';
             partnerAvatarUrl = '';
@@ -743,6 +748,7 @@ class Connection {
             members = [];
             _pairSub?.cancel();
             _pairSub = null;
+            if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
           }
         }
 

@@ -879,6 +879,8 @@ class _WidgetScreenState extends State<WidgetScreen>
           coupleNames: names,
           emoji: emoji,
           startDate: startLabel,
+          myGender: widget.userData.gender?.name ?? '',
+          partnerGender: _ws.firstPartnerData?.gender ?? '',
         );
         break;
       case 'timer':
@@ -1671,16 +1673,20 @@ class _WidgetScreenState extends State<WidgetScreen>
         ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
         : '';
 
-    final myGender = widget.userData.gender?.name ?? 'male';
+    final myGender = widget.userData.gender?.name ?? '';
     final partnerGender = _ws.firstPartnerData?.gender.isNotEmpty == true
         ? _ws.firstPartnerData!.gender
-        : 'female';
+        : '';
 
     String imgName = 'widget_couple_mf';
+    bool flipCouple = false;
     if (myGender == 'female' && partnerGender == 'female') {
       imgName = 'widget_couple_ff';
     } else if (myGender == 'male' && partnerGender == 'male') {
       imgName = 'widget_couple_mm';
+    } else if (myGender == 'female' && partnerGender == 'male') {
+      // User (female) on left → mirror the mf image horizontally
+      flipCouple = true;
     }
 
     final years = totalDays ~/ 365;
@@ -1704,9 +1710,12 @@ class _WidgetScreenState extends State<WidgetScreen>
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(21),
               ),
-              child: Image.asset(
-                'assets/images/widget/$imgName.png',
-                fit: BoxFit.contain,
+              child: Transform.scale(
+                scaleX: flipCouple ? -1.0 : 1.0,
+                child: Image.asset(
+                  'assets/images/widget/$imgName.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),

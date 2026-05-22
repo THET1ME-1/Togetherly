@@ -698,6 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
       userData: widget.userData,
       pairData: _pairData,
       timerService: _timerService,
+      widgetService: _widgetService,
     );
   }
 

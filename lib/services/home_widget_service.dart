@@ -485,14 +485,8 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('days_${g}_relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
-      await HomeWidget.saveWidgetData<String>(
-        'days_${g}_my_gender',
-        myGender.isNotEmpty ? myGender : 'male',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'days_${g}_partner_gender',
-        partnerGender.isNotEmpty ? partnerGender : 'female',
-      );
+      await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
+      await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
       // Save latest group for fallback binding
       await HomeWidget.saveWidgetData<String>('days_latest_group', groupId);
       await HomeWidget.updateWidget(

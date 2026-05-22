@@ -53,6 +53,8 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 if (coupleResId != 0) {
                     setImageViewResource(R.id.couple_image, coupleResId)
                 }
+                // User is always on the left; flip mf image when user=female, partner=male
+                setFloat(R.id.couple_image, "setScaleX", if (myGender == "female" && partnerGender == "male") -1f else 1f)
 
                 // ── Расчёт лет ──
                 val years = totalDays / 365

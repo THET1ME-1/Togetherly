@@ -19,8 +19,8 @@ import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
-import 'package:home_widget/home_widget.dart';
 import '../services/home_widget_service.dart';
+import '../services/widget_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -33,11 +33,13 @@ class ProfileScreen extends StatefulWidget {
   final UserData userData;
   final PairData pairData;
   final TimerService timerService;
+  final WidgetService widgetService;
   const ProfileScreen({
     super.key,
     required this.userData,
     required this.pairData,
     required this.timerService,
+    required this.widgetService,
   });
 
   @override
@@ -939,10 +941,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (context.mounted) {
         await widget.userData.updateProfile(gender: selectedGender);
 
-        final pgData = await HomeWidget.getWidgetData<String>('partner_gender');
-        final partnerGender = (pgData != null && pgData.isNotEmpty)
-            ? pgData
-            : 'female';
+        final partnerGender =
+            widget.widgetService.firstPartnerData?.gender ?? '';
         final sysTimer = widget.timerService.systemTimer;
 
         final uid = widget.userData.uid;
@@ -958,21 +958,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             debugPrint('Failed to update widgetData gender: $e');
           }
         }
-
-        await HomeWidget.saveWidgetData<String>(
-          'my_gender',
-          selectedGender.name,
-        );
-        await HomeWidget.saveWidgetData<String>(
-          'partner_gender',
-          partnerGender,
-        );
-
-        await HomeWidget.updateWidget(
-          name: 'DaysCounterWidgetProvider',
-          qualifiedAndroidName:
-              'com.togetherly.love.DaysCounterWidgetProvider',
-        );
 
         await HomeWidgetService.instance.syncAllBoundWidgets(
           activeGroupId: widget.pairData.pairId,
