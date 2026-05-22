@@ -659,125 +659,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMascotRow() {
-    final mascot = _mascotService.activeMascot;
-    final streak = _mascotService.state.streakDays;
-
     return ValueListenableBuilder<bool>(
       valueListenable: mascotHiddenNotifier,
       builder: (context, isHidden, _) {
-        return GestureDetector(
+        return _MascotButton(
+          mascot: _mascotService.activeMascot,
+          service: _mascotService,
+          theme: _t,
+          streak: _mascotService.state.streakDays,
+          isHidden: isHidden,
           onTap: _openMascotGallery,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _t.cardBorder),
-            ),
-            child: Row(
-              children: [
-                // Mascot preview
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: mascot != null
-                      ? _MascotPreviewWidget(
-                          mascot: mascot,
-                          service: _mascotService,
-                        )
-                      : Icon(
-                          Icons.sentiment_satisfied_alt,
-                          size: 36,
-                          color: _t.primary.withAlpha(120),
-                        ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        mascot != null ? mascot.name : 'Маскот группы',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        streak > 0
-                            ? '🔥 Серия: $streak дн.'
-                            : mascot != null
-                            ? 'Нажмите для галереи'
-                            : 'Выберите маскота',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Show/hide mascot toggle
-                if (mascot != null)
-                  GestureDetector(
-                    onTap: () async {
-                      if (isHidden) {
-                        await showMascotOverlay();
-                      }
-                      // If not hidden, the tap on the card opens gallery — no conflict
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: isHidden
-                        ? Padding(
-                            padding: const EdgeInsets.only(left: 4, right: 2),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _t.primary.withAlpha(20),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: _t.primary.withAlpha(60),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.visibility_outlined,
-                                    size: 14,
-                                    color: _t.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Показать',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _t.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 14,
-                            color: Colors.grey.shade400,
-                          ),
-                  )
-                else
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 14,
-                    color: Colors.grey.shade400,
-                  ),
-              ],
-            ),
-          ),
+          onShowOverlay: showMascotOverlay,
         );
       },
     );
@@ -1471,10 +1363,289 @@ class _MascotPreviewWidget extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: mascot.imageUrl!,
         fit: BoxFit.contain,
-        placeholder: (_, __) => const SizedBox.shrink(),
-        errorWidget: (_, __, ___) => const Icon(Icons.face),
+        placeholder: (_, _) => const SizedBox.shrink(),
+        errorWidget: (_, _, _) => const Icon(Icons.face),
       );
     }
     return const Icon(Icons.face);
+  }
+}
+
+// ── Animated mascot button ────────────────────────────────────────────────────
+
+class _MascotButton extends StatefulWidget {
+  final Mascot? mascot;
+  final MascotService service;
+  final AppTheme theme;
+  final int streak;
+  final bool isHidden;
+  final VoidCallback onTap;
+  final Future<void> Function()? onShowOverlay;
+
+  const _MascotButton({
+    required this.mascot,
+    required this.service,
+    required this.theme,
+    required this.streak,
+    required this.isHidden,
+    required this.onTap,
+    this.onShowOverlay,
+  });
+
+  @override
+  State<_MascotButton> createState() => _MascotButtonState();
+}
+
+class _MascotButtonState extends State<_MascotButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mascot = widget.mascot;
+    final streak = widget.streak;
+    final t = widget.theme;
+    final hasStreak = streak > 0;
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: t.cardSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasStreak
+                  ? t.primary.withValues(alpha: 0.22)
+                  : t.cardBorder,
+              width: hasStreak ? 1.5 : 1.0,
+            ),
+            boxShadow: hasStreak
+                ? [
+                    BoxShadow(
+                      color: t.primary.withValues(alpha: 0.1),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: mascot != null
+                    ? _MascotPreviewWidget(
+                        mascot: mascot,
+                        service: widget.service,
+                      )
+                    : Icon(
+                        Icons.sentiment_satisfied_alt,
+                        size: 36,
+                        color: t.primary.withAlpha(120),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      mascot != null ? mascot.name : 'Маскот группы',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (hasStreak)
+                      _StreakBadge(
+                        streak: streak,
+                        theme: t,
+                        pulseCtrl: _pulseCtrl,
+                      )
+                    else
+                      Text(
+                        mascot != null
+                            ? 'Нажмите для галереи'
+                            : 'Выберите маскота',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (mascot != null)
+                GestureDetector(
+                  onTap: widget.isHidden
+                      ? () => widget.onShowOverlay?.call()
+                      : null,
+                  behavior: HitTestBehavior.opaque,
+                  child: widget.isHidden
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 4, right: 2),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: t.primary.withAlpha(20),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: t.primary.withAlpha(60),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.visibility_outlined,
+                                  size: 14,
+                                  color: t.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Показать',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: t.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Colors.grey.shade400,
+                        ),
+                )
+              else
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: Colors.grey.shade400,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Animated streak badge ─────────────────────────────────────────────────────
+
+class _StreakBadge extends StatelessWidget {
+  final int streak;
+  final AppTheme theme;
+  final AnimationController pulseCtrl;
+
+  const _StreakBadge({
+    required this.streak,
+    required this.theme,
+    required this.pulseCtrl,
+  });
+
+  Color _color() {
+    if (streak >= 30) return const Color(0xFFFF9500);
+    if (streak >= 7) return const Color(0xFFFF6B35);
+    return theme.primary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: pulseCtrl,
+            builder: (_, _) {
+              final scale = Tween<double>(begin: 1.0, end: 1.4)
+                  .animate(
+                    CurvedAnimation(
+                      parent: pulseCtrl,
+                      curve: Curves.easeInOut,
+                    ),
+                  )
+                  .value;
+              return Transform.scale(
+                scale: scale,
+                child: const Text('🔥', style: TextStyle(fontSize: 11)),
+              );
+            },
+          ),
+          const SizedBox(width: 5),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: streak),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (_, val, _) => Text(
+              'Серия: $val ${_dayLabel(val)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dayLabel(int n) {
+    if (n % 100 >= 11 && n % 100 <= 14) return 'дней';
+    switch (n % 10) {
+      case 1:
+        return 'день';
+      case 2:
+      case 3:
+      case 4:
+        return 'дня';
+      default:
+        return 'дней';
+    }
   }
 }
