@@ -65,14 +65,13 @@ class WidgetService extends ChangeNotifier {
   /// Привязка к группе. Начинает слушать свой виджет.
   Future<void> bindToGroup(String groupId) async {
     if (groupId.isEmpty || groupId == _groupId) return;
-    final generation = ++_bindGeneration;
+    // unbindFromGroup increments _bindGeneration internally, so capture
+    // the generation AFTER the call to avoid an immediate guard mismatch.
     await unbindFromGroup(clearNativeWidget: false);
-    if (_isDisposed || generation != _bindGeneration) return;
+    final generation = ++_bindGeneration;
     _groupId = groupId;
     await _loadSettings();
-    if (_isDisposed || generation != _bindGeneration || _groupId != groupId) {
-      return;
-    }
+    if (_isDisposed || generation != _bindGeneration) return;
     _listenToMyData();
     notifyListeners();
   }
