@@ -297,24 +297,19 @@ class WidgetService extends ChangeNotifier {
     await _updateField({'photoUrl': url}, groupId: _groupId);
   }
 
-  /// Устанавливает кастомное фото конкретно для виджета "Фото дня"
-  Future<void> updatePhotoDayUrl(String url) async {
+  /// Фото, которым я делюсь с партнёром для partner-widget.
+  Future<void> updatePhotoForPartnerUrl(String url) async {
     await _updateField({
-      'photoDayUrl': url,
-      'photoDayUrls': [url],
+      'photoForPartnerUrl': url,
+      'photoForPartnerUrls': [url],
     }, groupId: _groupId);
   }
 
-  Future<void> updatePhotoDayCarousel(List<String> urls) async {
+  Future<void> updatePhotoForPartnerCarousel(List<String> urls) async {
     await _updateField({
-      'photoDayUrls': urls,
-      'photoDayUrl': urls.isNotEmpty ? urls.first : null,
+      'photoForPartnerUrls': urls,
+      'photoForPartnerUrl': urls.isNotEmpty ? urls.first : null,
     }, groupId: _groupId);
-  }
-
-  /// Обновить режим PhotoDay (random/custom)
-  Future<void> setPhotoDayMode(String mode) async {
-    await _updateField({'photoDayMode': mode}, groupId: _groupId);
   }
 
   /// Сохранить настройки сетки фото (мои фото, которые увидит партнёр)

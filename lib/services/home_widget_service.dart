@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_service.dart';
 import '../models/timer_item.dart';
-import '../models/memory.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -47,7 +46,6 @@ class HomeWidgetService {
   // ════════════════════════════════════════════════════════════════════════
 
   static const _boundGroupPrefix = 'widget_bound_group_';
-  static const _photoModePrefix = 'photo_day_mode_';
   static const _photoSaveMemoryPrefix = 'photo_day_save_memory_';
   static const _photoRefreshSeedPrefix = 'photo_day_refresh_seed_';
   static const _photoDayPendingConfigsKey = 'photo_day_pending_configs';
@@ -58,19 +56,7 @@ class HomeWidgetService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_boundGroupPrefix$widgetType', groupId);
 
-    // Если это фото дня и режим не задан — ставим по умолчанию random
-    if (widgetType == 'photo_day') {
-      if (prefs.getString('$_photoModePrefix$groupId') == null) {
-        await prefs.setString('$_photoModePrefix$groupId', 'random');
-      }
-    }
-
     debugPrint('HomeWidgetService: $widgetType bound to group $groupId');
-  }
-
-  Future<String> getPhotoDayMode(String groupId) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('$_photoModePrefix$groupId') ?? 'random';
   }
 
   Future<List<int>> getPhotoDayWidgetIds() async {
@@ -143,10 +129,7 @@ class HomeWidgetService {
     final prefs = await SharedPreferences.getInstance();
     final widgetMode = prefs.getString(_photoDayWidgetKey(widgetId, 'mode'));
     if (widgetMode != null && widgetMode.isNotEmpty) return widgetMode;
-    if (fallbackGroupId != null && fallbackGroupId.isNotEmpty) {
-      return getPhotoDayMode(fallbackGroupId);
-    }
-    return 'random';
+    return 'custom';
   }
 
   Future<void> setPhotoDayWidgetMode(int widgetId, String mode) async {
@@ -158,10 +141,24 @@ class HomeWidgetService {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_photoDayWidgetKey(widgetId, 'kind'));
     if (stored != null && stored.isNotEmpty) return stored;
+    final homeWidgetStored = await HomeWidget.getWidgetData<String>(
+      _photoDayWidgetKey(widgetId, 'kind'),
+    );
+    if (homeWidgetStored != null && homeWidgetStored.isNotEmpty) {
+      await prefs.setString(_photoDayWidgetKey(widgetId, 'kind'), homeWidgetStored);
+      return homeWidgetStored;
+    }
     final legacyDisplay = prefs.getString(
       _photoDayWidgetKey(widgetId, 'display'),
     );
     return legacyDisplay == 'partner' ? 'partner' : 'self';
+  }
+
+  Future<String?> getPhotoDayWidgetStoredKind(int widgetId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_photoDayWidgetKey(widgetId, 'kind'));
+    if (stored == null || stored.isEmpty) return null;
+    return stored;
   }
 
   Future<String> getPhotoDayWidgetDisplay(int widgetId) async {
@@ -185,11 +182,15 @@ class HomeWidgetService {
       final data = doc.data();
       final uid = data['uid'] as String? ?? '';
       if (uid.isNotEmpty && uid != currentUserUid) {
-        final photoDayUrls = List<String>.from(data['photoDayUrls'] ?? []);
+        final sharedUrls = List<String>.from(
+          data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
+        );
         return {
-          'photoDayMode': data['photoDayMode'] as String? ?? 'random',
-          'photoDayUrl': data['photoDayUrl'] as String? ?? '',
-          'photoDayUrls': photoDayUrls.join(','),
+          'photoUrl':
+              data['photoForPartnerUrl'] as String? ??
+              data['photoDayUrl'] as String? ??
+              '',
+          'photoUrls': sharedUrls.join(','),
           'authorName': data['displayName'] as String? ?? '',
           'authorUid': uid,
         };
@@ -212,9 +213,8 @@ class HomeWidgetService {
       );
       if (partnerUid.isEmpty) return null;
       return {
-        'photoDayMode': 'random',
-        'photoDayUrl': '',
-        'photoDayUrls': '',
+        'photoUrl': '',
+        'photoUrls': '',
         'authorName': memberNames[partnerUid] as String? ?? '',
         'authorUid': partnerUid,
       };
@@ -239,13 +239,8 @@ class HomeWidgetService {
 
     if (!doc.exists || doc.data() == null) return null;
 
-    final data = doc.data()!;
-    final photoDayUrls = List<String>.from(data['photoDayUrls'] ?? []);
     return {
-      'photoDayMode': data['photoDayMode'] as String? ?? 'random',
-      'photoDayUrl': data['photoDayUrl'] as String? ?? '',
-      'photoDayUrls': photoDayUrls.join(','),
-      'authorName': data['displayName'] as String? ?? '',
+      'authorName': (doc.data()!)['displayName'] as String? ?? '',
       'authorUid': currentUserUid,
     };
   }
@@ -298,7 +293,21 @@ class HomeWidgetService {
 
   Future<String?> getPhotoDayWidgetGroupId(int widgetId) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_photoDayWidgetKey(widgetId, 'group_id'));
+    final stored = prefs.getString(_photoDayWidgetKey(widgetId, 'group_id'));
+    if (stored != null && stored.isNotEmpty) return stored;
+
+    final homeWidgetStored = await HomeWidget.getWidgetData<String>(
+      _photoDayWidgetKey(widgetId, 'group_id'),
+    );
+    if (homeWidgetStored != null && homeWidgetStored.isNotEmpty) {
+      await prefs.setString(
+        _photoDayWidgetKey(widgetId, 'group_id'),
+        homeWidgetStored,
+      );
+      return homeWidgetStored;
+    }
+
+    return stored;
   }
 
   Future<String?> getPhotoDayWidgetCustomPath(int widgetId) async {
@@ -421,11 +430,6 @@ class HomeWidgetService {
         await HomeWidget.saveWidgetData<String>(key, entry.value);
       }
     }
-  }
-
-  Future<void> setPhotoDayMode(String groupId, String mode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_photoModePrefix$groupId', mode);
   }
 
   Future<bool> getPhotoDaySaveMemory(String groupId) async {
@@ -796,61 +800,41 @@ class HomeWidgetService {
         currentUserName = userDoc.data()?['displayName'] ?? '';
       }
 
-      final mode = await getPhotoDayWidgetMode(
-        widgetId,
-        fallbackGroupId: groupId,
-      );
-
       await _savePhotoDayWidgetData(widgetId, {
         'viewer_uid': currentUserUid,
         'viewer_name': currentUserName,
-        'mode': mode,
+        'mode': 'custom',
         'kind': selectedKind,
         'group_id': groupId,
       });
 
-      // Каждый личный виджет хранит СВОИ URL-ы. Для self/custom приоритет —
-      // per-widget URL (чтобы виджет А и виджет Б показывали разные фото),
-      // и только если их нет, делаем fallback на общее поле в Firestore.
       final List<String> ownWidgetUrls = await getPhotoDayWidgetUrls(widgetId);
 
-      // Выбираем данные в зависимости от типа виджета
       Map<String, String>? targetData;
       if (selectedKind == 'partner') {
         targetData = await _getPartnerWidgetData(groupId, currentUserUid);
-        // Не останавливаемся при null — даём шанс random-fallback из Memory Lane
-        // (если партнёр не настроил виджет, показываем случайное фото из ленты)
       } else {
         targetData = await _getMyWidgetData(groupId, currentUserUid);
       }
 
-      final targetMode = targetData?['photoDayMode'] ?? 'random';
-      final targetPhotoUrl = targetData?['photoDayUrl'] ?? '';
-      final targetPhotoUrlsRaw = targetData?['photoDayUrls'] ?? '';
+      final targetPhotoUrl = targetData?['photoUrl'] ?? '';
+      final targetPhotoUrlsRaw = targetData?['photoUrls'] ?? '';
       List<String> targetPhotoUrls = targetPhotoUrlsRaw.isNotEmpty
           ? targetPhotoUrlsRaw.split(',')
           : [];
 
-      // Per-widget URLs имеют приоритет для self-виджетов: каждый экземпляр
-      // показывает свой набор фото независимо от других.
       if (selectedKind != 'partner' && ownWidgetUrls.isNotEmpty) {
         targetPhotoUrls = ownWidgetUrls;
       }
 
-      // Self-виджет показывает кастомные фото ТОЛЬКО если у него есть собственный
-      // набор URL. Firestore-поле photoDayUrls принадлежит другим экземплярам виджета
-      // и не должно использоваться для виджетов без своего набора — иначе каждый
-      // новый виджет копирует фото уже настроенного.
-      // Partner-виджет: показываем фото партнёра если они вообще есть — не требуем
-      // явного mode='custom', потому что пользователь не управляет режимом партнёра.
       final bool targetHasCustomPhoto = selectedKind == 'partner'
           ? (targetPhotoUrl.isNotEmpty || targetPhotoUrls.isNotEmpty)
           : ownWidgetUrls.isNotEmpty;
 
       if (targetHasCustomPhoto) {
         debugPrint(
-          'HomeWidgetService: showing custom photo '
-          '(targetMode=$targetMode, widgetMode=$mode, kind=$selectedKind) '
+          'HomeWidgetService: showing photo '
+          '(kind=$selectedKind) '
           'author=${targetData?['authorName']} uid=${targetData?['authorUid']}',
         );
 
@@ -878,78 +862,11 @@ class HomeWidgetService {
         return;
       }
 
-      // Self-виджет без собственных фото должен показывать заглушку,
-      // а не случайное фото из Memory Lane. Случайные фото — только для
-      // partner-виджетов, где пользователь не управляет содержимым вручную.
-      if (selectedKind != 'partner') {
-        debugPrint(
-          'HomeWidgetService: self-widget $widgetId has no own photos → showing placeholder',
-        );
-        await _clearPhotoOfDay(widgetId: widgetId, groupId: groupId);
-        return;
-      }
-
-      // Если random (partner-виджет) — выбираем случайное фото из Memory Lane
-      final snap = await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .where('type', isEqualTo: 'photo')
-          .get();
-
-      if (snap.docs.isEmpty) {
-        debugPrint('HomeWidgetService: no photo memories for photo of day');
-        return;
-      }
-
-      final allMemories = snap.docs
-          .map((doc) => Memory.fromFirestore(doc.id, doc.data()))
-          .toList();
-
-      final targetUid = targetData?['authorUid'];
-      final targetMemories = targetUid != null && targetUid.isNotEmpty
-          ? allMemories.where((m) => m.authorUid == targetUid).toList()
-          : <Memory>[];
-      final candidateMemories = targetMemories.isNotEmpty
-          ? targetMemories
-          : allMemories;
-
-      if (candidateMemories.isEmpty) {
-        await _clearPhotoOfDay(
-          widgetId: widgetId,
-          groupId: groupId,
-          authorName: targetData?['authorName'] ?? '',
-          authorUid: targetData?['authorUid'] ?? '',
-        );
-        return;
-      }
-
-      final seed = forceNext
-          ? await incrementPhotoDayWidgetRefreshSeed(widgetId)
-          : await getPhotoDayWidgetRefreshSeed(widgetId);
-
-      final selectedMemory = _pickDailyRandomMemory(
-        candidateMemories,
-        groupId,
-        seed,
-        widgetId,
-      );
-      if (selectedMemory == null ||
-          selectedMemory.imageUrl == null ||
-          selectedMemory.imageUrl!.isEmpty) {
-        debugPrint('HomeWidgetService: selected random memory has no image');
-        return;
-      }
-
-      await syncPhotoOfDay(
-        photoUrl: selectedMemory.imageUrl!,
-        caption: selectedMemory.caption ?? '',
-        memoryId: selectedMemory.id,
-        authorName: selectedMemory.authorName,
-        authorUid: selectedMemory.authorUid,
+      await _clearPhotoOfDay(
         widgetId: widgetId,
         groupId: groupId,
-        refreshSeed: seed,
+        authorName: targetData?['authorName'] ?? '',
+        authorUid: targetData?['authorUid'] ?? '',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoOfDay failed: $e');
@@ -976,7 +893,7 @@ class HomeWidgetService {
       await _savePhotoDayWidgetData(widgetId, {
         'viewer_uid': currentUserUid,
         'viewer_name': currentUserName,
-        'mode': 'self',
+        'mode': 'custom',
         'kind': selectedKind,
         'group_id': '',
       });
@@ -1027,23 +944,6 @@ class HomeWidgetService {
     }
   }
 
-  Memory? _pickDailyRandomMemory(
-    List<Memory> memories,
-    String groupId, [
-    int seed = 0,
-    int? widgetId,
-  ]) {
-    if (memories.isEmpty) return null;
-    final sorted = List<Memory>.from(memories)
-      ..sort((a, b) => a.id.compareTo(b.id));
-    final dayIndex = DateTime.now().difference(DateTime(2000)).inDays;
-    // widgetId включён в хэш: каждый экземпляр виджета показывает своё уникальное фото
-    final hash = groupId.hashCode ^ dayIndex ^ (widgetId ?? 0);
-    // seed сдвигает индекс, позволяя выбирать разные фото при повторных нажатиях
-    final index = (hash.abs() + seed) % sorted.length;
-    return sorted[index];
-  }
-
   /// Вызывается при удалении воспоминания, чтобы убрать его из виджете, если оно там отображалось
   Future<void> handleMemoryDeleted(
     String groupId,
@@ -1058,13 +958,7 @@ class HomeWidgetService {
           'HomeWidgetService: Deleted memory was displayed in widget. Updating...',
         );
 
-        // Если это был кастомный режим (свое фото), переключаем обратно в random
-        final mode = await getPhotoDayMode(groupId);
-        if (mode == 'custom') {
-          await setPhotoDayMode(groupId, 'random');
-        }
-
-        // Временно очищаем виджет (на случай если это было последнее фото)
+        // Временно очищаем виджет
         await HomeWidget.saveWidgetData<String>('photo_day_path', '');
         await HomeWidget.saveWidgetData<String>('photo_day_caption', '');
         await HomeWidget.saveWidgetData<String>('photo_day_memory_id', '');

@@ -14,10 +14,9 @@ class WidgetData {
   String moodEmoji; // путь к изображению emoji (из MoodOption)
   String moodLabel; // текстовая метка настроения
   String message; // короткое сообщение / love note
-  String photoDayMode; // 'random' or 'custom'
   String? photoUrl; // URL фотографии (для парного виджета)
-  String? photoDayUrl; // URL кастомного фото для виджета "Фото дня"
-  List<String> photoDayUrls; // Список фото для карусели (заменяет одиночное)
+  String? photoForPartnerUrl; // Фото, которое увидит партнёр в photo-widget
+  List<String> photoForPartnerUrls; // Карусель фото для партнёра
   int photoGridCount; // 1, 2 или 4
   List<String> photoGridUrls; // URL фото для сетки
   String? musicTitle; // название песни
@@ -35,10 +34,9 @@ class WidgetData {
     this.moodEmoji = '',
     this.moodLabel = '',
     this.message = '',
-    this.photoDayMode = 'random',
     this.photoUrl,
-    this.photoDayUrl,
-    this.photoDayUrls = const [],
+    this.photoForPartnerUrl,
+    this.photoForPartnerUrls = const [],
     this.photoGridCount = 1,
     this.photoGridUrls = const [],
 
@@ -86,8 +84,8 @@ class WidgetData {
     'moodLabel': moodLabel,
     'message': message,
     'photoUrl': photoUrl,
-    'photoDayUrl': photoDayUrl,
-    'photoDayUrls': photoDayUrls,
+    'photoForPartnerUrl': photoForPartnerUrl,
+    'photoForPartnerUrls': photoForPartnerUrls,
     'photoGridCount': photoGridCount,
     'photoGridUrls': photoGridUrls,
     'musicTitle': musicTitle,
@@ -95,7 +93,6 @@ class WidgetData {
     'musicUrl': musicUrl,
     'musicCoverUrl': musicCoverUrl,
     'gender': gender,
-    'photoDayMode': photoDayMode,
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -109,8 +106,11 @@ class WidgetData {
       moodLabel: data['moodLabel'] ?? '',
       message: data['message'] ?? '',
       photoUrl: data['photoUrl'],
-      photoDayUrl: data['photoDayUrl'],
-      photoDayUrls: List<String>.from(data['photoDayUrls'] ?? []),
+      photoForPartnerUrl:
+          data['photoForPartnerUrl'] ?? data['photoDayUrl'],
+      photoForPartnerUrls: List<String>.from(
+        data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
+      ),
       photoGridCount: (data['photoGridCount'] as int?) ?? 1,
       photoGridUrls: List<String>.from(data['photoGridUrls'] ?? []),
       musicTitle: data['musicTitle'],
@@ -118,7 +118,6 @@ class WidgetData {
       musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
       gender: data['gender'] ?? '',
-      photoDayMode: data['photoDayMode'] ?? 'random',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -132,14 +131,13 @@ class WidgetData {
     String? moodLabel,
     String? message,
     String? photoUrl,
-    String? photoDayUrl,
-    List<String>? photoDayUrls,
+    String? photoForPartnerUrl,
+    List<String>? photoForPartnerUrls,
     String? musicTitle,
     String? musicArtist,
     String? musicUrl,
     String? musicCoverUrl,
     String? gender,
-    String? photoDayMode,
     int? photoGridCount,
     List<String>? photoGridUrls,
     DateTime? updatedAt,
@@ -152,10 +150,10 @@ class WidgetData {
       moodEmoji: moodEmoji ?? this.moodEmoji,
       moodLabel: moodLabel ?? this.moodLabel,
       message: message ?? this.message,
-      photoDayMode: photoDayMode ?? this.photoDayMode,
       photoUrl: photoUrl ?? this.photoUrl,
-      photoDayUrl: photoDayUrl ?? this.photoDayUrl,
-      photoDayUrls: photoDayUrls ?? this.photoDayUrls,
+      photoForPartnerUrl: photoForPartnerUrl ?? this.photoForPartnerUrl,
+      photoForPartnerUrls:
+          photoForPartnerUrls ?? this.photoForPartnerUrls,
       photoGridCount: photoGridCount ?? this.photoGridCount,
       photoGridUrls: photoGridUrls ?? this.photoGridUrls,
       musicTitle: musicTitle ?? this.musicTitle,

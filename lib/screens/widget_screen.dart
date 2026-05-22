@@ -276,7 +276,15 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     for (final id in allIds) {
       final kind = await hws.getPhotoDayWidgetKind(id);
-      if (kind == 'partner') {
+      final storedKind = await hws.getPhotoDayWidgetStoredKind(id);
+      final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
+      final isCurrentGroup = _pair.pairId.isEmpty
+          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          : (widgetGroupId == _pair.pairId || widgetGroupId == null);
+      if (!isCurrentGroup) {
+        continue;
+      }
+      if (kind == 'partner' || storedKind == 'partner') {
         partnerIds.add(id);
       } else {
         personalIds.add(id);
@@ -332,7 +340,6 @@ class _WidgetScreenState extends State<WidgetScreen>
         display: widgetDisplay,
         widgetPreviewPath: preview['path'],
         widgetCustomPath: customPath,
-        myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
         fallbackPartnerPhotoPath: _partnerSharedPreviewPath,
       );
       widgetOwnPhotoPaths[widgetId] =
@@ -435,7 +442,15 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     for (final id in allIds) {
       final kind = await hws.getPhotoDayWidgetKind(id);
-      if (kind == 'partner') {
+      final storedKind = await hws.getPhotoDayWidgetStoredKind(id);
+      final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
+      final isCurrentGroup = _pair.pairId.isEmpty
+          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          : (widgetGroupId == _pair.pairId || widgetGroupId == null);
+      if (!isCurrentGroup) {
+        continue;
+      }
+      if (kind == 'partner' || storedKind == 'partner') {
         partnerIds.add(id);
       } else {
         personalIds.add(id);
@@ -496,7 +511,6 @@ class _WidgetScreenState extends State<WidgetScreen>
         display: widgetDisplay,
         widgetPreviewPath: preview['path'],
         widgetCustomPath: customPath,
-        myPhotoUrl: urls.isNotEmpty ? _ws.myData?.photoDayUrl : null,
         fallbackPartnerPhotoPath: _partnerSharedPreviewPath,
       );
       widgetOwnPhotoPaths[widgetId] =
@@ -537,10 +551,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   String? get _partnerSharedPreviewPath {
-    final partnerUrls = _ws.firstPartnerData?.photoDayUrls ?? const <String>[];
+    final partnerUrls =
+        _ws.firstPartnerData?.photoForPartnerUrls ?? const <String>[];
     if (partnerUrls.isNotEmpty) return partnerUrls.first;
 
-    final singleUrl = _ws.firstPartnerData?.photoDayUrl;
+    final singleUrl = _ws.firstPartnerData?.photoForPartnerUrl;
     if (singleUrl != null && singleUrl.isNotEmpty) return singleUrl;
 
     return null;
@@ -678,6 +693,41 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
+  Future<void> _showPhotoForPartnerSourcePicker() async {
+    if (_pair.pairId.isEmpty) return;
+
+    final initialPaths =
+        _ws.myData?.photoForPartnerUrls ?? const <String>[];
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PhotoDayCarouselEditor(
+        theme: _t,
+        initialPaths: initialPaths,
+        initialRotationType: 'none',
+        initialRotationInterval: 60,
+        onPickFromMemories: (maxCount) => MemoryPhotoPicker.show(
+          ctx,
+          groupId: _pair.pairId,
+          theme: _t,
+          maxCount: maxCount,
+          alreadySelected: initialPaths,
+        ),
+        onSave:
+            ({
+              required paths,
+              required rotationType,
+              required rotationInterval,
+            }) async {
+              await _savePhotosForPartner(paths);
+            },
+      ),
+    );
+  }
+
   Future<void> _saveCarouselForWidget({
     required int widgetId,
     required List<String> paths,
@@ -730,13 +780,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     // Per-widget URL-набор: каждый экземпляр виджета держит СВОИ фото.
     await hws.setPhotoDayWidgetUrls(widgetId, uploadedUrls);
 
-    // Дублируем последнюю настройку в Firestore — это «текущий набор,
-    // которым я делюсь с партнёром» (для виджета "Фото партнёра" у партнёра).
-    // Skip for solo mode (no group in Firestore)
-    if (uploadedUrls.isNotEmpty && _pair.pairId.isNotEmpty) {
-      await _ws.updatePhotoDayCarousel(uploadedUrls);
-    }
-
     // Личный фото-виджет — всегда custom (без режима «случайное из воспоминаний»).
     await hws.setPhotoDayWidgetMode(widgetId, 'custom');
     await hws.setPhotoDayWidgetRotationType(widgetId, rotationType);
@@ -751,6 +794,39 @@ class _WidgetScreenState extends State<WidgetScreen>
     PaintingBinding.instance.imageCache.clearLiveImages();
 
     await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
+    await _loadPhotoDayWidgets();
+  }
+
+  Future<void> _savePhotosForPartner(List<String> paths) async {
+    final fb = FirebaseService();
+    final uid = fb.uid ?? '';
+    final groupId = _pair.pairId;
+    if (uid.isEmpty || groupId.isEmpty) return;
+
+    final uploadedUrls = <String>[];
+
+    for (final path in paths) {
+      if (path.startsWith('http')) {
+        uploadedUrls.add(path);
+        continue;
+      }
+
+      try {
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final uploadedUrl = await fb.uploadFile(
+          path,
+          'widget/$groupId/${uid}_partner_$ts.jpg',
+        );
+        if (uploadedUrl != null) {
+          uploadedUrls.add(uploadedUrl);
+        }
+      } catch (e) {
+        debugPrint('Failed to upload photo for partner widget: $e');
+      }
+    }
+
+    await _ws.updatePhotoForPartnerCarousel(uploadedUrls);
+    await HomeWidgetService.instance.refreshPhotoOfDay(groupId);
     await _loadPhotoDayWidgets();
   }
 
@@ -2213,8 +2289,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         ? _pair.partnerName
         : 'партнёр';
     final partnerSharedCount =
-        _ws.firstPartnerData?.photoDayUrls.length ??
-        ((_ws.firstPartnerData?.photoDayUrl?.isNotEmpty ?? false) ? 1 : 0);
+        _ws.firstPartnerData?.photoForPartnerUrls.length ??
+        ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
+            ? 1
+            : 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2243,6 +2321,48 @@ class _WidgetScreenState extends State<WidgetScreen>
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_t.primary.withOpacity(0.92), _t.primary],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _t.primary.withOpacity(0.18),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _showPhotoForPartnerSourcePicker,
+              icon: const Icon(Icons.favorite_rounded, size: 18),
+              label: Text(
+                'Выбрать фото для партнёра',
+                style: GoogleFonts.rubik(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -2314,8 +2434,8 @@ class _WidgetScreenState extends State<WidgetScreen>
 
         // Счёт фото в виджете
         final int photoCount = isPartner
-            ? (_ws.firstPartnerData?.photoDayUrls.length ??
-                  ((_ws.firstPartnerData?.photoDayUrl?.isNotEmpty ?? false)
+            ? (_ws.firstPartnerData?.photoForPartnerUrls.length ??
+                  ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
                       ? 1
                       : 0))
             : (_photoDayWidgetUrls[widgetId]?.length ?? 0);
@@ -2523,7 +2643,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (!mounted) return;
 
     final hws = HomeWidgetService.instance;
-    final partnerCount = _ws.firstPartnerData?.photoDayUrls.length ?? 0;
+    final partnerCount = _ws.firstPartnerData?.photoForPartnerUrls.length ?? 0;
     String rotationType = await hws.getPhotoDayWidgetRotationType(widgetId);
     int rotationInterval = await hws.getPhotoDayWidgetRotationInterval(
       widgetId,

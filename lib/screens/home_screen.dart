@@ -1037,18 +1037,17 @@ class _HomeScreenState extends State<HomeScreen> {
         longitude: photoLng,
       );
 
-      // If user chose to set as widget Photo of the Day
-      if (result.setAsWidget) {
+      // Автоматически отправляем свежее фото в виджет «Фото партнёра».
+      // Переключатель остаётся как ручное отключение, но по умолчанию он включён.
+      if (_pairData.pairId.isNotEmpty && result.setAsWidget) {
         try {
           final prefs = await SharedPreferences.getInstance();
-          await _widgetService.setPhotoDayMode('custom');
-          await _widgetService.updatePhotoDayUrl(downloadUrl);
+          await _widgetService.updatePhotoForPartnerUrl(downloadUrl);
           await prefs.setString(
             'photo_day_path_${_pairData.pairId}',
             photo.path,
           );
           final hws = HomeWidgetService.instance;
-          await hws.setPhotoDayMode(_pairData.pairId, 'custom');
           await hws.refreshPhotoOfDay(_pairData.pairId);
         } catch (e) {
           debugPrint('Failed to set widget photo day: $e');
@@ -1085,7 +1084,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return showDialog<({String? title, String? caption, bool setAsWidget})>(
       context: context,
       builder: (ctx) {
-        bool setAsWidget = false;
+        bool setAsWidget = true;
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
             return Dialog(
@@ -1171,7 +1170,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Опция: установить как фото дня виджета
+                    // Опция: сразу показать это фото в виджете партнёра
                     Row(
                       children: [
                         Expanded(
