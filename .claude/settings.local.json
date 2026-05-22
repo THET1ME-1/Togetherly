@@ -19,7 +19,8 @@
       "Bash(xargs grep -l \"showModalBottomSheet\\\\|ModalBottomSheet\\\\|DraggableScrollableSheet\")",
       "Bash(xargs grep -l \"index\\\\|Index\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(xargs grep -l \"music\")"
     ]
   }
 }

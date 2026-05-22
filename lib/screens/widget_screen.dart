@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
+import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -4423,8 +4425,19 @@ class _WidgetScreenState extends State<WidgetScreen>
         initialTitle: data.musicTitle ?? '',
         initialArtist: data.musicArtist ?? '',
         initialUrl: data.musicUrl ?? '',
-        onSave: ({required String title, required String artist, String? url}) {
-          _ws.updateMusic(title: title, artist: artist, url: url);
+        initialCoverUrl: data.musicCoverUrl ?? '',
+        onSave: ({
+          required String title,
+          required String artist,
+          String? url,
+          String? coverUrl,
+        }) {
+          _ws.updateMusic(
+            title: title,
+            artist: artist,
+            url: url,
+            coverUrl: coverUrl,
+          );
           Navigator.pop(ctx);
         },
       ),
@@ -4962,18 +4975,20 @@ class _MusicEditorSheet extends StatefulWidget {
   final String initialTitle;
   final String initialArtist;
   final String initialUrl;
+  final String initialCoverUrl;
   final void Function({
     required String title,
     required String artist,
     String? url,
-  })
-  onSave;
+    String? coverUrl,
+  }) onSave;
 
   const _MusicEditorSheet({
     required this.theme,
     required this.initialTitle,
     required this.initialArtist,
     required this.initialUrl,
+    required this.initialCoverUrl,
     required this.onSave,
   });
 
@@ -4985,6 +5000,10 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   late TextEditingController _titleCtrl;
   late TextEditingController _artistCtrl;
   late TextEditingController _urlCtrl;
+  late FocusNode _urlFocus;
+
+  bool _isFetching = false;
+  String? _coverUrl;
 
   @override
   void initState() {
@@ -4992,6 +5011,12 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
     _titleCtrl = TextEditingController(text: widget.initialTitle);
     _artistCtrl = TextEditingController(text: widget.initialArtist);
     _urlCtrl = TextEditingController(text: widget.initialUrl);
+    _coverUrl = widget.initialCoverUrl.isNotEmpty ? widget.initialCoverUrl : null;
+
+    _urlFocus = FocusNode();
+    _urlFocus.addListener(() {
+      if (!_urlFocus.hasFocus) _triggerFetch();
+    });
   }
 
   @override
@@ -4999,7 +5024,29 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
     _titleCtrl.dispose();
     _artistCtrl.dispose();
     _urlCtrl.dispose();
+    _urlFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _triggerFetch() async {
+    final url = _urlCtrl.text.trim();
+    if (url.isEmpty || !url.startsWith('http')) return;
+    if (!mounted) return;
+    setState(() => _isFetching = true);
+    final meta = await _fetchMusicMeta(url);
+    if (!mounted) return;
+    setState(() {
+      _isFetching = false;
+      if ((meta['title']?.isNotEmpty ?? false) && _titleCtrl.text.isEmpty) {
+        _titleCtrl.text = meta['title']!;
+      }
+      if ((meta['artist']?.isNotEmpty ?? false) && _artistCtrl.text.isEmpty) {
+        _artistCtrl.text = meta['artist']!;
+      }
+      if (meta['cover']?.isNotEmpty ?? false) {
+        _coverUrl = meta['cover'];
+      }
+    });
   }
 
   @override
@@ -5059,109 +5106,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
             ),
             const SizedBox(height: 20),
 
-            // ─── Song Details Section ───
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    primary.withOpacity(0.04),
-                    const Color(0xFFEC4899).withOpacity(0.03),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: primary.withOpacity(0.12)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          size: 16,
-                          color: primary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Song Details',
-                        style: GoogleFonts.rubik(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _buildField(
-                    _titleCtrl,
-                    LocaleService.current.trackName,
-                    Icons.audiotrack_rounded,
-                  ),
-                  const SizedBox(height: 10),
-                  _buildField(
-                    _artistCtrl,
-                    LocaleService.current.artist,
-                    Icons.person_rounded,
-                  ),
-                ],
-              ),
-            ),
-
-            // ─── Divider ───
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Divider(color: Colors.grey.shade200, height: 1),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.link_rounded, size: 14, color: primary),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Source',
-                            style: GoogleFonts.rubik(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Divider(color: Colors.grey.shade200, height: 1),
-                  ),
-                ],
-              ),
-            ),
-
-            // ─── Link Section ───
+            // ─── Link Section (first — paste link to auto-fill below) ───
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -5188,7 +5133,144 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Streaming Link',
+                        LocaleService.current.streamingLink,
+                        style: GoogleFonts.rubik(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // URL field with fetch button
+                  TextField(
+                    controller: _urlCtrl,
+                    focusNode: _urlFocus,
+                    keyboardType: TextInputType.url,
+                    style: GoogleFonts.rubik(fontSize: 15),
+                    onSubmitted: (_) => _triggerFetch(),
+                    decoration: InputDecoration(
+                      hintText: LocaleService.current.pasteLinkFromService,
+                      hintStyle: GoogleFonts.rubik(
+                        color: Colors.grey.shade400,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.link_rounded,
+                        color: primary,
+                        size: 20,
+                      ),
+                      suffixIcon: _isFetching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: M3LoadingDots(
+                                  color: Colors.grey,
+                                  dotSize: 4,
+                                  gap: 2,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: Icon(
+                                Icons.manage_search_rounded,
+                                color: primary,
+                              ),
+                              tooltip: LocaleService.current.autoFetchSongInfo,
+                              onPressed: _triggerFetch,
+                            ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: primary,
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ─── Song Details Section ───
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    primary.withOpacity(0.04),
+                    const Color(0xFFEC4899).withOpacity(0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: primary.withOpacity(0.12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Album cover preview
+                      if (_coverUrl != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: _coverUrl!,
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.music_note_rounded,
+                                  size: 22,
+                                  color: primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 16,
+                              color: primary,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        LocaleService.current.songDetails,
                         style: GoogleFonts.rubik(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -5199,9 +5281,15 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                   ),
                   const SizedBox(height: 14),
                   _buildField(
-                    _urlCtrl,
-                    LocaleService.current.linkOptional,
-                    Icons.link_rounded,
+                    _titleCtrl,
+                    LocaleService.current.trackName,
+                    Icons.audiotrack_rounded,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildField(
+                    _artistCtrl,
+                    LocaleService.current.artist,
+                    Icons.person_rounded,
                   ),
                 ],
               ),
@@ -5221,6 +5309,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                     title: title,
                     artist: artist,
                     url: url.isNotEmpty ? url : null,
+                    coverUrl: _coverUrl,
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -5244,6 +5333,274 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
         ),
       ),
     );
+  }
+
+  // ── Music metadata fetching (same logic as Memory Lane) ──
+
+  String _decodeHtmlEntities(String text) => text
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&apos;', "'")
+      .replaceAll('&#x27;', "'")
+      .replaceAll('&nbsp;', ' ');
+
+  Future<Map<String, String?>> _fetchMusicMeta(String url) async {
+    final lower = url.toLowerCase();
+
+    // YouTube / YouTube Music
+    if (lower.contains('youtube.com') ||
+        lower.contains('youtu.be') ||
+        lower.contains('music.youtube.com')) {
+      try {
+        final resp = await http.get(Uri.parse(
+          'https://www.youtube.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
+        ));
+        if (resp.statusCode == 200) {
+          final data = json.decode(resp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      } catch (e) {
+        debugPrint('YouTube meta fetch error: $e');
+      }
+      return {};
+    }
+
+    // Spotify
+    if (lower.contains('spotify.com')) {
+      try {
+        final oembedResp = await http.get(
+          Uri.parse('https://open.spotify.com/oembed?url=${Uri.encodeComponent(url)}'),
+          headers: {'User-Agent': 'Mozilla/5.0'},
+        );
+        String? parsedTitle;
+        String? parsedArtist;
+        String? cover;
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          parsedTitle = data['title'] as String?;
+          cover = data['thumbnail_url'] as String?;
+        }
+        try {
+          final pageResp = await http.get(
+            Uri.parse(url),
+            headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+          );
+          if (pageResp.statusCode == 200) {
+            final titleMatch = RegExp(r'<title[^>]*>(.+?)</title>', caseSensitive: false)
+                .firstMatch(pageResp.body);
+            if (titleMatch != null) {
+              final byMatch = RegExp(r'(?:song and lyrics|[Aa]lbum|single)\s+by\s+(.+?)\s*\|\s*Spotify')
+                  .firstMatch(titleMatch.group(1) ?? '');
+              if (byMatch != null) parsedArtist = byMatch.group(1)?.trim();
+            }
+          }
+        } catch (_) {}
+        return {'title': parsedTitle, 'artist': parsedArtist, 'cover': cover};
+      } catch (e) {
+        debugPrint('Spotify meta fetch error: $e');
+      }
+    }
+
+    // Deezer
+    final isDeezer = lower.contains('deezer.com') ||
+        lower.contains('deezer.page.link') ||
+        lower.contains('link.deezer.com');
+    if (isDeezer) {
+      try {
+        String resolvedUrl = url;
+        if (lower.contains('deezer.page.link') || lower.contains('link.deezer.com')) {
+          try {
+            String current = url;
+            for (int i = 0; i < 5; i++) {
+              final httpClient = HttpClient()
+                ..connectionTimeout = const Duration(seconds: 6);
+              final req = await httpClient.getUrl(Uri.parse(current));
+              req.followRedirects = false;
+              final resp = await req.close();
+              final location = resp.headers.value('location');
+              httpClient.close();
+              if (location == null || location.isEmpty) break;
+              current = location;
+              if (current.toLowerCase().contains('deezer.com/') &&
+                  current.toLowerCase().contains('/track/')) {
+                resolvedUrl = current;
+                break;
+              }
+              resolvedUrl = current;
+            }
+          } catch (_) {}
+        }
+        final trackMatch =
+            RegExp(r'deezer\.com/(?:[^/?#]+/)*track/(\d+)').firstMatch(resolvedUrl.toLowerCase());
+        if (trackMatch != null) {
+          final apiResp = await http.get(
+            Uri.parse('https://api.deezer.com/track/${trackMatch.group(1)}'),
+            headers: {'Accept': 'application/json'},
+          );
+          if (apiResp.statusCode == 200) {
+            final data = json.decode(apiResp.body) as Map<String, dynamic>;
+            if (data['error'] == null) {
+              return {
+                'title': data['title'] as String?,
+                'artist': (data['artist'] as Map<String, dynamic>?)?['name'] as String?,
+                'cover': (data['album'] as Map<String, dynamic>?)?['cover_big'] as String?,
+              };
+            }
+          }
+        }
+        final oembedResp = await http.get(
+          Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(resolvedUrl)}'),
+        );
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          if (data['error'] == null && data['title'] != null) {
+            return {
+              'title': data['title'] as String?,
+              'artist': data['author_name'] as String?,
+              'cover': data['thumbnail_url'] as String?,
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint('Deezer meta fetch error: $e');
+      }
+    }
+
+    // SoundCloud
+    if (lower.contains('soundcloud.com')) {
+      try {
+        final oembedResp = await http.get(Uri.parse(
+          'https://soundcloud.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
+        ));
+        if (oembedResp.statusCode == 200) {
+          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      } catch (e) {
+        debugPrint('SoundCloud meta fetch error: $e');
+      }
+    }
+
+    // Яндекс Музыка
+    if (lower.contains('music.yandex.')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+        );
+        if (pageResp.statusCode == 200) {
+          final titleMatch = RegExp(r'<title[^>]*>(.+?)</title>', caseSensitive: false)
+              .firstMatch(pageResp.body);
+          if (titleMatch != null) {
+            final parts = (titleMatch.group(1) ?? '').split('—');
+            if (parts.length >= 2) {
+              return {
+                'title': parts[0].trim(),
+                'artist': parts[1].split(RegExp(r'слушать|listen')).first.trim(),
+                'cover': null,
+              };
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Yandex Music meta fetch error: $e');
+      }
+    }
+
+    // Apple Music
+    if (lower.contains('music.apple.com')) {
+      try {
+        final trackIdMatch = RegExp(r'[?&]i=(\d+)').firstMatch(url);
+        final pathIdMatch = RegExp(r'/(\d+)(?:[?#/]|$)').allMatches(url).lastOrNull;
+        final lookupId = trackIdMatch?.group(1) ?? pathIdMatch?.group(1);
+        if (lookupId != null) {
+          final resp = await http.get(Uri.parse(
+            'https://itunes.apple.com/lookup?id=$lookupId&entity=song',
+          ));
+          if (resp.statusCode == 200) {
+            final data = json.decode(resp.body) as Map<String, dynamic>;
+            final results = data['results'] as List?;
+            if (results != null && results.isNotEmpty) {
+              final track = results.firstWhere(
+                    (r) => r['wrapperType'] == 'track',
+                    orElse: () => results.first,
+                  ) as Map<String, dynamic>;
+              return {
+                'title': track['trackName'] as String?,
+                'artist': track['artistName'] as String?,
+                'cover': track['artworkUrl100'] as String?,
+              };
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Apple Music meta fetch error: $e');
+      }
+    }
+
+    // Tidal
+    if (lower.contains('tidal.com')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {'User-Agent': 'Twitterbot/1.0'},
+        );
+        if (pageResp.statusCode == 200) {
+          final ogTitleMatch = RegExp(
+            r'property="og:title"\s+content="([^"]+)"',
+            caseSensitive: false,
+          ).firstMatch(pageResp.body);
+          final ogImageMatch = RegExp(
+            r'property="og:image"\s+content="([^"]+)"',
+            caseSensitive: false,
+          ).firstMatch(pageResp.body);
+          if (ogTitleMatch != null) {
+            final raw = _decodeHtmlEntities(ogTitleMatch.group(1) ?? '');
+            final sepIdx = raw.indexOf(' - ');
+            if (sepIdx != -1) {
+              return {
+                'title': raw.substring(sepIdx + 3).trim(),
+                'artist': raw.substring(0, sepIdx).trim(),
+                'cover': ogImageMatch?.group(1),
+              };
+            }
+            return {'title': raw.isNotEmpty ? raw : null, 'artist': null, 'cover': ogImageMatch?.group(1)};
+          }
+        }
+      } catch (e) {
+        debugPrint('Tidal meta fetch error: $e');
+      }
+    }
+
+    // Generic fallback via noembed.com
+    try {
+      final oembedResp = await http.get(
+        Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(url)}'),
+      );
+      if (oembedResp.statusCode == 200) {
+        final data = json.decode(oembedResp.body) as Map<String, dynamic>;
+        if (data['error'] == null) {
+          return {
+            'title': data['title'] as String?,
+            'artist': data['author_name'] as String?,
+            'cover': data['thumbnail_url'] as String?,
+          };
+        }
+      }
+    } catch (_) {}
+
+    return {};
   }
 
   void _showServicesInfo(BuildContext context) {
