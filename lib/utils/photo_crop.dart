@@ -1,14 +1,22 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
 
-/// Открывает системный редактор кадрирования и возвращает путь к
-/// обрезанному файлу. Если пользователь нажал «Отмена» — возвращает null.
+/// Нормализует EXIF-ориентацию (включая зеркальность фронтальной камеры),
+/// затем открывает редактор кадрирования.
+/// Возвращает путь к готовому файлу или null если пользователь отменил.
 Future<String?> cropPhoto(
   String sourcePath, {
   Color accentColor = const Color(0xFFE91E8C),
 }) async {
+  // Сначала убираем EXIF-зеркальность: бакём все трансформации в пиксели
+  final normalized = await _normalizeOrientation(sourcePath);
+  final workPath = normalized ?? sourcePath;
+
   final cropped = await ImageCropper().cropImage(
-    sourcePath: sourcePath,
+    sourcePath: workPath,
     compressFormat: ImageCompressFormat.jpg,
     compressQuality: 88,
     uiSettings: [
@@ -48,5 +56,33 @@ Future<String?> cropPhoto(
       ),
     ],
   );
+
+  // Удаляем временный нормализованный файл если он был создан
+  if (normalized != null && normalized != sourcePath) {
+    try {
+      await File(normalized).delete();
+    } catch (_) {}
+  }
+
   return cropped?.path;
+}
+
+/// Применяет EXIF-трансформации (поворот + зеркальность) к пикселям
+/// и возвращает путь к нормализованному файлу без EXIF.
+Future<String?> _normalizeOrientation(String sourcePath) async {
+  try {
+    final tempDir = await getTemporaryDirectory();
+    final target =
+        '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_norm.jpg';
+    final result = await FlutterImageCompress.compressAndGetFile(
+      sourcePath,
+      target,
+      quality: 95,
+      autoCorrectionAngle: true,
+      keepExif: false,
+    );
+    return result?.path;
+  } catch (_) {
+    return null;
+  }
 }

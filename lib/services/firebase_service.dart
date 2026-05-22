@@ -1801,6 +1801,8 @@ class FirebaseService {
             path,
             targetPath,
             quality: 70,
+            autoCorrectionAngle: true,
+            keepExif: false,
           );
           if (xFile != null) {
             fileToUpload = File(xFile.path);
