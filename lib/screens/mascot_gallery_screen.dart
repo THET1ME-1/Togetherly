@@ -561,7 +561,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                         Text(
                           'Художница - Алёна Гребенева',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 9,
                             color: _t.primary,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.1,
