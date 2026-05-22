@@ -154,6 +154,28 @@
                 android:resource="@xml/photo_day_widget_info" />
         </receiver>
 
+        <receiver android:name=".SelfPhotoWidgetProvider"
+            android:exported="true"
+            android:label="Фото-виджет">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/self_photo_widget_info" />
+        </receiver>
+
+        <receiver android:name=".PartnerPhotoWidgetProvider"
+            android:exported="true"
+            android:label="Фото партнёра">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/partner_photo_widget_info" />
+        </receiver>
+
         <!-- ═══ Виджет: Настроение ═══ -->
         <receiver android:name=".MoodWidgetProvider"
             android:exported="true"

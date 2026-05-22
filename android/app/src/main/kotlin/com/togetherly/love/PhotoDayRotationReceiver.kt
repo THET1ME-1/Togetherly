@@ -22,8 +22,11 @@ class PhotoDayRotationReceiver : BroadcastReceiver() {
 
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         val manager = AppWidgetManager.getInstance(context)
-        val component = ComponentName(context, PhotoDayWidgetProvider::class.java)
-        val widgetIds = manager.getAppWidgetIds(component)
+        val widgetIds = (
+            manager.getAppWidgetIds(ComponentName(context, PhotoDayWidgetProvider::class.java)).toList() +
+            manager.getAppWidgetIds(ComponentName(context, SelfPhotoWidgetProvider::class.java)).toList() +
+            manager.getAppWidgetIds(ComponentName(context, PartnerPhotoWidgetProvider::class.java)).toList()
+        ).distinct().toIntArray()
 
         if (widgetIds.isEmpty()) return
 

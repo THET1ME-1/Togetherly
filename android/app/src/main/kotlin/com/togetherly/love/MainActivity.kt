@@ -24,7 +24,27 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "getPhotoDayWidgetIds" -> {
                     val manager = AppWidgetManager.getInstance(this)
-                    val component = ComponentName(this, PhotoDayWidgetProvider::class.java)
+                    val legacy = manager.getAppWidgetIds(
+                        ComponentName(this, PhotoDayWidgetProvider::class.java)
+                    ).toList()
+                    val selfIds = manager.getAppWidgetIds(
+                        ComponentName(this, SelfPhotoWidgetProvider::class.java)
+                    ).toList()
+                    val partnerIds = manager.getAppWidgetIds(
+                        ComponentName(this, PartnerPhotoWidgetProvider::class.java)
+                    ).toList()
+                    result.success((legacy + selfIds + partnerIds).distinct())
+                }
+
+                "getSelfPhotoWidgetIds" -> {
+                    val manager = AppWidgetManager.getInstance(this)
+                    val component = ComponentName(this, SelfPhotoWidgetProvider::class.java)
+                    result.success(manager.getAppWidgetIds(component).toList())
+                }
+
+                "getPartnerPhotoWidgetIds" -> {
+                    val manager = AppWidgetManager.getInstance(this)
+                    val component = ComponentName(this, PartnerPhotoWidgetProvider::class.java)
                     result.success(manager.getAppWidgetIds(component).toList())
                 }
 

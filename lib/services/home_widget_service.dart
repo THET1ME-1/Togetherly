@@ -132,6 +132,40 @@ class HomeWidgetService {
     return 'custom';
   }
 
+  Future<List<int>> getSelfPhotoWidgetIds() async {
+    if (!Platform.isAndroid) return const [];
+    try {
+      final ids = await _widgetChannel.invokeListMethod<dynamic>(
+        'getSelfPhotoWidgetIds',
+      );
+      return ids
+              ?.map((id) => id is int ? id : int.tryParse(id.toString()))
+              .whereType<int>()
+              .toList() ??
+          const [];
+    } catch (e) {
+      debugPrint('HomeWidgetService.getSelfPhotoWidgetIds failed: $e');
+      return const [];
+    }
+  }
+
+  Future<List<int>> getPartnerPhotoWidgetIds() async {
+    if (!Platform.isAndroid) return const [];
+    try {
+      final ids = await _widgetChannel.invokeListMethod<dynamic>(
+        'getPartnerPhotoWidgetIds',
+      );
+      return ids
+              ?.map((id) => id is int ? id : int.tryParse(id.toString()))
+              .whereType<int>()
+              .toList() ??
+          const [];
+    } catch (e) {
+      debugPrint('HomeWidgetService.getPartnerPhotoWidgetIds failed: $e');
+      return const [];
+    }
+  }
+
   Future<void> setPhotoDayWidgetMode(int widgetId, String mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_photoDayWidgetKey(widgetId, 'mode'), mode);

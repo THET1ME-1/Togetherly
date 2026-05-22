@@ -24,7 +24,7 @@ import android.os.SystemClock
  * Виджет «Фото дня» — случайное фото из Memory Lane.
  * При нажатии открывается лента воспоминаний.
  */
-class PhotoDayWidgetProvider : HomeWidgetProvider() {
+open class PhotoDayWidgetProvider : HomeWidgetProvider() {
 
     override fun onUpdate(
         context: Context,

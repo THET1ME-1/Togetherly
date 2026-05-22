@@ -270,25 +270,25 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<Map<String, dynamic>> _loadPhotoDayWidgetsSilent() async {
     final hws = HomeWidgetService.instance;
     final allIds = await hws.getPhotoDayWidgetIds();
-
+    final rawPersonalIds = await hws.getSelfPhotoWidgetIds();
+    final rawPartnerIds = await hws.getPartnerPhotoWidgetIds();
     final personalIds = <int>[];
     final partnerIds = <int>[];
 
-    for (final id in allIds) {
-      final kind = await hws.getPhotoDayWidgetKind(id);
-      final storedKind = await hws.getPhotoDayWidgetStoredKind(id);
+    for (final id in rawPersonalIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
           ? (widgetGroupId == null || widgetGroupId.isEmpty)
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
-      if (!isCurrentGroup) {
-        continue;
-      }
-      if (kind == 'partner' || storedKind == 'partner') {
-        partnerIds.add(id);
-      } else {
-        personalIds.add(id);
-      }
+      if (isCurrentGroup) personalIds.add(id);
+    }
+
+    for (final id in rawPartnerIds) {
+      final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
+      final isCurrentGroup = _pair.pairId.isEmpty
+          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          : (widgetGroupId == _pair.pairId || widgetGroupId == null);
+      if (isCurrentGroup) partnerIds.add(id);
     }
 
     final selectedPersonal = PhotoDayWidgetLogic.resolveSelectedWidgetId(
@@ -436,25 +436,25 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _loadPhotoDayWidgets() async {
     final hws = HomeWidgetService.instance;
     final allIds = await hws.getPhotoDayWidgetIds();
-
+    final rawPersonalIds = await hws.getSelfPhotoWidgetIds();
+    final rawPartnerIds = await hws.getPartnerPhotoWidgetIds();
     final personalIds = <int>[];
     final partnerIds = <int>[];
 
-    for (final id in allIds) {
-      final kind = await hws.getPhotoDayWidgetKind(id);
-      final storedKind = await hws.getPhotoDayWidgetStoredKind(id);
+    for (final id in rawPersonalIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
           ? (widgetGroupId == null || widgetGroupId.isEmpty)
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
-      if (!isCurrentGroup) {
-        continue;
-      }
-      if (kind == 'partner' || storedKind == 'partner') {
-        partnerIds.add(id);
-      } else {
-        personalIds.add(id);
-      }
+      if (isCurrentGroup) personalIds.add(id);
+    }
+
+    for (final id in rawPartnerIds) {
+      final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
+      final isCurrentGroup = _pair.pairId.isEmpty
+          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          : (widgetGroupId == _pair.pairId || widgetGroupId == null);
+      if (isCurrentGroup) partnerIds.add(id);
     }
 
     final selectedPersonal = PhotoDayWidgetLogic.resolveSelectedWidgetId(
@@ -1563,7 +1563,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             title: 'Фото-виджет',
             subtitle: 'Личная карусель: 1–10 фото с автосменой',
             svgString: _photoSvg,
-            qualifiedName: 'com.togetherly.love.PhotoDayWidgetProvider',
+            qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
             widgetType: 'photo_day_self',
             expandedContent: _buildPhotoDayExpandedContent(),
             isExpanded: _photoDayExpanded,
@@ -1578,7 +1578,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               title: LocaleService.current.widgetModePartner,
               subtitle: LocaleService.current.photoDayPartnerSubtitle,
               svgString: _photoSvg,
-              qualifiedName: 'com.togetherly.love.PhotoDayWidgetProvider',
+              qualifiedName: 'com.togetherly.love.PartnerPhotoWidgetProvider',
               widgetType: 'photo_day_partner',
               expandedContent: _buildPartnerPhotoExpandedContent(),
               isExpanded: _partnerPhotoExpanded,
