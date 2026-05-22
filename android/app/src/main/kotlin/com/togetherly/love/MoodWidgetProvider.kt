@@ -4,14 +4,20 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
 import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -75,10 +81,66 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                 val heartBitmap = createWaterHeartBitmap(120, easedFill, waterColor)
                 views.setImageViewBitmap(heartId, heartBitmap)
                 views.setTextViewText(labelId, label)
+
+                // Avatar
+                val avatarId = if (i == 0) R.id.avatar_0 else R.id.avatar_1
+                val avatarPath = widgetData.getString("user_${i}_avatar_path", "") ?: ""
+                val avatarBitmap = loadScaledBitmap(avatarPath, 80)
+                if (avatarBitmap != null) {
+                    views.setImageViewBitmap(avatarId, getCircularBitmap(avatarBitmap))
+                    views.setViewVisibility(avatarId, View.VISIBLE)
+                } else {
+                    views.setViewVisibility(avatarId, View.GONE)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error populating mood for user $i", e)
             }
         }
+    }
+
+    private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
+        val size = minOf(bitmap.width, bitmap.height)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint().apply { isAntiAlias = true }
+        val srcRect = Rect(
+            (bitmap.width - size) / 2, (bitmap.height - size) / 2,
+            (bitmap.width + size) / 2, (bitmap.height + size) / 2
+        )
+        val dstRectF = RectF(0f, 0f, size.toFloat(), size.toFloat())
+        val radius = size / 2f
+        canvas.drawARGB(0, 0, 0, 0)
+        canvas.drawRoundRect(dstRectF, radius, radius, paint)
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(bitmap, srcRect, dstRectF, paint)
+        paint.xfermode = null
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.WHITE
+        paint.alpha = 180
+        paint.strokeWidth = size * 0.06f
+        canvas.drawCircle(radius, radius, radius - paint.strokeWidth / 2f, paint)
+        return output
+    }
+
+    private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
+        if (path.isNullOrEmpty()) return null
+        val file = java.io.File(path)
+        if (!file.exists()) return null
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, opts)
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
+        var sampleSize = 1
+        var w = opts.outWidth
+        var h = opts.outHeight
+        while (w / 2 >= maxSizePx || h / 2 >= maxSizePx) {
+            sampleSize *= 2; w /= 2; h /= 2
+        }
+        return try {
+            BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            })
+        } catch (e: OutOfMemoryError) { null }
     }
 
     private fun parseColor(hex: String): Int {

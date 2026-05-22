@@ -96,6 +96,8 @@ class WidgetService extends ChangeNotifier {
         _partnerData[partnerUid] = WidgetData.fromFirestore(snap.data()!);
       } else {
         _partnerData[partnerUid] = WidgetData(uid: partnerUid);
+        // Fallback: read name/avatar from group document
+        _loadPartnerFallback(partnerUid);
       }
       _syncToNativeWidget();
       notifyListeners();
@@ -137,10 +139,63 @@ class WidgetService extends ChangeNotifier {
         _myData = WidgetData.fromFirestore(snap.data()!);
       } else {
         _myData = WidgetData(uid: uid);
+        // Bootstrap document with profile data so widget shows name/avatar
+        _initializeMyWidgetData(uid);
       }
       _syncToNativeWidget();
       notifyListeners();
     }, onError: (e) => debugPrint('WidgetService my data listener error: $e'));
+  }
+
+  /// Creates widgetData doc with profile data when it doesn't exist yet.
+  Future<void> _initializeMyWidgetData(String uid) async {
+    final gid = _groupId;
+    if (gid.isEmpty) return;
+    try {
+      final userDoc = await _db.collection('users').doc(uid).get();
+      if (!userDoc.exists || _isDisposed || _groupId != gid) return;
+      final d = userDoc.data()!;
+      await _db
+          .collection('groups')
+          .doc(gid)
+          .collection('widgetData')
+          .doc(uid)
+          .set({
+        'uid': uid,
+        'displayName': d['displayName'] ?? '',
+        'avatarUrl': d['avatarUrl'] ?? '',
+        'gender': d['gender'] ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      debugPrint('WidgetService: widgetData initialized for $uid');
+    } catch (e) {
+      debugPrint('WidgetService._initializeMyWidgetData failed: $e');
+    }
+  }
+
+  /// Reads partner name/avatar from the group document as fallback when
+  /// their widgetData document doesn't exist yet.
+  void _loadPartnerFallback(String partnerUid) {
+    final gid = _groupId;
+    if (gid.isEmpty) return;
+    _db.collection('groups').doc(gid).get().then((groupDoc) {
+      if (!groupDoc.exists || _isDisposed || _groupId != gid) return;
+      final data = groupDoc.data()!;
+      final names = Map<String, dynamic>.from(data['memberNames'] ?? {});
+      final avatars = Map<String, dynamic>.from(data['memberAvatars'] ?? {});
+      final name = names[partnerUid]?.toString() ?? '';
+      final avatar = avatars[partnerUid]?.toString() ?? '';
+      if (name.isEmpty && avatar.isEmpty) return;
+      _partnerData[partnerUid] = WidgetData(
+        uid: partnerUid,
+        displayName: name,
+        avatarUrl: avatar,
+      );
+      _syncToNativeWidget();
+      notifyListeners();
+    }).catchError((Object e) {
+      debugPrint('WidgetService._loadPartnerFallback failed: $e');
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
