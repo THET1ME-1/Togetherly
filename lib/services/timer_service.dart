@@ -122,6 +122,25 @@ class TimerService extends ChangeNotifier {
       return t;
     }).toList();
 
+    // Дедупликация системных таймеров: при race condition может появиться
+    // несколько таймеров с isSystem=true. Оставляем только первый.
+    bool hadDuplicateSystem = false;
+    bool foundSystem = false;
+    _timers = _timers.where((t) {
+      if (t.isSystem) {
+        if (!foundSystem) {
+          foundSystem = true;
+          return true;
+        }
+        hadDuplicateSystem = true;
+        debugPrint(
+          'TimerService: удаляю дублирующийся системный таймер ${t.id} (${t.title})',
+        );
+        return false;
+      }
+      return true;
+    }).toList();
+
     debugPrint(
       'TimerService: _mergeRemoteTimers: получено ${_timers.length} таймеров, '
       'backgroundImagePaths: ${_timers.map((t) => t.backgroundImagePath ?? "null").join(", ")}',
@@ -140,8 +159,9 @@ class TimerService extends ChangeNotifier {
 
     _hasReceivedRemoteSync = true;
 
-    // Если был устаревший путь — сохраняем чистые данные обратно в Firestore
-    if (hadStalePaths) {
+    // Если были устаревшие пути или дублирующиеся системные таймеры —
+    // сохраняем чистые данные обратно в Firestore
+    if (hadStalePaths || hadDuplicateSystem) {
       _saveToFirestore();
     }
 
