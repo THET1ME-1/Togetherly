@@ -278,7 +278,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     for (final id in rawPersonalIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
-          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          ? (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == 'solo')
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
       if (isCurrentGroup) personalIds.add(id);
     }
@@ -286,7 +286,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     for (final id in rawPartnerIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
-          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          ? (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == 'solo')
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
       if (isCurrentGroup) partnerIds.add(id);
     }
@@ -444,7 +444,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     for (final id in rawPersonalIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
-          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          ? (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == 'solo')
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
       if (isCurrentGroup) personalIds.add(id);
     }
@@ -452,7 +452,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     for (final id in rawPartnerIds) {
       final widgetGroupId = await hws.getPhotoDayWidgetGroupId(id);
       final isCurrentGroup = _pair.pairId.isEmpty
-          ? (widgetGroupId == null || widgetGroupId.isEmpty)
+          ? (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == 'solo')
           : (widgetGroupId == _pair.pairId || widgetGroupId == null);
       if (isCurrentGroup) partnerIds.add(id);
     }
@@ -969,7 +969,10 @@ class _WidgetScreenState extends State<WidgetScreen>
     final hws = HomeWidgetService.instance;
     switch (widgetType) {
       case 'days_counter':
-        final sysTimer = _timerService.systemTimer;
+        // In solo mode systemTimer and _pair.startDate are both null;
+        // fall back to the default user timer so the widget shows real data.
+        final sysTimer = _timerService.systemTimer ??
+            (_pair.pairId.isEmpty ? _timerService.defaultTimer : null);
         final start = sysTimer?.startDate ?? _pair.startDate;
         final emoji = sysTimer?.emoji ?? _pair.relationshipEmoji;
         final days = sysTimer != null

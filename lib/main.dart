@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -41,6 +42,22 @@ void main() async {
     } catch (_) {}
     await prefs.setBool(kInstallKey, true);
   }
+
+  // Debug → Release переход: при апгрейде SharedPreferences НЕ очищаются,
+  // поэтому kInstallKey уже есть и выхода из аккаунта не происходит.
+  // Если предыдущая сессия была debug, а текущая release — делаем signOut,
+  // чтобы стейт debug-тестирования не засорял production-окружение.
+  const kLastBuildMode = 'last_build_mode_v1';
+  final lastBuildMode = prefs.getString(kLastBuildMode) ?? '';
+  const currentBuildMode = kDebugMode ? 'debug' : 'release';
+  if (lastBuildMode == 'debug' && currentBuildMode == 'release') {
+    try {
+      if (FirebaseService().isLoggedIn) {
+        await FirebaseService().signOut();
+      }
+    } catch (_) {}
+  }
+  await prefs.setString(kLastBuildMode, currentBuildMode);
 
   // FCM background handler — регистрируем до чего угодно
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

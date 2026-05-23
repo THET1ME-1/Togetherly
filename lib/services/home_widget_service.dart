@@ -527,7 +527,9 @@ class HomeWidgetService {
     String partnerGender = '',
   }) async {
     try {
-      final g = groupId;
+      // Solo mode uses 'solo' as sentinel so Kotlin WidgetGroupHelper
+      // gets a non-empty days_counter_latest_group and can find the data.
+      final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>(
         'days_${g}_count',
         daysCount.toString(),
@@ -537,8 +539,8 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
       await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
       await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
-      // Save latest group for fallback binding
-      await HomeWidget.saveWidgetData<String>('days_latest_group', groupId);
+      // Kotlin WidgetGroupHelper looks up "days_counter_latest_group" (dataType = widgetType)
+      await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         androidName: 'DaysCounterWidgetProvider',
@@ -601,9 +603,9 @@ class HomeWidgetService {
         'timer_${g}_petal_theme',
         themeIndex.toString(),
       );
-      // Save latest group for fallback binding
-      await HomeWidget.saveWidgetData<String>('timer_latest_group', groupId);
-      await HomeWidget.saveWidgetData<String>('petal_timer_latest_group', groupId);
+      // Save latest group for fallback binding (use 'solo' sentinel for solo mode)
+      await HomeWidget.saveWidgetData<String>('timer_latest_group', g);
+      await HomeWidget.saveWidgetData<String>('petal_timer_latest_group', g);
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
         androidName: 'TimerWidgetProvider',
@@ -945,14 +947,15 @@ class HomeWidgetService {
       }
 
       final selectedKind = await getPhotoDayWidgetKind(widgetId);
-      final widgetName = await getPhotoDayWidgetName(widgetId);
 
+      // 'solo' sentinel so getPhotoDayWidgetGroupId returns non-null/'solo',
+      // which prevents pair-mode shouldSync from falsely matching this widget.
       await _savePhotoDayWidgetData(widgetId, {
         'viewer_uid': currentUserUid,
         'viewer_name': currentUserName,
         'mode': 'custom',
         'kind': selectedKind,
-        'group_id': '',
+        'group_id': 'solo',
       });
 
       // For single user, use widget's own stored URLs
@@ -967,10 +970,16 @@ class HomeWidgetService {
         final index = seed % ownUrls.length;
         final selectedUrl = ownUrls[index];
 
+        // Kotlin reads 'photo_day_widget_{id}_path' as a LOCAL file path —
+        // it cannot load HTTP URLs. Download & cache it first.
+        final localPath = selectedUrl.startsWith('http')
+            ? await _cachePhotoFromUrl(selectedUrl, 'photo_day_solo_$widgetId')
+            : selectedUrl;
+
         await _savePhotoDayWidgetData(widgetId, {
-          'photo_url': selectedUrl,
+          'path': localPath,
           'refresh_seed': seed.toString(),
-          'author_name': currentUserName,
+          'author': currentUserName,
           'author_uid': currentUserUid,
         });
       } else if (customPath != null && customPath.isNotEmpty) {
@@ -978,13 +987,13 @@ class HomeWidgetService {
         await _savePhotoDayWidgetData(widgetId, {
           'path': customPath,
           'refresh_seed': '0',
-          'author_name': currentUserName,
+          'author': currentUserName,
           'author_uid': currentUserUid,
         });
       } else {
         // No photos - clear
         await _savePhotoDayWidgetData(widgetId, {
-          'photo_url': '',
+          'path': '',
           'refresh_seed': '0',
         });
       }
@@ -1346,6 +1355,7 @@ class HomeWidgetService {
         activeGroupId: activeGroupId,
         activeSysTimer: activeSysTimer,
         activeStartDate: activeStartDate,
+        activeTimers: activeTimers,
         coupleNames: coupleNames,
         emoji: emoji,
         myGender: myGender,
@@ -1374,9 +1384,11 @@ class HomeWidgetService {
         }
         for (final widgetId in widgetIds) {
           final widgetGroupId = await getPhotoDayWidgetGroupId(widgetId);
-          // For solo mode (empty activeGroupId), sync widgets without bound group or with empty group
+          // Solo widgets get group_id='solo'; unbound widgets have null.
+          // In solo mode: sync solo-marked and unbound widgets.
+          // In pair mode: sync only unbound (null) and widgets bound to this group.
           final shouldSync = activeGroupId.isEmpty
-              ? (widgetGroupId == null || widgetGroupId.isEmpty)
+              ? (widgetGroupId == null || widgetGroupId.isEmpty || widgetGroupId == 'solo')
               : (widgetGroupId == null || widgetGroupId == activeGroupId);
           if (shouldSync) {
             debugPrint(
@@ -1410,6 +1422,7 @@ class HomeWidgetService {
     required String activeGroupId,
     TimerItem? activeSysTimer,
     DateTime? activeStartDate,
+    required List<TimerItem> activeTimers,
     required String coupleNames,
     required String emoji,
     String myGender = '',
@@ -1433,6 +1446,21 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: emoji,
         startDate: _formatDate(activeStartDate),
+        myGender: myGender,
+        partnerGender: partnerGender,
+      );
+    } else if (activeTimers.isNotEmpty) {
+      // Solo mode: no system timer and no pair date — fall back to the default timer.
+      final timer = activeTimers.firstWhere(
+        (t) => t.isDefault,
+        orElse: () => activeTimers.first,
+      );
+      await syncDaysCounter(
+        groupId: activeGroupId,
+        daysCount: timer.daysElapsed.abs(),
+        coupleNames: coupleNames,
+        emoji: timer.emoji,
+        startDate: _formatDate(timer.startDate),
         myGender: myGender,
         partnerGender: partnerGender,
       );
