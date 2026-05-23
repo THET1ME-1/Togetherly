@@ -181,6 +181,7 @@ class TimerService extends ChangeNotifier {
     }
 
     _saveLocal();
+    unawaited(_syncWidgetTimer());
     notifyListeners();
   }
 

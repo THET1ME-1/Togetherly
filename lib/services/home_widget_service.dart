@@ -564,7 +564,9 @@ class HomeWidgetService {
     int themeIndex = 0,
   }) async {
     try {
-      final g = groupId;
+      // Solo mode uses 'solo' as sentinel so Kotlin WidgetGroupHelper
+      // gets a non-empty latest_group and can find the data.
+      final g = groupId.isEmpty ? 'solo' : groupId;
       debugPrint(
         'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch} group=$g',
       );
@@ -618,15 +620,17 @@ class HomeWidgetService {
     }
   }
 
-  /// Очистить данные таймера в виджете
+  /// Очистить данные таймера в виджете (соло-режим, нет таймеров)
   Future<void> clearTimerWidget() async {
     try {
-      await HomeWidget.saveWidgetData<String>('timer_title', '');
-      await HomeWidget.saveWidgetData<String>('timer_days', '0');
-      await HomeWidget.saveWidgetData<String>('timer_emoji', '❤️');
-      await HomeWidget.saveWidgetData<String>('timer_is_countdown', '0');
-      await HomeWidget.saveWidgetData<String>('timer_date', '');
-      await HomeWidget.saveWidgetData<String>('timer_start_ms', '0');
+      // Сбрасываем ключи соло-группы
+      await HomeWidget.saveWidgetData<String>('timer_solo_title', '');
+      await HomeWidget.saveWidgetData<String>('timer_solo_days', '0');
+      await HomeWidget.saveWidgetData<String>('timer_solo_is_countdown', '0');
+      await HomeWidget.saveWidgetData<String>('timer_solo_date', '');
+      await HomeWidget.saveWidgetData<String>('timer_solo_start_ms', '0');
+      await HomeWidget.saveWidgetData<String>('timer_latest_group', 'solo');
+      await HomeWidget.saveWidgetData<String>('petal_timer_latest_group', 'solo');
       await HomeWidget.updateWidget(
         name: 'TimerWidgetProvider',
         androidName: 'TimerWidgetProvider',
