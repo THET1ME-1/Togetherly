@@ -600,6 +600,12 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _syncLockScreenMoodWidget(bool enabled) async {
     final hws = HomeWidgetService.instance;
     final mns = MoodNotificationService.instance;
+
+    if (!_pair.isPaired) {
+      await mns.hide();
+      return;
+    }
+
     final today = DateTime.now();
     final myEntries = _moodService.myEntriesForDay(today);
     final myEntry = myEntries.isNotEmpty ? myEntries.first : null;

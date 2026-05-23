@@ -15,14 +15,14 @@ import '../theme/app_theme.dart';
 class MiniMoodCalendar extends StatefulWidget {
   final MoodService moodService;
   final AppTheme theme;
-  final void Function(DateTime date) onDayTap;
+  final void Function(DateTime date)? onDayTap;
   final void Function(bool visible)? onTodayButtonVisibilityChanged;
 
   const MiniMoodCalendar({
     super.key,
     required this.moodService,
     required this.theme,
-    required this.onDayTap,
+    this.onDayTap,
     this.onTodayButtonVisibilityChanged,
   });
 
@@ -252,14 +252,14 @@ class _DayCell extends StatefulWidget {
   final DateTime today;
   final MoodService moodService;
   final AppTheme theme;
-  final void Function(DateTime) onTap;
+  final void Function(DateTime)? onTap;
 
   const _DayCell({
     required this.date,
     required this.today,
     required this.moodService,
     required this.theme,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
@@ -477,7 +477,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
     final Color baseNumColor = widget.theme.navActiveIcon;
 
     return GestureDetector(
-      onTap: isFuture ? null : () => widget.onTap(widget.date),
+      onTap: isFuture || widget.onTap == null ? null : () => widget.onTap!(widget.date),
       child: Transform.scale(
         scale: _newDayScaleAnimation?.value ?? 1.0,
         child: AnimatedContainer(

@@ -574,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: MiniMoodCalendar(
                     moodService: _moodService,
                     theme: _t,
-                    onDayTap: _showMoodPickerForDate,
+                    onDayTap: _pairData.isPaired ? _showMoodPickerForDate : null,
                     onTodayButtonVisibilityChanged: (v) =>
                         setState(() => _showTodayButton = v),
                   ),
