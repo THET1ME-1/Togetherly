@@ -409,6 +409,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       ),
       actions: [
         IconButton(
+          onPressed: _openPhotoGalleryScreen,
+          icon: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.photo_library_rounded, color: primary, size: 18),
+          ),
+          tooltip: LocaleService.current.openPhotoGallery,
+        ),
+        IconButton(
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(
@@ -686,7 +698,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // ── Photo sub-card (same style as music tile) ──
           GestureDetector(
             onTap: hasPhotos
-                ? () => _openFullscreenGallery(context, allPhotos, 0)
+                ? () async {
+                    final items = _allGalleryItems;
+                    final idx =
+                        items.indexWhere((it) => it.memoryId == memory.id);
+                    final result = await _openFullscreenGallery(
+                      context,
+                      items,
+                      idx >= 0 ? idx : 0,
+                    );
+                    if (result != null && mounted) {
+                      final mem = _memories.firstWhere(
+                        (m) => m.id == result,
+                        orElse: () => memory,
+                      );
+                      _showMemoryDetail(mem);
+                    }
+                  }
                 : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -5867,6 +5895,54 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
+  // ── Global gallery helpers ─────────────────────────────────────────────────
+
+  /// Flattens all photo/video memories into a single ordered list for cross-pin swiping.
+  List<GalleryItem> get _allGalleryItems {
+    final items = <GalleryItem>[];
+    final sorted = [..._memories]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    for (final m in sorted) {
+      if (m.type == MemoryType.photo) {
+        final urls = <String>[
+          if (m.imageUrls?.isNotEmpty == true)
+            ...m.imageUrls!
+          else if (m.imageUrl?.isNotEmpty == true)
+            m.imageUrl!,
+        ];
+        for (final url in urls) {
+          items.add(GalleryItem(url: url, memoryId: m.id, caption: m.caption));
+        }
+      } else if (m.type == MemoryType.video &&
+          m.videoUrl?.isNotEmpty == true) {
+        items.add(GalleryItem(
+          url: m.imageUrl?.isNotEmpty == true ? m.imageUrl! : m.videoUrl!,
+          videoUrl: m.videoUrl,
+          memoryId: m.id,
+          caption: m.caption,
+        ));
+      }
+    }
+    return items;
+  }
+
+  void _openPhotoGalleryScreen() async {
+    final items = _allGalleryItems;
+    if (items.isEmpty) return;
+    final memoryId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => _PhotoGalleryScreen(items: items, primary: primary),
+      ),
+    );
+    if (memoryId != null && mounted) {
+      final mem = _memories.firstWhere(
+        (m) => m.id == memoryId,
+        orElse: () => _memories.first,
+      );
+      _showMemoryDetail(mem);
+    }
+  }
+
   /// Format time ago from DateTime using localized strings
   String _formatTimeAgo(DateTime dt) {
     final s = LocaleService.current;
@@ -5878,18 +5954,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
   }
 
-  /// Open fullscreen photo gallery
-  void _openFullscreenGallery(
-    BuildContext context,
-    List<String> urls,
+  /// Open fullscreen cross-pin gallery, returns memoryId if "go to pin" tapped.
+  Future<String?> _openFullscreenGallery(
+    BuildContext ctx,
+    List<GalleryItem> items,
     int initialIndex,
   ) {
-    Navigator.of(context).push(
+    return Navigator.of(ctx).push<String>(
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black,
         pageBuilder: (_, __, ___) =>
-            FullscreenGallery(urls: urls, initialIndex: initialIndex),
+            FullscreenGallery(items: items, initialIndex: initialIndex),
       ),
     );
   }
@@ -7309,12 +7385,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     ];
     if (allPhotos.isEmpty) return _noImgBox(200);
     void openGallery(int i) {
-      Navigator.of(context).push(
+      final galleryItems = allPhotos
+          .map((url) => GalleryItem(url: url, memoryId: memory.id))
+          .toList();
+      Navigator.of(context).push<String>(
         PageRouteBuilder(
           opaque: false,
           barrierColor: Colors.black,
           pageBuilder: (_, __, ___) =>
-              FullscreenGallery(urls: allPhotos, initialIndex: i),
+              FullscreenGallery(items: galleryItems, initialIndex: i),
         ),
       );
     }
@@ -8646,15 +8725,119 @@ class _CommentsSectionState extends State<_CommentsSection> {
 }
 
 // ══════════════════════════════════════════════════════
-//  Fullscreen Photo Gallery — swipe between photos
+//  GalleryItem — a single photo or video entry
+// ══════════════════════════════════════════════════════
+class GalleryItem {
+  final String url;       // photo URL or video thumbnail
+  final String? videoUrl; // non-null for video items
+  final String memoryId;
+  final String? caption;
+
+  const GalleryItem({
+    required this.url,
+    this.videoUrl,
+    required this.memoryId,
+    this.caption,
+  });
+
+  bool get isVideo => videoUrl != null;
+}
+
+// ══════════════════════════════════════════════════════
+//  Photo Grid Gallery Screen
+// ══════════════════════════════════════════════════════
+class _PhotoGalleryScreen extends StatelessWidget {
+  final List<GalleryItem> items;
+  final Color primary;
+
+  const _PhotoGalleryScreen({required this.items, required this.primary});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = LocaleService.current;
+    final botPad = MediaQuery.of(context).padding.bottom;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          s.allMediaGallery,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+      ),
+      body: GridView.builder(
+        padding: EdgeInsets.only(bottom: botPad + 8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+        ),
+        itemCount: items.length,
+        itemBuilder: (ctx, i) {
+          final item = items[i];
+          return GestureDetector(
+            onTap: () async {
+              final memoryId = await Navigator.of(context).push<String>(
+                PageRouteBuilder(
+                  opaque: false,
+                  barrierColor: Colors.black,
+                  pageBuilder: (_, __, ___) =>
+                      FullscreenGallery(items: items, initialIndex: i),
+                ),
+              );
+              if (memoryId != null && context.mounted) {
+                Navigator.pop(context, memoryId);
+              }
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: item.url,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 300,
+                  memCacheHeight: 300,
+                  errorWidget: (_, __, ___) => Container(
+                    color: Colors.grey.shade900,
+                    child: const Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white38,
+                      size: 28,
+                    ),
+                  ),
+                ),
+                if (item.isVideo)
+                  const Center(
+                    child: Icon(
+                      Icons.play_circle_fill_rounded,
+                      color: Colors.white70,
+                      size: 36,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  Fullscreen Photo Gallery — cross-pin swipe
 // ══════════════════════════════════════════════════════
 class FullscreenGallery extends StatefulWidget {
-  final List<String> urls;
+  final List<GalleryItem> items;
   final int initialIndex;
 
   const FullscreenGallery({
     super.key,
-    required this.urls,
+    required this.items,
     required this.initialIndex,
   });
 
@@ -8679,84 +8862,184 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
     super.dispose();
   }
 
+  GalleryItem get _current => widget.items[_currentIndex];
+
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+    final botPad = MediaQuery.of(context).padding.bottom;
+    final count = widget.items.length;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Photo pages
+          // Photo / video pages
           PageView.builder(
             controller: _pageController,
-            itemCount: widget.urls.length,
+            itemCount: count,
             onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (_, i) => InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 4.0,
-              child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: widget.urls[i],
-                  fit: BoxFit.contain,
-                  placeholder: (_, __) => const Center(
-                    child: M3LoadingDots(
-                      color: Colors.white54,
-                      dotSize: 6,
-                      gap: 4,
+            itemBuilder: (_, i) {
+              final item = widget.items[i];
+              if (item.isVideo) {
+                return GestureDetector(
+                  onTap: () => launchUrl(
+                    Uri.parse(item.videoUrl!),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: item.url,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorWidget: (_, __, ___) =>
+                            Container(color: Colors.grey.shade900),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Center(
+                  child: CachedNetworkImage(
+                    imageUrl: item.url,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => const Center(
+                      child: M3LoadingDots(
+                        color: Colors.white54,
+                        dotSize: 6,
+                        gap: 4,
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => const Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white38,
+                      size: 48,
                     ),
                   ),
-                  errorWidget: (_, __, ___) => const Icon(
-                    Icons.broken_image_rounded,
-                    color: Colors.white38,
-                    size: 48,
+                ),
+              );
+            },
+          ),
+          // Top bar: go-to-pin (left) + close (right)
+          Positioned(
+            top: topPad + 8,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context, _current.memoryId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.55),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.push_pin_rounded,
+                          color: Colors.white,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          LocaleService.current.goToPin,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Close button
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: 16,
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-          // Page indicator (only when > 1 photo)
-          if (widget.urls.length > 1)
+          // Page indicator / counter
+          if (count > 1)
             Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 24,
+              bottom: botPad + 24,
               left: 0,
               right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  widget.urls.length,
-                  (i) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: i == _currentIndex ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: i == _currentIndex
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(4),
+              child: count <= 20
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        count,
+                        (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: i == _currentIndex ? 24 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: i == _currentIndex
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.35),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          '${_currentIndex + 1} / $count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
         ],
       ),

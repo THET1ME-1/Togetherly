@@ -753,6 +753,11 @@ abstract class AppStrings {
   String get photoGridSelectPhotos;
   String get photoGridAddPhoto;
   String get photoGridCountLabel;
+
+  // ── Memory Lane Gallery ──
+  String get goToPin;
+  String get openPhotoGallery;
+  String get allMediaGallery;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2183,6 +2188,12 @@ class _RuStrings extends AppStrings {
   String get photoGridAddPhoto => 'Добавить фото';
   @override
   String get photoGridCountLabel => 'фото на виджете';
+  @override
+  String get goToPin => 'К воспоминанию';
+  @override
+  String get openPhotoGallery => 'Галерея фото';
+  @override
+  String get allMediaGallery => 'Все фото и видео';
 }
 
 class _EnStrings extends AppStrings {
@@ -3598,4 +3609,10 @@ class _EnStrings extends AppStrings {
   String get photoGridAddPhoto => 'Add photo';
   @override
   String get photoGridCountLabel => 'photos on widget';
+  @override
+  String get goToPin => 'Go to memory';
+  @override
+  String get openPhotoGallery => 'Photo gallery';
+  @override
+  String get allMediaGallery => 'All photos & videos';
 }

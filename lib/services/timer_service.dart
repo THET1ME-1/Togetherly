@@ -20,7 +20,17 @@ class TimerService extends ChangeNotifier {
   // Параметры ожидающего создания системного таймера
   Map<String, dynamic>? _pendingSystemTimer;
 
-  List<TimerItem> get timers => List.unmodifiable(_timers);
+  List<TimerItem> get timers {
+    // System timer always at position 0, others follow in creation order.
+    // Do NOT sort by isDefault — it changes on every swipe and would
+    // cause the carousel to re-order while the user is navigating.
+    final sorted = [..._timers]..sort((a, b) {
+        if (a.isSystem && !b.isSystem) return -1;
+        if (!a.isSystem && b.isSystem) return 1;
+        return 0;
+      });
+    return List.unmodifiable(sorted);
+  }
   int get count => _timers.length;
 
   String get _storageKey {
@@ -146,9 +156,17 @@ class TimerService extends ChangeNotifier {
       'backgroundImagePaths: ${_timers.map((t) => t.backgroundImagePath ?? "null").join(", ")}',
     );
 
-    // Гарантируем что хотя бы один default
-    if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
-      // Системный таймер будет default
+    // Гарантируем ровно один default (не ноль, не два)
+    bool hadDuplicateDefault = false;
+    final defaultTimers = _timers.where((t) => t.isDefault).toList();
+    if (defaultTimers.length > 1) {
+      hadDuplicateDefault = true;
+      final keep = defaultTimers.firstWhere((t) => t.isSystem, orElse: () => defaultTimers.first);
+      for (final t in _timers) {
+        t.isDefault = t.id == keep.id;
+      }
+      debugPrint('TimerService: исправляю дублирующийся default флаг, оставляю ${keep.id}');
+    } else if (defaultTimers.isEmpty && _timers.isNotEmpty) {
       final sys = systemTimer;
       if (sys != null) {
         sys.isDefault = true;
@@ -159,9 +177,9 @@ class TimerService extends ChangeNotifier {
 
     _hasReceivedRemoteSync = true;
 
-    // Если были устаревшие пути или дублирующиеся системные таймеры —
+    // Если были устаревшие пути, дублирующиеся системные или дефолтные таймеры —
     // сохраняем чистые данные обратно в Firestore
-    if (hadStalePaths || hadDuplicateSystem) {
+    if (hadStalePaths || hadDuplicateSystem || hadDuplicateDefault) {
       _saveToFirestore();
     }
 
@@ -186,7 +204,14 @@ class TimerService extends ChangeNotifier {
   }
 
   void _ensureDefaultFlag() {
-    if (_timers.isNotEmpty && !_timers.any((t) => t.isDefault)) {
+    final defaults = _timers.where((t) => t.isDefault).toList();
+    if (defaults.length > 1) {
+      // Оставляем только один default: предпочитаем системный, иначе первый.
+      final keep = defaults.firstWhere((t) => t.isSystem, orElse: () => defaults.first);
+      for (final t in _timers) {
+        t.isDefault = t.id == keep.id;
+      }
+    } else if (defaults.isEmpty && _timers.isNotEmpty) {
       final sys = systemTimer;
       if (sys != null) {
         sys.isDefault = true;

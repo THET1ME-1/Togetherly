@@ -160,7 +160,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                     physics: const NeverScrollableScrollPhysics(),
                     onPageChanged: (idx) {
                       setState(() => _currentIndex = idx);
-                      widget.timerService.setDefault(timers[idx].id);
+                      // setDefault не вызываем здесь — менять основной таймер
+                      // должен только явный переключатель в диалоге настроек.
+                      // Вызов на каждый свайп приводил к дублям isDefault=true
+                      // при race condition с Firestore-слушателем.
                     },
                     itemCount: timers.length,
                     itemBuilder: (context, index) {

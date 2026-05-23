@@ -247,12 +247,15 @@ class MemoryLanePreview extends StatelessWidget {
       memory,
       onTap: () => _openMemoryLane(context),
       onOpenGallery: (urls, index) {
+        final items = urls
+            .map((url) => GalleryItem(url: url, memoryId: ''))
+            .toList();
         Navigator.of(context).push(
           PageRouteBuilder(
             opaque: false,
             barrierColor: Colors.black,
             pageBuilder: (_, __, ___) =>
-                FullscreenGallery(urls: urls, initialIndex: index),
+                FullscreenGallery(items: items, initialIndex: index),
           ),
         );
       },
