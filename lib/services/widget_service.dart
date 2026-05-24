@@ -553,13 +553,15 @@ class WidgetService extends ChangeNotifier {
       );
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
+      // photoForPartnerUrl — фото, которое пользователь явно отправил партнёру;
+      // photoUrl — резервное поле для остальных случаев.
       await HomeWidget.saveWidgetData<String>(
         'my_photo_url',
-        my?.photoUrl ?? '',
+        my?.photoForPartnerUrl ?? my?.photoUrl ?? '',
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_photo_url',
-        partner?.photoUrl ?? '',
+        partner?.photoForPartnerUrl ?? partner?.photoUrl ?? '',
       );
 
       // ── Аватарки для 2-человечного виджета (LoveWidget) ──
@@ -626,7 +628,10 @@ class WidgetService extends ChangeNotifier {
       });
 
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
-      _cachePhotosForWidget(my?.photoUrl, partner?.photoUrl);
+      _cachePhotosForWidget(
+        my?.photoForPartnerUrl ?? my?.photoUrl,
+        partner?.photoForPartnerUrl ?? partner?.photoUrl,
+      );
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
 

@@ -115,11 +115,17 @@ class TimerService extends ChangeNotifier {
   }
 
   /// Слияние remote таймеров с локальными.
-  /// Remote таймеры имеют приоритет.
+  /// Remote таймеры имеют приоритет, но локальные изменения isCountdown
+  /// сохраняются если они не успели синхронизироваться до закрытия приложения.
   void _mergeRemoteTimers(List<TimerItem> remote) {
+    // Снимок локального состояния до перезаписи (загружен из SharedPreferences)
+    final localById = Map.fromEntries(_timers.map((t) => MapEntry(t.id, t)));
+
     // Очищаем устаревшие локальные пути (не URL) — они не синхронизируются
     bool hadStalePaths = false;
+    bool hadUnsyncedIsCountdown = false;
     _timers = remote.map((t) {
+      TimerItem result = t;
       final path = t.backgroundImagePath;
       if (path != null && !path.startsWith('http')) {
         // Локальный путь от другого устройства — удаляем
@@ -127,9 +133,19 @@ class TimerService extends ChangeNotifier {
           'TimerService: очищаю устаревший локальный путь у таймера ${t.id}',
         );
         hadStalePaths = true;
-        return t.copyWith()..backgroundImagePath = null;
+        result = result.copyWith()..backgroundImagePath = null;
       }
-      return t;
+      // Если локальный isCountdown отличается от Firestore — значит изменение
+      // не успело сохраниться до закрытия приложения. Восстанавливаем его.
+      final local = localById[t.id];
+      if (local != null && local.isCountdown != t.isCountdown) {
+        debugPrint(
+          'TimerService: восстанавливаю локальный isCountdown=${local.isCountdown} для таймера ${t.id}',
+        );
+        result = result.copyWith(isCountdown: local.isCountdown);
+        hadUnsyncedIsCountdown = true;
+      }
+      return result;
     }).toList();
 
     // Дедупликация системных таймеров: при race condition может появиться
@@ -177,9 +193,9 @@ class TimerService extends ChangeNotifier {
 
     _hasReceivedRemoteSync = true;
 
-    // Если были устаревшие пути, дублирующиеся системные или дефолтные таймеры —
-    // сохраняем чистые данные обратно в Firestore
-    if (hadStalePaths || hadDuplicateSystem || hadDuplicateDefault) {
+    // Если были устаревшие пути, дублирующиеся таймеры или восстановленный
+    // isCountdown — сохраняем актуальное состояние обратно в Firestore
+    if (hadStalePaths || hadDuplicateSystem || hadDuplicateDefault || hadUnsyncedIsCountdown) {
       _saveToFirestore();
     }
 

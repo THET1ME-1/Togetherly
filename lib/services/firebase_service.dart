@@ -1943,6 +1943,20 @@ class FirebaseService {
       );
 
       await ref.set(memory.toFirestore());
+
+      // Update group-level memory timestamps
+      final groupRef = _db.collection('groups').doc(groupId);
+      await _db.runTransaction((tx) async {
+        final groupSnap = await tx.get(groupRef);
+        final updates = <String, dynamic>{
+          'memoriesUpdatedAt': FieldValue.serverTimestamp(),
+        };
+        if (groupSnap.data()?.containsKey('memoriesCreatedAt') != true) {
+          updates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
+        }
+        tx.update(groupRef, updates);
+      });
+
       return memory;
     } catch (e) {
       debugPrint('addMemory failed: $e');
@@ -1991,6 +2005,10 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .update(updates);
+
+      await _db.collection('groups').doc(groupId).update({
+        'memoriesUpdatedAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       debugPrint('updateMemory failed: $e');
     }
@@ -2025,6 +2043,10 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .delete();
+
+      await _db.collection('groups').doc(groupId).update({
+        'memoriesUpdatedAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       debugPrint('deleteMemory failed: $e');
     }

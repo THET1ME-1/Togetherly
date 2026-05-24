@@ -1,36 +1,52 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to read/write their group's files
+
+    // Проверка членства в группе через Firestore
+    function isGroupMember(groupId) {
+      return request.auth != null
+          && request.auth.uid in firestore.get(
+               /databases/(default)/documents/groups/$(groupId)
+             ).data.members;
+    }
+
+    // Воспоминания — читают только авторизованные, пишут только участники группы
     match /memories/{groupId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 50 * 1024 * 1024; // 50MB limit
+      allow write: if isGroupMember(groupId)
+                   && request.resource.size < 50 * 1024 * 1024;
     }
 
     match /music/{groupId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 30 * 1024 * 1024; // 30MB limit
+      allow write: if isGroupMember(groupId)
+                   && request.resource.size < 30 * 1024 * 1024;
     }
 
     match /timer_backgrounds/{groupId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow write: if isGroupMember(groupId)
+                   && request.resource.size < 10 * 1024 * 1024;
     }
 
     match /widget/{groupId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow write: if isGroupMember(groupId)
+                   && request.resource.size < 10 * 1024 * 1024;
     }
 
-    // Маскоты группы — только участники, до 5 МБ
+    // Маскоты группы
     match /groups/{groupId}/mascots/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow write: if isGroupMember(groupId)
                    && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Рисунки холста — только участники группы
+    match /groups/{groupId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if isGroupMember(groupId)
+                   && request.resource.size < 50 * 1024 * 1024;
     }
 
     // Wallpapers — публичное чтение, запись запрещена
@@ -39,19 +55,12 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // Аватарки пользователей — только свои, до 5 МБ
+    // Аватарки — только своя папка
     match /avatars/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && request.auth.uid == userId
                    && request.resource.size < 5 * 1024 * 1024;
-    }
-
-    // Рисунки холста
-    match /groups/{groupId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 50 * 1024 * 1024;
     }
 
     // Default: deny all
