@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
@@ -10,6 +9,7 @@ import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
+import 'home/widgets/mood_picker_dialog.dart';
 
 /// Экран «Mood Calendar»
 /// Верхняя часть — мой календарь, нижняя — календарь партнёра.
@@ -673,9 +673,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
-          border: isToday
-              ? Border.all(color: widget.theme.primary, width: 2)
-              : null,
         ),
       );
     }
@@ -981,146 +978,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
 
   void _showMoodPickerForDay(DateTime day) {
-    final dayStr =
-        '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}.${day.year}';
-    showModalBottomSheet(
+    showMoodPickerForDate(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                dayStr,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                LocaleService.current.howAreYouFeeling,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: GridView.count(
-                  controller: scrollController,
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 0.75,
-                  children: MoodOption.all.map((m) {
-                    return GestureDetector(
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        _mood.addMood(
-                          moodId: m.id,
-                          imagePath: m.imagePath,
-                          label: m.localizedLabel,
-                          date: day,
-                        );
-                        // Синхронизуем live-настроение если выбран сегодняшний день
-                        final now = DateTime.now();
-                        if (day.year == now.year &&
-                            day.month == now.month &&
-                            day.day == now.day) {
-                          _pair.setMood(m.imagePath, m.localizedLabel);
-                          // skipCalendar: moodService уже добавил запись
-                          _ws.updateMood(
-                            m.imagePath,
-                            m.localizedLabel,
-                            skipCalendar: true,
-                          );
-                        }
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              LocaleService.current.moodRecorded(
-                                m.localizedLabel,
-                              ),
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: m.color.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: m.color.withOpacity(0.3),
-                              ),
-                            ),
-                            child: m.imagePath.isNotEmpty
-                                ? Center(
-                                    child: Image.asset(
-                                      m.imagePath,
-                                      width: 42,
-                                      height: 42,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const SizedBox(
-                                                width: 42,
-                                                height: 42,
-                                              ),
-                                    ),
-                                  )
-                                : const SizedBox(width: 42, height: 42),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            m.localizedLabel,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      date: day,
+      pairData: _pair,
+      moodService: _mood,
+      widgetService: _ws,
+      primary: widget.theme.primary,
+      navActiveIcon: widget.theme.navActiveIcon,
     );
   }
 
@@ -1328,28 +1193,18 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
       height: size,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 500),
-        child: Container(
+        child: ClipRRect(
           key: ValueKey(mood.id),
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: mood.color,
-            borderRadius: BorderRadius.circular(radius),
-            border: widget.isToday
-                ? Border.all(color: widget.primary, width: 2)
-                : null,
-          ),
+          borderRadius: BorderRadius.circular(radius),
           child: size > 20 && mood.imagePath.isNotEmpty
-              ? Center(
-                  child: Image.asset(
-                    mood.imagePath,
-                    width: size * 0.7,
-                    height: size * 0.7,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const SizedBox(),
-                  ),
+              ? Image.asset(
+                  mood.imagePath,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(color: mood.color),
                 )
-              : null,
+              : Container(color: mood.color),
         ),
       ),
     );

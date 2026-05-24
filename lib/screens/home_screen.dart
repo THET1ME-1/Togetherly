@@ -38,6 +38,7 @@ import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../models/mascot.dart';
 import '../services/canvas_storage_service.dart';
+import '../services/emotion_migration_service.dart';
 import '../services/mascot_service.dart';
 import '../widgets/active_mascot_widget.dart';
 import 'mascot_gallery_screen.dart';
@@ -242,6 +243,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Bind mood service to group for Firestore sync
         _moodService.bindToGroup(_pairData.pairId);
+
+        // One-time migration of old emotions to new set (no-op after first run).
+        unawaited(EmotionMigrationService.instance.runIfNeeded(
+          groupId: _pairData.pairId,
+          uid: _fb.uid ?? '',
+        ));
 
         // Bind widget service to group for Firestore sync
         await _widgetService.bindToGroup(_pairData.pairId);

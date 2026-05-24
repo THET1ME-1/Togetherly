@@ -100,12 +100,14 @@ class HomeActionButtons extends StatelessWidget {
                 width: 30,
                 height: 30,
                 child: hasMoodImage
-                    ? Image.asset(
-                        moodImagePath,
-                        width: 30,
-                        height: 30,
-                        errorBuilder: (_, __, ___) =>
-                            _svgIcon(svgIcon, 30, theme.navActiveIcon),
+                    ? ClipOval(
+                        child: Image.asset(
+                          moodImagePath,
+                          width: 30,
+                          height: 30,
+                          errorBuilder: (_, _, _) =>
+                              _svgIcon(svgIcon, 30, theme.navActiveIcon),
+                        ),
                       )
                     : _svgIcon(svgIcon, 30, theme.navActiveIcon),
               ),

@@ -557,13 +557,15 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                             duration: const Duration(milliseconds: 500),
                             child:
                                 current != null && current.imagePath.isNotEmpty
-                                ? Image.asset(
-                                    current.imagePath,
+                                ? ClipOval(
                                     key: ValueKey(current.id),
-                                    width: 30,
-                                    height: 30,
-                                    errorBuilder: (_, __, ___) =>
-                                        const SizedBox.shrink(),
+                                    child: Image.asset(
+                                      current.imagePath,
+                                      width: 30,
+                                      height: 30,
+                                      errorBuilder: (_, _, _) =>
+                                          const SizedBox.shrink(),
+                                    ),
                                   )
                                 : const SizedBox.shrink(),
                           ),
