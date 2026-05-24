@@ -1163,7 +1163,7 @@ class _DrawScreenState extends State<DrawScreen>
       _cancelledPendingStrokeIds.add(undoKey);
     } else {
       removed = _visibleStrokes.where((s) => s.id == undoKey).firstOrNull;
-      if (removed != null) {
+      if (removed != null && _hasSharedCanvas) {
         _remoteStrokes = _remoteStrokes.where((s) => s.id != undoKey).toList();
         remoteIdForDelete = undoKey;
       }
@@ -1171,7 +1171,17 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (removed == null) return;
     _redoStack.add(removed);
-    setState(() => _visibleStrokes = _composeVisibleStrokes());
+
+    if (_hasSharedCanvas) {
+      setState(() => _visibleStrokes = _composeVisibleStrokes());
+    } else {
+      // Solo: strokes live directly in _visibleStrokes, not in remote/pending
+      setState(() {
+        _visibleStrokes = _visibleStrokes
+            .where((s) => s.id != undoKey)
+            .toList();
+      });
+    }
 
     if (!_hasSharedCanvas || remoteIdForDelete == null) return;
 
@@ -1203,6 +1213,7 @@ class _DrawScreenState extends State<DrawScreen>
       strokeWidth: base.strokeWidth,
       points: List<DrawPoint>.unmodifiable(base.points),
       isEraser: base.isEraser,
+      isFilledShape: base.isFilledShape,
       shapeType: base.shapeType,
       orderIndex: _orderCounter,
     );
