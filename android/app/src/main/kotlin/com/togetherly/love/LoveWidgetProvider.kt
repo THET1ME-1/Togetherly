@@ -5,13 +5,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.net.Uri
 import android.util.Log
 import android.view.View
@@ -72,9 +75,9 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Эмодзи настроения ──
             val myEmojiPath = widgetData.getString("my_mood_emoji_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val myEmojiBitmap = loadScaledBitmap(myEmojiPath, 64)
+            val myEmojiBitmap = loadScaledBitmap(myEmojiPath, 64, withAlpha = true)
             if (myEmojiBitmap != null) {
-                setImageViewBitmap(R.id.my_mood_emoji, myEmojiBitmap)
+                setImageViewBitmap(R.id.my_mood_emoji, getCircularEmoji(myEmojiBitmap))
                 setViewVisibility(R.id.my_mood_emoji, View.VISIBLE)
                 setViewVisibility(R.id.my_mood_text, View.GONE)
             } else {
@@ -139,9 +142,9 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Эмодзи настроения партнёра ──
             val partnerEmojiPath = widgetData.getString("partner_mood_emoji_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val partnerEmojiBitmap = loadScaledBitmap(partnerEmojiPath, 64)
+            val partnerEmojiBitmap = loadScaledBitmap(partnerEmojiPath, 64, withAlpha = true)
             if (partnerEmojiBitmap != null) {
-                setImageViewBitmap(R.id.partner_mood_emoji, partnerEmojiBitmap)
+                setImageViewBitmap(R.id.partner_mood_emoji, getCircularEmoji(partnerEmojiBitmap))
                 setViewVisibility(R.id.partner_mood_emoji, View.VISIBLE)
                 setViewVisibility(R.id.partner_mood_text, View.GONE)
             } else {
@@ -184,6 +187,18 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         }
     }
 
+    private fun getCircularEmoji(bitmap: Bitmap): Bitmap {
+        val size = minOf(bitmap.width, bitmap.height)
+        val scaled = if (bitmap.width != size || bitmap.height != size)
+            Bitmap.createScaledBitmap(bitmap, size, size, true) else bitmap
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader }
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        return output
+    }
+
     private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
         val size = minOf(bitmap.width, bitmap.height)
         val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -210,7 +225,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         return output
     }
 
-    private fun loadScaledBitmap(path: String?, maxSizePx: Int): Bitmap? {
+    private fun loadScaledBitmap(path: String?, maxSizePx: Int, withAlpha: Boolean = false): Bitmap? {
         if (path.isNullOrEmpty()) return null
         val file = java.io.File(path)
         if (!file.exists()) return null
@@ -229,7 +244,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         return try {
             BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.RGB_565
+                inPreferredConfig = if (withAlpha) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565
             })
         } catch (e: OutOfMemoryError) { null }
     }

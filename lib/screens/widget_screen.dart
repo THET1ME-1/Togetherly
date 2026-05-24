@@ -1406,7 +1406,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(data.moodEmoji, width: 20, height: 20),
+              ClipOval(child: Image.asset(data.moodEmoji, width: 20, height: 20, fit: BoxFit.cover)),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
@@ -3081,12 +3081,15 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
         const SizedBox(height: 6),
         if (entry != null) ...[
-          Image.asset(
-            entry.imagePath,
-            width: 48,
-            height: 48,
-            errorBuilder: (_, __, ___) =>
-                const Text('😶', style: TextStyle(fontSize: 36)),
+          ClipOval(
+            child: Image.asset(
+              entry.imagePath,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  const Text('😶', style: TextStyle(fontSize: 36)),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -3344,7 +3347,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             value: data.hasMood ? data.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: data.hasMood
-                ? Image.asset(data.moodEmoji, width: 24, height: 24)
+                ? ClipOval(child: Image.asset(data.moodEmoji, width: 24, height: 24, fit: BoxFit.cover))
                 : null,
             onTap: () => _showMoodPicker(),
             onClear: data.hasMood
@@ -3564,7 +3567,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             value: partner.hasMood ? partner.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: partner.hasMood
-                ? Image.asset(partner.moodEmoji, width: 24, height: 24)
+                ? ClipOval(child: Image.asset(partner.moodEmoji, width: 24, height: 24, fit: BoxFit.cover))
                 : null,
           ),
           _slotDivider(),
