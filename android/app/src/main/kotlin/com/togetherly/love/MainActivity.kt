@@ -70,9 +70,12 @@ class MainActivity : FlutterActivity() {
                                 org.json.JSONArray(paths).toString()
                             )
                             .putInt("photo_day_widget_${widgetId}_current_index", 0)
+                            .putLong("photo_day_widget_${widgetId}_last_update", 0L)
                             .apply()
 
-                        // Force schedule alarm in case it wasn't running
+                        // Ensure the rotation alarm is running. scheduleRotationAlarm
+                        // is a no-op if the alarm already exists, so calling it here
+                        // is safe and only creates the alarm on first use or after reboot.
                         PhotoDayWidgetProvider.scheduleRotationAlarm(this)
                         result.success(true)
                     } else {

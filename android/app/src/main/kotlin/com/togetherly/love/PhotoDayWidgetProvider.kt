@@ -206,24 +206,37 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
             val intent = Intent(context, PhotoDayRotationReceiver::class.java).apply {
                 action = PhotoDayRotationReceiver.ACTION_ROTATE_TIMER
             }
-            
-            val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+
+            val noCreateFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_NO_CREATE
+            }
+
+            // Don't reschedule if the alarm is already running — frequent syncs were
+            // constantly calling setInexactRepeating with FLAG_UPDATE_CURRENT, which
+            // replaces the alarm and pushes the first fire 15 min into the future
+            // every time, so the alarm effectively never fired.
+            val existing = PendingIntent.getBroadcast(context, 0, intent, noCreateFlags)
+            if (existing != null) return
+
+            val scheduleFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             } else {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
-            
-            val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
+            val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, scheduleFlags)
 
-            // 15 minutes interval is enough to check for any widget that needs rotation
-            val interval = 15 * 60 * 1000L 
-            
+            // 15-minute interval — enough to serve any widget rotation setting.
+            val interval = 15 * 60 * 1000L
+
             alarmManager.setInexactRepeating(
                 AlarmManager.ELAPSED_REALTIME,
                 SystemClock.elapsedRealtime() + interval,
                 interval,
                 pendingIntent
             )
+            Log.d("PhotoDayWidget", "Rotation alarm scheduled (15 min interval)")
         }
     }
 
