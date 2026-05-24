@@ -723,8 +723,19 @@ class HomeWidgetService {
             displayIndex = storedIndex % localPaths.length;
           }
         } else {
-          // "unlock" or "none": native alarm handles rotation.
-          displayIndex = storedIndex % localPaths.length;
+          // "unlock" or "none": the native PhotoDayRotationReceiver owns the
+          // current index and writes it to HomeWidgetPreferences.
+          // Flutter's own `fcidx_N` lives in FlutterSharedPreferences — a
+          // DIFFERENT file — so it never sees advances made by the native
+          // receiver while the app was closed.  Read the authoritative native
+          // index directly so we don't overwrite the receiver's progress on
+          // every app open.
+          final nativeIndex = await HomeWidget.getWidgetData<int>(
+            _photoDayWidgetKey(widgetId, 'current_index'),
+          );
+          displayIndex = (nativeIndex ?? storedIndex) % localPaths.length;
+          // Keep Flutter's cache in sync.
+          await prefs.setInt(indexKey, displayIndex);
         }
       }
 

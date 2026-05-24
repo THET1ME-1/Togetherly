@@ -1,5 +1,10 @@
 ﻿package com.togetherly.love
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
 import android.appwidget.AppWidgetManager
@@ -9,9 +14,46 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+
+    // Dynamically-registered receiver for ACTION_USER_PRESENT.
+    //
+    // On Android 8.0+ implicit broadcasts declared in the manifest are NOT
+    // delivered, so the manifest entry for PhotoDayRotationReceiver cannot
+    // receive USER_PRESENT on any modern device.  Registering here at runtime
+    // solves this: the receiver lives as long as the app process is alive,
+    // which covers the common case (user just used the app, locks phone,
+    // unlocks → photo changes immediately).  When the process is killed the
+    // 15-min AlarmManager fallback takes over.
+    //
+    // We register on first onStart and unregister only in onDestroy so the
+    // receiver stays active even while the activity is in the back-stack.
+    private var userPresentReceiver: BroadcastReceiver? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (userPresentReceiver == null) {
+            userPresentReceiver = PhotoDayRotationReceiver()
+            val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(userPresentReceiver, filter, RECEIVER_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(userPresentReceiver, filter)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        userPresentReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+        }
+        userPresentReceiver = null
+        super.onDestroy()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
