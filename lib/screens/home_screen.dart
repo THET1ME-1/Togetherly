@@ -822,7 +822,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openNewCanvas() async {
     final s = LocaleService.current;
-    final canvases = await _storage.getCanvases(widget.userData.uid);
+    final canvases = await _storage.getCanvases(widget.userData.uid, groupId: _pairData.pairId);
     final meta = await _storage.createCanvas(
       widget.userData.uid,
       name: '${s.untitledCanvas} ${canvases.length + 1}',

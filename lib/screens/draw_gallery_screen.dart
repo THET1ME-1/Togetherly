@@ -66,7 +66,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   }
 
   Future<void> _load() async {
-    final list = await _storage.getCanvases(_uid);
+    final list = await _storage.getCanvases(_uid, groupId: _groupId);
     if (mounted) {
       setState(() {
         _canvases = list;

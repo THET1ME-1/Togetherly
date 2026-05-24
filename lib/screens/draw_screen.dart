@@ -214,8 +214,42 @@ class _DrawScreenState extends State<DrawScreen>
     )..repeat(reverse: true);
 
     _startFirebaseListeners();
+    if (!_hasSharedCanvas) _loadSoloStrokes();
     _markPresence(true);
     _scheduleHints();
+  }
+
+  // ── Solo stroke persistence ───────────────────────────────────────────────
+
+  Future<void> _loadSoloStrokes() async {
+    final strokes = await CanvasStorageService.instance.loadLocalStrokes(
+      _myUid,
+      _canvasId,
+      groupId: _groupId,
+    );
+    if (!mounted || strokes.isEmpty) return;
+    setState(() {
+      _visibleStrokes = List<DrawStroke>.from(strokes)
+        ..sort(_compareStrokes);
+      // Restore undo history so the user can undo loaded strokes.
+      _myStrokeIds
+        ..clear()
+        ..addAll(strokes.map((s) => s.id));
+      if (strokes.isNotEmpty) {
+        _orderCounter =
+            strokes.map((s) => s.orderIndex).reduce((a, b) => a > b ? a : b) +
+                1;
+      }
+    });
+  }
+
+  void _saveSoloStrokes() {
+    CanvasStorageService.instance.saveLocalStrokes(
+      _myUid,
+      _canvasId,
+      _visibleStrokes,
+      groupId: _groupId,
+    );
   }
 
   //  Thumbnail capture
@@ -239,6 +273,7 @@ class _DrawScreenState extends State<DrawScreen>
         _myUid,
         _canvasId,
         byteData.buffer.asUint8List(),
+        groupId: _groupId,
       );
     } catch (e) {
       debugPrint('[Draw] thumbnail error: $e');
@@ -1113,6 +1148,7 @@ class _DrawScreenState extends State<DrawScreen>
         _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
       });
       _myStrokeIds.add(stroke.id);
+      _saveSoloStrokes();
       return;
     }
 
@@ -1181,6 +1217,7 @@ class _DrawScreenState extends State<DrawScreen>
             .where((s) => s.id != undoKey)
             .toList();
       });
+      _saveSoloStrokes();
     }
 
     if (!_hasSharedCanvas || remoteIdForDelete == null) return;
@@ -1360,7 +1397,10 @@ class _DrawScreenState extends State<DrawScreen>
       _bgColor = Colors.white;
     });
 
-    if (!_hasSharedCanvas) return;
+    if (!_hasSharedCanvas) {
+      _saveSoloStrokes();
+      return;
+    }
 
     try {
       await Future.wait([

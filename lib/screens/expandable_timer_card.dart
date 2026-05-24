@@ -322,7 +322,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
               24,
               16,
               24,
-              MediaQuery.of(ctx).viewInsets.bottom + 32,
+              MediaQuery.of(ctx).viewInsets.bottom +
+                  MediaQuery.of(ctx).padding.bottom +
+                  32,
             ),
             child: SingleChildScrollView(
               child: Column(
