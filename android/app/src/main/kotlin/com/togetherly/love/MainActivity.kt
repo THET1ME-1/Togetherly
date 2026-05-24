@@ -57,25 +57,23 @@ class MainActivity : FlutterActivity() {
                 "updatePhotoDayCarousel" -> {
                     val widgetId = call.argument<Int>("widgetId")
                     val paths = call.argument<List<String>>("paths")
+                    // Flutter computes the display index; use it so native receiver
+                    // continues advancing from the correct position.
+                    val currentIndex = call.argument<Int>("currentIndex") ?: 0
 
                     if (widgetId != null && paths != null) {
                         val prefs = getSharedPreferences("HomeWidgetPreferences", android.content.Context.MODE_PRIVATE)
-                        // Reset current_index to 0 so the carousel starts from the
-                        // first photo. Without this, the index is out of sync with
-                        // the freshly set `path` (= paths[0]), causing the first
-                        // rotation event to land on the same photo (no visible change).
                         prefs.edit()
                             .putString(
                                 "photo_day_widget_${widgetId}_paths",
                                 org.json.JSONArray(paths).toString()
                             )
-                            .putInt("photo_day_widget_${widgetId}_current_index", 0)
-                            .putLong("photo_day_widget_${widgetId}_last_update", 0L)
+                            .putInt("photo_day_widget_${widgetId}_current_index", currentIndex)
+                            // Record the advance time so the native receiver knows when
+                            // Flutter last rotated and doesn't double-advance.
+                            .putLong("photo_day_widget_${widgetId}_last_update", System.currentTimeMillis())
                             .apply()
 
-                        // Ensure the rotation alarm is running. scheduleRotationAlarm
-                        // is a no-op if the alarm already exists, so calling it here
-                        // is safe and only creates the alarm on first use or after reboot.
                         PhotoDayWidgetProvider.scheduleRotationAlarm(this)
                         result.success(true)
                     } else {

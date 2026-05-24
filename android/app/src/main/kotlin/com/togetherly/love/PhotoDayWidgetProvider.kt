@@ -202,23 +202,33 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
         }
 
         fun scheduleRotationAlarm(context: Context) {
+            val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+            val lastScheduled = prefs.getLong("rotation_alarm_last_scheduled", 0L)
+            val now = System.currentTimeMillis()
+
+            // Reschedule at most every 30 minutes to prevent frequent syncs from
+            // constantly pushing the first-fire time into the future (which caused the
+            // alarm to never fire). The 30-minute window also allows updating the alarm
+            // type (e.g. ELAPSED_REALTIME → ELAPSED_REALTIME_WAKEUP) after an app update.
+            if (now - lastScheduled < 30 * 60 * 1000L) return
+
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val intent = Intent(context, PhotoDayRotationReceiver::class.java).apply {
                 action = PhotoDayRotationReceiver.ACTION_ROTATE_TIMER
             }
 
-            val noCreateFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            // Cancel existing alarm before rescheduling so we can change the type
+            // from the old ELAPSED_REALTIME (doesn't wake device) to ELAPSED_REALTIME_WAKEUP.
+            val cancelFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
             } else {
                 PendingIntent.FLAG_NO_CREATE
             }
-
-            // Don't reschedule if the alarm is already running — frequent syncs were
-            // constantly calling setInexactRepeating with FLAG_UPDATE_CURRENT, which
-            // replaces the alarm and pushes the first fire 15 min into the future
-            // every time, so the alarm effectively never fired.
-            val existing = PendingIntent.getBroadcast(context, 0, intent, noCreateFlags)
-            if (existing != null) return
+            val existing = PendingIntent.getBroadcast(context, 0, intent, cancelFlags)
+            if (existing != null) {
+                alarmManager.cancel(existing)
+                existing.cancel()
+            }
 
             val scheduleFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -227,16 +237,18 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
             }
             val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, scheduleFlags)
 
-            // 15-minute interval — enough to serve any widget rotation setting.
+            // 15-minute interval. ELAPSED_REALTIME_WAKEUP fires even in Doze/sleep,
+            // so the photo rotates in the background without the app running.
             val interval = 15 * 60 * 1000L
-
             alarmManager.setInexactRepeating(
-                AlarmManager.ELAPSED_REALTIME,
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
                 SystemClock.elapsedRealtime() + interval,
                 interval,
                 pendingIntent
             )
-            Log.d("PhotoDayWidget", "Rotation alarm scheduled (15 min interval)")
+
+            prefs.edit().putLong("rotation_alarm_last_scheduled", now).apply()
+            Log.d("PhotoDayWidget", "Rotation alarm scheduled with WAKEUP flag (15 min interval)")
         }
     }
 

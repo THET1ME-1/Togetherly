@@ -13,6 +13,7 @@ import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/home_widget_service.dart';
 import 'widgets/common/m3_loading.dart';
 
 /// Top-level background handler — должен быть функцией верхнего уровня.
@@ -122,6 +123,8 @@ class _LoveAppState extends State<LoveApp> {
       onResume: () {
         FirebaseService().setOnlineStatus(true);
         MascotInactivityNotificationService.instance.markAppOpened();
+        // Clear per-session advance guard so the next sync rotates the carousel.
+        HomeWidgetService.instance.onAppForeground();
       },
       onPause: () {
         FirebaseService().setOnlineStatus(false);

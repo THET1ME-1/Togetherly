@@ -56,6 +56,15 @@ class HomeWidgetService {
   /// Последний известный индекс темы приложения — fallback в syncTimer.
   int _lastThemeIndex = 0;
 
+  /// Widget IDs that already had their carousel advanced in the current foreground
+  /// session. Cleared on every app resume so the photo changes exactly once per
+  /// time the user brings the app to the front (= proxy for phone unlock).
+  final Set<int> _advancedThisSession = {};
+
+  /// Call this whenever the app comes to the foreground (from AppLifecycleListener
+  /// onResume). Clears the per-session advance guard so the next sync can rotate.
+  void onAppForeground() => _advancedThisSession.clear();
+
   // ════════════════════════════════════════════════════════════════════════
   //  ПРИВЯЗКА ВИДЖЕТОВ К ГРУППАМ
   // ════════════════════════════════════════════════════════════════════════
@@ -690,13 +699,54 @@ class HomeWidgetService {
 
       final pathsJson = jsonEncode(localPaths);
 
+      // Flutter-side rotation: advance photo index based on rotation type.
+      // This runs whenever the app syncs (e.g. on foreground, unlock, periodic).
+      // The native alarm handles background rotation when the app is not running.
+      int displayIndex = 0;
+      if (widgetId != null && localPaths.length > 1) {
+        final prefs = await SharedPreferences.getInstance();
+        final indexKey = 'fcidx_$widgetId';
+        final tsKey = 'fclts_$widgetId';
+        final rotationType = await getPhotoDayWidgetRotationType(widgetId);
+        final rotationIntervalMin = await getPhotoDayWidgetRotationInterval(widgetId);
+
+        final storedIndex = prefs.getInt(indexKey) ?? 0;
+        final lastAdvanceMs = prefs.getInt(tsKey) ?? 0;
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+        final bool shouldAdvance;
+        if (rotationType == 'unlock') {
+          // Advance exactly once per foreground session (= once per phone unlock).
+          // _advancedThisSession is cleared by onAppForeground() so every new
+          // foreground event allows one rotation, regardless of sync frequency.
+          shouldAdvance = !_advancedThisSession.contains(widgetId);
+        } else if (rotationType == 'time') {
+          shouldAdvance =
+              nowMs - lastAdvanceMs >= rotationIntervalMin * 60 * 1000;
+        } else {
+          shouldAdvance = false;
+        }
+
+        if (shouldAdvance) {
+          displayIndex = (storedIndex + 1) % localPaths.length;
+          await prefs.setInt(indexKey, displayIndex);
+          await prefs.setInt(tsKey, nowMs);
+          if (rotationType == 'unlock') _advancedThisSession.add(widgetId);
+          debugPrint(
+            'HomeWidgetService: carousel advanced widget $widgetId'
+            ' → idx $displayIndex ($rotationType)',
+          );
+        } else {
+          displayIndex = storedIndex % localPaths.length;
+        }
+      }
+
       if (widgetId != null) {
         // Determine kind from widgetId
         final kind = await getPhotoDayWidgetKind(widgetId);
         await _savePhotoDayWidgetData(widgetId, {
           'paths': pathsJson,
-          // for backward compatibility or the first image
-          'path': localPaths.isNotEmpty ? localPaths.first : '',
+          'path': localPaths.isNotEmpty ? localPaths[displayIndex] : '',
           'author': authorName,
           'author_uid': authorUid,
           'viewer_uid': viewerUid,
@@ -705,10 +755,11 @@ class HomeWidgetService {
           if (groupId != null) 'group_id': groupId,
         });
 
-        // Ensure rotation mechanism is initialized in Kotlin
+        // Sync index to Kotlin so the native alarm resumes from the right position.
         await _widgetChannel.invokeMethod('updatePhotoDayCarousel', {
           'widgetId': widgetId,
           'paths': localPaths,
+          'currentIndex': displayIndex,
         });
       }
 
