@@ -210,7 +210,7 @@ class _MoodPickerSheet extends StatelessWidget {
                 crossAxisCount: 5,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 0.78,
+                childAspectRatio: 0.68,
               ),
               itemCount: MoodOption.all.length,
               itemBuilder: (_, i) {
@@ -281,7 +281,8 @@ class _MoodTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 1.0,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               decoration: BoxDecoration(

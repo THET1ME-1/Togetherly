@@ -1008,8 +1008,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        child: Column(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+        child: SafeArea(
+          top: false,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -1046,28 +1048,26 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
                               children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: m.color.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
                                   child: m.imagePath.isNotEmpty
-                                      ? Center(
-                                          child: Image.asset(
-                                            m.imagePath,
-                                            width: 34,
-                                            height: 34,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    const SizedBox(
-                                                      width: 34,
-                                                      height: 34,
-                                                    ),
-                                          ),
+                                      ? Image.asset(
+                                          m.imagePath,
+                                          width: 48,
+                                          height: 48,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) =>
+                                              Container(
+                                                width: 48,
+                                                height: 48,
+                                                color: m.color,
+                                              ),
                                         )
-                                      : const SizedBox(width: 34, height: 34),
+                                      : Container(
+                                          width: 48,
+                                          height: 48,
+                                          color: m.color,
+                                        ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -1110,6 +1110,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 ),
               ),
           ],
+          ),
         ),
       ),
     );
