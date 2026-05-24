@@ -63,16 +63,22 @@ class MainActivity : FlutterActivity() {
 
                     if (widgetId != null && paths != null) {
                         val prefs = getSharedPreferences("HomeWidgetPreferences", android.content.Context.MODE_PRIVATE)
-                        prefs.edit()
+                        val storedIndex = prefs.getInt("photo_day_widget_${widgetId}_current_index", -1)
+                        val editor = prefs.edit()
                             .putString(
                                 "photo_day_widget_${widgetId}_paths",
                                 org.json.JSONArray(paths).toString()
                             )
                             .putInt("photo_day_widget_${widgetId}_current_index", currentIndex)
-                            // Record the advance time so the native receiver knows when
-                            // Flutter last rotated and doesn't double-advance.
-                            .putLong("photo_day_widget_${widgetId}_last_update", System.currentTimeMillis())
-                            .apply()
+
+                        // Only update last_update when Flutter actually advanced the index.
+                        // For "unlock" mode Flutter always sends the unchanged storedIndex —
+                        // writing last_update = now on every sync would prevent the 15-min
+                        // alarm fallback from ever firing and the photo would never change.
+                        if (currentIndex != storedIndex) {
+                            editor.putLong("photo_day_widget_${widgetId}_last_update", System.currentTimeMillis())
+                        }
+                        editor.apply()
 
                         PhotoDayWidgetProvider.scheduleRotationAlarm(this)
                         result.success(true)
