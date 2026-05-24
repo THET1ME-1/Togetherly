@@ -201,16 +201,21 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
             }
         }
 
+        // Bump this whenever the alarm setup changes (type, interval, etc.).
+        // Causes an immediate reschedule on the first call after an app update,
+        // even if the 30-minute gate would otherwise prevent it.
+        private const val ALARM_VERSION = 2
+
         fun scheduleRotationAlarm(context: Context) {
             val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
             val lastScheduled = prefs.getLong("rotation_alarm_last_scheduled", 0L)
+            val alarmVersion = prefs.getInt("rotation_alarm_version", 0)
             val now = System.currentTimeMillis()
 
             // Reschedule at most every 30 minutes to prevent frequent syncs from
-            // constantly pushing the first-fire time into the future (which caused the
-            // alarm to never fire). The 30-minute window also allows updating the alarm
-            // type (e.g. ELAPSED_REALTIME → ELAPSED_REALTIME_WAKEUP) after an app update.
-            if (now - lastScheduled < 30 * 60 * 1000L) return
+            // constantly pushing the first-fire time into the future.
+            // Exception: if ALARM_VERSION changed (e.g. type upgrade), reschedule immediately.
+            if (alarmVersion >= ALARM_VERSION && now - lastScheduled < 30 * 60 * 1000L) return
 
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val intent = Intent(context, PhotoDayRotationReceiver::class.java).apply {
@@ -247,8 +252,11 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
                 pendingIntent
             )
 
-            prefs.edit().putLong("rotation_alarm_last_scheduled", now).apply()
-            Log.d("PhotoDayWidget", "Rotation alarm scheduled with WAKEUP flag (15 min interval)")
+            prefs.edit()
+                .putLong("rotation_alarm_last_scheduled", now)
+                .putInt("rotation_alarm_version", ALARM_VERSION)
+                .apply()
+            Log.d("PhotoDayWidget", "Rotation alarm scheduled with WAKEUP flag (15 min interval, v$ALARM_VERSION)")
         }
     }
 

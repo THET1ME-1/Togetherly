@@ -56,14 +56,6 @@ class HomeWidgetService {
   /// Последний известный индекс темы приложения — fallback в syncTimer.
   int _lastThemeIndex = 0;
 
-  /// Widget IDs that already had their carousel advanced in the current foreground
-  /// session. Cleared on every app resume so the photo changes exactly once per
-  /// time the user brings the app to the front (= proxy for phone unlock).
-  final Set<int> _advancedThisSession = {};
-
-  /// Call this whenever the app comes to the foreground (from AppLifecycleListener
-  /// onResume). Clears the per-session advance guard so the next sync can rotate.
-  void onAppForeground() => _advancedThisSession.clear();
 
   // ════════════════════════════════════════════════════════════════════════
   //  ПРИВЯЗКА ВИДЖЕТОВ К ГРУППАМ
@@ -699,44 +691,39 @@ class HomeWidgetService {
 
       final pathsJson = jsonEncode(localPaths);
 
-      // Flutter-side rotation: advance photo index based on rotation type.
-      // This runs whenever the app syncs (e.g. on foreground, unlock, periodic).
-      // The native alarm handles background rotation when the app is not running.
+      // Flutter-side index management.
+      // "unlock" rotation is handled entirely by the native alarm
+      // (PhotoDayRotationReceiver + ELAPSED_REALTIME_WAKEUP alarm). Flutter must
+      // NOT advance for "unlock" here — doing so on every sync causes the photo
+      // to cycle rapidly and also shows the wrong initial photo on first setup.
+      // Flutter only advances for "time" mode as a backup for when the device is
+      // awake and the 15-min alarm fires less precisely than the interval.
       int displayIndex = 0;
       if (widgetId != null && localPaths.length > 1) {
         final prefs = await SharedPreferences.getInstance();
         final indexKey = 'fcidx_$widgetId';
-        final tsKey = 'fclts_$widgetId';
-        final rotationType = await getPhotoDayWidgetRotationType(widgetId);
-        final rotationIntervalMin = await getPhotoDayWidgetRotationInterval(widgetId);
-
         final storedIndex = prefs.getInt(indexKey) ?? 0;
-        final lastAdvanceMs = prefs.getInt(tsKey) ?? 0;
-        final nowMs = DateTime.now().millisecondsSinceEpoch;
 
-        final bool shouldAdvance;
-        if (rotationType == 'unlock') {
-          // Advance exactly once per foreground session (= once per phone unlock).
-          // _advancedThisSession is cleared by onAppForeground() so every new
-          // foreground event allows one rotation, regardless of sync frequency.
-          shouldAdvance = !_advancedThisSession.contains(widgetId);
-        } else if (rotationType == 'time') {
-          shouldAdvance =
-              nowMs - lastAdvanceMs >= rotationIntervalMin * 60 * 1000;
+        final rotationType = await getPhotoDayWidgetRotationType(widgetId);
+        if (rotationType == 'time') {
+          final tsKey = 'fclts_$widgetId';
+          final rotationIntervalMin =
+              await getPhotoDayWidgetRotationInterval(widgetId);
+          final lastAdvanceMs = prefs.getInt(tsKey) ?? 0;
+          final nowMs = DateTime.now().millisecondsSinceEpoch;
+          if (nowMs - lastAdvanceMs >= rotationIntervalMin * 60 * 1000) {
+            displayIndex = (storedIndex + 1) % localPaths.length;
+            await prefs.setInt(indexKey, displayIndex);
+            await prefs.setInt(tsKey, nowMs);
+            debugPrint(
+              'HomeWidgetService: time-based advance widget $widgetId'
+              ' → idx $displayIndex',
+            );
+          } else {
+            displayIndex = storedIndex % localPaths.length;
+          }
         } else {
-          shouldAdvance = false;
-        }
-
-        if (shouldAdvance) {
-          displayIndex = (storedIndex + 1) % localPaths.length;
-          await prefs.setInt(indexKey, displayIndex);
-          await prefs.setInt(tsKey, nowMs);
-          if (rotationType == 'unlock') _advancedThisSession.add(widgetId);
-          debugPrint(
-            'HomeWidgetService: carousel advanced widget $widgetId'
-            ' → idx $displayIndex ($rotationType)',
-          );
-        } else {
+          // "unlock" or "none": native alarm handles rotation.
           displayIndex = storedIndex % localPaths.length;
         }
       }
