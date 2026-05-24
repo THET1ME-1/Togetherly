@@ -462,12 +462,21 @@ abstract class AppStrings {
   List<String> get shortMonths;
   List<String> get shortWeekdays;
 
-  // ── I Miss You ──
+  // ── I Miss You / Vibes ──
   String get iMissYou;
   String get iMissYouSent;
   String missYouNotifTitle(String name);
   String get missYouNotifBody;
   String missYouStreak(int count);
+  String get thinkingOfYou;
+  String get wantHug;
+  String get vibeSent;
+  String get customVibe;
+  String get customVibeTitle;
+  String get customVibeHint;
+  String thinkingOfYouNotifTitle(String name);
+  String wantHugNotifTitle(String name);
+  String customVibeNotifTitle(String name);
 
   // ── Photo Card ──
   String get sharedAPicture;
@@ -1572,7 +1581,7 @@ class _RuStrings extends AppStrings {
   @override
   List<String> get shortWeekdays => ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-  // ── I Miss You ──
+  // ── I Miss You / Vibes ──
   @override
   String get iMissYou => 'Я скучаю';
   @override
@@ -1583,6 +1592,24 @@ class _RuStrings extends AppStrings {
   String get missYouNotifBody => 'Думает о вас и вспоминает 💭';
   @override
   String missYouStreak(int count) => '🔥 $count';
+  @override
+  String get thinkingOfYou => 'Думаю о тебе';
+  @override
+  String get wantHug => 'Хочу обнять';
+  @override
+  String get vibeSent => 'Отправлено ✨';
+  @override
+  String get customVibe => 'Своё желание...';
+  @override
+  String get customVibeTitle => 'Своё сообщение';
+  @override
+  String get customVibeHint => 'Что ты хочешь сказать?';
+  @override
+  String thinkingOfYouNotifTitle(String name) => '$name думает о тебе 💭';
+  @override
+  String wantHugNotifTitle(String name) => '$name хочет обнять тебя 🤗';
+  @override
+  String customVibeNotifTitle(String name) => name;
 
   // ── Photo Card ──
   @override
@@ -3010,7 +3037,7 @@ class _EnStrings extends AppStrings {
     'Sun',
   ];
 
-  // ── I Miss You ──
+  // ── I Miss You / Vibes ──
   @override
   String get iMissYou => 'I miss you';
   @override
@@ -3021,6 +3048,24 @@ class _EnStrings extends AppStrings {
   String get missYouNotifBody => 'Thinking about you right now 💭';
   @override
   String missYouStreak(int count) => '🔥 $count';
+  @override
+  String get thinkingOfYou => 'Thinking of you';
+  @override
+  String get wantHug => 'Want a hug';
+  @override
+  String get vibeSent => 'Sent ✨';
+  @override
+  String get customVibe => 'Custom wish...';
+  @override
+  String get customVibeTitle => 'Custom message';
+  @override
+  String get customVibeHint => 'What do you want to say?';
+  @override
+  String thinkingOfYouNotifTitle(String name) => '$name is thinking of you 💭';
+  @override
+  String wantHugNotifTitle(String name) => '$name wants to hug you 🤗';
+  @override
+  String customVibeNotifTitle(String name) => name;
 
   // ── Photo Card ──
   @override

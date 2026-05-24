@@ -4,6 +4,7 @@
  * Срабатывает при добавлении документа в groups/{groupId}/missYouEvents/{eventId}.
  * Отправляет push-уведомление всем участникам группы, кроме отправителя.
  *
+ * Поддерживает vibeType: miss_you | thinking_of_you | want_hug | custom
  * Поддерживает:
  *  - fcmTokens (array) — несколько устройств / переустановка приложения
  *  - fcmToken  (string) — обратная совместимость
@@ -16,6 +17,24 @@ const { getMessaging } = require("firebase-admin/messaging");
 
 initializeApp();
 
+/**
+ * Строит тип и тело уведомления в зависимости от vibeType.
+ * Тело — запасной текст на случай если клиент не поддерживает тип.
+ * Клиент всегда переопределяет заголовок локализованной строкой.
+ */
+function buildVibePayload(vibeType, customText) {
+  switch (vibeType) {
+    case "thinking_of_you":
+      return { type: "thinking_of_you", body: "Думает о тебе 💭" };
+    case "want_hug":
+      return { type: "want_hug", body: "Хочет обнять тебя 🤗" };
+    case "custom":
+      return { type: "custom", body: customText || "✉️" };
+    default:
+      return { type: "miss_you", body: "Думает о вас и вспоминает 💭" };
+  }
+}
+
 exports.onMissYouEvent = onDocumentCreated(
   "groups/{groupId}/missYouEvents/{eventId}",
   async (event) => {
@@ -25,6 +44,8 @@ exports.onMissYouEvent = onDocumentCreated(
     const data = snapshot.data();
     const senderUid = data.senderUid;
     const senderName = data.senderName || "Your partner";
+    const vibeType = data.vibeType || "miss_you";
+    const customText = (data.customText || "").trim();
     const groupId = event.params.groupId;
 
     const db = getFirestore();
@@ -50,11 +71,14 @@ exports.onMissYouEvent = onDocumentCreated(
       // Приоритет: массив fcmTokens, затем одиночный fcmToken
       const tokensList = userData.fcmTokens;
 
-      // Проверяем настройку уведомлений пользователя.
-      // Если поле отсутствует — считаем включённым (true по умолчанию).
-      const notifEnabled = userData.notifMissYou !== false;
+      // Проверяем настройку уведомлений.
+      // Кастомные сообщения (custom) всегда доставляются — пользователь
+      // специально написал текст, блокировать его настройкой "Я скучаю" неправильно.
+      // Для остальных типов уважаем настройку notifMissYou.
+      const notifEnabled =
+        vibeType === "custom" || userData.notifMissYou !== false;
       if (!notifEnabled) {
-        console.log(`MissYou [${groupId}]: notifications disabled for uid=${uid}, skipping`);
+        console.log(`VibeEvent [${groupId}] type=${type}: notifications disabled for uid=${uid}, skipping`);
         continue;
       }
 
@@ -73,19 +97,22 @@ exports.onMissYouEvent = onDocumentCreated(
       return;
     }
 
-    const body = "Думает о вас и вспоминает 💭";
+    const { type, body } = buildVibePayload(vibeType, customText);
 
     // Формируем data-only push-сообщение.
-    // Текст уведомления собирается на клиенте, чтобы можно было
-    // подставить локальный псевдоним отправителя у получателя.
+    // Заголовок собирается на клиенте (локализация + никнейм отправителя).
+    // body — запасной текст; для custom это сам текст пользователя.
+    const messageData = {
+      type,
+      groupId,
+      senderUid,
+      senderName,
+      body,
+    };
+    if (customText) messageData.customText = customText;
+
     const message = {
-      data: {
-        type: "miss_you",
-        groupId: groupId,
-        senderUid: senderUid,
-        senderName: senderName,
-        body: body,
-      },
+      data: messageData,
       android: {
         priority: "high",
       },
@@ -145,7 +172,7 @@ exports.onMissYouEvent = onDocumentCreated(
 
     const successCount = results.filter((r) => r.status === "fulfilled").length;
     console.log(
-      `MissYou [${groupId}]: sent=${successCount}/${tokens.length}, stale=${staleTokens.length}`
+      `VibeEvent [${groupId}] type=${type}: sent=${successCount}/${tokens.length}, stale=${staleTokens.length}`
     );
   }
 );

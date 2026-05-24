@@ -344,7 +344,8 @@ class FirebaseService {
   ) async {
     final type = message.data['type'] ?? '';
 
-    if (type == 'miss_you') {
+    const _vibeTypes = {'miss_you', 'thinking_of_you', 'want_hug', 'custom'};
+    if (_vibeTypes.contains(type)) {
       await NicknameService.instance.init();
       await LocaleService.instance.init();
 
@@ -357,10 +358,28 @@ class FirebaseService {
       final strings = LocaleService.current;
       final body = (message.data['body'] ?? '').toString().trim();
 
-      return _LocalNotificationContent(
-        title: strings.missYouNotifTitle(senderName),
-        body: body.isNotEmpty ? body : strings.missYouNotifBody,
-      );
+      switch (type) {
+        case 'miss_you':
+          return _LocalNotificationContent(
+            title: strings.missYouNotifTitle(senderName),
+            body: body.isNotEmpty ? body : strings.missYouNotifBody,
+          );
+        case 'thinking_of_you':
+          return _LocalNotificationContent(
+            title: strings.thinkingOfYouNotifTitle(senderName),
+            body: body,
+          );
+        case 'want_hug':
+          return _LocalNotificationContent(
+            title: strings.wantHugNotifTitle(senderName),
+            body: body,
+          );
+        case 'custom':
+          return _LocalNotificationContent(
+            title: strings.customVibeNotifTitle(senderName),
+            body: body.isNotEmpty ? body : '✉️',
+          );
+      }
     }
 
     final notification = message.notification;
@@ -2645,6 +2664,35 @@ class FirebaseService {
           });
     } catch (e) {
       debugPrint('sendMissYou failed: $e');
+    }
+  }
+
+  /// Отправить вайб-импульс (думаю о тебе, хочу обнять и др.).
+  /// Пишет в ту же subcollection missYouEvents с полем vibeType,
+  /// чтобы Cloud Function могла обработать новые типы без изменений схемы.
+  Future<void> sendVibe({
+    required String groupId,
+    required String senderName,
+    required String vibeType,
+    String? customText,
+  }) async {
+    final myUid = uid;
+    if (myUid == null || groupId.isEmpty) return;
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('missYouEvents')
+          .add({
+            'senderUid': myUid,
+            'senderName': senderName,
+            'vibeType': vibeType,
+            if (customText != null && customText.isNotEmpty)
+              'customText': customText,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      debugPrint('sendVibe failed: $e');
     }
   }
 
