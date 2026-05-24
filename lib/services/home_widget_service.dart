@@ -963,22 +963,31 @@ class HomeWidgetService {
       final customPath = await getPhotoDayWidgetCustomPath(widgetId);
 
       if (ownUrls.isNotEmpty) {
-        // Select photo based on seed
-        final seed = forceNext
-            ? await incrementPhotoDayWidgetRefreshSeed(widgetId)
-            : await getPhotoDayWidgetRefreshSeed(widgetId);
-        final index = seed % ownUrls.length;
-        final selectedUrl = ownUrls[index];
+        if (ownUrls.length > 1) {
+          // Multiple photos — let the native rotation receiver handle cycling.
+          // syncPhotoOfDayCarousel caches all files, saves `paths` and `path`,
+          // and calls updatePhotoDayCarousel so the Kotlin receiver can rotate.
+          await syncPhotoOfDayCarousel(
+            photoUrls: ownUrls,
+            authorName: currentUserName,
+            authorUid: currentUserUid,
+            widgetId: widgetId,
+          );
+          // syncPhotoOfDayCarousel already calls _updateAllPhotoWidgetProviders.
+          debugPrint(
+            'HomeWidgetService: photo day (single user) synced for widget $widgetId',
+          );
+          return;
+        }
 
-        // Kotlin reads 'photo_day_widget_{id}_path' as a LOCAL file path —
-        // it cannot load HTTP URLs. Download & cache it first.
+        // Single photo — cache and display directly.
+        final selectedUrl = ownUrls.first;
         final localPath = selectedUrl.startsWith('http')
             ? await _cachePhotoFromUrl(selectedUrl, 'photo_day_solo_$widgetId')
             : selectedUrl;
 
         await _savePhotoDayWidgetData(widgetId, {
           'path': localPath,
-          'refresh_seed': seed.toString(),
           'author': currentUserName,
           'author_uid': currentUserUid,
         });
