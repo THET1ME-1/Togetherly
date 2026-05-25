@@ -101,18 +101,17 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
-  // При первом запуске после установки — выходим из любой сохранённой сессии.
-  // SharedPreferences очищаются при удалении приложения, поэтому отсутствие
-  // флага означает свежую установку. Это предотвращает подхват устаревших
-  // pairIds из Firestore, оставшихся от debug-сессий.
+  // При первом запуске после установки — принудительно выходим из сессии
+  // и очищаем SharedPreferences. На iOS Firebase Auth хранит токен в Keychain,
+  // который переживает удаление приложения — поэтому signOut() вызывается
+  // безусловно, без проверки isLoggedIn.
   final prefs = await SharedPreferences.getInstance();
   const kInstallKey = 'app_installed_v1';
   if (!prefs.containsKey(kInstallKey)) {
     try {
-      if (FirebaseService().isLoggedIn) {
-        await FirebaseService().signOut();
-      }
+      await FirebaseService().signOut();
     } catch (_) {}
+    await prefs.clear();
     await prefs.setBool(kInstallKey, true);
   }
 
