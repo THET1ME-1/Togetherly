@@ -15,6 +15,8 @@ class ConnectionsManager extends ChangeNotifier {
   StreamSubscription? _userDocSub;
   // Prevents concurrent _startListeningForNewPairs callbacks from racing
   bool _processingPairUpdate = false;
+  // Last known pairing fingerprint — skip callback if only non-pairing fields changed
+  String _lastPairKey = '';
 
   // ── Getters ──
   List<Connection> get connections => List.unmodifiable(_connections);
@@ -348,6 +350,18 @@ class ConnectionsManager extends ChangeNotifier {
     _userDocSub = _fb.listenToUserDoc(
       onData: (data) async {
         if (data == null) return;
+
+        // Skip if only non-pairing fields changed (FCM token, avatar, notif prefs…).
+        // Build a fingerprint from pairId + sorted pairIds only.
+        final pairId = data['pairId'] as String? ?? '';
+        final pairIds = ((data['pairIds'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toList()
+          ..sort();
+        final pairKey = '$pairId|${pairIds.join(',')}';
+        if (pairKey == _lastPairKey) return;
+        _lastPairKey = pairKey;
+
         // Prevent concurrent callbacks from racing (Firestore may fire twice
         // in quick succession — once from cache, once from server).
         if (_processingPairUpdate) return;

@@ -661,11 +661,7 @@ class HomeWidgetService {
   }) async {
     try {
       final viewerUid = FirebaseService().uid ?? '';
-      String viewerName = '';
-      if (viewerUid.isNotEmpty) {
-        final userDoc = await _db.collection('users').doc(viewerUid).get();
-        viewerName = userDoc.data()?['displayName'] ?? '';
-      }
+      final viewerName = FirebaseService().displayName;
 
       List<String> localPaths = [];
       final dir = await getApplicationSupportDirectory();
@@ -798,11 +794,7 @@ class HomeWidgetService {
       }
 
       final viewerUid = FirebaseService().uid ?? '';
-      String viewerName = '';
-      if (viewerUid.isNotEmpty) {
-        final userDoc = await _db.collection('users').doc(viewerUid).get();
-        viewerName = userDoc.data()?['displayName'] ?? '';
-      }
+      final viewerName = FirebaseService().displayName;
 
       if (widgetId != null) {
         // Determine kind from widgetId
@@ -902,11 +894,7 @@ class HomeWidgetService {
 
       // Сохраняем текущий профиль (viewer) для различения моего/партнёрского фото
       final currentUserUid = FirebaseService().uid ?? '';
-      String currentUserName = '';
-      if (currentUserUid.isNotEmpty) {
-        final userDoc = await _db.collection('users').doc(currentUserUid).get();
-        currentUserName = userDoc.data()?['displayName'] ?? '';
-      }
+      final currentUserName = FirebaseService().displayName;
 
       await _savePhotoDayWidgetData(widgetId, {
         'viewer_uid': currentUserUid,
@@ -989,11 +977,7 @@ class HomeWidgetService {
   }) async {
     try {
       final currentUserUid = FirebaseService().uid ?? '';
-      String currentUserName = '';
-      if (currentUserUid.isNotEmpty) {
-        final userDoc = await _db.collection('users').doc(currentUserUid).get();
-        currentUserName = userDoc.data()?['displayName'] ?? '';
-      }
+      final currentUserName = FirebaseService().displayName;
 
       final selectedKind = await getPhotoDayWidgetKind(widgetId);
 

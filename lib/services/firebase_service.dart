@@ -34,6 +34,10 @@ class FirebaseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
+  // In-memory cache — eliminates repeated users/{uid} reads on hot paths.
+  String? _cachedDisplayName;
+  String? _cachedAvatarUrl;
+
   // ══════════════════════════════════════════════
   //  AUTH
   // ══════════════════════════════════════════════
@@ -41,6 +45,9 @@ class FirebaseService {
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => _auth.currentUser != null;
   String? get uid => _auth.currentUser?.uid;
+
+  /// Cached display name — use this instead of reading users/{uid} from Firestore.
+  String get displayName => _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';
 
   Future<User?> signInWithGoogle() async {
     try {
@@ -595,6 +602,8 @@ class FirebaseService {
           .doc(u.uid)
           .set(data, SetOptions(merge: true))
           .timeout(const Duration(seconds: 10));
+      _cachedDisplayName = displayName;
+      if (avatarUrl.isNotEmpty) _cachedAvatarUrl = avatarUrl;
     } catch (e) {
       debugPrint('saveUserProfile failed: $e');
     }
@@ -622,16 +631,14 @@ class FirebaseService {
         );
       }
 
+      final nameBatch = _db.batch();
       for (final groupId in pairIds) {
-        await _db
-            .collection('groups')
-            .doc(groupId)
-            .update({'memberNames.${u.uid}': displayName})
-            .timeout(const Duration(seconds: 10))
-            .catchError(
-              (e) => debugPrint('updateNameInGroups[$groupId] failed: $e'),
-            );
+        nameBatch.update(
+          _db.collection('groups').doc(groupId),
+          {'memberNames.${u.uid}': displayName},
+        );
       }
+      await nameBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('updateNameInGroups failed: $e');
     }
@@ -657,16 +664,14 @@ class FirebaseService {
         );
       }
 
+      final avatarBatch = _db.batch();
       for (final groupId in pairIds) {
-        await _db
-            .collection('groups')
-            .doc(groupId)
-            .update({'memberAvatars.${u.uid}': avatarUrl})
-            .timeout(const Duration(seconds: 10))
-            .catchError(
-              (e) => debugPrint('updateAvatarInGroups[$groupId] failed: $e'),
-            );
+        avatarBatch.update(
+          _db.collection('groups').doc(groupId),
+          {'memberAvatars.${u.uid}': avatarUrl},
+        );
       }
+      await avatarBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('updateAvatarInGroups failed: $e');
     }
@@ -681,7 +686,12 @@ class FirebaseService {
           .doc(u.uid)
           .get(fromServer ? const GetOptions(source: Source.server) : null)
           .timeout(const Duration(seconds: 10));
-      return doc.data();
+      final data = doc.data();
+      if (data != null) {
+        _cachedDisplayName = data['displayName'] as String?;
+        _cachedAvatarUrl = data['avatarUrl'] as String?;
+      }
+      return data;
     } catch (e) {
       debugPrint('loadUserProfile failed: $e');
       // On network error fall back to cache
@@ -691,7 +701,12 @@ class FirebaseService {
               .collection('users')
               .doc(u.uid)
               .get(const GetOptions(source: Source.cache));
-          return cached.data();
+          final cachedData = cached.data();
+          if (cachedData != null) {
+            _cachedDisplayName = cachedData['displayName'] as String?;
+            _cachedAvatarUrl = cachedData['avatarUrl'] as String?;
+          }
+          return cachedData;
         } catch (_) {}
       }
       return null;
@@ -2039,9 +2054,8 @@ class FirebaseService {
     await RateLimiterService().checkAndRecordMemory();
 
     try {
-      final userDoc = await _db.collection('users').doc(u.uid).get();
-      final name = userDoc.data()?['displayName'] ?? u.displayName ?? '';
-      final avatar = userDoc.data()?['avatarUrl'] ?? u.photoURL ?? '';
+      final name = _cachedDisplayName ?? u.displayName ?? '';
+      final avatar = (_cachedAvatarUrl?.isNotEmpty == true ? _cachedAvatarUrl! : u.photoURL) ?? '';
 
       final ref = _db
           .collection('groups')
@@ -2073,18 +2087,20 @@ class FirebaseService {
 
       await ref.set(memory.toFirestore());
 
-      // Update group-level memory timestamps
+      // Update group-level memory timestamps.
+      // Check Firestore's local cache (no server round-trip) to decide whether
+      // memoriesCreatedAt needs to be written for the first time.
       final groupRef = _db.collection('groups').doc(groupId);
-      await _db.runTransaction((tx) async {
-        final groupSnap = await tx.get(groupRef);
-        final updates = <String, dynamic>{
-          'memoriesUpdatedAt': FieldValue.serverTimestamp(),
-        };
-        if (groupSnap.data()?.containsKey('memoriesCreatedAt') != true) {
-          updates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
+      final tsUpdates = <String, dynamic>{'memoriesUpdatedAt': FieldValue.serverTimestamp()};
+      try {
+        final cached = await groupRef.get(const GetOptions(source: Source.cache));
+        if (!cached.exists || cached.data()?.containsKey('memoriesCreatedAt') != true) {
+          tsUpdates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
         }
-        tx.update(groupRef, updates);
-      });
+      } catch (_) {
+        tsUpdates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
+      }
+      await groupRef.update(tsUpdates);
 
       return memory;
     } catch (e) {
@@ -2594,15 +2610,21 @@ class FirebaseService {
     }
   }
 
-  /// Listen to timers changes in real-time
+  /// Listen to timers changes in real-time.
+  /// Skips the callback when only other group fields changed (e.g. memberMoods)
+  /// to avoid redundant _mergeRemoteTimers calls on every partner mood update.
   StreamSubscription? listenToTimers({
     required String groupId,
     required void Function(List<TimerItem> timers) onData,
   }) {
+    String prevHash = '';
     return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
       if (!snap.exists) return;
       final data = snap.data()!;
       final timersList = data['timers'] as List<dynamic>?;
+      final hash = timersList?.toString() ?? '';
+      if (hash == prevHash) return;
+      prevHash = hash;
       if (timersList != null) {
         final timers = timersList
             .map((e) => TimerItem.fromJson(Map<String, dynamic>.from(e as Map)))
