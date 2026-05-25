@@ -39,6 +39,11 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Keystore — приватный ключ подписи, никогда не коммитить
+*.jks
+*.keystore
+key.properties
+
 # Firebase Admin SDK private key — никогда не коммитить
 scripts/serviceAccountKey.json
 scripts/togetherly-d4856-firebase-adminsdk-*.json
