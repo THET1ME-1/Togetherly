@@ -176,3 +176,87 @@ exports.onMissYouEvent = onDocumentCreated(
     );
   }
 );
+
+/**
+ * Cloud Function: onWidgetDataEvent
+ *
+ * Срабатывает когда пользователь меняет статус/настроение/сообщение/музыку.
+ * Отправляет FCM data-сообщение партнёру с type=widget_update, чтобы
+ * виджет рабочего стола обновился мгновенно даже когда Flutter-процесс убит.
+ * После отправки удаляет триггерный документ.
+ */
+exports.onWidgetDataEvent = onDocumentCreated(
+  "groups/{groupId}/widgetDataEvents/{eventId}",
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const data = snapshot.data();
+    const senderUid = data.senderUid;
+    const groupId = event.params.groupId;
+
+    const db = getFirestore();
+
+    // Получаем участников группы
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) {
+      await snapshot.ref.delete();
+      return;
+    }
+
+    const members = groupDoc.data().members || [];
+    const recipients = members.filter((uid) => uid !== senderUid);
+
+    if (recipients.length === 0) {
+      await snapshot.ref.delete();
+      return;
+    }
+
+    // Собираем FCM-токены получателей
+    const tokens = [];
+    for (const uid of recipients) {
+      const userDoc = await db.collection("users").doc(uid).get();
+      if (!userDoc.exists) continue;
+      const userData = userDoc.data();
+      if (Array.isArray(userData.fcmTokens)) {
+        tokens.push(...userData.fcmTokens.filter(Boolean));
+      } else if (userData.fcmToken) {
+        tokens.push(userData.fcmToken);
+      }
+    }
+
+    if (tokens.length > 0) {
+      // Data-only сообщение — не показывает уведомление, только обновляет виджет
+      const messageData = {
+        type: "widget_update",
+        status: data.status || "",
+        moodLabel: data.moodLabel || "",
+        message: data.message || "",
+        musicTitle: data.musicTitle || "",
+        musicArtist: data.musicArtist || "",
+      };
+
+      const messaging = getMessaging();
+      await Promise.allSettled(
+        tokens.map((token) =>
+          messaging.send({
+            token,
+            data: messageData,
+            android: { priority: "high" },
+            apns: {
+              headers: { "apns-priority": "5" },
+              payload: { aps: { contentAvailable: true } },
+            },
+          })
+        )
+      );
+
+      console.log(
+        `WidgetDataEvent [${groupId}]: sent widget_update to ${tokens.length} token(s)`
+      );
+    }
+
+    // Удаляем триггерный документ — он больше не нужен
+    await snapshot.ref.delete();
+  }
+);

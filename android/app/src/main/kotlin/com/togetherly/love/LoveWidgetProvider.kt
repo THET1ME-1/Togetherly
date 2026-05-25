@@ -44,7 +44,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         // Актуально когда процесс Flutter убит (Xiaomi/Samsung battery optimization).
         // После получения данных изолят сам вызовет updateAppWidget снова.
         try {
-            val refreshIntent = HomeWidgetBackgroundIntent.getBroadcastReceiver(
+            val refreshIntent = HomeWidgetBackgroundIntent.getBroadcast(
                 context,
                 android.net.Uri.parse("loveapp://refresh")
             )
