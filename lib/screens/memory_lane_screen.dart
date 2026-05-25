@@ -26,6 +26,7 @@ import '../services/home_widget_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/avatar_widget.dart';
 import '../widgets/common/m3_loading.dart';
 import 'map_picker_screen.dart';
 import 'memories_map_screen.dart';
@@ -75,6 +76,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Live avatar for a memory author — falls back to the stored snapshot.
   String _liveAvatar(Memory memory) {
+    // Current user: in-memory cache is always the freshest source.
+    if (memory.authorUid == _fb.uid) {
+      final cached = _fb.avatarUrl;
+      if (cached.isNotEmpty) return cached;
+    }
     for (final m in pair.members) {
       if (m.uid == memory.authorUid && m.avatar.isNotEmpty) return m.avatar;
     }
@@ -2185,13 +2191,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     // Author + time
                     Row(
                       children: [
-                        if (_liveAvatar(memory).isNotEmpty)
-                          CircleAvatar(
-                            radius: 14,
-                            backgroundImage: NetworkImage(_liveAvatar(memory)),
-                          ),
-                        if (_liveAvatar(memory).isNotEmpty)
-                          const SizedBox(width: 8),
+                        AvatarWidget(
+                          uid: memory.authorUid,
+                          liveUrl: _liveAvatar(memory),
+                          fallbackUrl: memory.authorAvatar,
+                          name: _liveName(memory),
+                          size: 28,
+                          primary: primary,
+                        ),
+                        const SizedBox(width: 8),
                         Text(
                           _liveName(memory),
                           style: TextStyle(
@@ -6676,25 +6684,6 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
     return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
   }
 
-  Widget _avatarFallback(String? name) {
-    final initial = (name != null && name.isNotEmpty)
-        ? name[0].toUpperCase()
-        : '?';
-    return Container(
-      color: primary.withOpacity(0.15),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: primary,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasCover =
@@ -6724,17 +6713,12 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                           width: 1.5,
                         ),
                       ),
-                      child: ClipOval(
-                        child: memory.authorAvatar.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: memory.authorAvatar,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 120,
-                                memCacheHeight: 120,
-                                errorWidget: (_, __, ___) =>
-                                    _avatarFallback(memory.authorName),
-                              )
-                            : _avatarFallback(memory.authorName),
+                      child: AvatarWidget(
+                        uid: memory.authorUid,
+                        fallbackUrl: memory.authorAvatar,
+                        name: memory.authorName,
+                        size: 40,
+                        primary: primary,
                       ),
                     ),
                     Positioned(
@@ -7291,29 +7275,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     ),
                   ],
                 ),
-                child: ClipOval(
-                  child: memory.authorAvatar.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: memory.authorAvatar,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 88,
-                          memCacheHeight: 88,
-                        )
-                      : Container(
-                          color: Colors.white.withOpacity(0.3),
-                          child: Center(
-                            child: Text(
-                              memory.authorName.isNotEmpty
-                                  ? memory.authorName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
+                child: AvatarWidget(
+                  uid: memory.authorUid,
+                  fallbackUrl: memory.authorAvatar,
+                  name: memory.authorName,
+                  size: 44,
+                  primary: widget.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -8675,35 +8642,13 @@ class _CommentsSectionState extends State<_CommentsSection> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (comment.authorAvatar.isNotEmpty)
-            CircleAvatar(
-              radius: 14,
-              child: ClipOval(
-                child: CachedNetworkImage(
-                  imageUrl: comment.authorAvatar,
-                  width: 28,
-                  height: 28,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 56,
-                  memCacheHeight: 56,
-                ),
-              ),
-            )
-          else
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: Colors.grey.shade200,
-              child: Text(
-                comment.authorName.isNotEmpty
-                    ? comment.authorName[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ),
+          AvatarWidget(
+            uid: comment.authorUid,
+            fallbackUrl: comment.authorAvatar,
+            name: comment.authorName,
+            size: 28,
+            primary: widget.primary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Container(

@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
+import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/memory_tile_builder.dart';
@@ -45,6 +46,12 @@ class MemoryLanePreview extends StatelessWidget {
     );
 
     String? liveAvatarFor(String uid) {
+      // Current user: in-memory cache is always the freshest source.
+      final fb = FirebaseService();
+      if (uid == fb.uid) {
+        final cached = fb.avatarUrl;
+        if (cached.isNotEmpty) return cached;
+      }
       for (final m in pairData.members) {
         if (m.uid == uid && m.avatar.isNotEmpty) return m.avatar;
       }

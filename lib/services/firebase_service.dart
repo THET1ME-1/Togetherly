@@ -49,6 +49,9 @@ class FirebaseService {
   /// Cached display name — use this instead of reading users/{uid} from Firestore.
   String get displayName => _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';
 
+  /// Cached avatar URL — always reflects the latest save, even before Firestore syncs.
+  String get avatarUrl => _cachedAvatarUrl ?? _auth.currentUser?.photoURL ?? '';
+
   Future<User?> signInWithGoogle() async {
     try {
       final googleAccount = await _googleSignIn.signIn().timeout(
