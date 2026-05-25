@@ -221,8 +221,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         SnackBar(
           content: Text(
             alreadyActive
-                ? '${mascot.name} деактивирован'
-                : '${mascot.name} теперь активен',
+                ? '${mascot.localizedName} деактивирован'
+                : '${mascot.localizedName} теперь активен',
           ),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
@@ -232,7 +232,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
   Future<void> _rename(Mascot mascot) async {
-    final controller = TextEditingController(text: mascot.name);
+    final controller = TextEditingController(text: mascot.localizedName);
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -256,7 +256,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         ],
       ),
     );
-    if (newName != null && newName.isNotEmpty && newName != mascot.name) {
+    if (newName != null && newName.isNotEmpty && newName != mascot.localizedName) {
       await _svc.renameMascot(mascot, newName);
     }
   }
@@ -266,7 +266,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Удалить маскота?'),
-        content: Text('«${mascot.name}» будет удалён навсегда.'),
+        content: Text('«${mascot.localizedName}» будет удалён навсегда.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -293,7 +293,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           '${tmp.path}/${mascot.name.replaceAll(' ', '_')}.png',
         );
         await file.copy(dest.path);
-        await Share.shareXFiles([XFile(dest.path)], text: mascot.name);
+        await Share.shareXFiles([XFile(dest.path)], text: mascot.localizedName);
       }
     } catch (e) {
       if (mounted) {
@@ -346,7 +346,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          mascot.name,
+                          mascot.localizedName,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -765,7 +765,7 @@ class _MascotCard extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    mascot.name,
+                    mascot.localizedName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

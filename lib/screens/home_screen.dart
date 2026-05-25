@@ -1490,7 +1490,7 @@ class _MascotButtonState extends State<_MascotButton>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      mascot != null ? mascot.name : 'Маскот группы',
+                      mascot != null ? mascot.localizedName : 'Маскот группы',
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,

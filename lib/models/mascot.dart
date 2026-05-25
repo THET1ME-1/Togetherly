@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:love_app/services/locale_service.dart';
 
 enum MascotMoodState { happy, sad, verySad }
 
@@ -32,6 +33,17 @@ class Mascot {
   });
 
   bool get hasImage => imageUrl != null || defaultAsset != null;
+
+  /// Returns the locale-aware name for built-in mascots; falls back to [name] for user-created ones.
+  String get localizedName {
+    if (!isDefault) return name;
+    final s = LocaleService.current;
+    switch (id) {
+      case 'default_boy': return s.mascotBoyName;
+      case 'default_girl': return s.mascotGirlName;
+      default: return name;
+    }
+  }
 
   Map<String, dynamic> toFirestore() => {
     'id': id,
