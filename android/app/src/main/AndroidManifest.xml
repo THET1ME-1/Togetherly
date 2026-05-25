@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <!-- Fallback для Android 12 и ниже -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Нужен для сохранения в галерею на Android 9 и ниже -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     
     <!-- Permissions для геолокации -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

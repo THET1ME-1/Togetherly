@@ -548,6 +548,7 @@ abstract class AppStrings {
   String failedAddMemory(String e);
   String get noMediaUrl;
   String get downloading;
+  String get savedToGallery;
   String savedToPath(String path);
   String downloadFailed(String e);
   String failedSelectPhotos(String e);
@@ -1753,6 +1754,8 @@ class _RuStrings extends AppStrings {
   String get noMediaUrl => 'Нет доступной ссылки на медиа';
   @override
   String get downloading => 'Скачиваем...';
+  @override
+  String get savedToGallery => 'Сохранено в галерею 🖼️';
   @override
   String savedToPath(String path) => 'Сохранено: $path';
   @override
@@ -3217,6 +3220,8 @@ class _EnStrings extends AppStrings {
   String get noMediaUrl => 'No media URL available';
   @override
   String get downloading => 'Downloading...';
+  @override
+  String get savedToGallery => 'Saved to gallery 🖼️';
   @override
   String savedToPath(String path) => 'Saved to $path';
   @override

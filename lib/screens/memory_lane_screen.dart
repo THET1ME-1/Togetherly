@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:exif/exif.dart';
+import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/memory.dart';
@@ -2566,27 +2567,38 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         throw Exception('Download failed: ${response.statusCode}');
       }
 
-      // Save to Downloads / Pictures directory
-      Directory saveDir;
-      if (Platform.isAndroid) {
-        // Use external storage Downloads
-        saveDir = Directory('/storage/emulated/0/Download');
-        if (!saveDir.existsSync()) {
-          saveDir = await getApplicationDocumentsDirectory();
-        }
-      } else {
-        saveDir = await getApplicationDocumentsDirectory();
-      }
-
+      // Write to a temp file first, then hand off to gal (images/video)
+      // or Downloads folder (audio). gal inserts into Android MediaStore so
+      // the system Gallery app sees it immediately.
+      final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = '${prefix}_$timestamp.$extension';
-      final file = File('${saveDir.path}/$fileName');
-      await file.writeAsBytes(response.bodyBytes);
+      final tempFile = File('${tempDir.path}/$fileName');
+      await tempFile.writeAsBytes(response.bodyBytes);
+
+      if (memory.type == MemoryType.photo) {
+        await Gal.putImage(tempFile.path, album: 'Togetherly');
+      } else if (memory.type == MemoryType.video) {
+        await Gal.putVideo(tempFile.path, album: 'Togetherly');
+      } else {
+        // Audio — save to Downloads (Files app sees it without MediaStore)
+        Directory saveDir;
+        if (Platform.isAndroid) {
+          saveDir = Directory('/storage/emulated/0/Download');
+          if (!saveDir.existsSync()) saveDir = await getApplicationDocumentsDirectory();
+        } else {
+          saveDir = await getApplicationDocumentsDirectory();
+        }
+        final destFile = File('${saveDir.path}/$fileName');
+        await tempFile.copy(destFile.path);
+      }
+
+      await tempFile.delete().catchError((_) => tempFile);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LocaleService.current.savedToPath(file.path)),
+            content: Text(LocaleService.current.savedToGallery),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
