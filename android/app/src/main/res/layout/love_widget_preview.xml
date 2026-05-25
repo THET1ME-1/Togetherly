@@ -3,14 +3,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:baselineAligned="false">
+    android:baselineAligned="false"
+    android:background="@drawable/widget_bg_rounded"
+    android:clipToOutline="true">
 
     <!-- Левая половина (Я) -->
     <FrameLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:background="#FFCDD9">
+        android:background="@drawable/widget_left_panel">
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -79,7 +81,7 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:background="#E8DAFF">
+        android:background="@drawable/widget_right_panel">
 
         <RelativeLayout
             android:layout_width="match_parent"

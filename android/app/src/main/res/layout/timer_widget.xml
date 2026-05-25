@@ -3,7 +3,8 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/timer_widget_bg">
+    android:background="@drawable/timer_widget_bg"
+    android:clipToOutline="true">
 
     <!-- Декоративное большое сердце (фон, справа) -->
     <ImageView

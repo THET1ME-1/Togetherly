@@ -5,7 +5,9 @@
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center"
-    android:weightSum="2">
+    android:weightSum="2"
+    android:background="@drawable/widget_bg_rounded"
+    android:clipToOutline="true">
 
     <!-- ═══ Левая половина (user 0) ═══ -->
     <FrameLayout

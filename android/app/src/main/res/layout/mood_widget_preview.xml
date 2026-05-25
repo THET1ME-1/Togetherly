@@ -4,7 +4,8 @@
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center"
-    android:background="#FAFAFA"
+    android:background="@drawable/widget_bg_rounded"
+    android:clipToOutline="true"
     android:weightSum="2">
 
     <LinearLayout
