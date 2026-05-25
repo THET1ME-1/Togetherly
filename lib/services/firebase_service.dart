@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:video_compress/video_compress.dart';
 import '../models/mascot.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
@@ -1921,6 +1922,35 @@ class FirebaseService {
           }
         } catch (e) {
           debugPrint('uploadFile: WebP conversion failed, uploading original: $e');
+        }
+      }
+
+      // Compress video before upload — uses device hardware encoder (H.264).
+      // HighestQuality keeps original resolution and framerate; typical savings
+      // are 60-80% vs camera-recorded files with no perceptible quality loss.
+      if (!kIsWeb && ['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
+        try {
+          final info = await VideoCompress.compressVideo(
+            path,
+            quality: VideoQuality.HighestQuality,
+            deleteOrigin: false,
+            includeAudio: true,
+          );
+          if (info?.file != null) {
+            fileToUpload = info!.file!;
+            contentType = 'video/mp4';
+            uploadDestination = destination.replaceAll(
+              RegExp(r'\.(mov|avi|mkv)$', caseSensitive: false),
+              '.mp4',
+            );
+            debugPrint(
+              'uploadFile: Video compressed $fileSize → ${await fileToUpload.length()} bytes',
+            );
+          }
+        } catch (e) {
+          debugPrint('uploadFile: Video compression failed, uploading original: $e');
+        } finally {
+          VideoCompress.cancelCompression();
         }
       }
 
