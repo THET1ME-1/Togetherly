@@ -68,7 +68,6 @@ class FirebaseService {
             .set({
               'displayName': user.displayName ?? '',
               'email': user.email ?? '',
-              'avatarUrl': user.photoURL ?? '',
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true))
             .timeout(const Duration(seconds: 10));
