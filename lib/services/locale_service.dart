@@ -294,6 +294,7 @@ abstract class AppStrings {
   String get notifications;
   String get privacy;
   String get aboutApp;
+  String get supportAuthors;
   String get logout;
   String get logoutQuestion;
   String get logoutConfirm;
@@ -1219,6 +1220,8 @@ class _RuStrings extends AppStrings {
   String get privacy => 'Конфиденциальность';
   @override
   String get aboutApp => 'О приложении';
+  @override
+  String get supportAuthors => 'Поддержать авторов';
   @override
   String get logout => 'Выйти из аккаунта';
   @override
@@ -2674,6 +2677,8 @@ class _EnStrings extends AppStrings {
   String get privacy => 'Privacy';
   @override
   String get aboutApp => 'About App';
+  @override
+  String get supportAuthors => 'Support the Authors';
   @override
   String get logout => 'Sign Out';
   @override

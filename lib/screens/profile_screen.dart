@@ -53,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static final Uri _aboutAppUri = Uri.parse(
     'https://togetherly-d4856.web.app/#download',
   );
+  static final Uri _boostyUri = Uri.parse('https://boosty.to/sntcompany');
 
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
@@ -226,6 +227,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _openAboutApp() async {
     await _openExternalUri(_aboutAppUri);
+  }
+
+  Future<void> _openBoosty() async {
+    await _openExternalUri(_boostyUri);
   }
 
   Future<void> _openExternalUri(Uri uri) async {
@@ -1741,6 +1746,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.archive_outlined,
             label: _s.exportMemories,
             onTap: () => _handleExportConfig(context),
+          ),
+          _divider(),
+          _settingsTile(
+            icon: Icons.favorite_outline_rounded,
+            label: _s.supportAuthors,
+            onTap: _openBoosty,
           ),
           _divider(),
           _settingsTile(
