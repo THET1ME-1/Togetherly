@@ -105,6 +105,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     super.initState();
     _loadAndListen();
     _fetchUserLocation();
+    widget.pairData.addListener(_onPairChanged);
+  }
+
+  void _onPairChanged() {
+    if (mounted) setState(() {});
   }
 
   void _loadAndListen() {
@@ -128,6 +133,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   @override
   void dispose() {
+    widget.pairData.removeListener(_onPairChanged);
     _memorySub?.cancel();
     super.dispose();
   }
@@ -2486,6 +2492,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         memory.type == MemoryType.music;
   }
 
+  /// Extracts the file extension from a Firebase Storage URL.
+  /// e.g. ".../memory_123.webp?alt=media&token=..." → "webp"
+  String _extFromUrl(String url, String fallback) {
+    try {
+      final decoded = Uri.decodeFull(url);
+      final path = Uri.parse(decoded).path;
+      final name = path.split('/').last.split('?').first;
+      final dot = name.lastIndexOf('.');
+      if (dot != -1) return name.substring(dot + 1).toLowerCase();
+    } catch (_) {}
+    return fallback;
+  }
+
   Future<void> _downloadMemoryMedia(Memory memory) async {
     String? url;
     String extension;
@@ -2494,17 +2513,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     switch (memory.type) {
       case MemoryType.photo:
         url = memory.imageUrl;
-        extension = 'jpg';
+        extension = url != null ? _extFromUrl(url, 'webp') : 'webp';
         prefix = 'photo';
         break;
       case MemoryType.video:
         url = memory.videoUrl;
-        extension = 'mp4';
+        extension = url != null ? _extFromUrl(url, 'mp4') : 'mp4';
         prefix = 'video';
         break;
       case MemoryType.music:
         url = memory.musicUrl;
-        extension = 'mp3';
+        extension = url != null ? _extFromUrl(url, 'mp3') : 'mp3';
         prefix = 'music';
         break;
       default:
