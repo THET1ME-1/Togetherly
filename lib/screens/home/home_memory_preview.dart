@@ -271,15 +271,40 @@ class MemoryLanePreview extends StatelessWidget {
       liveNameFor: liveNameFor,
       onTap: () => _openMemoryLane(context),
       onOpenGallery: (urls, index) {
-        final items = urls
-            .map((url) => GalleryItem(url: url, memoryId: ''))
-            .toList();
+        final sorted = [...memories]
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        final allItems = <GalleryItem>[];
+        for (final m in sorted) {
+          if (m.type == MemoryType.photo) {
+            final mUrls = <String>[
+              if (m.imageUrls?.isNotEmpty == true)
+                ...m.imageUrls!
+              else if (m.imageUrl?.isNotEmpty == true)
+                m.imageUrl!,
+            ];
+            for (final url in mUrls) {
+              allItems.add(GalleryItem(url: url, memoryId: m.id, caption: m.caption));
+            }
+          } else if (m.type == MemoryType.video && m.videoUrl?.isNotEmpty == true) {
+            allItems.add(GalleryItem(
+              url: m.imageUrl?.isNotEmpty == true ? m.imageUrl! : m.videoUrl!,
+              videoUrl: m.videoUrl,
+              memoryId: m.id,
+              caption: m.caption,
+            ));
+          }
+        }
+        final tappedUrl = urls.isNotEmpty ? urls[index] : '';
+        int globalIndex = allItems.indexWhere(
+          (item) => item.memoryId == memory.id && item.url == tappedUrl,
+        );
+        if (globalIndex < 0) globalIndex = 0;
         Navigator.of(context).push(
           PageRouteBuilder(
             opaque: false,
             barrierColor: Colors.black,
             pageBuilder: (_, __, e) =>
-                FullscreenGallery(items: items, initialIndex: index),
+                FullscreenGallery(items: allItems, initialIndex: globalIndex),
           ),
         );
       },
