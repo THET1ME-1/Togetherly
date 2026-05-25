@@ -356,6 +356,7 @@ abstract class AppStrings {
   String get redoAction;
   String get clearCanvas;
   String get clearCanvasConfirm;
+  String get deletePhoto;
   String get saveDrawing;
   String get shareDrawing;
   String drawingSavedTo(String path);
@@ -1336,6 +1337,8 @@ class _RuStrings extends AppStrings {
   @override
   String get clearCanvasConfirm =>
       'Очистить весь холст? Это удалит рисунки обоих.';
+  @override
+  String get deletePhoto => 'Удалить фото';
   @override
   String get saveDrawing => 'Сохранить';
   @override
@@ -2785,6 +2788,8 @@ class _EnStrings extends AppStrings {
   @override
   String get clearCanvasConfirm =>
       'Clear the entire canvas? This removes both users\' drawings.';
+  @override
+  String get deletePhoto => 'Delete photo';
   @override
   String get saveDrawing => 'Save';
   @override

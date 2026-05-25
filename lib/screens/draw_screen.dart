@@ -1253,9 +1253,72 @@ class _DrawScreenState extends State<DrawScreen>
       isFilledShape: base.isFilledShape,
       shapeType: base.shapeType,
       orderIndex: _orderCounter,
+      imageUrl: base.imageUrl,
+      imageX: base.imageX,
+      imageY: base.imageY,
+      imageWidth: base.imageWidth,
+      imageHeight: base.imageHeight,
+      imageRotation: base.imageRotation,
     );
     _orderCounter++;
     _submitStroke(stroke);
+  }
+
+  Future<void> _deleteSelectedImage() async {
+    if (_selectedImageId == null) return;
+    final id = _selectedImageId!;
+
+    // Pending stroke (Firebase not yet confirmed)
+    if (_pendingLocalStrokes.containsKey(id)) {
+      _pendingLocalStrokes.remove(id);
+      _cancelledPendingStrokeIds.add(id);
+      _myStrokeIds.remove(id);
+      setState(() {
+        _selectedImageId = null;
+        _visibleStrokes = _composeVisibleStrokes();
+      });
+      return;
+    }
+
+    final removed = _visibleStrokes.where((s) => s.id == id).firstOrNull;
+    if (removed == null) {
+      setState(() => _selectedImageId = null);
+      return;
+    }
+
+    _myStrokeIds.remove(id);
+
+    if (!_hasSharedCanvas) {
+      setState(() {
+        _selectedImageId = null;
+        _visibleStrokes = _visibleStrokes.where((s) => s.id != id).toList();
+      });
+      _saveSoloStrokes();
+      return;
+    }
+
+    _remoteStrokes = _remoteStrokes.where((s) => s.id != id).toList();
+    setState(() {
+      _selectedImageId = null;
+      _visibleStrokes = _composeVisibleStrokes();
+    });
+
+    try {
+      await _fb.deleteDrawingStroke(
+        groupId: _groupId,
+        strokeId: id,
+        canvasId: _canvasId,
+      );
+    } catch (e) {
+      debugPrint('[Draw] deleteImage error: $e');
+      if (!mounted) return;
+      _remoteStrokes = [..._remoteStrokes, removed]..sort(_compareStrokes);
+      _myStrokeIds.add(id);
+      setState(() {
+        _selectedImageId = id;
+        _visibleStrokes = _composeVisibleStrokes();
+      });
+    }
   }
 
   //  Fill / Clear
@@ -2249,8 +2312,8 @@ class _DrawScreenState extends State<DrawScreen>
           const Spacer(),
           _actionBtn(
             Icons.delete_outline_rounded,
-            _confirmClear,
-            tooltip: s.clearCanvas,
+            _selectedImageId != null ? _deleteSelectedImage : _confirmClear,
+            tooltip: _selectedImageId != null ? s.deletePhoto : s.clearCanvas,
             color: Colors.red.shade400,
           ),
         ],
