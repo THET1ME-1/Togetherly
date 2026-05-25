@@ -22,6 +22,7 @@ import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/rate_limiter_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/m3_loading.dart';
@@ -70,6 +71,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   Color get primary => widget.theme.primary;
 
   final FirebaseService _fb = FirebaseService();
+
+  /// Live avatar for a memory author — falls back to the stored snapshot.
+  String _liveAvatar(Memory memory) {
+    for (final m in pair.members) {
+      if (m.uid == memory.authorUid && m.avatar.isNotEmpty) return m.avatar;
+    }
+    return memory.authorAvatar;
+  }
+
+  /// Live display name for a memory author — falls back to the stored snapshot.
+  String _liveName(Memory memory) {
+    for (final m in pair.members) {
+      if (m.uid == memory.authorUid && m.name.isNotEmpty) return m.name;
+    }
+    return memory.authorName;
+  }
   List<Memory> _memories = [];
   StreamSubscription? _memorySub;
   bool _loading = true;
@@ -579,16 +596,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ),
                 child: ClipOval(
-                  child: memory.authorAvatar.isNotEmpty
+                  child: _liveAvatar(memory).isNotEmpty
                       ? CachedNetworkImage(
-                          imageUrl: memory.authorAvatar,
+                          imageUrl: _liveAvatar(memory),
                           fit: BoxFit.cover,
                           memCacheWidth: 120,
                           memCacheHeight: 120,
                           errorWidget: (_, __, ___) =>
-                              _avatarFallback(memory.authorName),
+                              _avatarFallback(_liveName(memory)),
                         )
-                      : _avatarFallback(memory.authorName),
+                      : _avatarFallback(_liveName(memory)),
                 ),
               ),
               if (badgeColor != null)
@@ -627,7 +644,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   children: [
                     Flexible(
                       child: Text(
-                        memory.authorName,
+                        _liveName(memory),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -2161,15 +2178,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     // Author + time
                     Row(
                       children: [
-                        if (memory.authorAvatar.isNotEmpty)
+                        if (_liveAvatar(memory).isNotEmpty)
                           CircleAvatar(
                             radius: 14,
-                            backgroundImage: NetworkImage(memory.authorAvatar),
+                            backgroundImage: NetworkImage(_liveAvatar(memory)),
                           ),
-                        if (memory.authorAvatar.isNotEmpty)
+                        if (_liveAvatar(memory).isNotEmpty)
                           const SizedBox(width: 8),
                         Text(
-                          memory.authorName,
+                          _liveName(memory),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -5556,6 +5573,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final user = _fb.currentUser;
     if (user == null || _groupId.isEmpty) return;
 
+    // Check rate limit before uploading to avoid wasting bandwidth
+    try {
+      await RateLimiterService().checkMemory();
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+      return;
+    }
+
     // Show loading indicator
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -8453,13 +8486,26 @@ class _CommentsSectionState extends State<_CommentsSection> {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     setState(() => _sending = true);
-    await widget.fb.addComment(
-      groupId: widget.groupId,
-      memoryId: widget.memoryId,
-      text: text,
-    );
-    _ctrl.clear();
-    setState(() => _sending = false);
+    try {
+      await widget.fb.addComment(
+        groupId: widget.groupId,
+        memoryId: widget.memoryId,
+        text: text,
+      );
+      _ctrl.clear();
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override

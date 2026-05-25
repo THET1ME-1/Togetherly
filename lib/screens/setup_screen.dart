@@ -89,8 +89,8 @@ class _SetupScreenState extends State<SetupScreen>
       final fb = FirebaseService();
       final user = await fb.signInWithGoogle();
       if (user != null) {
-        // Try to load existing user profile from Firestore
-        final profile = await fb.loadUserProfile();
+        // Try to load existing user profile from Firestore — force server to bypass stale cache
+        final profile = await fb.loadUserProfile(fromServer: true);
 
         if (profile != null &&
             profile['displayName'] != null &&
@@ -98,8 +98,9 @@ class _SetupScreenState extends State<SetupScreen>
           // User already has a profile in Firestore - auto-register and go to home
           final displayName = profile['displayName'] as String;
           final email = profile['email'] as String? ?? user.email ?? '';
+          final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
           final avatarUrl =
-              profile['avatarUrl'] as String? ?? user.photoURL ?? '';
+              firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
           final genderStr = profile['gender'] as String;
           final gender = genderStr == 'male' ? Gender.male : Gender.female;
 

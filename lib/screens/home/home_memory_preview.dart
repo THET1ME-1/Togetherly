@@ -44,6 +44,20 @@ class MemoryLanePreview extends StatelessWidget {
       cardBorder: const Color(0xFFE5E5E5),
     );
 
+    String? liveAvatarFor(String uid) {
+      for (final m in pairData.members) {
+        if (m.uid == uid && m.avatar.isNotEmpty) return m.avatar;
+      }
+      return null;
+    }
+
+    String? liveNameFor(String uid) {
+      for (final m in pairData.members) {
+        if (m.uid == uid && m.name.isNotEmpty) return m.name;
+      }
+      return null;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -143,7 +157,9 @@ class MemoryLanePreview extends StatelessWidget {
             child: Column(
               children: [
                 for (int i = 0; i < memories.length && i < 3; i++)
-                  _buildTile(context, tileBuilder, memories[i]),
+                  _buildTile(context, tileBuilder, memories[i],
+                      liveAvatarFor: liveAvatarFor,
+                      liveNameFor: liveNameFor),
               ],
             ),
           ),
@@ -216,8 +232,10 @@ class MemoryLanePreview extends StatelessWidget {
   Widget _buildTile(
     BuildContext context,
     MemoryTileBuilder tileBuilder,
-    Memory memory,
-  ) {
+    Memory memory, {
+    String? Function(String uid)? liveAvatarFor,
+    String? Function(String uid)? liveNameFor,
+  }) {
     final distanceText = memory.latitude != null && memory.longitude != null
         ? _distanceKm(memory.latitude!, memory.longitude!)
         : null;
@@ -225,6 +243,8 @@ class MemoryLanePreview extends StatelessWidget {
     if (memory.type == MemoryType.music) {
       return tileBuilder.buildTile(
         memory,
+        liveAvatarFor: liveAvatarFor,
+        liveNameFor: liveNameFor,
         musicPlayerWidget: MemoryMusicPlayer(
           key: ValueKey(memory.id),
           memory: memory,
@@ -236,6 +256,8 @@ class MemoryLanePreview extends StatelessWidget {
     if (memory.type == MemoryType.text) {
       return tileBuilder.buildTile(
         memory,
+        liveAvatarFor: liveAvatarFor,
+        liveNameFor: liveNameFor,
         onTap: () => _showNoteDetail(context, memory),
         onOpenLocation: (lat, lng, label) =>
             _openLocationInMaps(lat, lng, label),
@@ -245,6 +267,8 @@ class MemoryLanePreview extends StatelessWidget {
 
     return tileBuilder.buildTile(
       memory,
+      liveAvatarFor: liveAvatarFor,
+      liveNameFor: liveNameFor,
       onTap: () => _openMemoryLane(context),
       onOpenGallery: (urls, index) {
         final items = urls
@@ -254,7 +278,7 @@ class MemoryLanePreview extends StatelessWidget {
           PageRouteBuilder(
             opaque: false,
             barrierColor: Colors.black,
-            pageBuilder: (_, __, ___) =>
+            pageBuilder: (_, __, e) =>
                 FullscreenGallery(items: items, initialIndex: index),
           ),
         );

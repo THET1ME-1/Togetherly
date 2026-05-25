@@ -56,6 +56,10 @@ class MemoryTileBuilder {
     /// If non-null, replaces the music content area with this widget
     /// (used in MemoryLaneScreen where _MusicMiniPlayer is used)
     Widget? musicPlayerWidget,
+
+    /// Live avatar/name resolvers — override the stored snapshot on old memories.
+    String? Function(String uid)? liveAvatarFor,
+    String? Function(String uid)? liveNameFor,
   }) {
     Widget content;
     bool enableTap = true;
@@ -108,7 +112,7 @@ class MemoryTileBuilder {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(memory),
+          _cardHeader(memory, liveAvatarFor: liveAvatarFor, liveNameFor: liveNameFor),
           const SizedBox(height: 10),
           content,
           const SizedBox(height: 12),
@@ -156,7 +160,11 @@ class MemoryTileBuilder {
   // ═══════════════════════════════════════════════════
   //  CARD HEADER  (avatar · name · time · subtitle)
   // ═══════════════════════════════════════════════════
-  Widget _cardHeader(Memory memory) {
+  Widget _cardHeader(
+    Memory memory, {
+    String? Function(String uid)? liveAvatarFor,
+    String? Function(String uid)? liveNameFor,
+  }) {
     final s = LocaleService.current;
     String subtitle;
     switch (memory.type) {
@@ -208,16 +216,21 @@ class MemoryTileBuilder {
                   ),
                 ),
                 child: ClipOval(
-                  child: memory.authorAvatar.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: memory.authorAvatar,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 120,
-                          memCacheHeight: 120,
-                          errorWidget: (_, __, ___) =>
-                              _avatarFallback(memory.authorName),
-                        )
-                      : _avatarFallback(memory.authorName),
+                  child: () {
+                    final avatar = liveAvatarFor?.call(memory.authorUid)?.isNotEmpty == true
+                        ? liveAvatarFor!.call(memory.authorUid)!
+                        : memory.authorAvatar;
+                    final name = liveNameFor?.call(memory.authorUid) ?? memory.authorName;
+                    return avatar.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: avatar,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 120,
+                            memCacheHeight: 120,
+                            errorWidget: (_, __, e) => _avatarFallback(name),
+                          )
+                        : _avatarFallback(name);
+                  }(),
                 ),
               ),
               Positioned(
@@ -255,7 +268,7 @@ class MemoryTileBuilder {
                   children: [
                     Flexible(
                       child: Text(
-                        memory.authorName,
+                        liveNameFor?.call(memory.authorUid) ?? memory.authorName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

@@ -17,6 +17,7 @@ import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
+import '../services/rate_limiter_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/animations.dart';
 import '../widgets/common/m3_loading.dart';
@@ -984,6 +985,27 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     // null means user cancelled
     if (result == null) return;
+
+    // Check rate limit before uploading to avoid wasting bandwidth
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await RateLimiterService().checkMemory();
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     // Show loading
     showDialog(

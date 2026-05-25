@@ -61,16 +61,17 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Load user profile from Firestore
-      final profile = await fb.loadUserProfile();
+      // Load user profile from Firestore — force server fetch to bypass stale cache
+      final profile = await fb.loadUserProfile(fromServer: true);
 
       if (profile != null &&
           profile['displayName'] != null &&
           profile['gender'] != null) {
         final displayName = profile['displayName'] as String;
         final userEmail = profile['email'] as String? ?? user.email ?? '';
+        final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
         final avatarUrl =
-            profile['avatarUrl'] as String? ?? user.photoURL ?? '';
+            firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
         final genderStr = profile['gender'] as String;
         final gender = genderStr == 'male' ? Gender.male : Gender.female;
 
@@ -134,15 +135,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await fb.signInWithGoogle();
 
       if (user != null) {
-        final profile = await fb.loadUserProfile();
+        final profile = await fb.loadUserProfile(fromServer: true);
 
         if (profile != null &&
             profile['displayName'] != null &&
             profile['gender'] != null) {
           final displayName = profile['displayName'] as String;
           final email = profile['email'] as String? ?? user.email ?? '';
+          final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
           final avatarUrl =
-              profile['avatarUrl'] as String? ?? user.photoURL ?? '';
+              firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
           final genderStr = profile['gender'] as String;
           final gender = genderStr == 'male' ? Gender.male : Gender.female;
 

@@ -20,6 +20,7 @@ import '../models/comment.dart';
 import '../models/timer_item.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
+import 'rate_limiter_service.dart';
 
 /// Единый сервис для работы с Firebase.
 /// Поддерживает группы от 2 до 10 участников + совместные воспоминания.
@@ -671,18 +672,28 @@ class FirebaseService {
     }
   }
 
-  Future<Map<String, dynamic>?> loadUserProfile() async {
+  Future<Map<String, dynamic>?> loadUserProfile({bool fromServer = false}) async {
     final u = currentUser;
     if (u == null) return null;
     try {
       final doc = await _db
           .collection('users')
           .doc(u.uid)
-          .get()
+          .get(fromServer ? const GetOptions(source: Source.server) : null)
           .timeout(const Duration(seconds: 10));
       return doc.data();
     } catch (e) {
       debugPrint('loadUserProfile failed: $e');
+      // On network error fall back to cache
+      if (fromServer) {
+        try {
+          final cached = await _db
+              .collection('users')
+              .doc(u.uid)
+              .get(const GetOptions(source: Source.cache));
+          return cached.data();
+        } catch (_) {}
+      }
       return null;
     }
   }
@@ -2025,6 +2036,8 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return null;
 
+    await RateLimiterService().checkAndRecordMemory();
+
     try {
       final userDoc = await _db.collection('users').doc(u.uid).get();
       final name = userDoc.data()?['displayName'] ?? u.displayName ?? '';
@@ -2243,6 +2256,9 @@ class FirebaseService {
   }) async {
     final user = currentUser;
     if (user == null) return;
+
+    await RateLimiterService().checkAndRecordComment();
+
     final comment = MemoryComment(
       id: '',
       authorUid: user.uid,
