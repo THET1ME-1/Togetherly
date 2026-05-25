@@ -1858,6 +1858,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         typeColor: _memoryTypeColor(memory.type),
         userLat: _userLat,
         userLng: _userLng,
+        liveAuthorAvatar: _liveAvatar(memory),
         onTogglePin: () => _togglePin(memory),
         onDownload: () => _downloadMemoryMedia(memory),
         onEdit: () => _editMemory(memory),
@@ -7111,6 +7112,9 @@ class _MemoryDetailSheet extends StatefulWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onSetLocation;
+  /// Live-resolved author avatar URL (from group memberAvatars). If empty,
+  /// AvatarWidget falls back to memory.authorAvatar.
+  final String liveAuthorAvatar;
 
   const _MemoryDetailSheet({
     required this.memory,
@@ -7127,6 +7131,7 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.onEdit,
     required this.onDelete,
     this.onSetLocation,
+    this.liveAuthorAvatar = '',
   });
 
   @override
@@ -7277,6 +7282,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 ),
                 child: AvatarWidget(
                   uid: memory.authorUid,
+                  liveUrl: widget.liveAuthorAvatar,
                   fallbackUrl: memory.authorAvatar,
                   name: memory.authorName,
                   size: 44,

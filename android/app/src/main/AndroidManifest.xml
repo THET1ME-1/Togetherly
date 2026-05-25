@@ -99,6 +99,11 @@
         <!-- HomeWidget: фоновый ресивер для обновления виджета когда процесс убит -->
         <receiver android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
             android:exported="false" />
+        <!-- HomeWidget: фоновый JobIntentService — обязательно нужен для Android 8+ и MIUI -->
+        <service
+            android:name="es.antonborri.home_widget.HomeWidgetBackgroundService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
 
         <!-- ═══ Виджет рабочего стола: Парный ═══ -->
         <receiver android:name=".LoveWidgetProvider"

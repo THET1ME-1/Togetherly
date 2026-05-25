@@ -71,6 +71,7 @@ class AvatarWidget extends StatelessWidget {
               fit: BoxFit.cover,
               memCacheWidth: (size * 2).toInt(),
               memCacheHeight: (size * 2).toInt(),
+              placeholder: (_, __) => _placeholder(),
               errorWidget: (_, __, ___) => _placeholder(),
             )
           : _placeholder(),
