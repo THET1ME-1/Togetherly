@@ -94,6 +94,10 @@
             android:name="com.yalantis.ucrop.UCropActivity"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
 
+        <!-- HomeWidget: фоновый ресивер для обновления виджета когда процесс убит -->
+        <receiver android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
+            android:exported="false" />
+
         <!-- ═══ Виджет рабочего стола: Парный ═══ -->
         <receiver android:name=".LoveWidgetProvider"
             android:exported="true">

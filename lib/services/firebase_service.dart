@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:home_widget/home_widget.dart';
 import '../models/mascot.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
@@ -295,6 +296,11 @@ class FirebaseService {
   }
 
   static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    if (message.data['type'] == 'widget_update') {
+      await _handleWidgetUpdateMessage(message);
+      return;
+    }
+
     final shouldShow = await _shouldShowNotification(message);
     if (!shouldShow) return;
 
@@ -307,6 +313,25 @@ class FirebaseService {
       body: content.body,
       channelId: _channelIdFor(message),
     );
+  }
+
+  static Future<void> _handleWidgetUpdateMessage(RemoteMessage message) async {
+    try {
+      final d = message.data;
+      await Future.wait([
+        HomeWidget.saveWidgetData<String>('partner_status', d['status'] ?? ''),
+        HomeWidget.saveWidgetData<String>('partner_mood', d['moodLabel'] ?? ''),
+        HomeWidget.saveWidgetData<String>('partner_message', d['message'] ?? ''),
+        HomeWidget.saveWidgetData<String>('partner_music_title', d['musicTitle'] ?? ''),
+        HomeWidget.saveWidgetData<String>('partner_music_artist', d['musicArtist'] ?? ''),
+      ]);
+      await HomeWidget.updateWidget(
+        name: 'LoveWidgetProvider',
+        androidName: 'LoveWidgetProvider',
+      );
+    } catch (e) {
+      debugPrint('_handleWidgetUpdateMessage failed: $e');
+    }
   }
 
   static Future<bool> _shouldShowNotification(RemoteMessage message) async {
@@ -575,6 +600,41 @@ class FirebaseService {
 
   /// Updates the user's avatar URL in all groups they belong to.
   /// This ensures that partner devices receive the new avatar via the group listener.
+  Future<void> updateNameInGroups(String displayName) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      final userDoc = await _db.collection('users').doc(u.uid).get();
+      if (!userDoc.exists) return;
+      final userData = userDoc.data()!;
+
+      final pairIds = <String>{};
+      final legacyPairId = userData['pairId'] as String?;
+      if (legacyPairId != null && legacyPairId.isNotEmpty) {
+        pairIds.add(legacyPairId);
+      }
+      final pairIdsList = userData['pairIds'] as List<dynamic>?;
+      if (pairIdsList != null) {
+        pairIds.addAll(
+          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
+        );
+      }
+
+      for (final groupId in pairIds) {
+        await _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memberNames.${u.uid}': displayName})
+            .timeout(const Duration(seconds: 10))
+            .catchError(
+              (e) => debugPrint('updateNameInGroups[$groupId] failed: $e'),
+            );
+      }
+    } catch (e) {
+      debugPrint('updateNameInGroups failed: $e');
+    }
+  }
+
   Future<void> updateAvatarInGroups(String avatarUrl) async {
     final u = currentUser;
     if (u == null) return;
@@ -1820,8 +1880,6 @@ class FirebaseService {
       );
       debugPrint('uploadFile: Storage bucket = ${_storage.bucket}');
 
-      final ref = _storage.ref().child(destination);
-
       // Determine content type from extension
       final ext = path.split('.').last.toLowerCase();
       String? contentType;
@@ -1833,34 +1891,44 @@ class FirebaseService {
         contentType = 'audio/$ext';
       }
 
-      final metadata = contentType != null
-          ? SettableMetadata(contentType: contentType)
-          : null;
-
+      // Convert raster images to WebP before upload — typically 30-60% smaller
+      // than JPEG at equivalent visual quality. Storage path gets .webp extension.
       File fileToUpload = file;
+      var uploadDestination = destination;
       if (['jpg', 'jpeg', 'png'].contains(ext)) {
         try {
           final tempDir = await getTemporaryDirectory();
           final targetPath =
-              '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.$ext';
+              '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
           final xFile = await FlutterImageCompress.compressAndGetFile(
             path,
             targetPath,
-            quality: 70,
+            quality: 87,
+            format: CompressFormat.webp,
             autoCorrectionAngle: true,
             keepExif: false,
           );
           if (xFile != null) {
             fileToUpload = File(xFile.path);
+            contentType = 'image/webp';
+            uploadDestination = destination.replaceAll(
+              RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
+              '.webp',
+            );
             debugPrint(
-              'uploadFile: Compressed image from ${await file.length()} to ${await fileToUpload.length()}',
+              'uploadFile: WebP conversion $fileSize → ${await fileToUpload.length()} bytes',
             );
           }
         } catch (e) {
-          debugPrint('uploadFile: Compression failed: $e');
+          debugPrint('uploadFile: WebP conversion failed, uploading original: $e');
         }
       }
 
+      final metadata = contentType != null
+          ? SettableMetadata(contentType: contentType)
+          : null;
+
+      final ref = _storage.ref().child(uploadDestination);
       final uploadTask = ref.putFile(fileToUpload, metadata);
 
       // Monitor upload progress

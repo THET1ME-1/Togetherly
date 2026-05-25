@@ -19,6 +19,7 @@ import android.net.Uri
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
@@ -38,6 +39,18 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 return@forEach
             }
             appWidgetManager.updateAppWidget(widgetId, views)
+        }
+        // Запускаем фоновый Dart-изолят для получения свежих данных из Firestore.
+        // Актуально когда процесс Flutter убит (Xiaomi/Samsung battery optimization).
+        // После получения данных изолят сам вызовет updateAppWidget снова.
+        try {
+            val refreshIntent = HomeWidgetBackgroundIntent.getBroadcastReceiver(
+                context,
+                android.net.Uri.parse("loveapp://refresh")
+            )
+            refreshIntent.send()
+        } catch (e: Exception) {
+            Log.w("LoveWidgetProvider", "Background refresh trigger skipped: ${e.message}")
         }
     }
 

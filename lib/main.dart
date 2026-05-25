@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/user_data.dart';
 import 'services/deep_link_service.dart';
@@ -20,6 +22,77 @@ import 'widgets/common/m3_loading.dart';
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   await FirebaseService.handleBackgroundMessage(message);
+}
+
+/// Вызывается нативным виджетом (LoveWidgetProvider.onUpdate) через
+/// HomeWidgetBackgroundReceiver, когда процесс Flutter мёртв.
+/// Тянет свежие данные из Firestore и обновляет SharedPreferences виджета,
+/// чтобы парный виджет показывал актуальный статус/настроение без открытия приложения.
+@pragma('vm:entry-point')
+Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
+  if (uri?.host != 'refresh') return;
+  try {
+    await Firebase.initializeApp();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final groupId =
+        await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+    final partnerUid =
+        await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
+    if (groupId.isEmpty) return;
+
+    final db = FirebaseFirestore.instance;
+
+    // Fetch my data
+    final mySnap = await db
+        .collection('groups')
+        .doc(groupId)
+        .collection('widgetData')
+        .doc(user.uid)
+        .get()
+        .timeout(const Duration(seconds: 10));
+
+    if (mySnap.exists && mySnap.data() != null) {
+      final d = mySnap.data()!;
+      await Future.wait([
+        HomeWidget.saveWidgetData<String>('my_status', d['status'] as String? ?? ''),
+        HomeWidget.saveWidgetData<String>('my_mood', d['moodLabel'] as String? ?? ''),
+        HomeWidget.saveWidgetData<String>('my_message', d['message'] as String? ?? ''),
+        HomeWidget.saveWidgetData<String>('my_music_title', d['musicTitle'] as String? ?? ''),
+        HomeWidget.saveWidgetData<String>('my_music_artist', d['musicArtist'] as String? ?? ''),
+      ]);
+    }
+
+    // Fetch partner data
+    if (partnerUid.isNotEmpty) {
+      final partnerSnap = await db
+          .collection('groups')
+          .doc(groupId)
+          .collection('widgetData')
+          .doc(partnerUid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+
+      if (partnerSnap.exists && partnerSnap.data() != null) {
+        final d = partnerSnap.data()!;
+        await Future.wait([
+          HomeWidget.saveWidgetData<String>('partner_status', d['status'] as String? ?? ''),
+          HomeWidget.saveWidgetData<String>('partner_mood', d['moodLabel'] as String? ?? ''),
+          HomeWidget.saveWidgetData<String>('partner_message', d['message'] as String? ?? ''),
+          HomeWidget.saveWidgetData<String>('partner_music_title', d['musicTitle'] as String? ?? ''),
+          HomeWidget.saveWidgetData<String>('partner_music_artist', d['musicArtist'] as String? ?? ''),
+        ]);
+      }
+    }
+
+    await HomeWidget.updateWidget(
+      name: 'LoveWidgetProvider',
+      androidName: 'LoveWidgetProvider',
+    );
+  } catch (e) {
+    debugPrint('_homeWidgetBackgroundCallback failed: $e');
+  }
 }
 
 void main() async {
@@ -61,6 +134,10 @@ void main() async {
 
   // FCM background handler — регистрируем до чего угодно
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Виджет рабочего стола: фоновый callback для обновления данных пары
+  // когда процесс убит (Xiaomi/Samsung с агрессивным battery management)
+  HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
 
   // Включаем офлайн-кеш Firestore
   FirebaseFirestore.instance.settings = const Settings(

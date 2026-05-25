@@ -205,8 +205,11 @@ class UserData extends ChangeNotifier {
         gender: _gender == Gender.male ? 'male' : 'female',
         avatarUrl: _avatarUrl,
       );
-      // If avatar changed – propagate the new URL to all groups so partners
-      // receive the update via the group real-time listener.
+      // Propagate name/avatar changes to all groups so partners receive
+      // the update via the group real-time listener.
+      if (displayName != null) {
+        await _fb.updateNameInGroups(_displayName);
+      }
       if (avatarUrl != null) {
         await _fb.updateAvatarInGroups(_avatarUrl);
       }

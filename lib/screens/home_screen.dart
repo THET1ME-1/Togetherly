@@ -129,6 +129,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _mascotService.recordDailyActivity();
           HomeWidgetService.instance.refreshPhotoOfDay(_pairData.pairId);
         }
+        // Re-sync the love widget so partner's latest status/mood appears
+        // immediately when the user returns to the home screen.
+        _widgetService.syncNow();
       },
     );
   }

@@ -72,6 +72,8 @@ class WidgetService extends ChangeNotifier {
     _groupId = groupId;
     await _loadSettings();
     if (_isDisposed || generation != _bindGeneration) return;
+    // Persist groupId so the background isolate (onUpdate refresh) can find it
+    await HomeWidget.saveWidgetData<String>('love_widget_group_id', groupId);
     _listenToMyData();
     notifyListeners();
   }
@@ -79,6 +81,8 @@ class WidgetService extends ChangeNotifier {
   /// Подписка на виджет-данные партнёра
   void listenToPartner(String partnerUid) {
     if (partnerUid.isEmpty || _groupId.isEmpty) return;
+    // Persist partnerUid so the background isolate can fetch partner data
+    HomeWidget.saveWidgetData<String>('love_widget_partner_uid', partnerUid);
 
     _partnerSubs.remove(partnerUid)?.cancel();
     _partnerData.remove(partnerUid);
@@ -422,6 +426,31 @@ class WidgetService extends ChangeNotifier {
       // Синхронизируем нативный виджет сразу после записи,
       // не дожидаясь Firestore-листенера (Xiaomi убивает процесс слишком быстро)
       await _syncToNativeWidget();
+
+      // Пишем лёгкий триггер для Cloud Function, которая отправит FCM-сообщение
+      // партнёру с type=widget_update — это обеспечивает мгновенное обновление
+      // даже когда процесс Flutter партнёра полностью убит OEM-оптимизатором.
+      final triggerFields = <String, dynamic>{
+        'senderUid': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      const widgetFields = ['status', 'moodLabel', 'message', 'musicTitle', 'musicArtist'];
+      for (final entry in fields.entries) {
+        if (widgetFields.contains(entry.key) && entry.value != null) {
+          triggerFields[entry.key] = entry.value;
+        }
+      }
+      unawaited(
+        _db
+            .collection('groups')
+            .doc(targetGroupId)
+            .collection('widgetDataEvents')
+            .add(triggerFields)
+            .catchError((Object e) {
+          debugPrint('widgetDataEvents write failed: $e');
+          throw e;
+        }),
+      );
     } catch (e) {
       debugPrint('WidgetService._updateField failed: $e');
     }
@@ -787,6 +816,14 @@ class WidgetService extends ChangeNotifier {
       await HomeWidget.saveWidgetData<String>(key, '');
     }
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PUBLIC SYNC
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Forces an immediate re-sync of the native home-screen widget.
+  /// Call this when the app comes to foreground so the widget is always fresh.
+  Future<void> syncNow() => _syncToNativeWidget();
 
   // ══════════════════════════════════════════════════════════════════════════
   // DISPOSE
