@@ -339,6 +339,23 @@ class ConnectionsManager extends ChangeNotifier {
             _connections.length > 1 ? 1 : _connections.length - 1;
       }
     }
+
+    // 3) Phantom members — same person occupying multiple uid slots in members[].
+    //    Fires once per app start; the group listener will re-emit clean data
+    //    after the Firestore write resolves.
+    if (!_fb.isLoggedIn) return;
+    for (final conn in _connections) {
+      if (conn.isSolo) continue;
+      if (!conn.isPaired || conn.pairId.isEmpty) continue;
+      if (conn.members.length <= 1) continue;
+
+      final removed = await _fb.cleanupPhantomMembersInGroup(conn.pairId);
+      if (removed.isNotEmpty) {
+        // Apply locally too so the UI updates without waiting for the snapshot.
+        conn.members =
+            conn.members.where((m) => !removed.contains(m.uid)).toList();
+      }
+    }
   }
 
   /// Когда партнёр принимает инвайт, pairId обновляется —

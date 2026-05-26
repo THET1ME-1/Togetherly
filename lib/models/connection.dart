@@ -559,21 +559,21 @@ class Connection {
   }
 
   Future<void> refreshPairStatus() async {
-    if (isPaired && pairId.isNotEmpty) {
-      _listenToPair();
-      return;
-    }
-
     if (pairId.isNotEmpty) {
+      // Always fetch fresh from Firestore on app start — covers the case where
+      // SharedPreferences holds stale `members` from a previous version (the
+      // root cause of the "Group of 3" phantom bug). Skipping this when
+      // isPaired+pairId would let the corrupt local cache survive until the
+      // listener snapshot fires.
       try {
         final pairData = await _fb.loadPairById(pairId);
         if (pairData != null) {
           _applyPairData(pairData);
-          _listenToPair();
         }
       } catch (e) {
         debugPrint('Pair refresh by id failed: $e');
       }
+      _listenToPair();
       onChanged?.call();
       return;
     }
@@ -735,6 +735,25 @@ class Connection {
 
           members = newMembers;
 
+          // Diagnostic: log when the group is over capacity. Indicates the
+          // "phantom member" bug — same person occupying multiple uid slots.
+          // ConnectionsManager._cleanupStaleConnections runs a one-shot
+          // auto-cleanup on app start; if it ever logs here again the bug has
+          // a new reproduction path we haven't covered.
+          if (newMembers.length > maxMembers) {
+            final dump = newMembers
+                .map((m) => '${m.uid}=${m.name}')
+                .join(', ');
+            debugPrint(
+              '_listenToPair($pairId): OVERSIZED group — '
+              '${newMembers.length} members, maxMembers=$maxMembers, myUid=$myUid, '
+              'partners=${newMembers.where((m) => m.uid != myUid).length}. '
+              'Members: [$dump]',
+            );
+            // Fire-and-forget cleanup; safe to call repeatedly.
+            unawaited(_fb.cleanupPhantomMembersInGroup(pairId));
+          }
+
           // If all partners left (only me remaining), mark as unpaired
           final partnersCount = members.where((m) => m.uid != myUid).length;
           if (partnersCount == 0 && isPaired) {
@@ -857,9 +876,47 @@ class Connection {
     FirebaseService firebaseService,
     Function()? onChanged,
   ) {
-    final membersList = (json['members'] as List<dynamic>?)
+    // Sanity guard against the "Group of 3" bug. Old builds could persist a
+    // members list that contains: an entry with an empty uid, duplicates of
+    // the same uid, or more entries than a couple should have. Restoring such
+    // a list as-is lets the bug survive across uninstalls (via Android Auto
+    // Backup) and across restarts. Drop empties + dedupe by uid; if the
+    // cleaned list still overflows maxMembers (=2), zero it out so the
+    // Firestore listener repopulates from authoritative data.
+    final rawMembers = (json['members'] as List<dynamic>?)
         ?.map((m) => GroupMember.fromJson(Map<String, dynamic>.from(m)))
         .toList();
+    final List<GroupMember> membersList;
+    if (rawMembers == null) {
+      membersList = [];
+    } else {
+      final seen = <String>{};
+      final cleaned = <GroupMember>[];
+      for (final m in rawMembers) {
+        if (m.uid.isEmpty) continue;
+        if (!seen.add(m.uid)) continue;
+        cleaned.add(m);
+      }
+      const localMaxMembers = 2;
+      if (cleaned.length > localMaxMembers) {
+        debugPrint(
+          'Connection.fromJson(${json['id']}): members overflow '
+          '(${cleaned.length} > $localMaxMembers) — clearing local cache, '
+          'will refetch from Firestore. Cached uids: '
+          '${cleaned.map((m) => m.uid).toList()}',
+        );
+        membersList = [];
+      } else if (cleaned.length != rawMembers.length) {
+        debugPrint(
+          'Connection.fromJson(${json['id']}): pruned '
+          '${rawMembers.length - cleaned.length} bad member entry(ies) '
+          '(empties/duplicates)',
+        );
+        membersList = cleaned;
+      } else {
+        membersList = cleaned;
+      }
+    }
 
     return Connection(
         id: json['id'] ?? '',
@@ -871,7 +928,7 @@ class Connection {
             : null,
         partnerName: json['partnerName'] ?? '',
         partnerAvatarUrl: json['partnerAvatarUrl'] ?? '',
-        members: membersList ?? [],
+        members: membersList,
         inviteCode: json['inviteCode'] ?? '',
         pairId: json['pairId'] ?? '',
         relationshipType: RelationshipType.values.firstWhere(

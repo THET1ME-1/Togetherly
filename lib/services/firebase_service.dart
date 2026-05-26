@@ -1704,6 +1704,117 @@ class FirebaseService {
     }
   }
 
+  /// Diagnostic + cleanup for the "phantom member" bug.
+  ///
+  /// Symptom: header shows N+1 avatars / "Group of N+1" while Members list
+  /// renders only N. Root cause: `members[]` in Firestore contains an extra
+  /// UID that belongs to the same person (current user) but from an older
+  /// auth session (different sign-in method or recreated account). Since
+  /// `Connection.partners` filters by `uid != myUid`, the phantom-self uid
+  /// passes the filter and is counted as a partner.
+  ///
+  /// This method prints every member's uid + email + displayName, then
+  /// removes any uid that:
+  ///   - has no users/{uid} document (orphan), OR
+  ///   - has the same email as the current user but a different uid
+  ///     (phantom-self from an earlier session).
+  ///
+  /// Returns the list of removed uids. Safe to call repeatedly — does nothing
+  /// when no phantoms exist.
+  Future<List<String>> cleanupPhantomMembersInGroup(String groupId) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return const [];
+
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (!groupDoc.exists) return const [];
+
+      final data = groupDoc.data()!;
+      final rawMembers = List<String>.from(data['members'] ?? []);
+      final members = rawMembers.toSet().toList();
+      if (members.length <= 1) {
+        debugPrint(
+          'cleanupPhantomMembersInGroup($groupId): only ${members.length} member(s), nothing to check',
+        );
+        return const [];
+      }
+
+      // My email — prefer Firebase Auth (always fresh), fall back to Firestore.
+      String myEmail = (u.email ?? '').toLowerCase();
+      if (myEmail.isEmpty) {
+        try {
+          final myDoc = await _db.collection('users').doc(u.uid).get();
+          myEmail = (myDoc.data()?['email'] as String? ?? '').toLowerCase();
+        } catch (_) {}
+      }
+
+      debugPrint(
+        'cleanupPhantomMembersInGroup($groupId): myUid=${u.uid}, myEmail=$myEmail, members=$members',
+      );
+
+      final phantoms = <String>[];
+      for (final memberUid in members) {
+        if (memberUid == u.uid) {
+          debugPrint('  [self] $memberUid — keeping (current session)');
+          continue;
+        }
+        try {
+          final memberDoc = await _db.collection('users').doc(memberUid).get();
+          if (!memberDoc.exists) {
+            debugPrint('  [orphan] $memberUid — no users/$memberUid doc, will remove');
+            phantoms.add(memberUid);
+            continue;
+          }
+          final memberData = memberDoc.data() ?? const <String, dynamic>{};
+          final memberEmail =
+              (memberData['email'] as String? ?? '').toLowerCase();
+          final memberName = memberData['displayName'] as String? ?? '';
+          if (myEmail.isNotEmpty && memberEmail == myEmail) {
+            debugPrint(
+              '  [phantom-self] $memberUid name="$memberName" email=$memberEmail — same email as me, will remove',
+            );
+            phantoms.add(memberUid);
+          } else {
+            debugPrint(
+              '  [partner] $memberUid name="$memberName" email=$memberEmail — real partner, keeping',
+            );
+          }
+        } catch (e) {
+          debugPrint('  [skip] $memberUid — cant read user doc: $e');
+        }
+      }
+
+      if (phantoms.isEmpty) {
+        debugPrint(
+          'cleanupPhantomMembersInGroup($groupId): no phantoms detected',
+        );
+        return const [];
+      }
+
+      final updates = <String, dynamic>{
+        'members': FieldValue.arrayRemove(phantoms),
+      };
+      for (final p in phantoms) {
+        updates['memberNames.$p'] = FieldValue.delete();
+        updates['memberAvatars.$p'] = FieldValue.delete();
+        updates['memberMoods.$p'] = FieldValue.delete();
+      }
+
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .update(updates)
+          .timeout(const Duration(seconds: 10));
+      debugPrint(
+        'cleanupPhantomMembersInGroup($groupId): removed ${phantoms.length} phantom(s): $phantoms',
+      );
+      return phantoms;
+    } catch (e) {
+      debugPrint('cleanupPhantomMembersInGroup($groupId) failed: $e');
+      return const [];
+    }
+  }
+
   /// Remove a stale groupId from the user's pairIds list in Firestore.
   /// Called when a group turns out to have no partners (orphaned after testing).
   Future<void> removeStaleGroupFromUser(String groupId) async {
