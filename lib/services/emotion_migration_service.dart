@@ -89,7 +89,6 @@ class EmotionMigrationService {
       if (prefs.getBool(_kDoneKey) ?? false) return;
 
       await _migrateEntries(groupId: groupId, uid: uid);
-      await _clearCurrentMood(groupId: groupId, uid: uid);
       await _showUpdateNotification();
 
       await prefs.setBool(_kDoneKey, true);
@@ -173,19 +172,6 @@ class EmotionMigrationService {
 
     for (final batch in batches) {
       await batch.commit();
-    }
-  }
-
-  Future<void> _clearCurrentMood({
-    required String groupId,
-    required String uid,
-  }) async {
-    try {
-      await _db.collection('groups').doc(groupId).update({
-        'memberMoods.$uid': FieldValue.delete(),
-      });
-    } catch (e) {
-      debugPrint('EmotionMigrationService._clearCurrentMood failed: $e');
     }
   }
 
