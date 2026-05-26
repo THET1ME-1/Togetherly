@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:in_app_update/in_app_update.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
@@ -123,6 +124,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Fetch user location for distance display
     _fetchUserLocation();
+
+    // Check for Play Store update after a brief delay
+    if (Platform.isAndroid) {
+      Future.delayed(const Duration(seconds: 2), _checkForUpdate);
+    }
 
     _appLifecycleListener = AppLifecycleListener(
       onResume: () {
@@ -1339,6 +1345,36 @@ class _HomeScreenState extends State<HomeScreen> {
   // HELPER METHODS: Location, EXIF, Time
   // =============================================
 
+  // ── In-app update ──────────────────────────────────────────────────────────
+
+  Future<void> _checkForUpdate() async {
+    if (!mounted) return;
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      if (!mounted) return;
+      if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+        _showUpdateSheet(info);
+      }
+    } catch (_) {
+      // Play Store not available in dev builds / emulators — ignore silently
+    }
+  }
+
+  void _showUpdateSheet(AppUpdateInfo info) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (_) => _UpdateBottomSheet(
+        info: info,
+        primaryColor: primary,
+      ),
+    );
+  }
+
+  // ── User location ───────────────────────────────────────────────────────────
+
   /// Fetch user location for distance calculation on photo cards
   Future<void> _fetchUserLocation() async {
     try {
@@ -1685,5 +1721,218 @@ class _StreakBadge extends StatelessWidget {
       default:
         return 'дней';
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Update bottom sheet widget
+// ─────────────────────────────────────────────────────────────
+
+class _UpdateBottomSheet extends StatefulWidget {
+  final AppUpdateInfo info;
+  final Color primaryColor;
+
+  const _UpdateBottomSheet({required this.info, required this.primaryColor});
+
+  @override
+  State<_UpdateBottomSheet> createState() => _UpdateBottomSheetState();
+}
+
+class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
+  bool _isUpdating = false;
+  bool _isDownloaded = false;
+
+  Future<void> _startUpdate() async {
+    setState(() => _isUpdating = true);
+    try {
+      await InAppUpdate.startFlexibleUpdate();
+      if (!mounted) return;
+      setState(() {
+        _isUpdating = false;
+        _isDownloaded = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUpdating = false);
+    }
+  }
+
+  Future<void> _applyUpdate() async {
+    await InAppUpdate.completeFlexibleUpdate();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.primaryColor;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        16,
+        24,
+        MediaQuery.of(context).padding.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Icon + title row
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: p.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.system_update_rounded,
+                  color: p,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      LocaleService.current.updateAvailableTitle,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      LocaleService.current.updateAvailableSubtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // What's new block
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.star_rounded, color: p, size: 18),
+                const SizedBox(width: 10),
+                Text(
+                  LocaleService.current.updateWhatsNew,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          if (_isDownloaded) ...[
+            // Ready to install — restart button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _applyUpdate,
+                icon: const Icon(Icons.restart_alt_rounded),
+                label: Text(LocaleService.current.updateRestartButton),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ] else ...[
+            // Update + Later buttons
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isUpdating ? null : _startUpdate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: p.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isUpdating
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        LocaleService.current.updateButton,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  LocaleService.current.updateLaterButton,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

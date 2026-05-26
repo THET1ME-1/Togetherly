@@ -51,6 +51,7 @@ dependencies:
   package_info_plus: ^8.0.0
   gal: ^2.3.0
   video_player: ^2.9.2
+  in_app_update: ^4.2.3
 
 dev_dependencies:
   flutter_test:

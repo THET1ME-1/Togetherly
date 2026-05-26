@@ -588,6 +588,12 @@ abstract class AppStrings {
   String openIn(String name);
   String get tapToOpen;
   String get videoBadge;
+  String get updateAvailableTitle;
+  String get updateAvailableSubtitle;
+  String get updateWhatsNew;
+  String get updateButton;
+  String get updateLaterButton;
+  String get updateRestartButton;
   String get noteBadge;
   String get youtubeBadge;
   String get photoNotUploaded;
@@ -1837,6 +1843,18 @@ class _RuStrings extends AppStrings {
   String get tapToOpen => 'Нажмите, чтобы открыть';
   @override
   String get videoBadge => 'ВИДЕО';
+  @override
+  String get updateAvailableTitle => 'Доступно обновление';
+  @override
+  String get updateAvailableSubtitle => 'Новая версия приложения готова к установке';
+  @override
+  String get updateWhatsNew => 'Улучшения и исправления ошибок';
+  @override
+  String get updateButton => 'Обновить';
+  @override
+  String get updateLaterButton => 'Позже';
+  @override
+  String get updateRestartButton => 'Перезапустить и установить';
   @override
   String get noteBadge => 'ЗАМЕТКА';
   @override
@@ -3302,6 +3320,18 @@ class _EnStrings extends AppStrings {
   String get tapToOpen => 'Tap to open';
   @override
   String get videoBadge => 'VIDEO';
+  @override
+  String get updateAvailableTitle => 'Update available';
+  @override
+  String get updateAvailableSubtitle => 'A new version of the app is ready to install';
+  @override
+  String get updateWhatsNew => 'Improvements and bug fixes';
+  @override
+  String get updateButton => 'Update';
+  @override
+  String get updateLaterButton => 'Later';
+  @override
+  String get updateRestartButton => 'Restart and install';
   @override
   String get noteBadge => 'NOTE';
   @override
