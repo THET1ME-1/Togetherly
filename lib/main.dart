@@ -157,6 +157,11 @@ void main() async {
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
 
+  // Synchronise Flutter's window with MainActivity's setDecorFitsSystemWindows(false).
+  // Without this call Flutter and Android disagree about where gesture exclusion
+  // zones are, causing system swipe gestures (back, home) to be intercepted by
+  // Flutter's own gesture arena and bounce the user back into the app.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -164,7 +169,9 @@ void main() async {
       statusBarBrightness: Brightness.light,
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarContrastEnforced: true,
+      // false = don't let Android paint a contrast scrim over the nav bar;
+      // that scrim overlaps the gesture zone and can interfere with swipe detection.
+      systemNavigationBarContrastEnforced: false,
     ),
   );
   runApp(const LoveApp());

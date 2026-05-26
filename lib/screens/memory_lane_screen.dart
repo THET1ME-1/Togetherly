@@ -9436,7 +9436,9 @@ class _WaveProgressBarState extends State<WaveProgressBar>
     return LayoutBuilder(
       builder: (context, constraints) {
         return GestureDetector(
-          behavior: HitTestBehavior.opaque,
+          // translucent so this widget doesn't swallow system-gesture events
+          // (Android back/home swipes) that happen to start within its bounds.
+          behavior: HitTestBehavior.translucent,
           onTapUp: (d) {
             if (widget.onChanged == null) return;
             final r = (d.localPosition.dx / constraints.maxWidth).clamp(
