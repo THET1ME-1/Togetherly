@@ -96,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
   double? _userLng;
   bool _wasPaired = false;
   String _lastPairId = '';
+  int _pairChangedGeneration = 0;
 
   @override
   void initState() {
@@ -230,6 +231,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handlePairChanged() async {
     if (!mounted) return;
+    // Increment generation so stale concurrent calls can self-cancel.
+    final generation = ++_pairChangedGeneration;
+
     final isPaired = _pairData.isPaired;
     final isSolo = _pairData.isSolo;
     final currentPairId = _pairData.pairId;
@@ -240,7 +244,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _startMemoryListener();
 
-    if (isPaired && _pairData.startDate != null) {
+    // isPaired check does NOT require startDate — mood/widget services bind
+    // to the group regardless of whether startDate is set yet.
+    if (isPaired) {
       // Rebind services only when group actually changed or pairing state flipped.
       // Restarting listenToPartner() on every trivial PairData change causes a
       // cascade: Firestore re-emits → MoodService notifies → _onMoodServiceChanged
@@ -248,8 +254,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (groupChanged || _wasPaired != isPaired) {
         // Unbind from old group first
         await _timerService.unbindFromGroup();
+        // Bail if a newer call has already finished and bound to the correct group.
+        if (generation != _pairChangedGeneration) return;
         _moodService.unbindFromGroup();
         await _widgetService.unbindFromGroup();
+        if (generation != _pairChangedGeneration) return;
 
         // Bind mood service to group for Firestore sync
         _moodService.bindToGroup(_pairData.pairId);
@@ -262,37 +271,43 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Bind widget service to group for Firestore sync
         await _widgetService.bindToGroup(_pairData.pairId);
+        if (generation != _pairChangedGeneration) return;
         for (final p in _pairData.partners) {
           _widgetService.listenToPartner(p.uid);
           // Subscribe to partner moods so MoodWidgetProvider stays updated
           _moodService.listenToPartner(p.uid);
         }
+
+        // Bind mascot service only on actual group change.
+        // recordDailyActivity makes a Firestore read+write on each call;
+        // calling it on every group-doc update (e.g. memoriesUpdatedAt) causes
+        // a cascade: write → group listener fires → _handlePairChanged → write …
+        _bindMascotService(_pairData.pairId);
       }
 
-      // Bind mascot service and record today's activity.
-      _bindMascotService(_pairData.pairId);
-
-      // Bind timer service to group for Firestore sync
-      await _timerService.bindToGroup(_pairData.pairId);
-
-      // Create system timer if it doesn't exist yet
-      await _timerService.createSystemTimer(
-        startDate: _pairData.startDate!,
-        relationshipLabel: _pairData.relationshipLabel,
-        relationshipEmoji: _pairData.relationshipEmoji,
-        partnerName: _pairData.partnerDisplayName,
-      );
-      await _timerService.updateSystemTimerTitle(
-        relationshipLabel: _pairData.relationshipLabel,
-        relationshipEmoji: _pairData.relationshipEmoji,
-        partnerName: _pairData.partnerDisplayName,
-      );
+      // Bind timer service and create system timer only when startDate is known.
+      if (_pairData.startDate != null) {
+        await _timerService.bindToGroup(_pairData.pairId);
+        if (generation != _pairChangedGeneration) return;
+        await _timerService.createSystemTimer(
+          startDate: _pairData.startDate!,
+          relationshipLabel: _pairData.relationshipLabel,
+          relationshipEmoji: _pairData.relationshipEmoji,
+          partnerName: _pairData.partnerDisplayName,
+        );
+        await _timerService.updateSystemTimerTitle(
+          relationshipLabel: _pairData.relationshipLabel,
+          relationshipEmoji: _pairData.relationshipEmoji,
+          partnerName: _pairData.partnerDisplayName,
+        );
+      }
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
       await _syncHomeWidgets();
     } else if (isSolo) {
       // Solo mode: load local timers and sync widget
       await _timerService.unbindFromGroup();
+      if (generation != _pairChangedGeneration) return;
       _moodService.unbindFromGroup();
       await _widgetService.unbindFromGroup();
       _mascotService.unbind();
@@ -300,6 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _syncHomeWidgets();
     } else {
       await _timerService.unbindFromGroup();
+      if (generation != _pairChangedGeneration) return;
       _moodService.unbindFromGroup();
       await _widgetService.unbindFromGroup();
       _mascotService.unbind();
@@ -307,10 +323,16 @@ class _HomeScreenState extends State<HomeScreen> {
       await _syncHomeWidgets();
     }
 
+    // Auto-navigate to home tab when user just joined a group.
+    final justPaired = !_wasPaired && isPaired;
     _wasPaired = isPaired;
 
     if (mounted) {
-      setState(() {});
+      setState(() {
+        if (justPaired && _selectedNavIndex == 2) {
+          _selectedNavIndex = 0;
+        }
+      });
     }
   }
 

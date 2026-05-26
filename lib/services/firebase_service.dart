@@ -1093,8 +1093,8 @@ class FirebaseService {
     await groupRef.set({
       'members': [ownerUid, u.uid],
       'memberNames': {
-        ownerUid: ownerData['displayName'] ?? 'Partner',
-        u.uid: myData['displayName'] ?? u.displayName ?? 'Partner',
+        ownerUid: ownerData['displayName'] ?? '',
+        u.uid: myData['displayName'] ?? u.displayName ?? '',
       },
       'memberAvatars': {
         ownerUid: ownerData['avatarUrl'] ?? '',
@@ -1231,10 +1231,10 @@ class FirebaseService {
     await _db.collection('groups').doc(groupId).update({
       'disbanded': FieldValue.delete(),
       'disbandedAt': FieldValue.delete(),
-      'memberNames.$ownerUid': ownerData['displayName'] ?? 'Partner',
+      'memberNames.$ownerUid': ownerData['displayName'] ?? '',
       'memberAvatars.$ownerUid': ownerData['avatarUrl'] ?? '',
       'memberNames.${u.uid}':
-          myData['displayName'] ?? u.displayName ?? 'Partner',
+          myData['displayName'] ?? u.displayName ?? '',
       'memberAvatars.${u.uid}': myData['avatarUrl'] ?? u.photoURL ?? '',
     });
     debugPrint('_restoreGroup: group $groupId restored');
@@ -1346,7 +1346,7 @@ class FirebaseService {
       };
     }
 
-    final myName = myData['displayName'] ?? u.displayName ?? 'Partner';
+    final myName = myData['displayName'] ?? u.displayName ?? '';
     final myAvatar = myData['avatarUrl'] ?? u.photoURL ?? '';
 
     // Step 1: Add self to group (allowed by new rules — uid will be in new members)
@@ -3528,12 +3528,22 @@ class FirebaseService {
       final today =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      final doc = await _db
-          .collection('groups')
-          .doc(groupId)
-          .get(const GetOptions(source: Source.serverAndCache));
-
-      final data = doc.data() ?? {};
+      // Read from local cache only — the group doc is already being listened to
+      // via _listenToPair, so Firestore SDK always has fresh data in cache.
+      // Using serverAndCache here triggers a network round-trip on every call
+      // and causes a cascade: the streak write updates the group doc →
+      // _listenToPair fires → _handlePairChanged → recordDailyActivity again.
+      Map<String, dynamic> data;
+      try {
+        final doc = await _db
+            .collection('groups')
+            .doc(groupId)
+            .get(const GetOptions(source: Source.cache));
+        data = doc.data() ?? {};
+      } catch (_) {
+        // Cache miss (e.g. first launch before listener receives data) — skip.
+        return;
+      }
       final lastDate = data['streakLastOpenedDate'] as String?;
       final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
 

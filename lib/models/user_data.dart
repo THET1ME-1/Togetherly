@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -101,6 +102,16 @@ class UserData extends ChangeNotifier {
         if (g == 'male') _gender = Gender.male;
         if (g == 'female') _gender = Gender.female;
         await _saveLocal();
+
+        // Propagate name/avatar to all group documents on every login so
+        // partners always see the real name even if the user never explicitly
+        // edited their profile after connecting (fixes 'Partner' fallback).
+        if (_displayName.isNotEmpty) {
+          unawaited(_fb.updateNameInGroups(_displayName));
+        }
+        if (_avatarUrl.isNotEmpty) {
+          unawaited(_fb.updateAvatarInGroups(_avatarUrl));
+        }
       }
     } catch (e) {
       debugPrint('Firestore sync failed: $e');
