@@ -2,9 +2,8 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img_lib;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:path_provider/path_provider.dart';
@@ -16,78 +15,6 @@ import '../services/mascot_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import 'mascot_draw_screen.dart';
-
-// ─── Background removal — top-level so compute() can reach it ────────────────
-
-class _BgArgs {
-  final Uint8List bytes;
-  final double seedFx;
-  final double seedFy;
-  final int tolerance;
-  const _BgArgs(this.bytes, this.seedFx, this.seedFy, this.tolerance);
-}
-
-Uint8List _bgRemoveInIsolate(_BgArgs a) {
-  final src = img_lib.decodeImage(a.bytes);
-  if (src == null) return a.bytes;
-
-  var image = src.convert(numChannels: 4);
-  var w = image.width;
-  var h = image.height;
-
-  // Resize to max 1024 px on the long side so BFS stays fast on any device
-  if (w > 1024 || h > 1024) {
-    final scale = 1024 / (w > h ? w : h);
-    image = img_lib.copyResize(
-      image,
-      width: (w * scale).round(),
-      height: (h * scale).round(),
-    );
-    w = image.width;
-    h = image.height;
-  }
-
-  final sx = (a.seedFx * (w - 1)).round().clamp(0, w - 1);
-  final sy = (a.seedFy * (h - 1)).round().clamp(0, h - 1);
-
-  final seedPx = image.getPixel(sx, sy);
-  final bgR = seedPx.r.toInt();
-  final bgG = seedPx.g.toInt();
-  final bgB = seedPx.b.toInt();
-  final thresh = a.tolerance * 3;
-
-  // BFS flood-fill from seed point using a plain List as a queue (O(1) amortised)
-  final visited = List<bool>.filled(w * h, false);
-  final queue = <int>[];
-  int qHead = 0;
-
-  void tryEnqueue(int x, int y) {
-    if (x < 0 || x >= w || y < 0 || y >= h) return;
-    final idx = y * w + x;
-    if (visited[idx]) return;
-    visited[idx] = true;
-    final px = image.getPixel(x, y);
-    if ((px.r.toInt() - bgR).abs() +
-            (px.g.toInt() - bgG).abs() +
-            (px.b.toInt() - bgB).abs() <=
-        thresh) { queue.add(idx); }
-  }
-
-  tryEnqueue(sx, sy);
-
-  while (qHead < queue.length) {
-    final i = queue[qHead++];
-    final x = i % w;
-    final y = i ~/ w;
-    image.setPixelRgba(x, y, 0, 0, 0, 0);
-    tryEnqueue(x - 1, y);
-    tryEnqueue(x + 1, y);
-    tryEnqueue(x, y - 1);
-    tryEnqueue(x, y + 1);
-  }
-
-  return Uint8List.fromList(img_lib.encodePng(image));
-}
 
 class MascotGalleryScreen extends StatefulWidget {
   final MascotService mascotService;
@@ -196,9 +123,19 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       return;
     }
 
+    // Show one-time hint about transparent background requirement
+    final prefs = await SharedPreferences.getInstance();
+    const hintKey = 'mascot_import_hint_shown';
+    if (prefs.getBool(hintKey) != true) {
+      await prefs.setBool(hintKey, true);
+      if (!mounted) return;
+      final ok = await _showBgHintSheet();
+      if (!ok || !mounted) return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      allowedExtensions: ['png'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
@@ -207,31 +144,19 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final bytes = file.bytes;
     if (bytes == null || bytes.isEmpty) return;
 
-    if (!mounted) return;
-    // Open background-removal preview; returns processed PNG bytes or null (cancel)
-    final processedBytes = await Navigator.of(context).push<Uint8List>(
-      MaterialPageRoute(
-        builder: (_) => _BgRemovePage(originalBytes: bytes, theme: _t),
-        fullscreenDialog: true,
-      ),
-    );
-    if (processedBytes == null || !mounted) return;
-
     final defaultName = file.name
-        .replaceAll(
-          RegExp(r'\.(png|jpg|jpeg|webp)$', caseSensitive: false),
-          '',
-        )
+        .replaceAll(RegExp(r'\.png$', caseSensitive: false), '')
         .replaceAll('_', ' ')
         .replaceAll('-', ' ');
 
+    if (!mounted) return;
     final name = await _showImportNameDialog(defaultName);
     if (name == null || !mounted) return;
 
     setState(() => _uploading = true);
     try {
       final saved = await _svc.uploadAndSaveMascot(
-        pngBytes: processedBytes,
+        pngBytes: bytes,
         name: name,
         creatorUid: widget.myUid,
       );
@@ -246,6 +171,69 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  Future<bool> _showBgHintSheet() async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24, 20, 24, 20 + MediaQuery.of(context).padding.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _t.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.layers_clear_rounded, color: _t.primary, size: 24),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Нужен прозрачный фон',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Маскот отображается без фона, поэтому загружай PNG-файл с прозрачностью.\n\n'
+              'Вырежи фон заранее — например, через remove.bg, Photoshop или Canva.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _t.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text(
+                  'Понятно',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return result == true;
   }
 
   Future<String?> _showImportNameDialog(String defaultName) async {
@@ -955,253 +943,6 @@ class _ActionTile extends StatelessWidget {
       onTap: onTap,
     );
   }
-}
-
-// ─── Background removal preview page ─────────────────────────────────────────
-
-class _BgRemovePage extends StatefulWidget {
-  final Uint8List originalBytes;
-  final AppTheme theme;
-  const _BgRemovePage({required this.originalBytes, required this.theme});
-
-  @override
-  State<_BgRemovePage> createState() => _BgRemovePageState();
-}
-
-class _BgRemovePageState extends State<_BgRemovePage> {
-  Uint8List? _result;
-  bool _processing = true;
-  double _tolerance = 30;
-  double _seedFx = 0.0;
-  double _seedFy = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _process();
-  }
-
-  Future<void> _process() async {
-    setState(() => _processing = true);
-    try {
-      final out = await compute(
-        _bgRemoveInIsolate,
-        _BgArgs(widget.originalBytes, _seedFx, _seedFy, _tolerance.round()),
-      );
-      if (mounted) setState(() { _result = out; _processing = false; });
-    } catch (_) {
-      if (mounted) setState(() => _processing = false);
-    }
-  }
-
-  void _onTap(TapDownDetails d, BoxConstraints c) {
-    _seedFx = (d.localPosition.dx / c.maxWidth).clamp(0.0, 1.0);
-    _seedFy = (d.localPosition.dy / c.maxHeight).clamp(0.0, 1.0);
-    _process();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = widget.theme.primary;
-    return Scaffold(
-      backgroundColor: const Color(0xFF1C1C1C),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1C1C1C),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop<Uint8List>(null),
-        ),
-        title: const Text(
-          'Убрать фон',
-          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: (_processing || _result == null)
-                ? null
-                : () => Navigator.of(context).pop<Uint8List>(_result),
-            child: Text(
-              'Готово',
-              style: TextStyle(
-                color: (_processing || _result == null) ? Colors.white30 : primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ── Image preview area ──────────────────────────────────────────────
-          Expanded(
-            child: LayoutBuilder(
-              builder: (_, constraints) => GestureDetector(
-                onTapDown: (d) => _onTap(d, constraints),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    const _Checkerboard(),
-                    if (_result != null)
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Image.memory(
-                          _result!,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                        ),
-                      ),
-                    // Loading overlay
-                    if (_processing)
-                      Container(
-                        color: Colors.black54,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(color: primary, strokeWidth: 2.5),
-                              const SizedBox(height: 14),
-                              const Text(
-                                'Обрабатываю…',
-                                style: TextStyle(color: Colors.white70, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    // Seed-point crosshair
-                    if (!_processing)
-                      Positioned(
-                        left: _seedFx * constraints.maxWidth - 11,
-                        top: _seedFy * constraints.maxHeight - 11,
-                        child: Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 6)],
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.add, size: 10, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── Controls panel ──────────────────────────────────────────────────
-          Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            padding: EdgeInsets.fromLTRB(
-              20, 16, 20, 16 + MediaQuery.of(context).padding.bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.touch_app_rounded, size: 15, color: Colors.grey.shade500),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Нажмите на фото, чтобы выбрать цвет фона',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Icon(Icons.tune_rounded, size: 15, color: Colors.grey.shade700),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Чувствительность',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${_tolerance.round()}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: primary,
-                      ),
-                    ),
-                  ],
-                ),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: primary,
-                    thumbColor: primary,
-                    inactiveTrackColor: primary.withOpacity(0.15),
-                    overlayColor: primary.withOpacity(0.08),
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-                  ),
-                  child: Slider(
-                    value: _tolerance,
-                    min: 5,
-                    max: 80,
-                    divisions: 15,
-                    onChanged: (v) => setState(() => _tolerance = v),
-                    onChangeEnd: (_) => _process(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Checkerboard background ──────────────────────────────────────────────────
-
-class _Checkerboard extends StatelessWidget {
-  const _Checkerboard();
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _CheckerPainter(),
-    child: const SizedBox.expand(),
-  );
-}
-
-class _CheckerPainter extends CustomPainter {
-  static const _cell = 14.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final light = Paint()..color = const Color(0xFFD8D8D8);
-    final dark  = Paint()..color = const Color(0xFFAAAAAA);
-    final cols = (size.width  / _cell).ceil() + 1;
-    final rows = (size.height / _cell).ceil() + 1;
-    for (int r = 0; r < rows; r++) {
-      for (int c = 0; c < cols; c++) {
-        canvas.drawRect(
-          Rect.fromLTWH(c * _cell, r * _cell, _cell, _cell),
-          (r + c).isEven ? light : dark,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_CheckerPainter o) => false;
 }
 
 // ── Tiny helper: fetch cached image file ─────────────────────────────────────

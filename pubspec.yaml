@@ -40,7 +40,6 @@ dependencies:
   cached_network_image: ^3.4.1
   fl_chart: ^1.2.0
   archive: ^4.0.9
-  image: ^4.0.9
   flutter_image_compress: ^2.3.0
   video_compress: ^3.1.2
   flutter_animate: ^4.5.0
