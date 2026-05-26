@@ -1939,15 +1939,25 @@ class FirebaseService {
             keepExif: false,
           );
           if (xFile != null) {
-            fileToUpload = File(xFile.path);
-            contentType = 'image/webp';
-            uploadDestination = destination.replaceAll(
-              RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
-              '.webp',
-            );
+            final webpFile = File(xFile.path);
+            final webpSize = await webpFile.length();
             debugPrint(
-              'uploadFile: WebP conversion $fileSize → ${await fileToUpload.length()} bytes',
+              'uploadFile: WebP conversion $fileSize → $webpSize bytes',
             );
+            if (webpSize < fileSize) {
+              fileToUpload = webpFile;
+              contentType = 'image/webp';
+              uploadDestination = destination.replaceAll(
+                RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
+                '.webp',
+              );
+            } else {
+              // WebP turned out larger — keep the original
+              debugPrint(
+                'uploadFile: WebP larger than original, uploading original $ext',
+              );
+              webpFile.delete().catchError((_) => webpFile);
+            }
           }
         } catch (e) {
           debugPrint('uploadFile: WebP conversion failed, uploading original: $e');
