@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -18,6 +19,8 @@ import 'package:exif/exif.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_compress/video_compress.dart';
+import 'package:video_player/video_player.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
@@ -3835,6 +3838,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // Local state for file selections
     List<XFile> selectedPhotos = [];
     XFile? selectedMedia; // video only
+    Uint8List? videoThumbnailBytes;
+    bool isGeneratingThumbnail = false;
     String? selectedMusicPath;
     double? lat;
     double? lng;
@@ -4459,7 +4464,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             source: ImageSource.gallery,
                           );
                           if (picked != null) {
-                            setState(() => selectedMedia = picked);
+                            setState(() {
+                              selectedMedia = picked;
+                              videoThumbnailBytes = null;
+                              isGeneratingThumbnail = true;
+                            });
+                            try {
+                              final thumb =
+                                  await VideoCompress.getByteThumbnail(
+                                picked.path,
+                                quality: 60,
+                                position: -1,
+                              );
+                              setState(() {
+                                videoThumbnailBytes = thumb;
+                                isGeneratingThumbnail = false;
+                              });
+                            } catch (e) {
+                              debugPrint('Thumbnail preview failed: $e');
+                              setState(() => isGeneratingThumbnail = false);
+                            }
                           }
                         } catch (e) {
                           debugPrint('Pick video failed: $e');
@@ -4480,13 +4504,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       child: Container(
                         width: double.infinity,
                         height: selectedMedia != null ? 200 : 100,
+                        clipBehavior: Clip.hardEdge,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
+                          color: selectedMedia != null
+                              ? Colors.grey.shade900
+                              : Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: Colors.grey.shade200),
-                          image: selectedMedia != null
+                          image: videoThumbnailBytes != null
                               ? DecorationImage(
-                                  image: FileImage(File(selectedMedia!.path)),
+                                  image: MemoryImage(videoThumbnailBytes!),
                                   fit: BoxFit.cover,
                                 )
                               : null,
@@ -4512,21 +4539,42 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ],
                                 ),
                               )
-                            : Align(
-                                alignment: Alignment.topRight,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: CircleAvatar(
-                                    backgroundColor: Colors.black54,
-                                    radius: 16,
-                                    child: const Icon(
-                                      Icons.check,
+                            : isGeneratingThumbnail
+                                ? const Center(
+                                    child: CircularProgressIndicator(
                                       color: Colors.white,
-                                      size: 18,
+                                      strokeWidth: 2,
                                     ),
+                                  )
+                                : Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      if (videoThumbnailBytes != null)
+                                        Container(
+                                          color: Colors.black38,
+                                        ),
+                                      const Center(
+                                        child: Icon(
+                                          Icons.play_circle_filled_rounded,
+                                          color: Colors.white,
+                                          size: 48,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: CircleAvatar(
+                                          backgroundColor: Colors.black54,
+                                          radius: 16,
+                                          child: const Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -5689,6 +5737,30 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         final ext = mediaPath.split('.').last;
         final fileName = 'memory_$timestamp.$ext';
         final destination = 'memories/$_groupId/$fileName';
+
+        // Generate and upload thumbnail so the preview card has an image
+        try {
+          final thumbBytes = await VideoCompress.getByteThumbnail(
+            mediaPath,
+            quality: 80,
+            position: -1,
+          );
+          if (thumbBytes != null) {
+            final tempDir = await getTemporaryDirectory();
+            final thumbFile =
+                File('${tempDir.path}/thumb_$timestamp.jpg');
+            await thumbFile.writeAsBytes(thumbBytes);
+            final thumbUrl = await _fb.uploadFile(
+              thumbFile.path,
+              'memories/$_groupId/thumb_$timestamp.jpg',
+            );
+            thumbFile.delete().catchError((_) => thumbFile);
+            if (thumbUrl != null) uploadedImageUrl = thumbUrl;
+          }
+        } catch (e) {
+          debugPrint('Video thumbnail upload failed: $e');
+        }
+
         final url = await _fb.uploadFile(mediaPath, destination);
         if (url != null) {
           uploadedVideoUrl = url;
@@ -7632,9 +7704,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 onTap: () {
                   final url = memory.videoUrl;
                   if (url != null && url.isNotEmpty) {
-                    launchUrl(
-                      Uri.parse(url),
-                      mode: LaunchMode.externalApplication,
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _InAppVideoPlayerPage(
+                          url: url,
+                          title: memory.title,
+                        ),
+                      ),
                     );
                   }
                 },
@@ -9861,4 +9938,259 @@ class _WaveBarsPainter extends CustomPainter {
   @override
   bool shouldRepaint(_WaveBarsPainter old) =>
       old.phase != phase || old.color != color || old.isPlaying != isPlaying;
+}
+
+// ─────────────────────────────────────────────────────────────
+// In-app video player for uploaded video memories
+// ─────────────────────────────────────────────────────────────
+
+class _InAppVideoPlayerPage extends StatefulWidget {
+  final String url;
+  final String? title;
+
+  const _InAppVideoPlayerPage({required this.url, this.title});
+
+  @override
+  State<_InAppVideoPlayerPage> createState() => _InAppVideoPlayerPageState();
+}
+
+class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+  bool _showControls = true;
+  Timer? _hideTimer;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _isInitialized = true;
+          _duration = _controller.value.duration;
+        });
+        _controller.play();
+        _scheduleHide();
+      });
+    _controller.addListener(_onUpdate);
+  }
+
+  void _onUpdate() {
+    if (!mounted) return;
+    setState(() {
+      _position = _controller.value.position;
+    });
+    // Auto-restart when finished
+    if (_controller.value.position >= _controller.value.duration &&
+        _controller.value.duration > Duration.zero) {
+      _controller.seekTo(Duration.zero);
+      _controller.pause();
+      setState(() => _showControls = true);
+      _hideTimer?.cancel();
+    }
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && _controller.value.isPlaying) {
+        setState(() => _showControls = false);
+      }
+    });
+  }
+
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+    if (_showControls && _controller.value.isPlaying) _scheduleHide();
+  }
+
+  void _togglePlay() {
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+      _hideTimer?.cancel();
+      setState(() => _showControls = true);
+    } else {
+      _controller.play();
+      _scheduleHide();
+    }
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _controller.removeListener(_onUpdate);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPlaying = _controller.value.isPlaying;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: _toggleControls,
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── Video ──
+              Center(
+                child: _isInitialized
+                    ? AspectRatio(
+                        aspectRatio: _controller.value.aspectRatio,
+                        child: VideoPlayer(_controller),
+                      )
+                    : const CircularProgressIndicator(color: Colors.white),
+              ),
+
+              // ── Controls overlay ──
+              AnimatedOpacity(
+                opacity: _showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Stack(
+                  children: [
+                    // Top bar
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(4, 8, 16, 24),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.7),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            if (widget.title != null) ...[
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  widget.title!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Centre play/pause button
+                    Center(
+                      child: GestureDetector(
+                        onTap: _togglePlay,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 150),
+                          child: Container(
+                            key: ValueKey(isPlaying),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Bottom bar with progress + time
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.75),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VideoProgressIndicator(
+                              _controller,
+                              allowScrubbing: true,
+                              padding: EdgeInsets.zero,
+                              colors: const VideoProgressColors(
+                                playedColor: Color(0xFFEC4899),
+                                bufferedColor: Colors.white38,
+                                backgroundColor: Colors.white24,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  _fmt(_position),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  _fmt(_duration),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
