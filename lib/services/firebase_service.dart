@@ -2078,6 +2078,7 @@ class FirebaseService {
       // Compress video before upload — uses device hardware encoder (H.264).
       // HighestQuality keeps original resolution and framerate; typical savings
       // are 60-80% vs camera-recorded files with no perceptible quality loss.
+      File? _compressedTempFile;
       if (!kIsWeb && ['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
         try {
           final info = await VideoCompress.compressVideo(
@@ -2087,7 +2088,8 @@ class FirebaseService {
             includeAudio: true,
           );
           if (info?.file != null) {
-            fileToUpload = info!.file!;
+            _compressedTempFile = info!.file!;
+            fileToUpload = _compressedTempFile;
             contentType = 'video/mp4';
             uploadDestination = destination.replaceAll(
               RegExp(r'\.(mov|avi|mkv)$', caseSensitive: false),
@@ -2099,7 +2101,8 @@ class FirebaseService {
           }
         } catch (e) {
           debugPrint('uploadFile: Video compression failed, uploading original: $e');
-        } finally {
+          // cancelCompression only on error — calling it after success on some
+          // Android devices leaves the native codec spinning and freezes the UI.
           VideoCompress.cancelCompression();
         }
       }
@@ -2122,6 +2125,7 @@ class FirebaseService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       debugPrint('uploadFile: Success! URL = $downloadUrl');
+      _compressedTempFile?.delete().catchError((_) {});
       return downloadUrl;
     } on FirebaseException catch (e) {
       debugPrint(
