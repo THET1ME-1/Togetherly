@@ -302,6 +302,7 @@ exports.adminLookup = onRequest(
       .get();
 
     if (userSnap.empty) {
+      console.log(`[adminLookup] User not found: ${email}`);
       res.status(404).json({ error: "User not found" });
       return;
     }
@@ -311,13 +312,21 @@ exports.adminLookup = onRequest(
     const userData = userDoc.data();
     const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
 
+    console.log(`[adminLookup] Found user: ${email} (uid=${uid}), pairIds=${JSON.stringify(pairIds)}`);
+
     // 2. Fetch groups + memories
     const groups = [];
     for (const groupId of pairIds) {
       const groupSnap = await db.collection("groups").doc(groupId).get();
-      if (!groupSnap.exists) continue;
+      if (!groupSnap.exists) {
+        console.log(`[adminLookup]   group ${groupId}: NOT FOUND`);
+        continue;
+      }
 
       const groupData = groupSnap.data();
+      const memberNames = groupData.memberNames || {};
+      const membersList = (groupData.members || []).map((m) => `${m} (${memberNames[m] || "?"})`);
+
       const memSnap = await db
         .collection("groups")
         .doc(groupId)
@@ -331,15 +340,27 @@ exports.adminLookup = onRequest(
         ...d.data(),
       }));
 
+      console.log(
+        `[adminLookup]   group ${groupId}: ${memories.length} memories, ` +
+        `members=[${membersList.join(", ")}], ` +
+        `disbanded=${groupData.disbanded || false}`
+      );
+
       groups.push({
         groupId,
         members: groupData.members,
         memberNames: groupData.memberNames,
         startDate: groupData.startDate,
         disbanded: groupData.disbanded || false,
-        memories,
+        memories: memories.length,
+        memoriesData: memories,
       });
     }
+
+    const memorySummary = groups
+      .map((g) => `group=${g.groupId}: ${g.memories} memories`)
+      .join("; ");
+    console.log(`[adminLookup] Done: ${email} — ${memorySummary}`);
 
     res.json({ uid, user: userData, groups });
   }
