@@ -1,6 +1,7 @@
 package com.togetherly.love
 
 import android.app.AlarmManager
+import android.app.ActivityManager
 import java.util.Calendar
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -39,29 +40,36 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
-            val g = WidgetGroupHelper.getOrBind(context, "petal_timer", widgetId, "timer")
-            val views = RemoteViews(context.packageName, R.layout.petal_timer_widget).apply {
-                val pi = HomeWidgetLaunchIntent.getActivity(
-                    context, MainActivity::class.java, Uri.parse("loveapp://home")
-                )
-                setOnClickPendingIntent(R.id.widget_root, pi)
+            try {
+                val g = WidgetGroupHelper.getOrBind(context, "petal_timer", widgetId, "timer")
+                val views = RemoteViews(context.packageName, R.layout.petal_timer_widget).apply {
+                    val pi = HomeWidgetLaunchIntent.getActivity(
+                        context, MainActivity::class.java, Uri.parse("loveapp://home")
+                    )
+                    setOnClickPendingIntent(R.id.widget_root, pi)
 
-                val countdown  = if (g.isEmpty()) false else widgetData.getString("timer_${g}_is_countdown", "0") == "1"
-                val startMs    = if (g.isEmpty()) 0L else widgetData.getString("timer_${g}_start_ms", "0")?.toLongOrNull() ?: 0L
-                val isRomantic = if (g.isEmpty()) true else widgetData.getString("timer_${g}_is_romantic", "1") != "0"
-                val themeIdx   = (if (g.isEmpty()) 0 else widgetData.getString("timer_${g}_petal_theme", "0")?.toIntOrNull() ?: 0)
-                                     .coerceIn(0, ROMANTIC_BG.lastIndex)
+                    val countdown  = if (g.isEmpty()) false else widgetData.getString("timer_${g}_is_countdown", "0") == "1"
+                    val startMs    = if (g.isEmpty()) 0L else widgetData.getString("timer_${g}_start_ms", "0")?.toLongOrNull() ?: 0L
+                    val isRomantic = if (g.isEmpty()) true else widgetData.getString("timer_${g}_is_romantic", "1") != "0"
+                    val themeIdx   = (if (g.isEmpty()) 0 else widgetData.getString("timer_${g}_petal_theme", "0")?.toIntOrNull() ?: 0)
+                                         .coerceIn(0, ROMANTIC_BG.lastIndex)
 
-                val bgHex = if (isRomantic) ROMANTIC_BG[themeIdx] else NEUTRAL_BG
-                val fgHex = if (isRomantic) ROMANTIC_FG[themeIdx] else NEUTRAL_FG
+                    val bgHex = if (isRomantic) ROMANTIC_BG[themeIdx] else NEUTRAL_BG
+                    val fgHex = if (isRomantic) ROMANTIC_FG[themeIdx] else NEUTRAL_FG
 
-                val bmpSize = 400
-                val bmp = Bitmap.createBitmap(bmpSize, bmpSize, Bitmap.Config.ARGB_8888)
-                drawDial(Canvas(bmp), bmpSize.toFloat(), startMs, countdown,
-                         Color.parseColor(bgHex), Color.parseColor(fgHex))
-                setImageViewBitmap(R.id.petal_dial_image, bmp)
+                    val bmpSize = resolveBitmapSize(context)
+                    val bmp = Bitmap.createBitmap(bmpSize, bmpSize, Bitmap.Config.ARGB_8888)
+                    drawDial(Canvas(bmp), bmpSize.toFloat(), startMs, countdown,
+                             Color.parseColor(bgHex), Color.parseColor(fgHex))
+                    setImageViewBitmap(R.id.petal_dial_image, bmp)
+                }
+                appWidgetManager.updateAppWidget(widgetId, views)
+            } catch (_: OutOfMemoryError) {
+                // На бюджетных Samsung/старых устройствах не даём виджету падать
+                // из-за аллокации bitmap каждую секунду.
+            } catch (_: Throwable) {
+                // Никогда не роняем процесс из-за одного неудачного апдейта виджета.
             }
-            appWidgetManager.updateAppWidget(widgetId, views)
         }
         scheduleNextTick(context)
     }
@@ -324,6 +332,18 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
         canvas.drawText(text, x, y + offset, paint)
     }
 
+    private fun resolveBitmapSize(context: Context): Int {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val lowRam = am?.isLowRamDevice ?: false
+        val memoryClass = am?.memoryClass ?: 0
+
+        return when {
+            lowRam || memoryClass in 1..128 -> 256
+            memoryClass in 129..192 -> 320
+            else -> 400
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     //  AlarmManager — живые обновления каждую секунду
     // ─────────────────────────────────────────────────────────────────────────
@@ -344,26 +364,33 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
         }
 
         fun scheduleNextTick(context: Context) {
-            val am      = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val pi      = tickIntent(context)
-            val trigger = System.currentTimeMillis() + TICK_MS
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                    if (am.canScheduleExactAlarms())
+            try {
+                val am      = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                val pi      = tickIntent(context)
+                val trigger = System.currentTimeMillis() + TICK_MS
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                        if (am.canScheduleExactAlarms())
+                            am.setExactAndAllowWhileIdle(AlarmManager.RTC, trigger, pi)
+                        else
+                            am.set(AlarmManager.RTC, trigger, pi)
+                    }
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
                         am.setExactAndAllowWhileIdle(AlarmManager.RTC, trigger, pi)
-                    else
-                        am.set(AlarmManager.RTC, trigger, pi)
+                    else ->
+                        am.setExact(AlarmManager.RTC, trigger, pi)
                 }
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC, trigger, pi)
-                else ->
-                    am.setExact(AlarmManager.RTC, trigger, pi)
+            } catch (_: Throwable) {
+                // На агрессивных прошивках alarm может быть ограничен — не падаем.
             }
         }
 
         fun cancelTick(context: Context) {
-            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            am.cancel(tickIntent(context))
+            try {
+                val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                am.cancel(tickIntent(context))
+            } catch (_: Throwable) {
+            }
         }
     }
 }

@@ -91,7 +91,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Фото как фон + лёгкое затемнение ──
             val myPhotoPath = widgetData.getString("my_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val myBgBitmap = loadScaledBitmap(myPhotoPath, 280)
+            val myBgBitmap = loadScaledBitmap(myPhotoPath, 220)
             if (myBgBitmap != null) {
                 setImageViewBitmap(R.id.my_bg_photo, myBgBitmap)
                 setViewVisibility(R.id.my_bg_photo, View.VISIBLE)
@@ -110,7 +110,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Круглая аватарка ──
             val myAvatarPath = widgetData.getString("my_avatar_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val myAvatarBitmap = loadScaledBitmap(myAvatarPath, 120)
+            val myAvatarBitmap = loadScaledBitmap(myAvatarPath, 96)
             if (myAvatarBitmap != null) {
                 setImageViewBitmap(R.id.my_avatar, getCircularBitmap(myAvatarBitmap))
                 setViewVisibility(R.id.my_avatar, View.VISIBLE)
@@ -158,7 +158,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Фото партнёра как фон + лёгкое затемнение ──
             val partnerPhotoPath = widgetData.getString("partner_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val partnerBgBitmap = loadScaledBitmap(partnerPhotoPath, 280)
+            val partnerBgBitmap = loadScaledBitmap(partnerPhotoPath, 220)
             if (partnerBgBitmap != null) {
                 setImageViewBitmap(R.id.partner_bg_photo, partnerBgBitmap)
                 setViewVisibility(R.id.partner_bg_photo, View.VISIBLE)
@@ -177,7 +177,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Круглая аватарка партнёра ──
             val partnerAvatarPath = widgetData.getString("partner_avatar_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val partnerAvatarBitmap = loadScaledBitmap(partnerAvatarPath, 120)
+            val partnerAvatarBitmap = loadScaledBitmap(partnerAvatarPath, 96)
             if (partnerAvatarBitmap != null) {
                 setImageViewBitmap(R.id.partner_avatar, getCircularBitmap(partnerAvatarBitmap))
                 setViewVisibility(R.id.partner_avatar, View.VISIBLE)
@@ -244,8 +244,10 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         return try {
             BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
+                inDither = !withAlpha
+                inScaled = false
                 inPreferredConfig = if (withAlpha) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565
             })
-        } catch (e: OutOfMemoryError) { null }
+        } catch (e: Throwable) { null }
     }
 }

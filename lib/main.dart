@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,7 +33,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// чтобы парный виджет показывал актуальный статус/настроение без открытия приложения.
 @pragma('vm:entry-point')
 Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
-  if (uri?.host != 'refresh') return;
+  if (!Platform.isAndroid || uri == null) return;
+
+  final host = uri.host.trim().toLowerCase();
+  if (host.isEmpty || host != 'refresh') return;
+
   try {
     await Firebase.initializeApp();
     final user = FirebaseAuth.instance.currentUser;
@@ -136,9 +141,14 @@ void main() async {
   // FCM background handler — регистрируем до чего угодно
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // Виджет рабочего стола: фоновый callback для обновления данных пары
-  // когда процесс убит (Xiaomi/Samsung с агрессивным battery management)
-  HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+  // На Samsung One UI / aggressive battery saver путь
+  // HomeWidgetBackgroundReceiver -> JobIntentService нестабилен
+  // (особенно в home_widget 0.7.x). Для наших Android-виджетов достаточно
+  // launch intent + явных updateWidget(), поэтому не регистрируем
+  // background interactivity callback и не провоцируем enqueueWork crash.
+  if (!Platform.isAndroid) {
+    HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+  }
 
   // Включаем офлайн-кеш Firestore
   FirebaseFirestore.instance.settings = const Settings(
