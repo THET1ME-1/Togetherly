@@ -242,16 +242,45 @@ class HomeWidgetService {
     final cached = _partnerDataCache[cacheKey];
     if (cached != null && cached.isFresh) return cached.data;
 
-    final snap = await _db
-        .collection('groups')
-        .doc(groupId)
-        .collection('widgetData')
-        .get();
+    // 1. Определяем UID партнёра из массива members группы
+    String partnerUid = '';
+    String partnerName = '';
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (!groupDoc.exists) {
+        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+        return null;
+      }
+      final groupData = groupDoc.data()!;
+      final members = List<String>.from(groupData['members'] ?? []);
+      partnerUid = members.firstWhere(
+        (uid) => uid != currentUserUid,
+        orElse: () => '',
+      );
+      if (partnerUid.isEmpty) {
+        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+        return null;
+      }
+      final memberNames = Map<String, dynamic>.from(
+        groupData['memberNames'] ?? {},
+      );
+      partnerName = memberNames[partnerUid] as String? ?? '';
+    } catch (e) {
+      debugPrint('_getPartnerWidgetData group read failed: $e');
+      return null;
+    }
 
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      final uid = data['uid'] as String? ?? '';
-      if (uid.isNotEmpty && uid != currentUserUid) {
+    // 2. Читаем документ партнёра напрямую, а не всю коллекцию
+    try {
+      final doc = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('widgetData')
+          .doc(partnerUid)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
         final sharedUrls = List<String>.from(
           data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
         );
@@ -262,46 +291,24 @@ class HomeWidgetService {
               '',
           'photoUrls': sharedUrls.join(','),
           'authorName': data['displayName'] as String? ?? '',
-          'authorUid': uid,
+          'authorUid': partnerUid,
         };
         _partnerDataCache[cacheKey] = _CachedWidgetData(result);
         return result;
       }
+    } catch (e) {
+      debugPrint('_getPartnerWidgetData doc read failed: $e');
     }
 
-    // Партнёр ещё не открывал настройки виджетов — его документ widgetData
-    // не существует. Берём UID из массива members группы, чтобы random-fallback
-    // мог фильтровать Memory Lane по автору.
-    try {
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (!groupDoc.exists) {
-        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
-        return null;
-      }
-      final members = List<String>.from(groupDoc.data()?['members'] ?? []);
-      final memberNames = Map<String, dynamic>.from(
-        groupDoc.data()?['memberNames'] ?? {},
-      );
-      final partnerUid = members.firstWhere(
-        (uid) => uid != currentUserUid,
-        orElse: () => '',
-      );
-      if (partnerUid.isEmpty) {
-        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
-        return null;
-      }
-      final result = {
-        'photoUrl': '',
-        'photoUrls': '',
-        'authorName': memberNames[partnerUid] as String? ?? '',
-        'authorUid': partnerUid,
-      };
-      _partnerDataCache[cacheKey] = _CachedWidgetData(result);
-      return result;
-    } catch (e) {
-      debugPrint('_getPartnerWidgetData group fallback failed: $e');
-      return null;
-    }
+    // Партнёр ещё не открывал виджеты — возвращаем имя из memberNames
+    final result = {
+      'photoUrl': '',
+      'photoUrls': '',
+      'authorName': partnerName.isNotEmpty ? partnerName : '',
+      'authorUid': partnerUid.isNotEmpty ? partnerUid : '',
+    };
+    _partnerDataCache[cacheKey] = _CachedWidgetData(result);
+    return result;
   }
 
   Future<Map<String, String>?> _getMyWidgetData(

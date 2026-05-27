@@ -1049,7 +1049,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (photoLat == null || photoLng == null) {
       try {
         final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (serviceEnabled) {
+        if (!serviceEnabled) {
+          debugPrint('Geolocator: location services disabled on device');
+        } else {
           LocationPermission perm = await Geolocator.checkPermission();
           if (perm == LocationPermission.denied) {
             perm = await Geolocator.requestPermission();
@@ -1058,16 +1060,18 @@ class _HomeScreenState extends State<HomeScreen> {
               perm == LocationPermission.whileInUse) {
             final pos = await Geolocator.getCurrentPosition(
               locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.medium,
-                timeLimit: Duration(seconds: 5),
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 15),
               ),
             );
             photoLat = pos.latitude;
             photoLng = pos.longitude;
+          } else {
+            debugPrint('Geolocator: location permission denied');
           }
         }
       } catch (e) {
-        debugPrint('Geolocator fallback failed: \$e');
+        debugPrint('Geolocator fallback failed: $e');
       }
     }
 

@@ -745,15 +745,10 @@ class WidgetService extends ChangeNotifier {
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
 
-      // Пересинхронизируем PhotoDay при любом изменении данных партнёра —
-      // виджет рабочего стола ВСЕГДА должен показывать фото партнёра
-      try {
-        if (_groupId.isNotEmpty) {
-          await HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
-        }
-      } catch (e) {
-        debugPrint('WidgetService: refresh PhotoDay failed: $e');
-      }
+      // PhotoDay обновляется ТОЛЬКО при изменении фото-полей (photoUrl,
+      // photoForPartnerUrl, photoForPartnerUrls, photoGridUrls) через
+      // проверку _photoSig() в слушателях. Не дёргаем здесь — на каждое
+      // изменение mood/status/message это было бы N×collection.get() reads.
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
     }
