@@ -420,6 +420,7 @@ async function handleJson(req, res) {
       }));
       return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
     }));
+    users.sort((a,b)=>{const at=a.groups.reduce((s,g)=>s+g.memories,0),bt=b.groups.reduce((s,g)=>s+g.memories,0);return bt-at});
     console.log(`[adminPanel] p=${page}/${Math.ceil(total/perPage)}, ${users.length} users`);
     res.json({ users, page, perPage, total, totalPages: Math.ceil(total / perPage) });
   } catch (e) {
@@ -462,6 +463,7 @@ async function handleSsr(req, res) {
       }));
       return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
     }));
+    users.sort((a,b)=>{const at=a.groups.reduce((s,g)=>s+g.memories,0),bt=b.groups.reduce((s,g)=>s+g.memories,0);return bt-at});
 
     let html = buildSsrPage(users, page, total, totalPages, perPage, key);
     res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
