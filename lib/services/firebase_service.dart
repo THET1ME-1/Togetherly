@@ -18,6 +18,7 @@ import '../models/mascot.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/timer_item.dart';
+import 'analytics_service.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
 import 'rate_limiter_service.dart';
@@ -2235,6 +2236,9 @@ class FirebaseService {
       );
 
       await ref.set(memory.toFirestore());
+      unawaited(
+        AnalyticsService.instance.logMemoryAdded(type: type.name),
+      );
       return memory;
     } catch (e) {
       debugPrint('addMemory failed: $e');
@@ -2467,6 +2471,7 @@ class FirebaseService {
           'updatedAt': FieldValue.serverTimestamp(),
         },
       });
+      unawaited(AnalyticsService.instance.logMoodSet(label: label));
     } catch (e) {
       debugPrint('setMood failed: $e');
     }
@@ -2922,6 +2927,7 @@ class FirebaseService {
             'senderName': senderName,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      unawaited(AnalyticsService.instance.logMissYouSent());
     } catch (e) {
       debugPrint('sendMissYou failed: $e');
     }
@@ -2951,6 +2957,7 @@ class FirebaseService {
               'customText': customText,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      unawaited(AnalyticsService.instance.logVibeSent(vibeType: vibeType));
     } catch (e) {
       debugPrint('sendVibe failed: $e');
     }

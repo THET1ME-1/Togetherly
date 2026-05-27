@@ -37,6 +37,7 @@ dependencies:
   flutter_svg: ^2.0.9
   home_widget: ^0.7.0
   firebase_messaging: ^15.2.4
+  firebase_analytics: ^11.3.5
   cached_network_image: ^3.4.1
   fl_chart: ^1.2.0
   archive: ^4.0.9

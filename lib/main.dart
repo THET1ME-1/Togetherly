@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/user_data.dart';
+import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
 import 'services/locale_service.dart';
@@ -144,6 +146,15 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
+  // Touch FirebaseAnalytics so the native SDK starts collecting auto events
+  // (first_open, session_start, screen_view, app_remove, etc.). The custom
+  // product events live in AnalyticsService.
+  AnalyticsService.instance;
+  // Bind userId to the current auth state so events are attributable.
+  unawaited(
+    AnalyticsService.instance.setUserId(FirebaseService().uid),
+  );
+
   // Deep links — инициализация
   DeepLinkService().init();
 
@@ -262,6 +273,7 @@ class _LoveAppState extends State<LoveApp> {
         title: 'Togetherly',
         debugShowCheckedModeBanner: false,
         theme: _cachedTheme,
+        navigatorObservers: [AnalyticsService.instance.observer],
         home: _loading
             ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
             : ListenableBuilder(

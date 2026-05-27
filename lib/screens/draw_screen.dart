@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/draw_stroke.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
@@ -219,6 +220,9 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_hasSharedCanvas) _loadSoloStrokes();
     _markPresence(true);
     _scheduleHints();
+    unawaited(
+      AnalyticsService.instance.logCanvasOpened(shared: _hasSharedCanvas),
+    );
   }
 
   // ── Solo stroke persistence ───────────────────────────────────────────────

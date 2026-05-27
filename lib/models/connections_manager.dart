@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/analytics_service.dart';
 import '../services/firebase_service.dart';
 import 'connection.dart';
 
@@ -270,6 +271,7 @@ class ConnectionsManager extends ChangeNotifier {
     await _saveLocal();
     notifyListeners();
     debugPrint('acceptCodeAndCreateGroup: SUCCESS, paired=$pairId');
+    unawaited(AnalyticsService.instance.logPairConnected(groupId: pairId));
     return true;
   }
 
@@ -488,6 +490,11 @@ class ConnectionsManager extends ChangeNotifier {
 
       await _saveLocal();
       notifyListeners();
+      // Pair created via the partner accepting our code (we discover it by
+      // watching the user doc) — log it from this side too.
+      unawaited(
+        AnalyticsService.instance.logPairConnected(groupId: remotePairId),
+      );
     }
 
     // Обрабатываем удалённые pairId — партнёр мог выйти из группы
