@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:video_compress/video_compress.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../models/mascot.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
@@ -610,10 +611,12 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
+      final info = await PackageInfo.fromPlatform();
       final data = <String, dynamic>{
         'displayName': displayName,
         'email': email,
         'gender': gender,
+        'appVersion': '${info.version}+${info.buildNumber}',
         'updatedAt': FieldValue.serverTimestamp(),
       };
 

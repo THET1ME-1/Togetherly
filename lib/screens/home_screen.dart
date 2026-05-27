@@ -1461,8 +1461,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (info.updateAvailability == UpdateAvailability.updateAvailable) {
         _showUpdateSheet(info);
       }
-    } catch (_) {
-      // Play Store not available in dev builds / emulators — ignore silently
+    } catch (e) {
+      debugPrint('HomeScreen._checkForUpdate failed: $e');
     }
   }
 
