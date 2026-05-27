@@ -361,7 +361,7 @@ const d=await r.json();R(d.users);P(d.page,d.totalPages,d.total,d.perPage);docum
 catch(e){document.getElementById('users').innerHTML='<div class="err">Ошибка: '+e.message+'<br><br>Если не грузится — попробуй серверный режим: <a href="'+U+'?key='+K+'&ssr=1" style="color:#58a6ff">?key='+K+'&ssr=1</a></div>'}}
 function R(us){let h='';for(const u of us){const on=u.user.isOnline?'<span class="online-dot yes"></span>онлайн':'<span class="online-dot no"></span>офлайн';
 const av=u.user.avatarUrl||'';const uv=u.user.appVersion||'—';const ut=u.user.updatedAt?F(u.user.updatedAt):'—';
-h+='<div class="user-card"><div class="user-hdr" onclick="var b=this.nextElementSibling,n=this.querySelector(\'.arr\');b.classList.toggle(\'open\');n.classList.toggle(\'open\')">';
+h+='<div class="user-card"><div class="user-hdr" onclick="var b=this.nextElementSibling,n=this.querySelector(\\'.arr\\');b.classList.toggle(\\'open\\');n.classList.toggle(\\'open\\')">';
 h+=(av?'<img class="avatar" src="'+E(av)+'">':'<div class="avatar-placeholder">👤</div>');
 h+='<div class="usr-info"><div class="usr-name">'+E(u.user.displayName||'—')+'</div><div class="usr-email">'+E(u.user.email||'—')+'</div>';
 h+='<div class="usr-meta"><span>'+on+'</span><span>📱v'+uv+'</span><span>🆔'+E(u.uid)+'</span><span>🕐'+ut+'</span><span>👥'+u.groups.length+'гр</span></div></div><div class="arr">▼</div></div>';
@@ -374,7 +374,7 @@ else{h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-siz
 for(const m of g.memoriesData||[]){const iu=m.imageUrl||(m.imageUrls&&m.imageUrls[0])||m.musicCoverUrl||'';const au=m.authorName||'';const da=m.createdAt?FS(m.createdAt):'';const tp=m.type||'';
 if(tp==='text'){const ca=E((m.caption||'').substring(0,80));h+='<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px;overflow:hidden"><div style="font-size:22px;flex-shrink:0">📝</div>'+(ca?'<div style="font-size:9px;color:#8b949e;text-align:center;overflow:hidden;max-height:36px;word-break:break-word;line-height:1.2;margin:2px 0">'+ca+'</div>':'')+'<div class="lbl" style="opacity:1;position:static;margin-top:auto">'+E(au)+' • '+da+'</div></div>';}
 else if(iu){const bd=tp==='music'?'🎵':'📷';const lu=tp==='music'&&m.musicUrl?E(m.musicUrl):E(iu);const lb=tp==='music'?E(m.musicTitle||au):E(au);
-h+='<div class="mem-item" onclick="window.open(\''+lu+'\',\'_blank\')"><img src="'+E(iu)+'" loading="lazy"><div class="typ">'+bd+'</div><div class="lbl">'+lb+' • '+da+'</div></div>';}
+h+='<div class="mem-item" onclick="window.open(\\''+lu+'\\',\\'_blank\\')"><img src="'+E(iu)+'" loading="lazy"><div class="typ">'+bd+'</div><div class="lbl">'+lb+' • '+da+'</div></div>';}
 else{h+='<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px"><div style="font-size:28px">🎵</div><div class="lbl" style="opacity:1;position:static;margin-top:auto">'+E(au)+' • '+da+'</div></div>';}}
 h+='</div></details>';}h+='</div>';}h+='</div></div>';}
 document.getElementById('users').innerHTML=h;}
