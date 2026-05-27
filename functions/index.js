@@ -262,24 +262,44 @@ exports.onWidgetDataEvent = onDocumentCreated(
   }
 );
 
-/**
- * Admin Panel: полноценная админ-панель со списком пользователей,
- * группами и воспоминаниями.
- *
- * Использование (браузер):
- *   https://REGION-PROJECT.cloudfunctions.net/adminPanel?key=СЕКРЕТ
- *
- * JSON (для постраничной загрузки):
- *   https://REGION-PROJECT.cloudfunctions.net/adminPanel?key=СЕКРЕТ&format=json&page=1&perPage=50
- */
 const { defineSecret } = require("firebase-functions/params");
 const adminKey = defineSecret("ADMIN_LOOKUP_KEY");
 
-const ADMIN_HTML = `<!DOCTYPE html>
+exports.adminPanel = onRequest(
+  { secrets: [adminKey], cors: true },
+  async (req, res) => {
+    const keyOk = req.query.key === adminKey.value();
+    if (req.query.format === "json") {
+      if (!keyOk) { res.status(403).json({ error: "Forbidden" }); return; }
+      await handleJson(req, res);
+    } else if (req.query.ssr === "1" || !keyOk) {
+      // Server-side rendered HTML
+      if (!keyOk) {
+        res.set("Content-Type", "text/html; charset=utf-8");
+        res.send(`<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Togetherly Admin</title></head>
+<body style="background:#0f1117;color:#e1e4e8;font-family:sans-serif;padding:40px">
+<h1 style="color:#58a6ff">🔧 Togetherly Admin</h1>
+<p style="color:#f85149">Неверный ключ доступа.</p>
+</body></html>`);
+        return;
+      }
+      await handleSsr(req, res);
+    } else {
+      // HTML with inline JS (fallback)
+      res.set({
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      });
+      res.send(getHtmlShell());
+    }
+  }
+);
+
+function getHtmlShell() {
+  return `<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Togetherly Admin</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -287,210 +307,314 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .container{max-width:1400px;margin:0 auto}
 h1{font-size:22px;color:#58a6ff;margin-bottom:16px;display:flex;align-items:center;gap:12px}
 h1 small{font-size:13px;color:#8b949e;font-weight:400}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
-.toolbar input,.toolbar select,.toolbar button{padding:8px 12px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;font-size:14px}
-.toolbar input{flex:1;min-width:200px}
-.toolbar input:focus,.toolbar select:focus{border-color:#58a6ff;outline:none}
-.toolbar button{background:#238636;border-color:#2ea043;cursor:pointer;font-weight:600}
-.toolbar button:hover{background:#2ea043}
-.per-page{display:flex;align-items:center;gap:6px;color:#8b949e;font-size:13px}
-.pagination{display:flex;gap:6px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
-.pagination button{padding:6px 14px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;cursor:pointer;font-size:13px}
-.pagination button:hover{border-color:#58a6ff;color:#58a6ff}
-.pagination button.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
-.pagination button:disabled{opacity:0.4;cursor:default}
-.pagination .info{color:#8b949e;font-size:13px;margin-left:auto}
-.user-card{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
-.user-header{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;transition:background .15s}
-.user-header:hover{background:#1c2128}
-.user-header .avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#21262d}
-.user-header .info{flex:1;min-width:0}
-.user-header .name{font-size:15px;font-weight:600}
-.user-header .email{font-size:13px;color:#8b949e}
-.user-header .meta{font-size:12px;color:#8b949e;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
-.user-header .online{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
-.user-header .online.yes{background:#3fb950}
-.user-header .online.no{background:#484f58}
-.user-header .expand-arrow{color:#8b949e;font-size:18px;transition:transform .2s}
-.user-header.expanded .expand-arrow{transform:rotate(180deg)}
-.user-body{padding:0 18px 14px;display:none;border-top:1px solid #30363d}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.toolbar button,.toolbar select{padding:7px 14px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;font-size:13px;cursor:pointer}
+.toolbar button:hover{border-color:#58a6ff;color:#58a6ff}
+.toolbar .active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.toolbar .info{color:#8b949e;font-size:13px;margin-left:auto}
+.user-card{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.user-hdr{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+.user-hdr:hover{background:#1c2128}
+.avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#21262d;flex-shrink:0}
+.avatar-placeholder{width:40px;height:40px;border-radius:50%;background:#21262d;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.usr-info{flex:1;min-width:0}
+.usr-name{font-weight:600;font-size:14px}
+.usr-email{font-size:12px;color:#8b949e}
+.usr-meta{font-size:11px;color:#8b949e;display:flex;gap:8px;flex-wrap:wrap}
+.online-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px}
+.online-dot.yes{background:#3fb950}
+.online-dot.no{background:#484f58}
+.arr{color:#8b949e;font-size:16px;transition:transform .2s;flex-shrink:0}
+.arr.open{transform:rotate(180deg)}
+.user-body{display:none;padding:0 16px 12px;border-top:1px solid #30363d}
 .user-body.open{display:block}
-.group-card{background:#0d1117;border:1px solid #21262d;border-radius:6px;margin-top:10px;padding:12px}
-.group-card h4{font-size:13px;color:#8b949e;margin-bottom:6px}
-.group-card .member{display:inline-block;font-size:13px;background:#21262d;padding:2px 8px;border-radius:4px;margin:2px}
-.group-card .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:6px}
-.group-card .badge.disbanded{background:#da3633;color:#fff}
-.memories-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:8px}
-.memory-item{position:relative;border-radius:4px;overflow:hidden;background:#161b22;aspect-ratio:1;cursor:pointer}
-.memory-item img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
-.memory-item:hover img{transform:scale(1.05)}
-.memory-item .overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:4px 6px;font-size:10px;color:#8b949e;opacity:0;transition:opacity .2s}
-.memory-item:hover .overlay{opacity:1}
-.memory-item .type-badge{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 5px;border-radius:3px}
-.no-memories{color:#484f58;font-size:13px;padding:8px 0}
-.loading{text-align:center;padding:40px;color:#8b949e;font-size:16px}
-.error{color:#f85149;padding:12px;background:rgba(248,81,73,.1);border-radius:6px;margin-bottom:12px}
-summary{cursor:pointer;font-size:13px;color:#58a6ff;margin-top:6px}
+.grp{background:#0d1117;border:1px solid #21262d;border-radius:6px;margin-top:8px;padding:10px}
+.grp h4{font-size:12px;color:#8b949e;margin-bottom:4px}
+.grp .member{display:inline-block;font-size:12px;background:#21262d;padding:2px 7px;border-radius:4px;margin:2px}
+.badge-d{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#da3633;color:#fff;margin-left:5px}
+.mem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-top:6px}
+.mem-item{position:relative;border-radius:4px;overflow:hidden;background:#161b22;aspect-ratio:1;cursor:pointer}
+.mem-item img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
+.mem-item:hover img{transform:scale(1.05)}
+.mem-item .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:3px 5px;font-size:10px;color:#8b949e;opacity:0;transition:opacity .2s}
+.mem-item:hover .lbl{opacity:1}
+.mem-item .typ{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px}
+.no-mem{color:#484f58;font-size:12px;padding:6px 0}
+.err{color:#f85149;padding:10px;background:rgba(248,81,73,.1);border-radius:6px;margin-bottom:10px}
 </style>
 </head>
 <body>
 <div class="container">
-<h1>🔧 Togetherly Admin <small id="status"></small></h1>
-<div class="toolbar">
-  <input id="search" type="text" placeholder="Фильтр по имени или email..." oninput="filterUsers()">
-  <div class="per-page">
-    Показывать:
-    <select id="perPage" onchange="loadPage(1)">
-      <option value="10">10</option>
-      <option value="50" selected>50</option>
-      <option value="100">100</option>
-    </select>
-  </div>
-</div>
-<div class="pagination" id="pagination"></div>
-<div id="loading" class="loading">Загрузка...</div>
-<div id="users"></div>
-<div class="pagination" id="pagination2"></div>
-<div id="error" class="error" style="display:none"></div>
+<h1>🔧 Togetherly Admin <small id="info"></small></h1>
+<div class="toolbar" id="pg"></div>
+<div id="users"><p style="color:#8b949e;padding:20px;text-align:center">Загрузка...</p></div>
+<div class="toolbar" id="pg2"></div>
 </div>
 <script>
-const KEY = sessionStorage.getItem('admin_key') || new URLSearchParams(location.search).get('key') || '';
-if (!sessionStorage.getItem('admin_key') && KEY) sessionStorage.setItem('admin_key', KEY);
-if (!KEY) { document.body.innerHTML='<div class="container"><h1>🔧 Togetherly Admin</h1><p style="color:#f85149">Нет ключа доступа. Добавь ?key=ВАШ_СЕКРЕТ в URL.</p></div>'; }
-function fmtDate(ts){if(!ts)return'—';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleString('ru-RU')}
-function fmtDateShort(ts){if(!ts)return'';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleDateString('ru-RU')}
-function htmlEscape(s){if(typeof s!=='string')return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
-const BASE = location.pathname;
-let allUsers = [];
-let currentPage = 1;
-let currentPerPage = 50;
-let totalCount = 0;
-
-async function loadPage(page) {
-  currentPage = page;
-  currentPerPage = parseInt(document.getElementById('perPage').value, 10);
-  document.getElementById('loading').style.display = 'block';
-  document.getElementById('loading').textContent = 'Загрузка пользователей... (страница ' + page + ')';
-  document.getElementById('error').style.display = 'none';
-  document.getElementById('users').innerHTML = '';
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-    const res = await fetch(BASE + '?key=' + KEY + '&format=json&page=' + page + '&perPage=' + currentPerPage, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) {
-      if (res.status === 403) { document.getElementById('error').style.display='block'; document.getElementById('error').textContent='Ошибка: неверный ключ доступа. sessionStorage очищен.'; sessionStorage.removeItem('admin_key'); return; }
-      throw new Error('HTTP ' + res.status);
-    }
-    const data = await res.json();
-    allUsers = data.users;
-    totalCount = data.total;
-    renderUsers(allUsers);
-    renderPagination();
-    document.getElementById('status').textContent = data.total + ' пользователей • стр. ' + data.page + ' из ' + data.totalPages;
-  } catch(e) {
-    document.getElementById('error').style.display='block';
-    document.getElementById('error').textContent = 'Ошибка загрузки: ' + e.message;
-  }
-  document.getElementById('loading').style.display = 'none';
-}
-
-function renderUsers(users) {
-  const container = document.getElementById('users');
-  if (!users.length) { container.innerHTML = '<p style="color:#8b949e;padding:20px;text-align:center">Нет пользователей</p>'; return; }
-  let html = '';
-  for (const u of users) {
-    const online = u.user.isOnline ? '<span class="online yes"></span>онлайн' : '<span class="online no"></span>офлайн';
-    const avatar = u.user.avatarUrl || '';
-    const appVer = u.user.appVersion || '—';
-    const updated = fmtDate(u.user.updatedAt);
-    html += '<div class="user-card">';
-    html += '<div class="user-header" onclick="this.classList.toggle(\'expanded\');var b=this.nextElementSibling;b.classList.toggle(\'open\')">';
-    html += (avatar ? '<img class="avatar" src="' + htmlEscape(avatar) + '" alt="">' : '<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:18px;background:#21262d">👤</div>');
-    html += '<div class="info"><div class="name">' + htmlEscape(u.user.displayName || '—') + '</div>';
-    html += '<div class="email">' + htmlEscape(u.user.email || '—') + '</div>';
-    html += '<div class="meta"><span>' + online + '</span><span>📱 v' + appVer + '</span><span>🆔 ' + htmlEscape(u.uid) + '</span><span>🕐 ' + updated + '</span><span>👥 ' + u.groups.length + ' групп(а)</span></div></div>';
-    html += '<div class="expand-arrow">▼</div></div>';
-    html += '<div class="user-body">';
-    if (!u.groups.length) {
-      html += '<p style="color:#484f58;font-size:13px;padding:8px 0">Нет групп</p>';
-    }
-    for (const g of u.groups) {
-      const memberNames = g.memberNames || {};
-      const membersHtml = (g.members || []).map(m => {
-        const name = memberNames[m] || '?';
-        return '<span class="member">' + htmlEscape(name) + ' <span style="color:#484f58;font-size:10px">' + htmlEscape(m.substring(0,8)) + '</span></span>';
-      }).join('');
-      const disbanded = g.disbanded ? '<span class="badge disbanded">disbanded</span>' : '';
-      html += '<div class="group-card">';
-      html += '<h4>Группа: ' + htmlEscape(g.groupId) + ' ' + disbanded + ' <span style="color:#484f58;font-size:11px">с ' + fmtDateShort(g.startDate) + '</span></h4>';
-      html += '<div>' + membersHtml + '</div>';
-      if (g.memories === 0) {
-        html += '<p class="no-memories">Нет воспоминаний</p>';
-      } else {
-        html += '<details><summary>📷 ' + g.memories + ' воспоминаний</summary><div class="memories-grid">';
-        for (const m of g.memoriesData || []) {
-          const imgUrl = m.imageUrl || (m.imageUrls && m.imageUrls[0]) || '';
-          const isPhoto = m.type === 'photo' || m.type === 'image';
-          const author = m.authorName || htmlEscape(m.authorUid || '').substring(0,8);
-          const date = fmtDateShort(m.createdAt);
-          if (imgUrl) {
-            html += '<div class="memory-item" onclick="window.open(\'' + htmlEscape(imgUrl) + '\',\'_blank\')">';
-            if (isPhoto) {
-              html += '<img src="' + htmlEscape(imgUrl) + '" loading="lazy" alt="">';
-              html += '<div class="type-badge">📷</div>';
-            } else {
-              html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#21262d;color:#8b949e;font-size:32px">🎵</div>';
-              html += '<div class="type-badge">🎵</div>';
-            }
-            html += '<div class="overlay">' + htmlEscape(author) + ' • ' + date + '</div>';
-            html += '</div>';
-          }
-        }
-        html += '</div></details>';
-      }
-      html += '</div>';
-    }
-    html += '</div></div>';
-  }
-  container.innerHTML = html;
-}
-
-function renderPagination() {
-  const totalPages = Math.ceil(totalCount / currentPerPage);
-  const pag1 = document.getElementById('pagination');
-  const pag2 = document.getElementById('pagination2');
-  let html = '<button onclick="loadPage(1)" ' + (currentPage<=1?'disabled':'') + '>«</button>';
-  html += '<button onclick="loadPage(' + (currentPage-1) + ')" ' + (currentPage<=1?'disabled':'') + '>‹</button>';
-  const start = Math.max(1, currentPage - 2);
-  const end = Math.min(totalPages, currentPage + 2);
-  for (let i = start; i <= end; i++) {
-    html += '<button class="' + (i===currentPage?'active':'') + '" onclick="loadPage(' + i + ')">' + i + '</button>';
-  }
-  html += '<button onclick="loadPage(' + (currentPage+1) + ')" ' + (currentPage>=totalPages?'disabled':'') + '>›</button>';
-  html += '<button onclick="loadPage(' + totalPages + ')" ' + (currentPage>=totalPages?'disabled':'') + '>»</button>';
-  html += '<span class="info">' + totalCount + ' всего • стр. ' + currentPage + '/' + totalPages + '</span>';
-  pag1.innerHTML = html;
-  pag2.innerHTML = html;
-}
-
-function filterUsers() {
-  const q = document.getElementById('search').value.toLowerCase().trim();
-  if (!q) { renderUsers(allUsers); return; }
-  const filtered = allUsers.filter(u => {
-    const name = (u.user.displayName || '').toLowerCase();
-    const email = (u.user.email || '').toLowerCase();
-    return name.includes(q) || email.includes(q);
-  });
-  const container = document.getElementById('users');
-  if (!filtered.length) { container.innerHTML = '<p style="color:#8b949e;padding:20px;text-align:center">Ничего не найдено</p>'; return; }
-  renderUsers(filtered);
-}
-
-loadPage(1);
+const K=sessionStorage.getItem('ak')||'';
+if(!K){document.querySelector('#users').innerHTML='<p style="color:#f85149">Нет ключа. Добавь ?key=...</p>';}
+const U=window.location.origin+location.pathname;
+async function L(p){const pp=parseInt(document.getElementById('pp').value,10);document.getElementById('users').innerHTML='<p style="color:#8b949e;padding:20px;text-align:center">Загрузка...</p>';
+try{const r=await fetch(U+'?key='+K+'&format=json&page='+p+'&perPage='+pp);if(!r.ok)throw Error('HTTP '+r.status);
+const d=await r.json();R(d.users);P(d.page,d.totalPages,d.total,d.perPage);document.getElementById('info').textContent=d.total+' пользователей • стр '+d.page+'/'+d.totalPages}
+catch(e){document.getElementById('users').innerHTML='<div class="err">Ошибка: '+e.message+'<br><br>Если не грузится — попробуй серверный режим: <a href="'+U+'?key='+K+'&ssr=1" style="color:#58a6ff">?key='+K+'&ssr=1</a></div>'}}
+function R(us){let h='';for(const u of us){const on=u.user.isOnline?'<span class="online-dot yes"></span>онлайн':'<span class="online-dot no"></span>офлайн';
+const av=u.user.avatarUrl||'';const uv=u.user.appVersion||'—';const ut=u.user.updatedAt?F(u.user.updatedAt):'—';
+h+='<div class="user-card"><div class="user-hdr" onclick="var b=this.nextElementSibling,n=this.querySelector(\'.arr\');b.classList.toggle(\'open\');n.classList.toggle(\'open\')">';
+h+=(av?'<img class="avatar" src="'+E(av)+'">':'<div class="avatar-placeholder">👤</div>');
+h+='<div class="usr-info"><div class="usr-name">'+E(u.user.displayName||'—')+'</div><div class="usr-email">'+E(u.user.email||'—')+'</div>';
+h+='<div class="usr-meta"><span>'+on+'</span><span>📱v'+uv+'</span><span>🆔'+E(u.uid)+'</span><span>🕐'+ut+'</span><span>👥'+u.groups.length+'гр</span></div></div><div class="arr">▼</div></div>';
+h+='<div class="user-body">';
+if(!u.groups.length)h+='<p class="no-mem">Нет групп</p>';
+for(const g of u.groups){const mn=g.memberNames||{};const mh=(g.members||[]).map(m=>'<span class="member">'+E(mn[m]||'?')+' <span style="color:#484f58">'+E(m.substring(0,7))+'</span></span>').join('');
+const db=g.disbanded?'<span class="badge-d">disbanded</span>':'';h+='<div class="grp"><h4>'+E(g.groupId)+' '+db+'</h4><div>'+mh+'</div>';
+if(g.memories===0)h+='<p class="no-mem">Нет воспоминаний</p>';
+else{h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#58a6ff">📷 '+g.memories+' воспоминаний</summary><div class="mem-grid">';
+for(const m of g.memoriesData||[]){const iu=m.imageUrl||(m.imageUrls&&m.imageUrls[0])||'';const au=m.authorName||'';const da=m.createdAt?FS(m.createdAt):'';
+if(iu){h+='<div class="mem-item" onclick="window.open(\''+E(iu)+'\',\'_blank\')"><img src="'+E(iu)+'" loading="lazy"><div class="typ">📷</div><div class="lbl">'+E(au)+' • '+da+'</div></div>';}}
+h+='</div></details>';}h+='</div>';}h+='</div></div>';}
+document.getElementById('users').innerHTML=h;}
+function P(cp,tp,t,pp){let h='<button onclick="L(1)"'+(cp<=1?' disabled':'')+'>«</button><button onclick="L('+(cp-1)+')"'+(cp<=1?' disabled':'')+'>‹</button>';
+const s=Math.max(1,cp-2),e=Math.min(tp,cp+2);for(let i=s;i<=e;i++)h+='<button'+(i===cp?' class="active"':'')+' onclick="L('+i+')">'+i+'</button>';
+h+='<button onclick="L('+(cp+1)+')"'+(cp>=tp?' disabled':'')+'>›</button><button onclick="L('+tp+')"'+(cp>=tp?' disabled':'')+'>»</button>';
+h+='<span class="info">'+t+' всего</span>';
+const ppC='<select id="pp" onchange="L(1)"><option value="10"'+(pp===10?' selected':'')+'>10</option><option value="50"'+(pp===50?' selected':'')+'>50</option><option value="100"'+(pp===100?' selected':'')+'>100</option></select>';
+document.getElementById('pg').innerHTML=h+ppC;document.getElementById('pg2').innerHTML=h;}
+function F(ts){if(!ts)return'—';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleString('ru-RU')}
+function FS(ts){if(!ts)return'';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleDateString('ru-RU')}
+function E(s){if(typeof s!=='string')return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+L(1);
 </script>
 </body>
-</html>`;
+</html>`; }
+
+async function handleJson(req, res) {
+  const db = getFirestore();
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 10));
+
+  try {
+    const [countSnap, userSnap] = await Promise.all([
+      db.collection("users").count().get(),
+      db.collection("users").orderBy("updatedAt", "desc")
+        .offset((page - 1) * perPage).limit(perPage).get(),
+    ]);
+    const total = countSnap.data().count || 0;
+    const users = await Promise.all(userSnap.docs.map(async (doc) => {
+      const uid = doc.id, userData = doc.data();
+      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
+      const groups = await Promise.all(pairIds.map(async (gid) => {
+        try {
+          const [gs, ms] = await Promise.all([
+            db.collection("groups").doc(gid).get(),
+            db.collection("groups").doc(gid).collection("memories")
+              .orderBy("createdAt", "desc").limit(50).get(),
+          ]);
+          if (!gs.exists) return null;
+          const gd = gs.data();
+          return { groupId: gid, members: gd.members || [], memberNames: gd.memberNames || {},
+            startDate: gd.startDate, disbanded: gd.disbanded || false,
+            memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
+        } catch (_) { return null; }
+      }));
+      return { uid, user: userData, groups: groups.filter(Boolean) };
+    }));
+    console.log(`[adminPanel] p=${page}/${Math.ceil(total/perPage)}, ${users.length} users`);
+    res.json({ users, page, perPage, total, totalPages: Math.ceil(total / perPage) });
+  } catch (e) {
+    console.error(`[adminPanel]`, e);
+    res.status(500).json({ error: e.message });
+  }
+}
+
+async function handleSsr(req, res) {
+  const db = getFirestore();
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 10));
+  const key = req.query.key;
+
+  try {
+    const [countSnap, userSnap] = await Promise.all([
+      db.collection("users").count().get(),
+      db.collection("users").orderBy("updatedAt", "desc")
+        .offset((page - 1) * perPage).limit(perPage).get(),
+    ]);
+    const total = countSnap.data().count || 0;
+    const totalPages = Math.ceil(total / perPage);
+
+    const users = await Promise.all(userSnap.docs.map(async (doc) => {
+      const uid = doc.id, userData = doc.data();
+      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
+      const groups = await Promise.all(pairIds.map(async (gid) => {
+        try {
+          const [gs, ms] = await Promise.all([
+            db.collection("groups").doc(gid).get(),
+            db.collection("groups").doc(gid).collection("memories")
+              .orderBy("createdAt", "desc").limit(50).get(),
+          ]);
+          if (!gs.exists) return null;
+          const gd = gs.data();
+          return { groupId: gid, members: gd.members || [], memberNames: gd.memberNames || {},
+            startDate: gd.startDate, disbanded: gd.disbanded || false,
+            memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
+        } catch (_) { return null; }
+      }));
+      return { uid, user: userData, groups: groups.filter(Boolean) };
+    }));
+
+    let html = buildSsrPage(users, page, total, totalPages, perPage, key);
+    res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    res.send(html);
+  } catch (e) {
+    console.error(`[adminPanel] ssr error:`, e);
+    res.status(500).send(`Error: ${e.message}`);
+  }
+}
+
+function esc(s) {
+  if (typeof s !== "string") return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function fmtDate(ts) {
+  if (!ts) return "—";
+  const d = ts._seconds ? new Date(ts._seconds * 1000) : new Date(ts);
+  return d.toLocaleString("ru-RU");
+}
+
+function fmtDateShort(ts) {
+  if (!ts) return "";
+  const d = ts._seconds ? new Date(ts._seconds * 1000) : new Date(ts);
+  return d.toLocaleDateString("ru-RU");
+}
+
+function buildSsrPage(users, page, total, totalPages, perPage, key) {
+  let userHtml = "";
+  for (const u of users) {
+    const online = u.user.isOnline
+      ? '<span class="online-dot yes"></span>онлайн'
+      : '<span class="online-dot no"></span>офлайн';
+    const avatar = u.user.avatarUrl || "";
+    const appVer = esc(u.user.appVersion || "—");
+    const updated = fmtDate(u.user.updatedAt);
+    const uid = esc(u.uid);
+
+    userHtml += '<div class="user-card">';
+    userHtml += '<div class="user-hdr" onclick="var b=this.nextElementSibling,n=this.querySelector(\'.arr\');b.classList.toggle(\'open\');n.classList.toggle(\'open\')">';
+    if (avatar) {
+      userHtml += '<img class="avatar" src="' + esc(avatar) + '">';
+    } else {
+      userHtml += '<div class="avatar-placeholder">👤</div>';
+    }
+    userHtml += '<div class="usr-info"><div class="usr-name">' + esc(u.user.displayName || "—") + '</div>';
+    userHtml += '<div class="usr-email">' + esc(u.user.email || "—") + '</div>';
+    userHtml += '<div class="usr-meta"><span>' + online + '</span><span>📱v' + appVer + '</span><span>🆔' + uid + '</span><span>🕐' + updated + '</span><span>👥' + u.groups.length + 'гр</span></div></div>';
+    userHtml += '<div class="arr">▼</div></div>';
+
+    userHtml += '<div class="user-body">';
+    if (!u.groups.length) {
+      userHtml += '<p class="no-mem">Нет групп</p>';
+    }
+    for (const g of u.groups) {
+      const mn = g.memberNames || {};
+      const membersHtml = (g.members || []).map(m =>
+        '<span class="member">' + esc(mn[m] || "?") + ' <span style="color:#484f58">' + esc(m.substring(0, 7)) + '</span></span>'
+      ).join("");
+      const disbanded = g.disbanded ? '<span class="badge-d">disbanded</span>' : "";
+      userHtml += '<div class="grp"><h4>' + esc(g.groupId) + ' ' + disbanded + '</h4><div>' + membersHtml + '</div>';
+      if (g.memories === 0) {
+        userHtml += '<p class="no-mem">Нет воспоминаний</p>';
+      } else {
+        userHtml += '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#58a6ff">📷 ' + g.memories + ' воспоминаний</summary><div class="mem-grid">';
+        for (const m of g.memoriesData || []) {
+          const imgUrl = m.imageUrl || (m.imageUrls && m.imageUrls[0]) || "";
+          const author = esc(m.authorName || "");
+          const date = fmtDateShort(m.createdAt);
+          if (imgUrl) {
+            userHtml += '<div class="mem-item" onclick="window.open(\'' + esc(imgUrl) + '\',\'_blank\')">';
+            userHtml += '<img src="' + esc(imgUrl) + '" loading="lazy"><div class="typ">📷</div><div class="lbl">' + author + ' • ' + date + '</div></div>';
+          }
+        }
+        userHtml += '</div></details>';
+      }
+      userHtml += '</div>';
+    }
+    userHtml += '</div></div>';
+  }
+
+  const qsKey = "key=" + esc(key);
+  let pagHtml = "";
+  pagHtml += '<a href="?' + qsKey + '&ssr=1&page=1&perPage=' + perPage + '"><button' + (page <= 1 ? ' disabled' : '') + '>«</button></a>';
+  pagHtml += '<a href="?' + qsKey + '&ssr=1&page=' + (page - 1) + '&perPage=' + perPage + '"><button' + (page <= 1 ? ' disabled' : '') + '>‹</button></a>';
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, page + 2);
+  for (let i = start; i <= end; i++) {
+    pagHtml += '<a href="?' + qsKey + '&ssr=1&page=' + i + '&perPage=' + perPage + '"><button' + (i === page ? ' class="active"' : '') + '>' + i + '</button></a>';
+  }
+  pagHtml += '<a href="?' + qsKey + '&ssr=1&page=' + (page + 1) + '&perPage=' + perPage + '"><button' + (page >= totalPages ? ' disabled' : '') + '>›</button></a>';
+  pagHtml += '<a href="?' + qsKey + '&ssr=1&page=' + totalPages + '&perPage=' + perPage + '"><button' + (page >= totalPages ? ' disabled' : '') + '>»</button></a>';
+  pagHtml += '<span class="info">' + total + ' всего • стр ' + page + '/' + totalPages + '</span>';
+
+  const perPageOpts = [10, 50, 100];
+  const perPageHtml = perPageOpts.map(v =>
+    '<a href="?' + qsKey + '&ssr=1&page=1&perPage=' + v + '"><button' + (v === perPage ? ' class="active"' : '') + '>' + v + '</button></a>'
+  ).join("");
+
+  return `<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Togetherly Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e1e4e8;padding:20px}
+.container{max-width:1400px;margin:0 auto}
+h1{font-size:22px;color:#58a6ff;margin-bottom:16px}
+h1 small{font-size:13px;color:#8b949e;font-weight:400}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.toolbar button{padding:7px 14px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;font-size:13px;cursor:pointer}
+.toolbar a{text-decoration:none}
+.toolbar button:hover{border-color:#58a6ff;color:#58a6ff}
+.toolbar .active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.toolbar .info{color:#8b949e;font-size:13px;margin-left:auto}
+.user-card{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.user-hdr{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+.user-hdr:hover{background:#1c2128}
+.avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#21262d;flex-shrink:0}
+.avatar-placeholder{width:40px;height:40px;border-radius:50%;background:#21262d;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.usr-info{flex:1;min-width:0}
+.usr-name{font-weight:600;font-size:14px}
+.usr-email{font-size:12px;color:#8b949e}
+.usr-meta{font-size:11px;color:#8b949e;display:flex;gap:8px;flex-wrap:wrap}
+.online-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px}
+.online-dot.yes{background:#3fb950}
+.online-dot.no{background:#484f58}
+.arr{color:#8b949e;font-size:16px;transition:transform .2s;flex-shrink:0}
+.arr.open{transform:rotate(180deg)}
+.user-body{display:none;padding:0 16px 12px;border-top:1px solid #30363d}
+.user-body.open{display:block}
+.grp{background:#0d1117;border:1px solid #21262d;border-radius:6px;margin-top:8px;padding:10px}
+.grp h4{font-size:12px;color:#8b949e;margin-bottom:4px}
+.grp .member{display:inline-block;font-size:12px;background:#21262d;padding:2px 7px;border-radius:4px;margin:2px}
+.badge-d{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#da3633;color:#fff;margin-left:5px}
+.mem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-top:6px}
+.mem-item{position:relative;border-radius:4px;overflow:hidden;background:#161b22;aspect-ratio:1;cursor:pointer}
+.mem-item img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
+.mem-item:hover img{transform:scale(1.05)}
+.mem-item .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:3px 5px;font-size:10px;color:#8b949e;opacity:0;transition:opacity .2s}
+.mem-item:hover .lbl{opacity:1}
+.mem-item .typ{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px}
+.no-mem{color:#484f58;font-size:12px;padding:6px 0}
+</style>
+</head><body>
+<div class="container">
+<h1>🔧 Togetherly Admin <small>` + total + ` пользователей</small></h1>
+<div class="toolbar">` + pagHtml + `</div>
+<div class="toolbar">Показать: ` + perPageHtml + `</div>
+<div id="users">` + userHtml + `</div>
+<div class="toolbar" style="margin-top:12px">` + pagHtml + `</div>
+</div>
+</body></html>`;
+}
+
 
 exports.adminPanel = onRequest(
   { secrets: [adminKey], cors: true },
@@ -504,7 +628,11 @@ exports.adminPanel = onRequest(
     if (format === "json") {
       await handleJsonRequest(req, res);
     } else {
-      res.set("Content-Type", "text/html; charset=utf-8");
+      res.set({
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+      });
       res.send(ADMIN_HTML);
     }
   }
@@ -564,6 +692,7 @@ async function handleJsonRequest(req, res) {
     );
 
     console.log(`[adminPanel] page=${page}/${totalPages}, perPage=${perPage}, returned=${users.length}, total=${total}`);
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.json({ users, page, perPage, total, totalPages });
   } catch (e) {
     console.error(`[adminPanel] error: ${e}`);
