@@ -303,6 +303,10 @@ class _HomeScreenState extends State<HomeScreen> {
         await _widgetService.unbindFromGroup();
         if (generation != _pairChangedGeneration) return;
 
+        // Bind timer service to group for Firestore sync
+        await _timerService.bindToGroup(_pairData.pairId);
+        if (generation != _pairChangedGeneration) return;
+
         // Bind mood service to group for Firestore sync
         _moodService.bindToGroup(_pairData.pairId);
 
@@ -330,9 +334,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _bindMascotService(_pairData.pairId);
       }
 
-      // Bind timer service and create system timer only when startDate is known.
+      // Create system timer only when startDate is known.
       if (_pairData.startDate != null) {
-        await _timerService.bindToGroup(_pairData.pairId);
         if (generation != _pairChangedGeneration) return;
         await _timerService.createSystemTimer(
           startDate: _pairData.startDate!,

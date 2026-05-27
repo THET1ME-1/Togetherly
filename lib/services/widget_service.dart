@@ -160,6 +160,11 @@ class WidgetService extends ChangeNotifier {
     _myPhotoSig = null;
     _partnerPhotoSigs.clear();
 
+    // Clear native group/partner keys so background isolates don't
+    // read stale group references after unbind.
+    await HomeWidget.saveWidgetData<String>('love_widget_group_id', '');
+    await HomeWidget.saveWidgetData<String>('love_widget_partner_uid', '');
+
     if (clearNativeWidget) {
       await _syncToNativeWidget();
     }

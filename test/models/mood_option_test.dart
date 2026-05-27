@@ -6,14 +6,9 @@ void main() {
   group('MoodOption.score — happy tier (5)', () {
     const happyIds = [
       'happy',
-      'starstruck',
-      'yummy',
-      'laughing',
-      'grin',
-      'kiss',
       'love',
-      'blessed',
-      'laughing_hard',
+      'laugh',
+      'kiss',
     ];
     for (final id in happyIds) {
       test(id, () {
@@ -32,7 +27,7 @@ void main() {
   });
 
   group('MoodOption.score — content tier (4)', () {
-    const contentIds = ['winking', 'flush', 'smirking', 'cool', 'blush'];
+    const contentIds = ['winking', 'pride', 'cool', 'drooling'];
     for (final id in contentIds) {
       test(id, () {
         final mood = MoodOption.all.firstWhere(
@@ -51,12 +46,10 @@ void main() {
 
   group('MoodOption.score — neutral tier (3)', () {
     const neutralIds = [
-      'no_expression',
-      'secret',
-      'mute',
-      'sleepy',
-      'surprised',
-      'shy',
+      'no_emotion',
+      'embarrassed',
+      'surprise',
+      'liar',
     ];
     for (final id in neutralIds) {
       test(id, () {
@@ -75,7 +68,7 @@ void main() {
   });
 
   group('MoodOption.score — sad tier (2)', () {
-    const sadIds = ['sad', 'tired', 'confused', 'annoyed'];
+    const sadIds = ['sad', 'sick', 'hurt', 'missing', 'anxiety'];
     for (final id in sadIds) {
       test(id, () {
         final mood = MoodOption.all.firstWhere(
@@ -93,7 +86,7 @@ void main() {
   });
 
   group('MoodOption.score — bad tier (1)', () {
-    const badIds = ['crying', 'angry', 'dead', 'vomiting', 'scared'];
+    const badIds = ['very_sad', 'anger', 'devil', 'fear'];
     for (final id in badIds) {
       test(id, () {
         final mood = MoodOption.all.firstWhere(
