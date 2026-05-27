@@ -357,6 +357,9 @@ summary{cursor:pointer;font-size:13px;color:#58a6ff;margin-top:6px}
 const KEY = sessionStorage.getItem('admin_key') || new URLSearchParams(location.search).get('key') || '';
 if (!sessionStorage.getItem('admin_key') && KEY) sessionStorage.setItem('admin_key', KEY);
 if (!KEY) { document.body.innerHTML='<div class="container"><h1>🔧 Togetherly Admin</h1><p style="color:#f85149">Нет ключа доступа. Добавь ?key=ВАШ_СЕКРЕТ в URL.</p></div>'; }
+function fmtDate(ts){if(!ts)return'—';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleString('ru-RU')}
+function fmtDateShort(ts){if(!ts)return'';const d=ts._seconds?new Date(ts._seconds*1000):new Date(ts);return d.toLocaleDateString('ru-RU')}
+function htmlEscape(s){if(typeof s!=='string')return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 const BASE = location.pathname;
 let allUsers = [];
 let currentPage = 1;
