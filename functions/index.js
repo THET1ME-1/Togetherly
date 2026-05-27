@@ -11,6 +11,7 @@
  */
 
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -258,5 +259,88 @@ exports.onWidgetDataEvent = onDocumentCreated(
 
     // Удаляем триггерный документ — он больше не нужен
     await snapshot.ref.delete();
+  }
+);
+
+/**
+ * Admin lookup: поиск пользователя по email.
+ *
+ * Использование (браузер):
+ *   https://REGION-PROJECT.cloudfunctions.net/adminLookup?key=ВАШ_СЕКРЕТ&email=user@example.com
+ *
+ * Секрет задаётся один раз:
+ *   firebase functions:secrets:set ADMIN_LOOKUP_KEY
+ *   firebase deploy --only functions
+ *
+ * Возвращает JSON: user + группы + воспоминания.
+ */
+const { defineSecret } = require("firebase-functions/params");
+const adminLookupKey = defineSecret("ADMIN_LOOKUP_KEY");
+
+exports.adminLookup = onRequest(
+  { secrets: [adminLookupKey], cors: true },
+  async (req, res) => {
+    // Check API key
+    if (req.query.key !== adminLookupKey.value()) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const email = req.query.email;
+    if (!email || typeof email !== "string") {
+      res.status(400).json({ error: "email required" });
+      return;
+    }
+
+    const db = getFirestore();
+
+    // 1. Find user by email
+    const userSnap = await db
+      .collection("users")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
+
+    if (userSnap.empty) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const userDoc = userSnap.docs[0];
+    const uid = userDoc.id;
+    const userData = userDoc.data();
+    const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
+
+    // 2. Fetch groups + memories
+    const groups = [];
+    for (const groupId of pairIds) {
+      const groupSnap = await db.collection("groups").doc(groupId).get();
+      if (!groupSnap.exists) continue;
+
+      const groupData = groupSnap.data();
+      const memSnap = await db
+        .collection("groups")
+        .doc(groupId)
+        .collection("memories")
+        .orderBy("createdAt", "desc")
+        .limit(100)
+        .get();
+
+      const memories = memSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+
+      groups.push({
+        groupId,
+        members: groupData.members,
+        memberNames: groupData.memberNames,
+        startDate: groupData.startDate,
+        disbanded: groupData.disbanded || false,
+        memories,
+      });
+    }
+
+    res.json({ uid, user: userData, groups });
   }
 );
