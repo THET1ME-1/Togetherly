@@ -263,105 +263,314 @@ exports.onWidgetDataEvent = onDocumentCreated(
 );
 
 /**
- * Admin lookup: поиск пользователя по email.
+ * Admin Panel: полноценная админ-панель со списком пользователей,
+ * группами и воспоминаниями.
  *
  * Использование (браузер):
- *   https://REGION-PROJECT.cloudfunctions.net/adminLookup?key=ВАШ_СЕКРЕТ&email=user@example.com
+ *   https://REGION-PROJECT.cloudfunctions.net/adminPanel?key=СЕКРЕТ
  *
- * Секрет задаётся один раз:
- *   firebase functions:secrets:set ADMIN_LOOKUP_KEY
- *   firebase deploy --only functions
- *
- * Возвращает JSON: user + группы + воспоминания.
+ * JSON (для постраничной загрузки):
+ *   https://REGION-PROJECT.cloudfunctions.net/adminPanel?key=СЕКРЕТ&format=json&page=1&perPage=50
  */
 const { defineSecret } = require("firebase-functions/params");
-const adminLookupKey = defineSecret("ADMIN_LOOKUP_KEY");
+const adminKey = defineSecret("ADMIN_LOOKUP_KEY");
 
-exports.adminLookup = onRequest(
-  { secrets: [adminLookupKey], cors: true },
-  async (req, res) => {
-    // Check API key
-    if (req.query.key !== adminLookupKey.value()) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+const ADMIN_HTML = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Togetherly Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e1e4e8;padding:20px}
+.container{max-width:1400px;margin:0 auto}
+h1{font-size:22px;color:#58a6ff;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+h1 small{font-size:13px;color:#8b949e;font-weight:400}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
+.toolbar input,.toolbar select,.toolbar button{padding:8px 12px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;font-size:14px}
+.toolbar input{flex:1;min-width:200px}
+.toolbar input:focus,.toolbar select:focus{border-color:#58a6ff;outline:none}
+.toolbar button{background:#238636;border-color:#2ea043;cursor:pointer;font-weight:600}
+.toolbar button:hover{background:#2ea043}
+.per-page{display:flex;align-items:center;gap:6px;color:#8b949e;font-size:13px}
+.pagination{display:flex;gap:6px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.pagination button{padding:6px 14px;border-radius:6px;border:1px solid #30363d;background:#161b22;color:#e1e4e8;cursor:pointer;font-size:13px}
+.pagination button:hover{border-color:#58a6ff;color:#58a6ff}
+.pagination button.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.pagination button:disabled{opacity:0.4;cursor:default}
+.pagination .info{color:#8b949e;font-size:13px;margin-left:auto}
+.user-card{background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:12px;overflow:hidden}
+.user-header{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;transition:background .15s}
+.user-header:hover{background:#1c2128}
+.user-header .avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#21262d}
+.user-header .info{flex:1;min-width:0}
+.user-header .name{font-size:15px;font-weight:600}
+.user-header .email{font-size:13px;color:#8b949e}
+.user-header .meta{font-size:12px;color:#8b949e;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+.user-header .online{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.user-header .online.yes{background:#3fb950}
+.user-header .online.no{background:#484f58}
+.user-header .expand-arrow{color:#8b949e;font-size:18px;transition:transform .2s}
+.user-header.expanded .expand-arrow{transform:rotate(180deg)}
+.user-body{padding:0 18px 14px;display:none;border-top:1px solid #30363d}
+.user-body.open{display:block}
+.group-card{background:#0d1117;border:1px solid #21262d;border-radius:6px;margin-top:10px;padding:12px}
+.group-card h4{font-size:13px;color:#8b949e;margin-bottom:6px}
+.group-card .member{display:inline-block;font-size:13px;background:#21262d;padding:2px 8px;border-radius:4px;margin:2px}
+.group-card .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:6px}
+.group-card .badge.disbanded{background:#da3633;color:#fff}
+.memories-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:8px}
+.memory-item{position:relative;border-radius:4px;overflow:hidden;background:#161b22;aspect-ratio:1;cursor:pointer}
+.memory-item img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}
+.memory-item:hover img{transform:scale(1.05)}
+.memory-item .overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);padding:4px 6px;font-size:10px;color:#8b949e;opacity:0;transition:opacity .2s}
+.memory-item:hover .overlay{opacity:1}
+.memory-item .type-badge{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 5px;border-radius:3px}
+.no-memories{color:#484f58;font-size:13px;padding:8px 0}
+.loading{text-align:center;padding:40px;color:#8b949e;font-size:16px}
+.error{color:#f85149;padding:12px;background:rgba(248,81,73,.1);border-radius:6px;margin-bottom:12px}
+summary{cursor:pointer;font-size:13px;color:#58a6ff;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🔧 Togetherly Admin <small id="status"></small></h1>
+<div class="toolbar">
+  <input id="search" type="text" placeholder="Фильтр по имени или email..." oninput="filterUsers()">
+  <div class="per-page">
+    Показывать:
+    <select id="perPage" onchange="loadPage(1)">
+      <option value="10">10</option>
+      <option value="50" selected>50</option>
+      <option value="100">100</option>
+    </select>
+  </div>
+</div>
+<div class="pagination" id="pagination"></div>
+<div id="loading" class="loading">Загрузка...</div>
+<div id="users"></div>
+<div class="pagination" id="pagination2"></div>
+<div id="error" class="error" style="display:none"></div>
+</div>
+<script>
+const KEY = sessionStorage.getItem('admin_key') || new URLSearchParams(location.search).get('key') || '';
+if (!sessionStorage.getItem('admin_key') && KEY) sessionStorage.setItem('admin_key', KEY);
+if (!KEY) { document.body.innerHTML='<div class="container"><h1>🔧 Togetherly Admin</h1><p style="color:#f85149">Нет ключа доступа. Добавь ?key=ВАШ_СЕКРЕТ в URL.</p></div>'; }
+const BASE = location.pathname;
+let allUsers = [];
+let currentPage = 1;
+let currentPerPage = 50;
+let totalCount = 0;
+
+async function loadPage(page) {
+  currentPage = page;
+  currentPerPage = parseInt(document.getElementById('perPage').value, 10);
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('error').style.display = 'none';
+  document.getElementById('users').innerHTML = '';
+  try {
+    const res = await fetch(BASE + '?key=' + KEY + '&format=json&page=' + page + '&perPage=' + currentPerPage);
+    if (!res.ok) {
+      if (res.status === 403) { document.getElementById('error').style.display='block'; document.getElementById('error').textContent='Ошибка: неверный ключ доступа. sessionStorage очищен.'; sessionStorage.removeItem('admin_key'); return; }
+      throw new Error('HTTP ' + res.status);
     }
+    const data = await res.json();
+    allUsers = data.users;
+    totalCount = data.total;
+    renderUsers(allUsers);
+    renderPagination();
+    document.getElementById('status').textContent = data.total + ' пользователей • стр. ' + data.page + ' из ' + data.totalPages;
+  } catch(e) {
+    document.getElementById('error').style.display='block';
+    document.getElementById('error').textContent = 'Ошибка загрузки: ' + e.message;
+  }
+  document.getElementById('loading').style.display = 'none';
+}
 
-    const email = req.query.email;
-    if (!email || typeof email !== "string") {
-      res.status(400).json({ error: "email required" });
-      return;
+function renderUsers(users) {
+  const container = document.getElementById('users');
+  if (!users.length) { container.innerHTML = '<p style="color:#8b949e;padding:20px;text-align:center">Нет пользователей</p>'; return; }
+  let html = '';
+  for (const u of users) {
+    const online = u.user.isOnline ? '<span class="online yes"></span>онлайн' : '<span class="online no"></span>офлайн';
+    const avatar = u.user.avatarUrl || '';
+    const appVer = u.user.appVersion || '—';
+    const updated = fmtDate(u.user.updatedAt);
+    html += '<div class="user-card">';
+    html += '<div class="user-header" onclick="this.classList.toggle(\'expanded\');var b=this.nextElementSibling;b.classList.toggle(\'open\')">';
+    html += (avatar ? '<img class="avatar" src="' + htmlEscape(avatar) + '" alt="">' : '<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:18px;background:#21262d">👤</div>');
+    html += '<div class="info"><div class="name">' + htmlEscape(u.user.displayName || '—') + '</div>';
+    html += '<div class="email">' + htmlEscape(u.user.email || '—') + '</div>';
+    html += '<div class="meta"><span>' + online + '</span><span>📱 v' + appVer + '</span><span>🆔 ' + htmlEscape(u.uid) + '</span><span>🕐 ' + updated + '</span><span>👥 ' + u.groups.length + ' групп(а)</span></div></div>';
+    html += '<div class="expand-arrow">▼</div></div>';
+    html += '<div class="user-body">';
+    if (!u.groups.length) {
+      html += '<p style="color:#484f58;font-size:13px;padding:8px 0">Нет групп</p>';
     }
-
-    const db = getFirestore();
-
-    // 1. Find user by email
-    const userSnap = await db
-      .collection("users")
-      .where("email", "==", email)
-      .limit(1)
-      .get();
-
-    if (userSnap.empty) {
-      console.log(`[adminLookup] User not found: ${email}`);
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-
-    const userDoc = userSnap.docs[0];
-    const uid = userDoc.id;
-    const userData = userDoc.data();
-    const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
-
-    console.log(`[adminLookup] Found user: ${email} (uid=${uid}), pairIds=${JSON.stringify(pairIds)}`);
-
-    // 2. Fetch groups + memories
-    const groups = [];
-    for (const groupId of pairIds) {
-      const groupSnap = await db.collection("groups").doc(groupId).get();
-      if (!groupSnap.exists) {
-        console.log(`[adminLookup]   group ${groupId}: NOT FOUND`);
-        continue;
+    for (const g of u.groups) {
+      const memberNames = g.memberNames || {};
+      const membersHtml = (g.members || []).map(m => {
+        const name = memberNames[m] || '?';
+        return '<span class="member">' + htmlEscape(name) + ' <span style="color:#484f58;font-size:10px">' + htmlEscape(m.substring(0,8)) + '</span></span>';
+      }).join('');
+      const disbanded = g.disbanded ? '<span class="badge disbanded">disbanded</span>' : '';
+      html += '<div class="group-card">';
+      html += '<h4>Группа: ' + htmlEscape(g.groupId) + ' ' + disbanded + ' <span style="color:#484f58;font-size:11px">с ' + fmtDateShort(g.startDate) + '</span></h4>';
+      html += '<div>' + membersHtml + '</div>';
+      if (g.memories === 0) {
+        html += '<p class="no-memories">Нет воспоминаний</p>';
+      } else {
+        html += '<details><summary>📷 ' + g.memories + ' воспоминаний</summary><div class="memories-grid">';
+        for (const m of g.memoriesData || []) {
+          const imgUrl = m.imageUrl || (m.imageUrls && m.imageUrls[0]) || '';
+          const isPhoto = m.type === 'photo' || m.type === 'image';
+          const author = m.authorName || htmlEscape(m.authorUid || '').substring(0,8);
+          const date = fmtDateShort(m.createdAt);
+          if (imgUrl) {
+            html += '<div class="memory-item" onclick="window.open(\'' + htmlEscape(imgUrl) + '\',\'_blank\')">';
+            if (isPhoto) {
+              html += '<img src="' + htmlEscape(imgUrl) + '" loading="lazy" alt="">';
+              html += '<div class="type-badge">📷</div>';
+            } else {
+              html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#21262d;color:#8b949e;font-size:32px">🎵</div>';
+              html += '<div class="type-badge">🎵</div>';
+            }
+            html += '<div class="overlay">' + htmlEscape(author) + ' • ' + date + '</div>';
+            html += '</div>';
+          }
+        }
+        html += '</div></details>';
       }
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+  container.innerHTML = html;
+}
 
-      const groupData = groupSnap.data();
-      const memberNames = groupData.memberNames || {};
-      const membersList = (groupData.members || []).map((m) => `${m} (${memberNames[m] || "?"})`);
+function renderPagination() {
+  const totalPages = Math.ceil(totalCount / currentPerPage);
+  const pag1 = document.getElementById('pagination');
+  const pag2 = document.getElementById('pagination2');
+  let html = '<button onclick="loadPage(1)" ' + (currentPage<=1?'disabled':'') + '>«</button>';
+  html += '<button onclick="loadPage(' + (currentPage-1) + ')" ' + (currentPage<=1?'disabled':'') + '>‹</button>';
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  for (let i = start; i <= end; i++) {
+    html += '<button class="' + (i===currentPage?'active':'') + '" onclick="loadPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button onclick="loadPage(' + (currentPage+1) + ')" ' + (currentPage>=totalPages?'disabled':'') + '>›</button>';
+  html += '<button onclick="loadPage(' + totalPages + ')" ' + (currentPage>=totalPages?'disabled':'') + '>»</button>';
+  html += '<span class="info">' + totalCount + ' всего • стр. ' + currentPage + '/' + totalPages + '</span>';
+  pag1.innerHTML = html;
+  pag2.innerHTML = html;
+}
 
-      const memSnap = await db
-        .collection("groups")
-        .doc(groupId)
-        .collection("memories")
-        .orderBy("createdAt", "desc")
-        .limit(100)
-        .get();
+function filterUsers() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  if (!q) { renderUsers(allUsers); return; }
+  const filtered = allUsers.filter(u => {
+    const name = (u.user.displayName || '').toLowerCase();
+    const email = (u.user.email || '').toLowerCase();
+    return name.includes(q) || email.includes(q);
+  });
+  const container = document.getElementById('users');
+  if (!filtered.length) { container.innerHTML = '<p style="color:#8b949e;padding:20px;text-align:center">Ничего не найдено</p>'; return; }
+  renderUsers(filtered);
+}
 
-      const memories = memSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
+loadPage(1);
+</script>
+</body>
+</html>`;
 
-      console.log(
-        `[adminLookup]   group ${groupId}: ${memories.length} memories, ` +
-        `members=[${membersList.join(", ")}], ` +
-        `disbanded=${groupData.disbanded || false}`
-      );
-
-      groups.push({
-        groupId,
-        members: groupData.members,
-        memberNames: groupData.memberNames,
-        startDate: groupData.startDate,
-        disbanded: groupData.disbanded || false,
-        memories: memories.length,
-        memoriesData: memories,
-      });
+exports.adminPanel = onRequest(
+  { secrets: [adminKey], cors: true },
+  async (req, res) => {
+    if (req.query.key !== adminKey.value()) {
+      res.status(403).send("Forbidden");
+      return;
     }
 
-    const memorySummary = groups
-      .map((g) => `group=${g.groupId}: ${g.memories} memories`)
-      .join("; ");
-    console.log(`[adminLookup] Done: ${email} — ${memorySummary}`);
-
-    res.json({ uid, user: userData, groups });
+    const format = req.query.format;
+    if (format === "json") {
+      await handleJsonRequest(req, res);
+    } else {
+      res.set("Content-Type", "text/html; charset=utf-8");
+      res.send(ADMIN_HTML);
+    }
   }
 );
+
+async function handleJsonRequest(req, res) {
+  const db = getFirestore();
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 50));
+
+  try {
+    // Total count
+    const countSnap = await db.collection("users").count().get();
+    const total = countSnap.data().count || 0;
+    const totalPages = Math.ceil(total / perPage);
+
+    // Fetch users page
+    let query = db.collection("users").orderBy("updatedAt", "desc").limit(perPage);
+    if (page > 1) {
+      const prevPage = await db
+        .collection("users").orderBy("updatedAt", "desc")
+        .limit((page - 1) * perPage).get();
+      if (prevPage.docs.length > 0) {
+        query = query.startAfter(prevPage.docs[prevPage.docs.length - 1]);
+      }
+    }
+    const userSnap = await query.get();
+
+    const users = [];
+    for (const doc of userSnap.docs) {
+      const uid = doc.id;
+      const userData = doc.data();
+      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
+
+      const groups = [];
+      for (const groupId of pairIds) {
+        try {
+          const groupSnap = await db.collection("groups").doc(groupId).get();
+          if (!groupSnap.exists) continue;
+          const groupData = groupSnap.data();
+
+          // Memories count
+          let memoriesCount = 0;
+          let memoriesData = [];
+          try {
+            const memSnap = await db
+              .collection("groups").doc(groupId).collection("memories")
+              .orderBy("createdAt", "desc").limit(50).get();
+            memoriesCount = memSnap.size;
+            memoriesData = memSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          } catch (_) {}
+
+          groups.push({
+            groupId,
+            members: groupData.members || [],
+            memberNames: groupData.memberNames || {},
+            startDate: groupData.startDate,
+            disbanded: groupData.disbanded || false,
+            memories: memoriesCount,
+            memoriesData,
+          });
+        } catch (_) {}
+      }
+
+      users.push({ uid, user: userData, groups });
+    }
+
+    console.log(`[adminPanel] page=${page}/${totalPages}, perPage=${perPage}, returned=${users.length}, total=${total}`);
+    res.json({ users, page, perPage, total, totalPages });
+  } catch (e) {
+    console.error(`[adminPanel] error: ${e}`);
+    res.status(500).json({ error: e.message });
+  }
+}
+
+
