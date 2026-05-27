@@ -367,10 +367,14 @@ async function loadPage(page) {
   currentPage = page;
   currentPerPage = parseInt(document.getElementById('perPage').value, 10);
   document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = 'Загрузка пользователей... (страница ' + page + ')';
   document.getElementById('error').style.display = 'none';
   document.getElementById('users').innerHTML = '';
   try {
-    const res = await fetch(BASE + '?key=' + KEY + '&format=json&page=' + page + '&perPage=' + currentPerPage);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const res = await fetch(BASE + '?key=' + KEY + '&format=json&page=' + page + '&perPage=' + currentPerPage, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) {
       if (res.status === 403) { document.getElementById('error').style.display='block'; document.getElementById('error').textContent='Ошибка: неверный ключ доступа. sessionStorage очищен.'; sessionStorage.removeItem('admin_key'); return; }
       throw new Error('HTTP ' + res.status);
@@ -510,60 +514,51 @@ async function handleJsonRequest(req, res) {
 
   try {
     // Total count
-    const countSnap = await db.collection("users").count().get();
+    const [countSnap, userSnap] = await Promise.all([
+      db.collection("users").count().get(),
+      db.collection("users")
+        .orderBy("updatedAt", "desc")
+        .offset((page - 1) * perPage)
+        .limit(perPage)
+        .get(),
+    ]);
+
     const total = countSnap.data().count || 0;
     const totalPages = Math.ceil(total / perPage);
 
-    // Fetch users page
-    let query = db.collection("users").orderBy("updatedAt", "desc").limit(perPage);
-    if (page > 1) {
-      const prevPage = await db
-        .collection("users").orderBy("updatedAt", "desc")
-        .limit((page - 1) * perPage).get();
-      if (prevPage.docs.length > 0) {
-        query = query.startAfter(prevPage.docs[prevPage.docs.length - 1]);
-      }
-    }
-    const userSnap = await query.get();
+    // Fetch groups + memories for all users in parallel
+    const users = await Promise.all(
+      userSnap.docs.map(async (doc) => {
+        const uid = doc.id;
+        const userData = doc.data();
+        const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
 
-    const users = [];
-    for (const doc of userSnap.docs) {
-      const uid = doc.id;
-      const userData = doc.data();
-      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
+        const groups = await Promise.all(
+          pairIds.map(async (groupId) => {
+            try {
+              const [groupSnap, memSnap] = await Promise.all([
+                db.collection("groups").doc(groupId).get(),
+                db.collection("groups").doc(groupId)
+                  .collection("memories").orderBy("createdAt", "desc").limit(50).get(),
+              ]);
+              if (!groupSnap.exists) return null;
+              const groupData = groupSnap.data();
+              return {
+                groupId,
+                members: groupData.members || [],
+                memberNames: groupData.memberNames || {},
+                startDate: groupData.startDate,
+                disbanded: groupData.disbanded || false,
+                memories: memSnap.size,
+                memoriesData: memSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+              };
+            } catch (_) { return null; }
+          })
+        );
 
-      const groups = [];
-      for (const groupId of pairIds) {
-        try {
-          const groupSnap = await db.collection("groups").doc(groupId).get();
-          if (!groupSnap.exists) continue;
-          const groupData = groupSnap.data();
-
-          // Memories count
-          let memoriesCount = 0;
-          let memoriesData = [];
-          try {
-            const memSnap = await db
-              .collection("groups").doc(groupId).collection("memories")
-              .orderBy("createdAt", "desc").limit(50).get();
-            memoriesCount = memSnap.size;
-            memoriesData = memSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          } catch (_) {}
-
-          groups.push({
-            groupId,
-            members: groupData.members || [],
-            memberNames: groupData.memberNames || {},
-            startDate: groupData.startDate,
-            disbanded: groupData.disbanded || false,
-            memories: memoriesCount,
-            memoriesData,
-          });
-        } catch (_) {}
-      }
-
-      users.push({ uid, user: userData, groups });
-    }
+        return { uid, user: userData, groups: groups.filter(Boolean) };
+      })
+    );
 
     console.log(`[adminPanel] page=${page}/${totalPages}, perPage=${perPage}, returned=${users.length}, total=${total}`);
     res.json({ users, page, perPage, total, totalPages });
