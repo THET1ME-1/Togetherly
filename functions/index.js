@@ -418,7 +418,7 @@ async function handleJson(req, res) {
             memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
         } catch (_) { return null; }
       }));
-      return { uid, user: userData, groups: groups.filter(Boolean) };
+      return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
     }));
     console.log(`[adminPanel] p=${page}/${Math.ceil(total/perPage)}, ${users.length} users`);
     res.json({ users, page, perPage, total, totalPages: Math.ceil(total / perPage) });
@@ -460,7 +460,7 @@ async function handleSsr(req, res) {
             memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
         } catch (_) { return null; }
       }));
-      return { uid, user: userData, groups: groups.filter(Boolean) };
+      return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
     }));
 
     let html = buildSsrPage(users, page, total, totalPages, perPage, key);
