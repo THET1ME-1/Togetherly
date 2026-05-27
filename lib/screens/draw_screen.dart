@@ -80,7 +80,11 @@ class DrawScreen extends StatefulWidget {
 class _DrawScreenState extends State<DrawScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   static const double _kCanvasPad = 16.0;
-  static const int _liveThrottleMs = 60;
+  // Live cursor throttle. 60ms felt great but produced ~16 writes/sec per
+  // drawing user — combined with the partner's snapshot listener that's
+  // ~16 reads/sec on the other side. 100ms (~10 fps) still feels fluid for
+  // a follow-along cursor and cuts both reads and writes by ~40%.
+  static const int _liveThrottleMs = 100;
   static const double _kMinScale = 0.2;
   static const double _kMaxScale = 10.0;
 
@@ -157,9 +161,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   StreamSubscription? _strokesSub;
   StreamSubscription? _liveSub;
-  StreamSubscription? _bgColorSub;
-  StreamSubscription? _clearVersionSub;
-  StreamSubscription? _rotationSub;
+  StreamSubscription? _canvasMetaSub;
   Timer? _staleTimer;
   Timer? _hintTimer;
   int? _lastClearVersion;
@@ -286,9 +288,7 @@ class _DrawScreenState extends State<DrawScreen>
     _markPresence(false);
     _strokesSub?.cancel();
     _liveSub?.cancel();
-    _bgColorSub?.cancel();
-    _clearVersionSub?.cancel();
-    _rotationSub?.cancel();
+    _canvasMetaSub?.cancel();
     _staleTimer?.cancel();
     _hintTimer?.cancel();
     _toolbarAnim.dispose();
@@ -386,23 +386,14 @@ class _DrawScreenState extends State<DrawScreen>
         .handleError((e) => debugPrint('[Draw] live error: $e'))
         .listen(_onLiveStrokes);
 
-    _bgColorSub = _fb
-        .listenToCanvasBgColor(groupId: _groupId, canvasId: _canvasId)
-        .handleError((e) => debugPrint('[Draw] bgColor error: $e'))
-        .listen(
-          _onBgColor,
-          onError: (e) => debugPrint('[Draw] stream error: $e'),
-        );
-
-    _clearVersionSub = _fb
-        .listenToCanvasClearVersion(groupId: _groupId, canvasId: _canvasId)
-        .handleError((e) => debugPrint('[Draw] clearVersion error: $e'))
-        .listen(_onRemoteClearVersion);
-
-    _rotationSub = _fb
-        .listenToCanvasRotation(groupId: _groupId, canvasId: _canvasId)
-        .handleError((e) => debugPrint('[Draw] rotation error: $e'))
-        .listen(_onRemoteRotation);
+    // Single subscription that reads bgColor + clearVersion + rotation from
+    // the canvas/main meta doc. Was 3 separate snapshot listeners — Firestore
+    // meters each one, so any change was billed 3x. Collapsing them is the
+    // biggest read-reduction win for the drawing flow.
+    _canvasMetaSub = _fb
+        .listenToCanvasMeta(groupId: _groupId, canvasId: _canvasId)
+        .handleError((e) => debugPrint('[Draw] canvasMeta error: $e'))
+        .listen(_onCanvasMeta);
 
     // Safety: ensure listeners don't crash the app if rules are restrictive
     _strokesSub?.onError((e) => debugPrint('[Draw] global strokes error: $e'));
@@ -461,31 +452,46 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _visibleStrokes = _composeVisibleStrokes());
   }
 
-  void _onRemoteClearVersion(int? version) {
-    if (!mounted || version == null) return;
-    if (_lastClearVersion == version) return;
-    _lastClearVersion = version;
+  void _onCanvasMeta(RemoteCanvasMeta meta) {
+    if (!mounted) return;
 
-    _myStrokeIds.clear();
-    _redoStack.clear();
-    _pendingLocalStrokes.clear();
-    _cancelledPendingStrokeIds.clear();
-    _remoteStrokes = [];
-    _partnerLiveMap.clear();
-    _partnerTimestamps.clear();
-    _partnerNotifier.value = const [];
-    setState(() {
+    final version = meta.clearVersion;
+    if (version != null && _lastClearVersion != version) {
+      _lastClearVersion = version;
+      _myStrokeIds.clear();
+      _redoStack.clear();
+      _pendingLocalStrokes.clear();
+      _cancelledPendingStrokeIds.clear();
+      _remoteStrokes = [];
+      _partnerLiveMap.clear();
+      _partnerTimestamps.clear();
+      _partnerNotifier.value = const [];
       _visibleStrokes = [];
-    });
-  }
+    }
 
-  void _onRemoteRotation(int? rotationMilliRadians) {
-    if (!mounted || rotationMilliRadians == null) return;
-    final remoteRotation = rotationMilliRadians / 1000.0;
-    if ((_canvasRotation - remoteRotation).abs() < 0.001) return;
-    setState(() {
-      _canvasRotation = remoteRotation;
-    });
+    bool rotationChanged = false;
+    final rot = meta.rotationMilliRadians;
+    if (rot != null) {
+      final remoteRotation = rot / 1000.0;
+      if ((_canvasRotation - remoteRotation).abs() >= 0.001) {
+        _canvasRotation = remoteRotation;
+        rotationChanged = true;
+      }
+    }
+
+    bool bgChanged = false;
+    final bg = meta.bgColor;
+    if (bg != null) {
+      final next = Color(bg);
+      if (next.toARGB32() != _bgColor.toARGB32()) {
+        _bgColor = next;
+        bgChanged = true;
+      }
+    }
+
+    if (version != null || rotationChanged || bgChanged) {
+      setState(() {});
+    }
   }
 
   void _onLiveStrokes(Map<String, Map<String, dynamic>> liveMap) {
@@ -531,14 +537,6 @@ class _DrawScreenState extends State<DrawScreen>
     }
 
     if (changed && mounted) setState(() {});
-  }
-
-  void _onBgColor(int? value) {
-    if (!mounted || value == null) return;
-    final next = Color(value);
-    if (next.toARGB32() != _bgColor.toARGB32()) {
-      setState(() => _bgColor = next);
-    }
   }
 
   void _removeStalePartners(Timer _) {
@@ -652,6 +650,9 @@ class _DrawScreenState extends State<DrawScreen>
 
     _redoStack.clear();
     _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
+    _lastPushedPointsCount = 0;
+    _lastPushedTipX = double.nan;
+    _lastPushedTipY = double.nan;
     if (_showHint) setState(() => _showHint = false);
 
     if (_isShapeTool) {
@@ -724,8 +725,25 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  int _lastPushedPointsCount = 0;
+  double _lastPushedTipX = double.nan;
+  double _lastPushedTipY = double.nan;
+
   Future<void> _pushLiveStrokeAsync() async {
     if (!_hasSharedCanvas || _currentPoints.isEmpty) return;
+    // Skip the write if the stroke is identical to the last one we pushed.
+    // For freehand strokes the point count grows, for shape tools the count
+    // stays at 2 but the endpoint moves — both cases need to be covered.
+    final tip = _currentPoints.last;
+    if (_currentPoints.length == _lastPushedPointsCount &&
+        tip.x == _lastPushedTipX &&
+        tip.y == _lastPushedTipY) {
+      return;
+    }
+    _lastPushedPointsCount = _currentPoints.length;
+    _lastPushedTipX = tip.x;
+    _lastPushedTipY = tip.y;
+
     final stroke = DrawStroke(
       id: 'live_$_myUid',
       userId: _myUid,

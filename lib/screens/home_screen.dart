@@ -242,7 +242,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final groupChanged = _lastPairId != currentPairId;
     _lastPairId = currentPairId;
 
-    _startMemoryListener();
+    // Re-subscribe to memories ONLY when the group/pairing state actually
+    // changed. PairData notifies on every group-doc field update (mood,
+    // status, memoriesUpdatedAt, etc.), and each restart re-reads the
+    // limit window from Firestore — a major source of read amplification.
+    if (groupChanged || _wasPaired != isPaired) {
+      _startMemoryListener();
+    }
 
     // isPaired check does NOT require startDate — mood/widget services bind
     // to the group regardless of whether startDate is set yet.

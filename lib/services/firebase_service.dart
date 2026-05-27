@@ -38,6 +38,33 @@ class FirebaseService {
   String? _cachedDisplayName;
   String? _cachedAvatarUrl;
 
+  // Ref-counted, multiplexed snapshot listeners for hot single-doc paths.
+  // Each group doc had 4+ independent snapshot subscriptions
+  // (listenToPair / listenToTimers / listenToMissYouCount / listenToMissYouCounts /
+  //  listenToCanvasBgColor + ...). Firestore meters each subscription separately,
+  // so a single field change was billed 4+ times. The hub keeps ONE underlying
+  // snapshot per groupId and fans the data out to every consumer.
+  final Map<String, _DocSnapshotHub> _groupDocHubs = {};
+  final Map<String, _DocSnapshotHub> _userDocHubs = {};
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _groupDocStream(String groupId) {
+    return _groupDocHubs
+        .putIfAbsent(
+          groupId,
+          () => _DocSnapshotHub(_db.collection('groups').doc(groupId)),
+        )
+        .stream;
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _userDocStream(String uid) {
+    return _userDocHubs
+        .putIfAbsent(
+          uid,
+          () => _DocSnapshotHub(_db.collection('users').doc(uid)),
+        )
+        .stream;
+  }
+
   // ══════════════════════════════════════════════
   //  AUTH
   // ══════════════════════════════════════════════
@@ -1839,40 +1866,37 @@ class FirebaseService {
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
-    return _db
-        .collection('groups')
-        .doc(pairId)
-        .snapshots(includeMetadataChanges: true)
-        .listen((snap) async {
-          if (snap.exists) {
-            final rawData = snap.data()!;
-            if (rawData['disbanded'] == true) {
-              debugPrint('listenToPair: group disbanded, treating as deleted');
-              onData(null);
-              return;
-            }
-            final parsedData = _parseGroupDoc(pairId, rawData);
-            debugPrint(
-              'listenToPair: updated group data, members=${parsedData['members']?.length}',
-            );
-            onData(parsedData);
+    // Shared hub — every listener for this group reuses one underlying
+    // Firestore subscription. `includeMetadataChanges` is intentionally OFF:
+    // metadata-only updates don't change any field the UI reads, and they
+    // would double-charge every consumer downstream.
+    return _groupDocStream(pairId).listen((snap) async {
+      if (snap.exists) {
+        final rawData = snap.data()!;
+        if (rawData['disbanded'] == true) {
+          debugPrint('listenToPair: group disbanded, treating as deleted');
+          onData(null);
+          return;
+        }
+        final parsedData = _parseGroupDoc(pairId, rawData);
+        onData(parsedData);
+      } else {
+        debugPrint('listenToPair: group document deleted or not found');
+        try {
+          final pairSnap = await _db
+              .collection('pairs')
+              .doc(pairId)
+              .get(const GetOptions(source: Source.server));
+          if (pairSnap.exists) {
+            onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
           } else {
-            debugPrint('listenToPair: group document deleted or not found');
-            try {
-              final pairSnap = await _db
-                  .collection('pairs')
-                  .doc(pairId)
-                  .get(const GetOptions(source: Source.server));
-              if (pairSnap.exists) {
-                onData(_parseLegacyPairDoc(pairId, pairSnap.data()!));
-              } else {
-                onData(null);
-              }
-            } catch (_) {
-              onData(null);
-            }
+            onData(null);
           }
-        }, onError: (e) => debugPrint('listenToPair error: $e'));
+        } catch (_) {
+          onData(null);
+        }
+      }
+    }, onError: (e) => debugPrint('listenToPair error: $e'));
   }
 
   /// Remove me from a group (or delete if ≤2 members)
@@ -1982,17 +2006,14 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return null;
 
-    return _db
-        .collection('users')
-        .doc(u.uid)
-        .snapshots(includeMetadataChanges: true)
-        .listen((snap) {
-          if (snap.exists) {
-            onData(snap.data());
-          } else {
-            onData(null);
-          }
-        }, onError: (e) => debugPrint('listenToUserDoc error: $e'));
+    // Shared hub for users/{uid} — same dedup reasoning as the group hub.
+    return _userDocStream(u.uid).listen((snap) {
+      if (snap.exists) {
+        onData(snap.data());
+      } else {
+        onData(null);
+      }
+    }, onError: (e) => debugPrint('listenToUserDoc error: $e'));
   }
 
   // ══════════════════════════════════════════════
@@ -2214,22 +2235,6 @@ class FirebaseService {
       );
 
       await ref.set(memory.toFirestore());
-
-      // Update group-level memory timestamps.
-      // Check Firestore's local cache (no server round-trip) to decide whether
-      // memoriesCreatedAt needs to be written for the first time.
-      final groupRef = _db.collection('groups').doc(groupId);
-      final tsUpdates = <String, dynamic>{'memoriesUpdatedAt': FieldValue.serverTimestamp()};
-      try {
-        final cached = await groupRef.get(const GetOptions(source: Source.cache));
-        if (!cached.exists || cached.data()?.containsKey('memoriesCreatedAt') != true) {
-          tsUpdates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
-        }
-      } catch (_) {
-        tsUpdates['memoriesCreatedAt'] = FieldValue.serverTimestamp();
-      }
-      await groupRef.update(tsUpdates);
-
       return memory;
     } catch (e) {
       debugPrint('addMemory failed: $e');
@@ -2278,10 +2283,6 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .update(updates);
-
-      await _db.collection('groups').doc(groupId).update({
-        'memoriesUpdatedAt': FieldValue.serverTimestamp(),
-      });
     } catch (e) {
       debugPrint('updateMemory failed: $e');
     }
@@ -2316,10 +2317,6 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .delete();
-
-      await _db.collection('groups').doc(groupId).update({
-        'memoriesUpdatedAt': FieldValue.serverTimestamp(),
-      });
     } catch (e) {
       debugPrint('deleteMemory failed: $e');
     }
@@ -2746,7 +2743,7 @@ class FirebaseService {
     required void Function(List<TimerItem> timers) onData,
   }) {
     String prevHash = '';
-    return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
+    return _groupDocStream(groupId).listen((snap) {
       if (!snap.exists) return;
       final data = snap.data()!;
       final timersList = data['timers'] as List<dynamic>?;
@@ -2964,9 +2961,12 @@ class FirebaseService {
     required String groupId,
     required void Function(int count) onData,
   }) {
-    return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
+    int? prev;
+    return _groupDocStream(groupId).listen((snap) {
       final data = snap.data();
       final count = (data?['missYouCount'] as int?) ?? 0;
+      if (count == prev) return;
+      prev = count;
       onData(count);
     }, onError: (e) => debugPrint('listenToMissYouCount error: $e'));
   }
@@ -2976,10 +2976,14 @@ class FirebaseService {
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
-    return _db.collection('groups').doc(groupId).snapshots().listen((snap) {
+    String prevHash = '';
+    return _groupDocStream(groupId).listen((snap) {
       final data = snap.data();
       final raw = (data?['missYouCounts'] as Map<String, dynamic>?) ?? {};
       final counts = raw.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0));
+      final hash = counts.toString();
+      if (hash == prevHash) return;
+      prevHash = hash;
       onData(counts);
     }, onError: (e) => debugPrint('listenToMissYouCounts error: $e'));
   }
@@ -2990,11 +2994,18 @@ class FirebaseService {
   //                          lastSeen (Timestamp)
   // ══════════════════════════════════════════════
 
+  bool? _lastOnlineStatus;
+
   /// Обновляет статус присутствия текущего пользователя.
   /// Вызывается из AppLifecycleListener при переходе foreground/background.
   Future<void> setOnlineStatus(bool isOnline) async {
     final u = currentUser;
     if (u == null) return;
+    // AppLifecycleListener fires onPause + onHide + onDetach in quick
+    // succession on Android — without this guard every backgrounding paid
+    // for 3 user-doc writes (and 3 reads on the partner side).
+    if (_lastOnlineStatus == isOnline) return;
+    _lastOnlineStatus = isOnline;
     try {
       final data = <String, dynamic>{
         'isOnline': isOnline,
@@ -3007,6 +3018,8 @@ class FirebaseService {
           .timeout(const Duration(seconds: 8));
       debugPrint('setOnlineStatus: uid=${u.uid}, isOnline=$isOnline');
     } catch (e) {
+      // Restore so a retry attempt can go through.
+      _lastOnlineStatus = null;
       debugPrint('setOnlineStatus failed: $e');
     }
   }
@@ -3014,7 +3027,7 @@ class FirebaseService {
   /// Стрим присутствия пользователя по uid.
   /// Возвращает Map с полями isOnline (bool) и lastSeen (DateTime?).
   Stream<Map<String, dynamic>> streamUserPresence(String uid) {
-    return _db.collection('users').doc(uid).snapshots().map((snap) {
+    return _userDocStream(uid).map((snap) {
       final data = snap.data();
       if (data == null) return {'isOnline': false, 'lastSeen': null};
       final isOnline = (data['isOnline'] as bool?) ?? false;
@@ -3210,25 +3223,22 @@ class FirebaseService {
     }
   }
 
-  /// Stream of background colour changes for the shared canvas.
-  Stream<int?> listenToCanvasBgColor({
+  /// Combined stream of canvas meta fields (bgColor, clearVersion, rotation).
+  /// Use this instead of subscribing three times to the same document — each
+  /// snapshot listener is metered separately by Firestore, so a single
+  /// subscription cuts canvas/main reads to ~1/3 of the previous cost.
+  Stream<RemoteCanvasMeta> listenToCanvasMeta({
     required String groupId,
     String canvasId = 'main',
   }) {
-    return _canvasMainRef(
-      groupId,
-      canvasId,
-    ).snapshots().map((snap) => (snap.data()?['bgColor'] as num?)?.toInt());
-  }
-
-  /// Stream of clear events for the shared canvas.
-  Stream<int?> listenToCanvasClearVersion({
-    required String groupId,
-    String canvasId = 'main',
-  }) {
-    return _canvasMainRef(groupId, canvasId).snapshots().map(
-      (snap) => (snap.data()?['clearVersion'] as num?)?.toInt(),
-    );
+    return _canvasMainRef(groupId, canvasId).snapshots().map((snap) {
+      final data = snap.data();
+      return RemoteCanvasMeta(
+        bgColor: (data?['bgColor'] as num?)?.toInt(),
+        clearVersion: (data?['clearVersion'] as num?)?.toInt(),
+        rotationMilliRadians: (data?['canvasRotation'] as num?)?.toInt(),
+      );
+    });
   }
 
   /// Persist the canvas rotation so both users see the same orientation.
@@ -3246,16 +3256,6 @@ class FirebaseService {
     } catch (e) {
       debugPrint('setCanvasRotation failed: $e');
     }
-  }
-
-  /// Stream of canvas rotation changes (value is angle in milli-radians).
-  Stream<int?> listenToCanvasRotation({
-    required String groupId,
-    String canvasId = 'main',
-  }) {
-    return _canvasMainRef(groupId, canvasId).snapshots().map(
-      (snap) => (snap.data()?['canvasRotation'] as num?)?.toInt(),
-    );
   }
 
   /// Upload a drawing image to Firebase Storage and return the download URL.
@@ -3590,15 +3590,24 @@ class FirebaseService {
 
   /// Real-time stream of group mascot state (active id, position, scale, streak).
   Stream<GroupMascotState> listenToGroupMascotState({required String groupId}) {
-    return _db
-        .collection('groups')
-        .doc(groupId)
-        .snapshots()
+    String? prevSig;
+    return _groupDocStream(groupId)
         .map(
           (snap) => snap.exists
               ? GroupMascotState.fromMap(snap.data()!)
               : const GroupMascotState(),
-        );
+        )
+        .where((state) {
+          // De-dupe noisy group-doc updates that don't change mascot fields
+          // (mood, status, timers, missYouCounts, etc.). Without this filter
+          // the mascot widget rebuilds on every unrelated group-doc change.
+          final sig =
+              '${state.activeMascotId}|${state.positionX}|${state.positionY}|'
+              '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}';
+          if (sig == prevSig) return false;
+          prevSig = sig;
+          return true;
+        });
   }
 
   /// Real-time stream of mascots in the group gallery.
@@ -3650,4 +3659,73 @@ class _DrawStrokeRaw {
   final String id;
   final Map<String, dynamic> data;
   const _DrawStrokeRaw({required this.id, required this.data});
+}
+
+/// Snapshot of the shared canvas/main meta document — merged so a single
+/// Firestore listener can drive bgColor / clearVersion / rotation updates.
+/// Named `RemoteCanvasMeta` to avoid collision with the local catalogue
+/// entry in models/canvas_meta.dart.
+class RemoteCanvasMeta {
+  final int? bgColor;
+  final int? clearVersion;
+  final int? rotationMilliRadians;
+  const RemoteCanvasMeta({this.bgColor, this.clearVersion, this.rotationMilliRadians});
+}
+
+/// Ref-counted multiplexer around a single Firestore document snapshot listener.
+///
+/// Each independent `.snapshots()` subscription on the same DocumentReference
+/// is billed separately by Firestore. The hub lets multiple consumers share
+/// ONE underlying subscription: the first listener opens it, the last cancel
+/// closes it, and new listeners immediately receive the most recent snapshot
+/// so they don't have to wait for the next server event.
+class _DocSnapshotHub {
+  _DocSnapshotHub(this._ref);
+
+  final DocumentReference<Map<String, dynamic>> _ref;
+  final StreamController<DocumentSnapshot<Map<String, dynamic>>> _controller =
+      StreamController.broadcast();
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+  DocumentSnapshot<Map<String, dynamic>>? _latest;
+
+  bool get _isActive => _sub != null;
+
+  void _start() {
+    if (_isActive) return;
+    _sub = _ref.snapshots().listen(
+      (snap) {
+        _latest = snap;
+        if (!_controller.isClosed) _controller.add(snap);
+      },
+      onError: (Object e, StackTrace st) {
+        if (!_controller.isClosed) _controller.addError(e, st);
+      },
+    );
+  }
+
+  void _stopIfIdle() {
+    if (_controller.hasListener) return;
+    _sub?.cancel();
+    _sub = null;
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get stream {
+    return Stream.multi((controller) {
+      _start();
+      // Replay the latest snapshot so consumers that subscribe mid-stream
+      // (e.g. opening profile_screen while a partner has been online for a
+      // while) see the current state without waiting for the next change.
+      final cached = _latest;
+      if (cached != null) controller.add(cached);
+      final sub = _controller.stream.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = () async {
+        await sub.cancel();
+        _stopIfIdle();
+      };
+    });
+  }
 }
