@@ -371,8 +371,11 @@ for(const g of u.groups){const mn=g.memberNames||{};const mh=(g.members||[]).map
 const db=g.disbanded?'<span class="badge-d">disbanded</span>':'';h+='<div class="grp"><h4>'+E(g.groupId)+' '+db+'</h4><div>'+mh+'</div>';
 if(g.memories===0)h+='<p class="no-mem">Нет воспоминаний</p>';
 else{h+='<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#58a6ff">📷 '+g.memories+' воспоминаний</summary><div class="mem-grid">';
-for(const m of g.memoriesData||[]){const iu=m.imageUrl||(m.imageUrls&&m.imageUrls[0])||'';const au=m.authorName||'';const da=m.createdAt?FS(m.createdAt):'';
-if(iu){h+='<div class="mem-item" onclick="window.open(\''+E(iu)+'\',\'_blank\')"><img src="'+E(iu)+'" loading="lazy"><div class="typ">📷</div><div class="lbl">'+E(au)+' • '+da+'</div></div>';}}
+for(const m of g.memoriesData||[]){const iu=m.imageUrl||(m.imageUrls&&m.imageUrls[0])||m.musicCoverUrl||'';const au=m.authorName||'';const da=m.createdAt?FS(m.createdAt):'';const tp=m.type||'';
+if(tp==='text'){const ca=E((m.caption||'').substring(0,80));h+='<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px;overflow:hidden"><div style="font-size:22px;flex-shrink:0">📝</div>'+(ca?'<div style="font-size:9px;color:#8b949e;text-align:center;overflow:hidden;max-height:36px;word-break:break-word;line-height:1.2;margin:2px 0">'+ca+'</div>':'')+'<div class="lbl" style="opacity:1;position:static;margin-top:auto">'+E(au)+' • '+da+'</div></div>';}
+else if(iu){const bd=tp==='music'?'🎵':'📷';const lu=tp==='music'&&m.musicUrl?E(m.musicUrl):E(iu);const lb=tp==='music'?E(m.musicTitle||au):E(au);
+h+='<div class="mem-item" onclick="window.open(\''+lu+'\',\'_blank\')"><img src="'+E(iu)+'" loading="lazy"><div class="typ">'+bd+'</div><div class="lbl">'+lb+' • '+da+'</div></div>';}
+else{h+='<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px"><div style="font-size:28px">🎵</div><div class="lbl" style="opacity:1;position:static;margin-top:auto">'+E(au)+' • '+da+'</div></div>';}}
 h+='</div></details>';}h+='</div>';}h+='</div></div>';}
 document.getElementById('users').innerHTML=h;}
 function P(cp,tp,t,pp){let h='<button onclick="L(1)"'+(cp<=1?' disabled':'')+'>«</button><button onclick="L('+(cp-1)+')"'+(cp<=1?' disabled':'')+'>‹</button>';
@@ -395,21 +398,38 @@ async function handleJson(req, res) {
   const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 10));
 
   try {
-    const [countSnap, userSnap] = await Promise.all([
-      db.collection("users").count().get(),
-      db.collection("users").orderBy("updatedAt", "desc")
-        .offset((page - 1) * perPage).limit(perPage).get(),
-    ]);
-    const total = countSnap.data().count || 0;
-    const users = await Promise.all(userSnap.docs.map(async (doc) => {
-      const uid = doc.id, userData = doc.data();
-      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
-      const groups = await Promise.all(pairIds.map(async (gid) => {
+    const allSnap = await db.collection("users").get();
+    const allUsers = allSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    const total = allUsers.length;
+    const totalPages = Math.ceil(total / perPage);
+
+    const withCounts = await Promise.all(allUsers.map(async (u) => {
+      const pids = u.pairIds || (u.pairId ? [u.pairId] : []);
+      let mems = 0;
+      if (pids.length) {
+        const cc = await Promise.all(pids.map(async gid => {
+          try { const c = await db.collection("groups").doc(gid).collection("memories").count().get(); return c.data().count || 0; }
+          catch (_) { return 0; }
+        }));
+        mems = cc.reduce((s, c) => s + c, 0);
+      }
+      return { uid: u.uid, totalMemories: mems };
+    }));
+    withCounts.sort((a, b) => b.totalMemories - a.totalMemories);
+
+    const pageUids = withCounts.slice((page - 1) * perPage, page * perPage).map(u => u.uid);
+    const userMap = {};
+    allUsers.forEach(u => { userMap[u.uid] = u; });
+
+    const users = await Promise.all(pageUids.map(async (uid) => {
+      const ud = userMap[uid];
+      if (!ud) return null;
+      const pids = ud.pairIds || (ud.pairId ? [ud.pairId] : []);
+      const groups = await Promise.all(pids.map(async gid => {
         try {
           const [gs, ms] = await Promise.all([
             db.collection("groups").doc(gid).get(),
-            db.collection("groups").doc(gid).collection("memories")
-              .orderBy("createdAt", "desc").limit(500).get(),
+            db.collection("groups").doc(gid).collection("memories").orderBy("createdAt", "desc").limit(500).get(),
           ]);
           if (!gs.exists) return null;
           const gd = gs.data();
@@ -418,11 +438,11 @@ async function handleJson(req, res) {
             memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
         } catch (_) { return null; }
       }));
-      return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
+      return { uid, user: ud, groups: groups.filter(Boolean).sort((a, b) => b.memories - a.memories) };
     }));
-    users.sort((a,b)=>{const at=a.groups.reduce((s,g)=>s+g.memories,0),bt=b.groups.reduce((s,g)=>s+g.memories,0);return bt-at});
-    console.log(`[adminPanel] p=${page}/${Math.ceil(total/perPage)}, ${users.length} users`);
-    res.json({ users, page, perPage, total, totalPages: Math.ceil(total / perPage) });
+
+    console.log(`[adminPanel] p=${page}/${totalPages}, ${users.length} users`);
+    res.json({ users: users.filter(Boolean), page, perPage, total, totalPages });
   } catch (e) {
     console.error(`[adminPanel]`, e);
     res.status(500).json({ error: e.message });
@@ -436,23 +456,38 @@ async function handleSsr(req, res) {
   const key = req.query.key;
 
   try {
-    const [countSnap, userSnap] = await Promise.all([
-      db.collection("users").count().get(),
-      db.collection("users").orderBy("updatedAt", "desc")
-        .offset((page - 1) * perPage).limit(perPage).get(),
-    ]);
-    const total = countSnap.data().count || 0;
+    const allSnap = await db.collection("users").get();
+    const allUsers = allSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    const total = allUsers.length;
     const totalPages = Math.ceil(total / perPage);
 
-    const users = await Promise.all(userSnap.docs.map(async (doc) => {
-      const uid = doc.id, userData = doc.data();
-      const pairIds = userData.pairIds || (userData.pairId ? [userData.pairId] : []);
-      const groups = await Promise.all(pairIds.map(async (gid) => {
+    const withCounts = await Promise.all(allUsers.map(async (u) => {
+      const pids = u.pairIds || (u.pairId ? [u.pairId] : []);
+      let mems = 0;
+      if (pids.length) {
+        const cc = await Promise.all(pids.map(async gid => {
+          try { const c = await db.collection("groups").doc(gid).collection("memories").count().get(); return c.data().count || 0; }
+          catch (_) { return 0; }
+        }));
+        mems = cc.reduce((s, c) => s + c, 0);
+      }
+      return { uid: u.uid, totalMemories: mems };
+    }));
+    withCounts.sort((a, b) => b.totalMemories - a.totalMemories);
+
+    const pageUids = withCounts.slice((page - 1) * perPage, page * perPage).map(u => u.uid);
+    const userMap = {};
+    allUsers.forEach(u => { userMap[u.uid] = u; });
+
+    const users = await Promise.all(pageUids.map(async (uid) => {
+      const ud = userMap[uid];
+      if (!ud) return null;
+      const pids = ud.pairIds || (ud.pairId ? [ud.pairId] : []);
+      const groups = await Promise.all(pids.map(async gid => {
         try {
           const [gs, ms] = await Promise.all([
             db.collection("groups").doc(gid).get(),
-            db.collection("groups").doc(gid).collection("memories")
-              .orderBy("createdAt", "desc").limit(500).get(),
+            db.collection("groups").doc(gid).collection("memories").orderBy("createdAt", "desc").limit(500).get(),
           ]);
           if (!gs.exists) return null;
           const gd = gs.data();
@@ -461,11 +496,10 @@ async function handleSsr(req, res) {
             memories: ms.size, memoriesData: ms.docs.map(d => ({ id: d.id, ...d.data() })) };
         } catch (_) { return null; }
       }));
-      return { uid, user: userData, groups: groups.filter(Boolean).sort((a,b)=>b.memories-a.memories) };
+      return { uid, user: ud, groups: groups.filter(Boolean).sort((a, b) => b.memories - a.memories) };
     }));
-    users.sort((a,b)=>{const at=a.groups.reduce((s,g)=>s+g.memories,0),bt=b.groups.reduce((s,g)=>s+g.memories,0);return bt-at});
 
-    let html = buildSsrPage(users, page, total, totalPages, perPage, key);
+    let html = buildSsrPage(users.filter(Boolean), page, total, totalPages, perPage, key);
     res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     res.send(html);
   } catch (e) {
@@ -530,12 +564,26 @@ function buildSsrPage(users, page, total, totalPages, perPage, key) {
       } else {
         userHtml += '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#58a6ff">📷 ' + g.memories + ' воспоминаний</summary><div class="mem-grid">';
         for (const m of g.memoriesData || []) {
-          const imgUrl = m.imageUrl || (m.imageUrls && m.imageUrls[0]) || "";
+          const imgUrl = m.imageUrl || (m.imageUrls && m.imageUrls[0]) || m.musicCoverUrl || "";
           const author = esc(m.authorName || "");
           const date = fmtDateShort(m.createdAt);
-          if (imgUrl) {
-            userHtml += '<div class="mem-item" onclick="window.open(\'' + esc(imgUrl) + '\',\'_blank\')">';
-            userHtml += '<img src="' + esc(imgUrl) + '" loading="lazy"><div class="typ">📷</div><div class="lbl">' + author + ' • ' + date + '</div></div>';
+          const type = m.type || "";
+          if (type === "text") {
+            const cap = esc((m.caption || "").substring(0, 80));
+            userHtml += '<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px;overflow:hidden">';
+            userHtml += '<div style="font-size:22px;flex-shrink:0">📝</div>';
+            if (cap) userHtml += '<div style="font-size:9px;color:#8b949e;text-align:center;overflow:hidden;max-height:36px;word-break:break-word;line-height:1.2;margin:2px 0">' + cap + '</div>';
+            userHtml += '<div class="lbl" style="opacity:1;position:static;margin-top:auto">' + author + ' • ' + date + '</div></div>';
+          } else if (imgUrl) {
+            const badge = type === "music" ? "🎵" : "📷";
+            const linkUrl = type === "music" && m.musicUrl ? esc(m.musicUrl) : esc(imgUrl);
+            const label = type === "music" ? esc(m.musicTitle || author) : author;
+            userHtml += '<div class="mem-item" onclick="window.open(\'' + linkUrl + '\',\'_blank\')">';
+            userHtml += '<img src="' + esc(imgUrl) + '" loading="lazy"><div class="typ">' + badge + '</div><div class="lbl">' + label + ' • ' + date + '</div></div>';
+          } else {
+            userHtml += '<div class="mem-item" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#21262d;padding:6px">';
+            userHtml += '<div style="font-size:28px">🎵</div>';
+            userHtml += '<div class="lbl" style="opacity:1;position:static;margin-top:auto">' + author + ' • ' + date + '</div></div>';
           }
         }
         userHtml += '</div></details>';
