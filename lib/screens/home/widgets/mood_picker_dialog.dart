@@ -6,7 +6,12 @@ import '../../../services/locale_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/widget_service.dart';
 
-/// Shows mood picker bottom sheet for today's mood
+/// Shows mood picker bottom sheet for today's mood.
+///
+/// Все апдейты идут через [MoodService.setMoodForToday] — единая точка входа,
+/// которая атомарно обновляет календарь + group memberMoods + widgetData.
+/// Параметры pairData/widgetService оставлены ради обратной совместимости;
+/// MoodService уже связан с ними через bindServices в home_screen.initState.
 void showMoodPicker({
   required BuildContext context,
   required PairData pairData,
@@ -15,11 +20,8 @@ void showMoodPicker({
   required Color primary,
   required Color navActiveIcon,
 }) {
-  final today = DateTime.now();
-  final todayEntries = moodService.myEntriesForDay(today);
-  final currentEmoji = todayEntries.isNotEmpty
-      ? todayEntries.first.imagePath
-      : pairData.myMood.imagePath;
+  final mood = moodService.myMoodToday;
+  final currentEmoji = mood?.imagePath ?? '';
 
   showModalBottomSheet(
     context: context,
@@ -37,29 +39,16 @@ void showMoodPicker({
         subtitle: LocaleService.current.partnerWillSeeMood,
         onSelect: (mood) {
           Navigator.pop(ctx);
-          for (final e in moodService.myEntriesForDay(today)) {
-            moodService.deleteMoodEntry(e.id);
-          }
-          pairData.setMood(mood.imagePath, mood.localizedLabel);
-          moodService.addMood(
+          moodService.setMoodForToday(
             moodId: mood.id,
             imagePath: mood.imagePath,
             label: mood.localizedLabel,
-          );
-          widgetService.updateMood(
-            mood.imagePath,
-            mood.localizedLabel,
-            skipCalendar: true,
           );
         },
         onClear: currentEmoji.isNotEmpty
             ? () async {
                 Navigator.pop(ctx);
-                for (final e in moodService.myEntriesForDay(today)) {
-                  await moodService.deleteMoodEntry(e.id);
-                }
-                pairData.clearMood();
-                widgetService.clearMood();
+                await moodService.clearMoodForToday();
               }
             : null,
       ),
@@ -67,7 +56,9 @@ void showMoodPicker({
   );
 }
 
-/// Shows mood picker for a specific date
+/// Shows mood picker for a specific date.
+/// Для сегодняшней даты использует [MoodService.setMoodForToday]
+/// (атомарный апдейт всех трёх источников). Для прошлых — только календарь.
 void showMoodPickerForDate({
   required BuildContext context,
   required DateTime date,
@@ -112,31 +103,17 @@ void showMoodPickerForDate({
         subtitle: isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
         onSelect: (mood) {
           Navigator.pop(ctx);
-          if (isToday) {
-            pairData.setMood(mood.imagePath, mood.localizedLabel);
-            widgetService.updateMood(
-              mood.imagePath,
-              mood.localizedLabel,
-              skipCalendar: true,
-            );
-          }
-          moodService.addMood(
+          moodService.setMoodForDate(
+            date: date,
             moodId: mood.id,
             imagePath: mood.imagePath,
             label: mood.localizedLabel,
-            date: date,
           );
         },
         onClear: existingPath.isNotEmpty
             ? () async {
                 Navigator.pop(ctx);
-                for (final e in moodService.myEntriesForDay(date)) {
-                  await moodService.deleteMoodEntry(e.id);
-                }
-                if (isToday) {
-                  pairData.clearMood();
-                  widgetService.clearMood();
-                }
+                await moodService.clearMoodForDate(date);
               }
             : null,
       ),

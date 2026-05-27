@@ -1349,6 +1349,13 @@ class HomeWidgetService {
     }
   }
 
+  // Кэш для refreshRelationshipStats: внутри 3 платных Firestore операции
+  // (memories count + canvases count + group doc get) — а вызывается на каждый
+  // syncAllBoundWidgets. Counts меняются медленно, дёргать их чаще раза в
+  // несколько минут смысла нет.
+  static const Duration _relStatsCacheTtl = Duration(minutes: 5);
+  final Map<String, _CachedRelStats> _relStatsCache = {};
+
   /// Загружает актуальную статистику из Firestore и синхронизирует виджет.
   Future<void> refreshRelationshipStats(
     String groupId, {
@@ -1356,28 +1363,47 @@ class HomeWidgetService {
   }) async {
     if (groupId.isEmpty) return;
     try {
-      // 1. Memories count
-      final memSnap = await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .count()
-          .get();
+      int memoriesCount;
+      int drawingsCount;
+      int missYouCount;
 
-      // 2. Drawings count
-      final drawSnap = await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('canvases')
-          .count()
-          .get();
+      final cached = _relStatsCache[groupId];
+      if (cached != null && cached.isFresh) {
+        memoriesCount = cached.memoriesCount;
+        drawingsCount = cached.drawingsCount;
+        missYouCount = cached.missYouCount;
+      } else {
+        // 1. Memories count
+        final memSnap = await _db
+            .collection('groups')
+            .doc(groupId)
+            .collection('memories')
+            .count()
+            .get();
 
-      // 3. Miss You count (упрощенно, если нет прямого доступа к FirebaseService здесь)
-      // В идеале передать это извне или иметь централизованный доступ
-      int missYouCount = 0;
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (groupDoc.exists) {
-        missYouCount = groupDoc.data()?['missYouCount'] ?? 0;
+        // 2. Drawings count
+        final drawSnap = await _db
+            .collection('groups')
+            .doc(groupId)
+            .collection('canvases')
+            .count()
+            .get();
+
+        // 3. Miss You count (упрощенно, если нет прямого доступа к FirebaseService здесь)
+        // В идеале передать это извне или иметь централизованный доступ
+        missYouCount = 0;
+        final groupDoc = await _db.collection('groups').doc(groupId).get();
+        if (groupDoc.exists) {
+          missYouCount = groupDoc.data()?['missYouCount'] ?? 0;
+        }
+
+        memoriesCount = memSnap.count ?? 0;
+        drawingsCount = drawSnap.count ?? 0;
+        _relStatsCache[groupId] = _CachedRelStats(
+          memoriesCount: memoriesCount,
+          drawingsCount: drawingsCount,
+          missYouCount: missYouCount,
+        );
       }
 
       // 4. Days together
@@ -1389,8 +1415,8 @@ class HomeWidgetService {
       await syncRelationshipStats(
         groupId: groupId,
         daysTogether: days,
-        memoriesCount: memSnap.count ?? 0,
-        drawingsCount: drawSnap.count ?? 0,
+        memoriesCount: memoriesCount,
+        drawingsCount: drawingsCount,
         missYouCount: missYouCount,
       );
     } catch (e) {
@@ -1837,4 +1863,18 @@ class _CachedWidgetData {
   _CachedWidgetData(this.data) : timestamp = DateTime.now();
   bool get isFresh =>
       DateTime.now().difference(timestamp) < HomeWidgetService._widgetDataCacheTtl;
+}
+
+class _CachedRelStats {
+  final int memoriesCount;
+  final int drawingsCount;
+  final int missYouCount;
+  final DateTime timestamp;
+  _CachedRelStats({
+    required this.memoriesCount,
+    required this.drawingsCount,
+    required this.missYouCount,
+  }) : timestamp = DateTime.now();
+  bool get isFresh =>
+      DateTime.now().difference(timestamp) < HomeWidgetService._relStatsCacheTtl;
 }

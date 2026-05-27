@@ -72,6 +72,16 @@ service cloud.firestore {
         allow write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // Триггер для Cloud Function: каждый раз когда участник меняет mood/
+      // status/message/music, в эту коллекцию пишется событие, которое
+      // функция читает и шлёт партнёру FCM-update. Без правила каждая запись
+      // падала PERMISSION_DENIED и спамила лог.
+      match /widgetDataEvents/{eventId} {
+        allow read: if isMember();
+        allow create: if isMember()
+                      && request.resource.data.senderUid == request.auth.uid;
+      }
+
       match /reflections/{date} {
         allow read, write: if isMember();
       }

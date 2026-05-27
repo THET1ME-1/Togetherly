@@ -98,12 +98,32 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastPairId = '';
   int _pairChangedGeneration = 0;
 
+  // Debounce для _syncHomeWidgets: PairData notifyListeners срабатывает на
+  // КАЖДОЕ изменение group doc (mood, status, timer, memories, missYouCount),
+  // и каждый syncAllBoundWidgets внутри делает refreshRelationshipStats →
+  // 3 Firestore reads. Без дебаунса один действие пользователя выливалось в
+  // 5+ каскадных вызовов = 15+ лишних reads. Собираем все события за окно
+  // в один вызов.
+  Timer? _syncWidgetsDebounce;
+
+  // Дебаунс mood-виджета: на каждое изменение календаря/настроения партнёра
+  // _onMoodServiceChanged вызывал syncMood, который копирует PNG-ассеты и
+  // пишет 30+ значений в SharedPreferences. При каскаде событий — заметные
+  // I/O лаги. Не Firestore reads, но UX-критично на слабых телефонах.
+  Timer? _syncMoodWidgetDebounce;
+
   @override
   void initState() {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
     _moodService.addListener(_onMoodServiceChanged);
+    // Единая точка входа для всех пикеров настроения — MoodService.setMoodForToday.
+    // Без bindServices сервис не сможет синхронизировать pair/widget при выборе.
+    _moodService.bindServices(
+      pairData: _pairData,
+      widgetService: _widgetService,
+    );
     _timerService.init();
     _initPairData();
 
@@ -146,6 +166,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _syncWidgetsDebounce?.cancel();
+    _syncMoodWidgetDebounce?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
     _appLifecycleListener?.dispose();
@@ -156,6 +178,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _widgetService.dispose();
     _pairData.dispose();
     super.dispose();
+  }
+
+  /// Преобразует запись календаря в MemberMood для шапки.
+  /// MoodEntry — каноничный источник для сегодня; HomeHeader исторически
+  /// принимает MemberMood, поэтому здесь маппим.
+  MemberMood _memberMoodFromEntry(MoodEntry? entry) {
+    if (entry == null) return const MemberMood();
+    return MemberMood(
+      imagePath: entry.imagePath,
+      label: entry.localizedLabel,
+      updatedAt: entry.timestamp,
+    );
   }
 
   Future<void> _initPairData() async {
@@ -314,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
-      await _syncHomeWidgets();
+      _scheduleSyncHomeWidgets();
     } else if (isSolo) {
       // Solo mode: load local timers and sync widget
       await _timerService.unbindFromGroup();
@@ -323,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _widgetService.unbindFromGroup();
       _mascotService.unbind();
       // Sync widgets for solo mode (already done in unbindFromGroup)
-      await _syncHomeWidgets();
+      _scheduleSyncHomeWidgets();
     } else {
       await _timerService.unbindFromGroup();
       if (generation != _pairChangedGeneration) return;
@@ -331,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _widgetService.unbindFromGroup();
       _mascotService.unbind();
       // Sync widgets for single user mode (no group)
-      await _syncHomeWidgets();
+      _scheduleSyncHomeWidgets();
     }
 
     // Auto-navigate to home tab when user just joined a group.
@@ -364,6 +398,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  /// Планирует sync виджетов с дебаунсом 350ms. PairData notifyListeners
+  /// срабатывает кучу раз за короткий промежуток (mood + status + timer +
+  /// memoriesUpdatedAt и т.д.) — собираем всё в один вызов.
+  void _scheduleSyncHomeWidgets() {
+    _syncWidgetsDebounce?.cancel();
+    _syncWidgetsDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      _syncHomeWidgets();
+    });
   }
 
   /// Синхронизирует виджеты рабочего стола.
@@ -478,7 +523,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // Firestore and call PairData.notifyListeners(), triggering _handlePairChanged
     // which restarts Firestore listeners and creates a feedback loop (blinking).
     // memberMoods stays in sync via the group-document Firestore listener.
-    _syncMoodWidget();
+    // Дебаунс: setMoodForToday триггерит цепочку (calendar delete → add → pair
+    // update → widget update), каждый из которых notify-ит MoodService. Без
+    // дебаунса syncMood копирует PNG-ассеты 5+ раз подряд.
+    _syncMoodWidgetDebounce?.cancel();
+    _syncMoodWidgetDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _syncMoodWidget();
+    });
     if (mounted) setState(() {});
   }
 
@@ -554,8 +606,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     myAvatarUrl: widget.userData.avatarUrl,
                     myDisplayName: widget.userData.displayName,
                     partners: _pairData.partners,
-                    myMood: _pairData.myMood,
-                    moodOf: _pairData.moodOf,
+                    // Читаем из MoodService — единый источник правды для сегодня.
+                    // Раньше шапка читала из pairData.myMood (group memberMoods),
+                    // календарь — из moodService entries, и они расходились.
+                    myMood: _memberMoodFromEntry(_moodService.myMoodToday),
+                    moodOf: (uid) =>
+                        _memberMoodFromEntry(_moodService.partnerMoodToday(uid)),
                     statusBadgeText: _statusBadgeText,
                     statusBadgeEmoji: _statusBadgeEmoji,
                     onRelationshipTap: _showRelationshipTypeDialog,

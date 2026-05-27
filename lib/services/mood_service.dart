@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mood_entry.dart';
+import '../models/pair_data.dart';
 import 'firebase_service.dart';
+import 'widget_service.dart';
 
 /// Сервис для управления записями настроений (mood calendar).
 /// Хранит данные в Firestore: groups/{groupId}/moodCalendar/{uid}/entries/{entryId}
@@ -10,6 +12,21 @@ class MoodService extends ChangeNotifier {
 
   String _groupId = '';
   String get groupId => _groupId;
+
+  /// Сервисы для атомарного апдейта всех трёх источников настроения
+  /// (calendar entries + group memberMoods + widgetData). Заполняются один раз
+  /// при старте через [bindServices]; без них setMoodForToday работает только
+  /// с календарём.
+  PairData? _pairData;
+  WidgetService? _widgetService;
+
+  void bindServices({
+    required PairData pairData,
+    required WidgetService widgetService,
+  }) {
+    _pairData = pairData;
+    _widgetService = widgetService;
+  }
 
   /// Мои записи настроений
   List<MoodEntry> _myEntries = [];
@@ -22,6 +39,26 @@ class MoodService extends ChangeNotifier {
 
   StreamSubscription? _myMoodSub;
   final Map<String, StreamSubscription?> _partnerMoodSubs = {};
+
+  // ── Единый источник правды для «сегодняшнего» настроения ─────────────────
+  // Все UI (home_header, mini_mood_calendar, mood_calendar_screen, widget_screen)
+  // должны читать через myMoodToday вместо отдельных источников
+  // (pairData.myMood / widgetService._myData.moodEmoji). Иначе три источника
+  // расходятся и пользователь видит разные эмодзи в разных местах.
+
+  /// Текущее настроение пользователя на сегодня — самая свежая запись
+  /// календаря, или null если ещё не выбрано.
+  MoodEntry? get myMoodToday {
+    final today = DateTime.now();
+    final entries = myEntriesForDay(today);
+    return entries.isNotEmpty ? entries.first : null;
+  }
+
+  /// Текущее настроение партнёра на сегодня.
+  MoodEntry? partnerMoodToday(String uid) {
+    final entries = partnerEntriesForDay(uid, DateTime.now());
+    return entries.isNotEmpty ? entries.first : null;
+  }
 
   /// Привязаться к группе и начать слушать.
   void bindToGroup(String groupId) {
@@ -113,6 +150,99 @@ class MoodService extends ChangeNotifier {
       timestamp: ts,
     );
     await _fb.addMoodEntry(groupId: _groupId, entry: entry.toFirestore());
+  }
+
+  /// Установить настроение на сегодня атомарно во всех источниках.
+  /// Удаляет старые записи за сегодня (чтобы mini_mood_calendar не циклил
+  /// между старыми и новыми эмодзи), пишет новую запись в календарь,
+  /// обновляет group memberMoods и widgetData. Единая точка входа для всех
+  /// пикеров — гарантирует согласованность header/calendar/widget.
+  Future<void> setMoodForToday({
+    required String moodId,
+    required String imagePath,
+    required String label,
+  }) async {
+    if (_groupId.isEmpty) return;
+    final today = DateTime.now();
+
+    // 1. Удаляем все существующие записи на сегодня — параллельно, чтобы
+    // listener не успел показать несогласованное промежуточное состояние.
+    final existing = myEntriesForDay(today);
+    await Future.wait(
+      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+    );
+
+    // 2. Календарь — каноничный источник.
+    await addMood(moodId: moodId, imagePath: imagePath, label: label);
+
+    // 3. Group memberMoods — для шапки и партнёра.
+    await _pairData?.setMood(imagePath, label);
+
+    // 4. WidgetData — для нативного виджета. skipCalendar: уже добавили выше.
+    await _widgetService?.updateMood(imagePath, label, skipCalendar: true);
+  }
+
+  /// Установить настроение на конкретную дату. Для прошлых дат обновляется
+  /// только календарь; для сегодня — все три источника через setMoodForToday.
+  Future<void> setMoodForDate({
+    required DateTime date,
+    required String moodId,
+    required String imagePath,
+    required String label,
+  }) async {
+    if (_groupId.isEmpty) return;
+    final today = DateTime.now();
+    final isToday = date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    if (isToday) {
+      await setMoodForToday(moodId: moodId, imagePath: imagePath, label: label);
+      return;
+    }
+
+    // Прошлая дата — только календарь.
+    final existing = myEntriesForDay(date);
+    await Future.wait(
+      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+    );
+    await addMood(
+      moodId: moodId,
+      imagePath: imagePath,
+      label: label,
+      date: date,
+    );
+  }
+
+  /// Очистить настроение на сегодня атомарно во всех источниках.
+  Future<void> clearMoodForToday() async {
+    if (_groupId.isEmpty) return;
+    final today = DateTime.now();
+    final existing = myEntriesForDay(today);
+    await Future.wait(
+      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+    );
+    await _pairData?.clearMood();
+    await _widgetService?.clearMood();
+  }
+
+  /// Очистить настроение на конкретную дату (для прошлых — только календарь).
+  Future<void> clearMoodForDate(DateTime date) async {
+    if (_groupId.isEmpty) return;
+    final today = DateTime.now();
+    final isToday = date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
+
+    if (isToday) {
+      await clearMoodForToday();
+      return;
+    }
+
+    final existing = myEntriesForDay(date);
+    await Future.wait(
+      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+    );
   }
 
   /// Удалить запись настроения.

@@ -47,6 +47,12 @@ class WidgetService extends ChangeNotifier {
   StreamSubscription? _mySub;
   final Map<String, StreamSubscription> _partnerSubs = {};
 
+  // Дебаунс для _syncToNativeWidget. Метод копирует PNG-ассеты, скачивает
+  // фото через HTTP и пишет 30+ значений в SharedPreferences. На каждом
+  // snapshot widgetData (mood/status/message change) он стрелял — при цепных
+  // изменениях лагало 200-500ms. Не Firestore reads, но UX-критично.
+  Timer? _syncNativeDebounce;
+
   // Кэш профиля пользователя — чтобы не читать users/{uid} на каждую запись
   // в _updateField (mood/status/message менялись по 1 read на каждое обновление).
   // Сбрасывается в unbindFromGroup, обновляется лениво при первом запросе.
@@ -127,7 +133,7 @@ class WidgetService extends ChangeNotifier {
         // Fallback: read name/avatar from group document
         _loadPartnerFallback(partnerUid);
       }
-      _syncToNativeWidget();
+      _scheduleSyncToNative();
       // refreshPhotoOfDay делает full-collection read на widgetData — дёргаем
       // только когда реально изменились фото-поля партнёра, а не mood/status.
       final newSig = _photoSigOf(_partnerData[partnerUid]);
@@ -180,7 +186,7 @@ class WidgetService extends ChangeNotifier {
         // Bootstrap document with profile data so widget shows name/avatar
         _initializeMyWidgetData(uid);
       }
-      _syncToNativeWidget();
+      _scheduleSyncToNative();
       final newSig = _photoSigOf(_myData);
       if (_groupId.isNotEmpty && _myPhotoSig != newSig) {
         _myPhotoSig = newSig;
@@ -587,6 +593,17 @@ class WidgetService extends ChangeNotifier {
   // NATIVE HOME SCREEN WIDGET SYNC
   // ══════════════════════════════════════════════════════════════════════════
 
+  /// Планирует _syncToNativeWidget с дебаунсом 150ms — собирает каскад
+  /// snapshot-событий (mood/status/message могут прилетать пачкой) в один
+  /// тяжёлый sync вместо 5+ повторов.
+  void _scheduleSyncToNative() {
+    _syncNativeDebounce?.cancel();
+    _syncNativeDebounce = Timer(const Duration(milliseconds: 150), () {
+      if (_isDisposed) return;
+      _syncToNativeWidget();
+    });
+  }
+
   /// Синхронизирует данные в SharedPreferences для нативного виджета Android
   Future<void> _syncToNativeWidget() async {
     final bindGeneration = _bindGeneration;
@@ -899,6 +916,7 @@ class WidgetService extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _syncNativeDebounce?.cancel();
     _mySub?.cancel();
     for (final sub in _partnerSubs.values) {
       sub.cancel();

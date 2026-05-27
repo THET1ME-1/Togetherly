@@ -435,6 +435,15 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
   }
 
   void _maybeStartTimer() {
+    // Для сегодняшней ячейки НИКОГДА не циклим — должна совпадать с шапкой,
+    // которая показывает только последнюю запись. Цикл для прошлых дат
+    // имеет смысл (показать историю настроений за день).
+    if (isToday) {
+      _timer?.cancel();
+      _timer = null;
+      _currentIndex = 0;
+      return;
+    }
     final entries = widget.moodService.myEntriesForDay(widget.date);
     if (entries.length > 1 && _timer == null) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {

@@ -3349,12 +3349,8 @@ class _WidgetScreenState extends State<WidgetScreen>
             onTap: () => _showMoodPicker(),
             onClear: data.hasMood
                 ? () async {
-                    final today = DateTime.now();
-                    for (final e in _moodService.myEntriesForDay(today)) {
-                      await _moodService.deleteMoodEntry(e.id);
-                    }
-                    _pair.clearMood();
-                    _ws.clearMood();
+                    // Единая точка очистки — атомарно во всех источниках.
+                    await _moodService.clearMoodForToday();
                   }
                 : null,
           ),
@@ -4505,18 +4501,13 @@ class _WidgetScreenState extends State<WidgetScreen>
         theme: _t,
         onSelect: (option) async {
           Navigator.pop(ctx);
-          _pair.setMood(option.imagePath, option.localizedLabel);
-          // Добавляем в календарь с корректным id
-          _moodService.addMood(
+          // Единая точка входа — атомарно обновляет календарь, group memberMoods
+          // и widgetData. Без этого пикер в виджет-настройках не очищал старые
+          // записи календаря и mini_mood_calendar циклил между разными эмодзи.
+          await _moodService.setMoodForToday(
             moodId: option.id,
             imagePath: option.imagePath,
             label: option.localizedLabel,
-          );
-          // skipCalendar: moodService уже добавил запись — не дублируем
-          _ws.updateMood(
-            option.imagePath,
-            option.localizedLabel,
-            skipCalendar: true,
           );
         },
       ),

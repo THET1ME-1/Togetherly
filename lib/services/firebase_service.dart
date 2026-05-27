@@ -1753,6 +1753,24 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return const [];
 
+    // Throttle: фантомы — это редкий баг (старый аккаунт с тем же email).
+    // Прогоняли проверку при каждом запуске → group.get() + N×user.get() на
+    // группу. У пользователя с 2 группами это ~6 reads на холодный старт.
+    // Раз в 24 часа более чем достаточно.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'phantom_check_last_$groupId';
+      final lastMs = prefs.getInt(key) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      if (now - lastMs < oneDayMs) {
+        return const [];
+      }
+      await prefs.setInt(key, now);
+    } catch (_) {
+      // SharedPreferences недоступны — продолжаем без throttle.
+    }
+
     try {
       final groupDoc = await _db.collection('groups').doc(groupId).get();
       if (!groupDoc.exists) return const [];
