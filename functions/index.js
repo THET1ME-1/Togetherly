@@ -351,7 +351,8 @@ h1 small{font-size:13px;color:#8b949e;font-weight:400}
 <div class="toolbar" id="pg2"></div>
 </div>
 <script>
-const K=sessionStorage.getItem('ak')||'';
+const K=sessionStorage.getItem('ak')||new URLSearchParams(location.search).get('key')||'';
+if(K&&!sessionStorage.getItem('ak'))sessionStorage.setItem('ak',K);
 if(!K){document.querySelector('#users').innerHTML='<p style="color:#f85149">Нет ключа. Добавь ?key=...</p>';}
 const U=window.location.origin+location.pathname;
 async function L(p){const pp=parseInt(document.getElementById('pp').value,10);document.getElementById('users').innerHTML='<p style="color:#8b949e;padding:20px;text-align:center">Загрузка...</p>';
@@ -408,7 +409,7 @@ async function handleJson(req, res) {
           const [gs, ms] = await Promise.all([
             db.collection("groups").doc(gid).get(),
             db.collection("groups").doc(gid).collection("memories")
-              .orderBy("createdAt", "desc").limit(50).get(),
+              .orderBy("createdAt", "desc").limit(500).get(),
           ]);
           if (!gs.exists) return null;
           const gd = gs.data();
@@ -450,7 +451,7 @@ async function handleSsr(req, res) {
           const [gs, ms] = await Promise.all([
             db.collection("groups").doc(gid).get(),
             db.collection("groups").doc(gid).collection("memories")
-              .orderBy("createdAt", "desc").limit(50).get(),
+              .orderBy("createdAt", "desc").limit(500).get(),
           ]);
           if (!gs.exists) return null;
           const gd = gs.data();
