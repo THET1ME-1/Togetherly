@@ -47,6 +47,31 @@ class WidgetService extends ChangeNotifier {
   StreamSubscription? _mySub;
   final Map<String, StreamSubscription> _partnerSubs = {};
 
+  // Кэш профиля пользователя — чтобы не читать users/{uid} на каждую запись
+  // в _updateField (mood/status/message менялись по 1 read на каждое обновление).
+  // Сбрасывается в unbindFromGroup, обновляется лениво при первом запросе.
+  String? _cachedProfileName;
+  String? _cachedProfileAvatar;
+  String? _cachedProfileGender;
+  String? _cachedProfileUid;
+
+  // Подписи photo-полей: refreshPhotoOfDay делает full-collection .get() на
+  // widgetData + fallback на group doc — пересчитывать его на КАЖДЫЙ snapshot
+  // (включая mood/status/message) очень дорого. Триггерим только когда реально
+  // поменялись фото-поля.
+  String? _myPhotoSig;
+  final Map<String, String> _partnerPhotoSigs = {};
+
+  static String _photoSigOf(WidgetData? d) {
+    if (d == null) return '';
+    return [
+      d.photoUrl ?? '',
+      d.photoForPartnerUrl ?? '',
+      d.photoForPartnerUrls.join('|'),
+      d.photoGridUrls.join('|'),
+    ].join('§');
+  }
+
   // ── Настройки автоотправки ──
   bool _autoSendPhotoToMemory = true;
   bool _autoSendMessageToMemory = true;
@@ -103,7 +128,12 @@ class WidgetService extends ChangeNotifier {
         _loadPartnerFallback(partnerUid);
       }
       _syncToNativeWidget();
-      if (_groupId.isNotEmpty) {
+      // refreshPhotoOfDay делает full-collection read на widgetData — дёргаем
+      // только когда реально изменились фото-поля партнёра, а не mood/status.
+      final newSig = _photoSigOf(_partnerData[partnerUid]);
+      if (_groupId.isNotEmpty && _partnerPhotoSigs[partnerUid] != newSig) {
+        _partnerPhotoSigs[partnerUid] = newSig;
+        HomeWidgetService.instance.invalidateWidgetDataCache();
         HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
       }
       notifyListeners();
@@ -121,6 +151,8 @@ class WidgetService extends ChangeNotifier {
     _groupId = '';
     _myData = null;
     _partnerData.clear();
+    _myPhotoSig = null;
+    _partnerPhotoSigs.clear();
 
     if (clearNativeWidget) {
       await _syncToNativeWidget();
@@ -149,7 +181,10 @@ class WidgetService extends ChangeNotifier {
         _initializeMyWidgetData(uid);
       }
       _syncToNativeWidget();
-      if (_groupId.isNotEmpty) {
+      final newSig = _photoSigOf(_myData);
+      if (_groupId.isNotEmpty && _myPhotoSig != newSig) {
+        _myPhotoSig = newSig;
+        HomeWidgetService.instance.invalidateWidgetDataCache();
         HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
       }
       notifyListeners();
@@ -399,12 +434,36 @@ class WidgetService extends ChangeNotifier {
     if (uid == null || targetGroupId.isEmpty) return;
 
     try {
-      final userDoc = await _db.collection('users').doc(uid).get();
-      final name =
-          userDoc.data()?['displayName'] ?? _fb.currentUser?.displayName ?? '';
-      final avatar =
-          userDoc.data()?['avatarUrl'] ?? _fb.currentUser?.photoURL ?? '';
-      final gender = userDoc.data()?['gender'] ?? '';
+      // Профиль кэшируется на сессию: gender/name/avatar меняются редко,
+      // а _updateField вызывается на каждое изменение mood/status/message.
+      // До кэша это был +1 read в users/{uid} на каждое обновление виджета.
+      if (_cachedProfileUid != uid) {
+        _cachedProfileUid = uid;
+        _cachedProfileName = null;
+        _cachedProfileAvatar = null;
+        _cachedProfileGender = null;
+      }
+      if (_cachedProfileName == null ||
+          _cachedProfileAvatar == null ||
+          _cachedProfileGender == null) {
+        try {
+          final userDoc = await _db.collection('users').doc(uid).get();
+          final d = userDoc.data();
+          _cachedProfileName =
+              (d?['displayName'] as String?) ?? _fb.currentUser?.displayName ?? '';
+          _cachedProfileAvatar =
+              (d?['avatarUrl'] as String?) ?? _fb.currentUser?.photoURL ?? '';
+          _cachedProfileGender = (d?['gender'] as String?) ?? '';
+        } catch (e) {
+          debugPrint('WidgetService._updateField profile read failed: $e');
+          _cachedProfileName ??= _fb.currentUser?.displayName ?? '';
+          _cachedProfileAvatar ??= _fb.currentUser?.photoURL ?? '';
+          _cachedProfileGender ??= '';
+        }
+      }
+      final name = _cachedProfileName!;
+      final avatar = _cachedProfileAvatar!;
+      final gender = _cachedProfileGender!;
 
       final ref = _db
           .collection('groups')
@@ -824,6 +883,14 @@ class WidgetService extends ChangeNotifier {
   /// Forces an immediate re-sync of the native home-screen widget.
   /// Call this when the app comes to foreground so the widget is always fresh.
   Future<void> syncNow() => _syncToNativeWidget();
+
+  /// Сбросить кэш профиля — вызывать после редактирования имени/аватара/пола,
+  /// чтобы следующий _updateField подтянул свежие значения из users/{uid}.
+  void invalidateProfileCache() {
+    _cachedProfileName = null;
+    _cachedProfileAvatar = null;
+    _cachedProfileGender = null;
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // DISPOSE

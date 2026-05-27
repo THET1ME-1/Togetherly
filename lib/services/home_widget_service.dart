@@ -32,6 +32,22 @@ class HomeWidgetService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // TTL-кэш для _getPartnerWidgetData / _getMyWidgetData.
+  // refreshPhotoOfDay вызывается для каждого photo-day виджета в цикле
+  // (syncAllBoundWidgets) + на каждое реальное изменение photo полей —
+  // без кэша это N×collection .get() + N×doc .get() на каждый sync.
+  // 30s — фото меняются заметно реже, а карусель/виджет всё равно перерисуется
+  // при следующем listener-event на widgetData.
+  static const Duration _widgetDataCacheTtl = Duration(seconds: 30);
+  final Map<String, _CachedWidgetData> _partnerDataCache = {};
+  final Map<String, _CachedWidgetData> _myDataCache = {};
+
+  /// Сбросить кэш widget-данных (вызывать когда заведомо знаем, что фото поменялось).
+  void invalidateWidgetDataCache() {
+    _partnerDataCache.clear();
+    _myDataCache.clear();
+  }
+
   Future<void> _updateAllPhotoWidgetProviders() async {
     await HomeWidget.updateWidget(
       name: 'PhotoDayWidgetProvider',
@@ -222,6 +238,10 @@ class HomeWidgetService {
   ) async {
     if (groupId.isEmpty || currentUserUid.isEmpty) return null;
 
+    final cacheKey = '$groupId|$currentUserUid';
+    final cached = _partnerDataCache[cacheKey];
+    if (cached != null && cached.isFresh) return cached.data;
+
     final snap = await _db
         .collection('groups')
         .doc(groupId)
@@ -235,7 +255,7 @@ class HomeWidgetService {
         final sharedUrls = List<String>.from(
           data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
         );
-        return {
+        final result = {
           'photoUrl':
               data['photoForPartnerUrl'] as String? ??
               data['photoDayUrl'] as String? ??
@@ -244,6 +264,8 @@ class HomeWidgetService {
           'authorName': data['displayName'] as String? ?? '',
           'authorUid': uid,
         };
+        _partnerDataCache[cacheKey] = _CachedWidgetData(result);
+        return result;
       }
     }
 
@@ -252,7 +274,10 @@ class HomeWidgetService {
     // мог фильтровать Memory Lane по автору.
     try {
       final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (!groupDoc.exists) return null;
+      if (!groupDoc.exists) {
+        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+        return null;
+      }
       final members = List<String>.from(groupDoc.data()?['members'] ?? []);
       final memberNames = Map<String, dynamic>.from(
         groupDoc.data()?['memberNames'] ?? {},
@@ -261,13 +286,18 @@ class HomeWidgetService {
         (uid) => uid != currentUserUid,
         orElse: () => '',
       );
-      if (partnerUid.isEmpty) return null;
-      return {
+      if (partnerUid.isEmpty) {
+        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+        return null;
+      }
+      final result = {
         'photoUrl': '',
         'photoUrls': '',
         'authorName': memberNames[partnerUid] as String? ?? '',
         'authorUid': partnerUid,
       };
+      _partnerDataCache[cacheKey] = _CachedWidgetData(result);
+      return result;
     } catch (e) {
       debugPrint('_getPartnerWidgetData group fallback failed: $e');
       return null;
@@ -280,6 +310,10 @@ class HomeWidgetService {
   ) async {
     if (groupId.isEmpty || currentUserUid.isEmpty) return null;
 
+    final cacheKey = '$groupId|$currentUserUid';
+    final cached = _myDataCache[cacheKey];
+    if (cached != null && cached.isFresh) return cached.data;
+
     final doc = await _db
         .collection('groups')
         .doc(groupId)
@@ -287,12 +321,17 @@ class HomeWidgetService {
         .doc(currentUserUid)
         .get();
 
-    if (!doc.exists || doc.data() == null) return null;
+    if (!doc.exists || doc.data() == null) {
+      _myDataCache[cacheKey] = _CachedWidgetData(null);
+      return null;
+    }
 
-    return {
+    final result = {
       'authorName': (doc.data()!)['displayName'] as String? ?? '',
       'authorUid': currentUserUid,
     };
+    _myDataCache[cacheKey] = _CachedWidgetData(result);
+    return result;
   }
 
   Future<void> _clearPhotoOfDay({
@@ -1790,4 +1829,12 @@ class HomeWidgetService {
     }
     return '';
   }
+}
+
+class _CachedWidgetData {
+  final Map<String, String>? data;
+  final DateTime timestamp;
+  _CachedWidgetData(this.data) : timestamp = DateTime.now();
+  bool get isFresh =>
+      DateTime.now().difference(timestamp) < HomeWidgetService._widgetDataCacheTtl;
 }

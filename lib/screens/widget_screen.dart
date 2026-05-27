@@ -206,15 +206,15 @@ class _WidgetScreenState extends State<WidgetScreen>
     _missYouSub?.cancel();
     final groupId = _pair.pairId;
     if (groupId.isEmpty) return;
-    _missYouSub = FirebaseFirestore.instance
-        .collection('groups')
-        .doc(groupId)
-        .snapshots()
-        .listen((snap) {
-          if (snap.exists && mounted) {
-            setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
-          }
-        });
+    // Идём через shared hub в FirebaseService — отдельный .snapshots() на group
+    // doc биллится Firestore-ом независимо, а тот же документ уже слушают
+    // listenToPair/Timers/MissYouCount/Mascot. Дедуп по значению counter сразу.
+    _missYouSub = FirebaseService().listenToMissYouCount(
+      groupId: groupId,
+      onData: (value) {
+        if (mounted) setState(() => _missYouCount = value);
+      },
+    );
   }
 
   Future<bool> _checkPinSupportSilent() async {
@@ -406,16 +406,13 @@ class _WidgetScreenState extends State<WidgetScreen>
         })
         .catchError((_) {});
 
-    // Miss you (from group doc)
-    _missYouSub = FirebaseFirestore.instance
-        .collection('groups')
-        .doc(groupId)
-        .snapshots()
-        .listen((snap) {
-          if (snap.exists && mounted) {
-            setState(() => _missYouCount = snap.data()?['missYouCount'] ?? 0);
-          }
-        });
+    // Miss you (from group doc) — через shared hub, не отдельный snapshot.
+    _missYouSub = FirebaseService().listenToMissYouCount(
+      groupId: groupId,
+      onData: (value) {
+        if (mounted) setState(() => _missYouCount = value);
+      },
+    );
   }
 
   Future<void> _loadWidgetTimerId() async {
