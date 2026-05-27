@@ -4306,6 +4306,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             userData: widget.userData,
             pairData: _pair,
             theme: _t,
+            timerStartDate: _timerService.systemTimer?.startDate,
           ),
         ),
       ),

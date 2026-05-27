@@ -16,12 +16,14 @@ class PostcardEditorScreen extends StatefulWidget {
   final UserData userData;
   final PairData pairData;
   final AppTheme theme;
+  final DateTime? timerStartDate;
 
   const PostcardEditorScreen({
     super.key,
     required this.userData,
     required this.pairData,
     required this.theme,
+    this.timerStartDate,
   });
 
   @override
@@ -43,7 +45,11 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   final GlobalKey _cardKey = GlobalKey();
   final GlobalKey _polaroidKey = GlobalKey();
 
-  int get _days => widget.pairData.daysInLove;
+  int get _days {
+    final date = widget.timerStartDate ?? widget.pairData.startDate;
+    if (date == null) return 0;
+    return DateTime.now().difference(date).inDays;
+  }
   String get _myName => widget.userData.displayName;
   String get _partnerName => widget.pairData.partnerDisplayName;
 
