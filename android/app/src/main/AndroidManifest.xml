@@ -281,5 +281,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Required by in_app_update to detect the Play Store package on Android 11+ -->
+        <package android:name="com.android.vending" />
     </queries>
 </manifest>

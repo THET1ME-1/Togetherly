@@ -160,7 +160,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initPairData() async {
     await _pairData.init(myName: widget.userData.displayName);
-    if (mounted) setState(() { _isLoading = false; });
+    if (mounted)
+      setState(() {
+        _isLoading = false;
+      });
   }
 
   /// Проверяет, запущено ли приложение кликом на виджет
@@ -270,10 +273,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _moodService.bindToGroup(_pairData.pairId);
 
         // One-time migration of old emotions to new set (no-op after first run).
-        unawaited(EmotionMigrationService.instance.runIfNeeded(
-          groupId: _pairData.pairId,
-          uid: _fb.uid ?? '',
-        ));
+        unawaited(
+          EmotionMigrationService.instance.runIfNeeded(
+            groupId: _pairData.pairId,
+            uid: _fb.uid ?? '',
+          ),
+        );
 
         // Bind widget service to group for Firestore sync
         await _widgetService.bindToGroup(_pairData.pairId);
@@ -383,7 +388,8 @@ class _HomeScreenState extends State<HomeScreen> {
       myGender: myGender,
       partnerGender: partnerGender,
       relationshipStatusId: _pairData.relationshipStatusId,
-      isRomantic: _pairData.relationshipType == RelationshipType.couple ||
+      isRomantic:
+          _pairData.relationshipType == RelationshipType.couple ||
           _pairData.relationshipType == RelationshipType.married,
       themeIndex: widget.userData.themeId,
     );
@@ -425,11 +431,15 @@ class _HomeScreenState extends State<HomeScreen> {
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
       moodLabel: myEntry?.localizedLabel ?? '',
       moodScore: myEntry?.score ?? 0,
-      moodColor: myEntry != null ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
+      moodColor: myEntry != null
+          ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}'
+          : '',
       userName: widget.userData.displayName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
       partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
-      partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
+      partnerMoodColor: partnerEntry != null
+          ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}'
+          : '',
       partnerMoodScore: partnerEntry?.score ?? 0,
       partnerUserName: _pairData.partnerDisplayName,
       noMoodText: LocaleService.current.noMoodRecorded,
@@ -619,7 +629,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: MiniMoodCalendar(
                     moodService: _moodService,
                     theme: _t,
-                    onDayTap: _pairData.isPaired ? _showMoodPickerForDate : null,
+                    onDayTap: _pairData.isPaired
+                        ? _showMoodPickerForDate
+                        : null,
                     onTodayButtonVisibilityChanged: (v) =>
                         setState(() => _showTodayButton = v),
                   ),
@@ -860,7 +872,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openNewCanvas() async {
     final s = LocaleService.current;
-    final canvases = await _storage.getCanvases(widget.userData.uid, groupId: _pairData.pairId);
+    final canvases = await _storage.getCanvases(
+      widget.userData.uid,
+      groupId: _pairData.pairId,
+    );
     final meta = await _storage.createCanvas(
       widget.userData.uid,
       name: '${s.untitledCanvas} ${canvases.length + 1}',
@@ -1394,10 +1409,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       isDismissible: true,
       enableDrag: true,
-      builder: (_) => _UpdateBottomSheet(
-        info: info,
-        primaryColor: primary,
-      ),
+      builder: (_) => _UpdateBottomSheet(info: info, primaryColor: primary),
     );
   }
 
@@ -1706,10 +1718,7 @@ class _StreakBadge extends StatelessWidget {
             builder: (_, _) {
               final scale = Tween<double>(begin: 1.0, end: 1.4)
                   .animate(
-                    CurvedAnimation(
-                      parent: pulseCtrl,
-                      curve: Curves.easeInOut,
-                    ),
+                    CurvedAnimation(parent: pulseCtrl, curve: Curves.easeInOut),
                   )
                   .value;
               return Transform.scale(
@@ -1771,7 +1780,9 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
   bool _isDownloaded = false;
 
   Future<void> _startUpdate() async {
+    if (_isUpdating) return;
     setState(() => _isUpdating = true);
+
     try {
       await InAppUpdate.startFlexibleUpdate();
       if (!mounted) return;
@@ -1780,13 +1791,34 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
         _isDownloaded = true;
       });
     } catch (e) {
+      debugPrint('In-app update start failed: $e');
       if (!mounted) return;
-      setState(() => _isUpdating = false);
+      setState(() {
+        _isUpdating = false;
+        _isDownloaded = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.current.failedUpdateStatus(e.toString())),
+        ),
+      );
     }
   }
 
   Future<void> _applyUpdate() async {
-    await InAppUpdate.completeFlexibleUpdate();
+    if (!mounted) return;
+    Navigator.of(context).maybePop();
+    try {
+      await InAppUpdate.completeFlexibleUpdate();
+    } catch (e) {
+      debugPrint('In-app update completion failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.current.failedUpdateStatus(e.toString())),
+        ),
+      );
+    }
   }
 
   @override
@@ -1827,11 +1859,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                   color: p.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  Icons.system_update_rounded,
-                  color: p,
-                  size: 28,
-                ),
+                child: Icon(Icons.system_update_rounded, color: p, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
