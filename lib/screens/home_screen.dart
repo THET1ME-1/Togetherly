@@ -97,8 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _wasPaired = false;
   String _lastPairId = '';
   int _pairChangedGeneration = 0;
-  String _lastRelLabel = '';
-  String _lastPartnerName = '';
+
 
   // Debounce для _syncHomeWidgets: PairData notifyListeners срабатывает на
   // КАЖДОЕ изменение group doc (mood, status, timer, memories, missYouCount),
@@ -345,23 +344,10 @@ class _HomeScreenState extends State<HomeScreen> {
           relationshipEmoji: _pairData.relationshipEmoji,
           partnerName: _pairData.partnerDisplayName,
         );
-        // Initialize trackers on first paired run so we never overwrite
-        // a user-edited title on app restart.
-        if (_lastRelLabel.isEmpty && _lastPartnerName.isEmpty) {
-          _lastRelLabel = _pairData.relationshipLabel;
-          _lastPartnerName = _pairData.partnerDisplayName;
-        }
-        // Only update system timer title when label or partner actually changed
-        if (_lastRelLabel != _pairData.relationshipLabel ||
-            _lastPartnerName != _pairData.partnerDisplayName) {
-          await _timerService.updateSystemTimerTitle(
-            relationshipLabel: _pairData.relationshipLabel,
-            relationshipEmoji: _pairData.relationshipEmoji,
-            partnerName: _pairData.partnerDisplayName,
-          );
-          _lastRelLabel = _pairData.relationshipLabel;
-          _lastPartnerName = _pairData.partnerDisplayName;
-        }
+        // Title устанавливается только при создании таймера (первый вход в пару).
+        // Дальнейшие изменения статуса отношений не меняют название — пользователь
+        // может свободно редактировать его через UI.
+        // updateSystemTimerTitle был удалён, т.к. перезаписывал ручные правки.
       }
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
