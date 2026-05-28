@@ -151,6 +151,26 @@ class UserData extends ChangeNotifier {
     return _ownedThemes.contains(themeId);
   }
 
+  /// Начисляет монеты после успешной IAP-покупки.
+  ///
+  /// Вызывается из [IapService] после того, как магазин подтвердил транзакцию.
+  /// Передаёт [productId] и [purchaseToken] на сервер; сервер валидирует
+  /// idempotency и начисляет монеты в Firestore.
+  ///
+  /// Возвращает новый баланс или null при сетевой / серверной ошибке.
+  Future<int?> purchaseCoins({
+    required String productId,
+    required String purchaseToken,
+  }) async {
+    final r = await _fb.callGrantCoinsPurchase(
+      productId: productId,
+      purchaseToken: purchaseToken,
+    );
+    if (r == null) return null;
+    _applyServerResult(r);
+    return _coins;
+  }
+
   /// Единоразовая серверная выдача монет разработчику (проверка email
   /// делается на сервере по auth-токену, обойти невозможно).
   Future<void> _maybeGrantDevCoins() async {
