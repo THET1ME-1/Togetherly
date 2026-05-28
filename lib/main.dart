@@ -268,6 +268,21 @@ class _LoveAppState extends State<LoveApp> {
       if (FirebaseService().isLoggedIn) {
         FirebaseService().setOnlineStatus(true);
       }
+
+      // Проставляем бейджи спонсорам и помощникам
+      if (_userData.email == 'badzoff@gmail.com') {
+        FirebaseService().setBadge('Sponsor');
+        _userData.badge = 'Sponsor';
+      } else if (_userData.email == 'ashatilov2008@gmail.com') {
+        FirebaseService().setBadge('Helper');
+        _userData.badge = 'Helper';
+      } else if (_userData.email == 'alena.petukhova1@gmail.com') {
+        FirebaseService().setBadge('Sponsor');
+        _userData.badge = 'Sponsor';
+      } else if (_userData.email == 'romanhilp22@gmail.com') {
+        FirebaseService().setBadge('Sponsor');
+        _userData.badge = 'Sponsor';
+      }
     } catch (_) {
       // Даже при ошибке убираем спиннер
     } finally {
