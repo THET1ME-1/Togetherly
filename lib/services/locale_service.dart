@@ -778,6 +778,7 @@ abstract class AppStrings {
   String get goToPin;
   String get openPhotoGallery;
   String get allMediaGallery;
+  String get loadMore;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2254,6 +2255,8 @@ class _RuStrings extends AppStrings {
   String get openPhotoGallery => 'Галерея фото';
   @override
   String get allMediaGallery => 'Все фото и видео';
+  @override
+  String get loadMore => 'Загрузить ещё';
 }
 
 class _EnStrings extends AppStrings {
@@ -3715,4 +3718,6 @@ class _EnStrings extends AppStrings {
   String get openPhotoGallery => 'Photo gallery';
   @override
   String get allMediaGallery => 'All photos & videos';
+  @override
+  String get loadMore => 'Load more';
 }

@@ -140,6 +140,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     });
   }
 
+  Future<void> _refreshMemories() async {
+    if (_groupId.isEmpty) return;
+    final fb = FirebaseService();
+    final result = await fb.loadMemories(groupId: _groupId, limit: 20);
+    if (!mounted) return;
+    setState(() {
+      _memories = result.memories;
+      _loadedAll = result.memories.length < 20;
+      _lastDoc = result.lastDoc;
+    });
+  }
+
   Future<void> _loadNextPage() async {
     if (_loadingMore || _loadedAll) return;
     setState(() => _loadingMore = true);
@@ -294,69 +306,100 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
             ),
           ),
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
-              _buildAppBar(),
-              if (_loading)
-                SliverFillRemaining(child: M3PageLoading(color: primary))
-              else if (_memories.isEmpty)
-                _buildEmpty()
-              else ...[
-                const SliverToBoxAdapter(child: SizedBox(height: 6)),
-                // Pinned section (only in normal mode)
-                if (_pinnedMemories.isNotEmpty) ...[
-                  _sectionHeader('📌  ${LocaleService.current.pinned}'),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (_, i) => _memoryTile(_pinnedMemories[i]),
-                        childCount: _pinnedMemories.length,
-                      ),
-                    ),
-                  ),
-                ],
-                // Day/Month filter — grouped by year across all years
-                if (widget.filterMode != MemoryFilterMode.none) ...[
-                  if (_filteredByDateAcrossYears.isEmpty)
-                    _buildEmpty()
-                  else
-                    ..._filteredByDateAcrossYears.entries.expand((entry) {
-                      return [
-                        _sectionHeader(entry.key),
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (_, i) => _memoryTile(entry.value[i]),
-                              childCount: entry.value.length,
-                            ),
-                          ),
-                        ),
-                      ];
-                    }),
-                ],
-                // Date-grouped sections (normal mode)
-                ..._groupedByDate.entries.expand((entry) {
-                  return [
-                    _sectionHeader(entry.key),
+          RefreshIndicator(
+            onRefresh: _refreshMemories,
+            color: primary,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
+                _buildAppBar(),
+                if (_loading)
+                  SliverFillRemaining(child: M3PageLoading(color: primary))
+                else if (_memories.isEmpty)
+                  _buildEmpty()
+                else ...[
+                  const SliverToBoxAdapter(child: SizedBox(height: 6)),
+                  // Pinned section (only in normal mode)
+                  if (_pinnedMemories.isNotEmpty) ...[
+                    _sectionHeader('📌  ${LocaleService.current.pinned}'),
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (_, i) => _memoryTile(entry.value[i]),
-                          childCount: entry.value.length,
+                          (_, i) => _memoryTile(_pinnedMemories[i]),
+                          childCount: _pinnedMemories.length,
                         ),
                       ),
                     ),
-                  ];
-                }),
+                  ],
+                  // Day/Month filter — grouped by year across all years
+                  if (widget.filterMode != MemoryFilterMode.none) ...[
+                    if (_filteredByDateAcrossYears.isEmpty)
+                      _buildEmpty()
+                    else
+                      ..._filteredByDateAcrossYears.entries.expand((entry) {
+                        return [
+                          _sectionHeader(entry.key),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (_, i) => _memoryTile(entry.value[i]),
+                                childCount: entry.value.length,
+                              ),
+                            ),
+                          ),
+                        ];
+                      }),
+                  ],
+                  // Date-grouped sections (normal mode)
+                  ..._groupedByDate.entries.expand((entry) {
+                    return [
+                      _sectionHeader(entry.key),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) => _memoryTile(entry.value[i]),
+                            childCount: entry.value.length,
+                          ),
+                        ),
+                      ),
+                    ];
+                  }),
+                  // Кнопка "Загрузить ещё"
+                  if (!_loadedAll)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 8),
+                        child: TextButton(
+                          onPressed: _loadingMore ? null : _loadNextPage,
+                          style: TextButton.styleFrom(
+                            foregroundColor: primary,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: _loadingMore
+                              ? SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: primary),
+                                )
+                              : Text(
+                                  LocaleService.current.loadMore,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                        ),
+                      ),
+                    ),
+                ],
+                SliverToBoxAdapter(child: SizedBox(height: 90 + bottomPad)),
               ],
-              SliverToBoxAdapter(child: SizedBox(height: 90 + bottomPad)),
-            ],
+            ),
           ),
           // FAB
           Positioned(
@@ -457,6 +500,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
       actions: [
+        IconButton(
+          onPressed: _refreshMemories,
+          icon: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.refresh_rounded, color: primary, size: 18),
+          ),
+          tooltip: 'Обновить',
+        ),
         IconButton(
           onPressed: _openPhotoGalleryScreen,
           icon: Container(
