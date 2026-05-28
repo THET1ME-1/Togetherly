@@ -256,6 +256,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // ═══ Info Card ═══
           _buildInfoCard(context),
           const SizedBox(height: 20),
+          // ═══ Coin Shop ═══
+          _buildCoinShopCard(context),
+          const SizedBox(height: 20),
           // ═══ Relationship Status Card ═══
           _buildRelationshipCard(context),
           const SizedBox(height: 20),
@@ -809,13 +812,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: _infoRow(
               icon: Icons.palette_outlined,
               label: _s.theme,
-              value: [
-                _s.themeNamePink,
-                _s.themeNamePurple,
-                _s.themeNameBlue,
-                _s.themeNamePeach,
-                _s.themeNameSage,
-              ][widget.userData.themeId.clamp(0, 4)],
+              value: _themeDisplayName(widget.userData.themeId),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2277,6 +2274,320 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
   }
 
+  Widget _buildCoinShopCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showCoinShop(context),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _accent.withOpacity(0.15)),
+          boxShadow: [
+            BoxShadow(
+              color: _accent.withOpacity(0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/images/icons/coin.png',
+              width: 38,
+              height: 38,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _s.coinShopTitle,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _s.coinShopSubtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _accentLight,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${widget.userData.coins}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: _accent,
+                  height: 1.0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 22,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCoinShop(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) => DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/images/icons/coin.png',
+                            width: 30,
+                            height: 30,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${widget.userData.coins}',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              height: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _s.coinShopSubtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                    children: [
+                      _coinShopItem(
+                        icon: Icons.palette_outlined,
+                        title: _s.chooseColorTheme,
+                        subtitle: '${AppThemes.all.where((t) => t.isPremium).length} × ${_s.themeNameLavender}, ${_s.themeNameMidnight}…',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showThemePicker(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _coinShopItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: _accentLight.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: _accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _themeDisplayName(int index) {
+    final names = <String>[
+      _s.themeNamePink,
+      _s.themeNamePurple,
+      _s.themeNameBlue,
+      _s.themeNamePeach,
+      _s.themeNameSage,
+      _s.themeNameMidnight,
+      _s.themeNameLavender,
+      _s.themeNameCherry,
+      _s.themeNameMint,
+      _s.themeNameSunset,
+      _s.themeNameMonochrome,
+      _s.themeNameForest,
+      _s.themeNameOcean,
+    ];
+    if (index < 0 || index >= names.length) return names[0];
+    return names[index];
+  }
+
+  Future<bool> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
+    final canAfford = widget.userData.coins >= t.price;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(_s.buyThemeTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_s.buyThemeDescription(_themeDisplayName(t.index), t.price)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Image.asset(
+                  'assets/images/icons/coin.png',
+                  width: 20,
+                  height: 20,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${widget.userData.coins}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(width: 8),
+                if (!canAfford)
+                  Text(
+                    _s.notEnoughCoins,
+                    style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_s.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: t.primary),
+            onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
+            child: Text('${_s.buyThemeConfirm}  ${t.price} 🪙'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    final ok = await widget.userData.purchaseTheme(t.index);
+    if (!ok) return false;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_s.themePurchased),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    return true;
+  }
+
   void _showThemePicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -2346,13 +2657,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           final t = AppThemes.all[i];
                           final accent = t.primary;
                           final isSelected = widget.userData.themeId == i;
+                          final isLocked =
+                              t.isPremium && !widget.userData.hasTheme(i);
                           return GestureDetector(
                             onTap: () async {
+                              if (isLocked) {
+                                final purchased =
+                                    await _confirmPurchaseTheme(context, t);
+                                if (!purchased) return;
+                              }
                               await widget.userData.setThemeId(i);
                               setSheet(() {});
-                              setState(() {});
+                              if (mounted) setState(() {});
                             },
-                            child: AnimatedContainer(
+                            child: Stack(
+                              children: [
+                                AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               decoration: BoxDecoration(
                                 color: t.primaryLight,
@@ -2454,13 +2774,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            [
-                                              _s.themeNamePink,
-                                              _s.themeNamePurple,
-                                              _s.themeNameBlue,
-                                              _s.themeNamePeach,
-                                              _s.themeNameSage,
-                                            ][t.index],
+                                            _themeDisplayName(t.index),
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: isSelected
@@ -2483,6 +2797,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ],
                               ),
+                            ),
+                                if (isLocked)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(22),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.10,
+                                            ),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Image.asset(
+                                            'assets/images/icons/coin.png',
+                                            width: 22,
+                                            height: 22,
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            '${t.price}',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              height: 1.0,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.grey.shade900,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           );
                         }),

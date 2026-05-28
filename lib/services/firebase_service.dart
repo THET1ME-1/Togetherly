@@ -650,6 +650,33 @@ class FirebaseService {
     }
   }
 
+  /// Сохраняет состояние коинов и разблокированных премиум-тем.
+  Future<void> saveCoinsState({
+    required int coins,
+    required Set<int> ownedThemes,
+    bool? devCoinsGranted,
+  }) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      final data = <String, dynamic>{
+        'coins': coins,
+        'ownedThemes': ownedThemes.toList()..sort(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (devCoinsGranted != null) {
+        data['devCoinsGranted'] = devCoinsGranted;
+      }
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set(data, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('saveCoinsState failed: $e');
+    }
+  }
+
   /// Устанавливает бейдж пользователя (sponsor, helper и т.п.).
   Future<void> setBadge(String badge) async {
     final u = currentUser;
