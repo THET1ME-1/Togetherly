@@ -3023,35 +3023,6 @@ class FirebaseService {
   // ══════════════════════════════════════════════
 
   bool? _lastOnlineStatus;
-  Timer? _heartbeatTimer;
-
-  /// Запускает периодический heartbeat (обновление lastSeen),
-  /// чтобы при внезапном завершении процесса партнёр мог
-  /// определить устаревший статус по lastSeen.
-  void startPresenceHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 55), (_) {
-      _presenceHeartbeatTick();
-    });
-  }
-
-  void stopPresenceHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-  }
-
-  Future<void> _presenceHeartbeatTick() async {
-    final u = currentUser;
-    if (u == null) return;
-    try {
-      await _db
-          .collection('users')
-          .doc(u.uid)
-          .set({'lastSeen': FieldValue.serverTimestamp()},
-              SetOptions(merge: true))
-          .timeout(const Duration(seconds: 8));
-    } catch (_) {}
-  }
 
   /// Обновляет статус присутствия текущего пользователя.
   /// Вызывается из AppLifecycleListener при переходе foreground/background.
