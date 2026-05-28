@@ -1356,12 +1356,45 @@ class HomeWidgetService {
     }
   }
 
-  // Кэш для refreshRelationshipStats: внутри 3 платных Firestore операции
-  // (memories count + canvases count + group doc get) — а вызывается на каждый
-  // syncAllBoundWidgets. Counts меняются медленно, дёргать их чаще раза в
-  // несколько минут смысла нет.
+  // Кэш для refreshRelationshipStats: внутри платные Firestore операции
+  // (group doc get) — а вызывается на каждый syncAllBoundWidgets.
+  // Counts меняются медленно, дёргать их чаще раза в несколько минут нет смысла.
+  // In-memory кэш сбрасывается при холодном старте — поэтому дублируем в SharedPreferences.
   static const Duration _relStatsCacheTtl = Duration(minutes: 5);
   final Map<String, _CachedRelStats> _relStatsCache = {};
+
+  static String _relStatsPrefKey(String groupId, String field) =>
+      'relStats_${groupId}_$field';
+
+  Future<_CachedRelStats?> _loadRelStatsFromPrefs(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ts = prefs.getInt(_relStatsPrefKey(groupId, 'ts'));
+      if (ts == null) return null;
+      final age = DateTime.now().difference(
+          DateTime.fromMillisecondsSinceEpoch(ts));
+      if (age > _relStatsCacheTtl) return null;
+      return _CachedRelStats(
+        memoriesCount: prefs.getInt(_relStatsPrefKey(groupId, 'mem')) ?? 0,
+        drawingsCount: prefs.getInt(_relStatsPrefKey(groupId, 'drw')) ?? 0,
+        missYouCount: prefs.getInt(_relStatsPrefKey(groupId, 'msy')) ?? 0,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(ts),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveRelStatsToPrefs(String groupId, _CachedRelStats s) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_relStatsPrefKey(groupId, 'ts'),
+          s.timestamp.millisecondsSinceEpoch);
+      await prefs.setInt(_relStatsPrefKey(groupId, 'mem'), s.memoriesCount);
+      await prefs.setInt(_relStatsPrefKey(groupId, 'drw'), s.drawingsCount);
+      await prefs.setInt(_relStatsPrefKey(groupId, 'msy'), s.missYouCount);
+    } catch (_) {}
+  }
 
   /// Загружает актуальную статистику из Firestore и синхронизирует виджет.
   Future<void> refreshRelationshipStats(
@@ -1374,30 +1407,33 @@ class HomeWidgetService {
       int drawingsCount;
       int missYouCount;
 
-      final cached = _relStatsCache[groupId];
-      if (cached != null && cached.isFresh) {
+      final inMemory = _relStatsCache[groupId];
+      final cached = (inMemory != null && inMemory.isFresh)
+          ? inMemory
+          : await _loadRelStatsFromPrefs(groupId);
+
+      if (cached != null) {
         memoriesCount = cached.memoriesCount;
         drawingsCount = cached.drawingsCount;
         missYouCount = cached.missYouCount;
+        if (inMemory == null) _relStatsCache[groupId] = cached;
       } else {
         final fb = FirebaseService();
         final groupDoc = await _db.collection('groups').doc(groupId).get();
         if (!groupDoc.exists) return;
         final groupData = groupDoc.data()!;
 
-        memoriesCount = groupData['memoriesCount'] != null
-            ? (groupData['memoriesCount'] as num).toInt()
-            : await fb.getGroupMemoriesCount(groupId);
-        drawingsCount = groupData['drawingsCount'] != null
-            ? (groupData['drawingsCount'] as num).toInt()
-            : await fb.getGroupDrawingsCount(groupId);
+        memoriesCount = await fb.getGroupMemoriesCount(groupId, groupData: groupData);
+        drawingsCount = await fb.getGroupDrawingsCount(groupId, groupData: groupData);
         missYouCount = groupData['missYouCount'] ?? 0;
 
-        _relStatsCache[groupId] = _CachedRelStats(
+        final fresh = _CachedRelStats(
           memoriesCount: memoriesCount,
           drawingsCount: drawingsCount,
           missYouCount: missYouCount,
         );
+        _relStatsCache[groupId] = fresh;
+        unawaited(_saveRelStatsToPrefs(groupId, fresh));
       }
 
       // 4. Days together
@@ -1880,7 +1916,8 @@ class _CachedRelStats {
     required this.memoriesCount,
     required this.drawingsCount,
     required this.missYouCount,
-  }) : timestamp = DateTime.now();
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
   bool get isFresh =>
       DateTime.now().difference(timestamp) < HomeWidgetService._relStatsCacheTtl;
 }

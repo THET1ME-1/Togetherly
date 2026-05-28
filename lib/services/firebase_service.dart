@@ -509,12 +509,19 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
+      // Пишем в Firestore только если токен изменился — иначе каждый запуск
+      // делает лишний write в users/{uid}, который тригерит listener у партнёра.
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'fcmToken_${u.uid}';
+      final saved = prefs.getString(key);
+      if (saved == token) return;
+
       await _db.collection('users').doc(u.uid).set({
-        // Храним актуальный токен в одном поле (для обратной совместимости)
         'fcmToken': token,
-        // И в массиве — для поддержки нескольких устройств
         'fcmTokens': FieldValue.arrayUnion([token]),
       }, SetOptions(merge: true));
+
+      await prefs.setString(key, token);
     } catch (e) {
       debugPrint('_saveFcmToken failed: $e');
     }
@@ -2428,14 +2435,14 @@ class FirebaseService {
       );
     } catch (e) {
       debugPrint('loadMemories failed: $e');
-      return (memories: [], lastDoc: null);
+      return (memories: <Memory>[], lastDoc: null);
     }
   }
 
   StreamSubscription? listenToMemories({
     required String groupId,
     required void Function(List<Memory> memories) onData,
-    int limit = 100,
+    int limit = 20,
   }) {
     return _db
         .collection('groups')
@@ -3718,22 +3725,28 @@ class FirebaseService {
   /// Read denormalized memories count from group doc, falling back to count query
   /// for groups that predate the counter field. The result is written back so
   /// subsequent calls are a single doc read instead of a full index scan.
-  Future<int> getGroupMemoriesCount(String groupId) async {
+  /// Pass [groupData] to avoid an extra group doc read when the caller already has it.
+  Future<int> getGroupMemoriesCount(String groupId,
+      {Map<String, dynamic>? groupData}) async {
     try {
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (groupDoc.exists) {
-        final c = groupDoc.data()?['memoriesCount'];
+      if (groupData != null) {
+        final c = groupData['memoriesCount'];
         if (c != null) return (c as num).toInt();
+      } else {
+        final groupDoc = await _db.collection('groups').doc(groupId).get();
+        if (groupDoc.exists) {
+          final c = groupDoc.data()?['memoriesCount'];
+          if (c != null) return (c as num).toInt();
+        }
       }
       final snap = await _db
           .collection('groups').doc(groupId)
           .collection('memories').count().get();
       final count = snap.count ?? 0;
-      if (groupDoc.exists) {
-        unawaited(
-          groupDoc.reference.update({'memoriesCount': count}).catchError((_) {}),
-        );
-      }
+      unawaited(
+        _db.collection('groups').doc(groupId)
+            .update({'memoriesCount': count}).catchError((_) {}),
+      );
       return count;
     } catch (e) {
       return 0;
@@ -3741,22 +3754,28 @@ class FirebaseService {
   }
 
   /// Read denormalized drawings count from group doc, with the same fallback.
-  Future<int> getGroupDrawingsCount(String groupId) async {
+  /// Pass [groupData] to avoid an extra group doc read when the caller already has it.
+  Future<int> getGroupDrawingsCount(String groupId,
+      {Map<String, dynamic>? groupData}) async {
     try {
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (groupDoc.exists) {
-        final c = groupDoc.data()?['drawingsCount'];
+      if (groupData != null) {
+        final c = groupData['drawingsCount'];
         if (c != null) return (c as num).toInt();
+      } else {
+        final groupDoc = await _db.collection('groups').doc(groupId).get();
+        if (groupDoc.exists) {
+          final c = groupDoc.data()?['drawingsCount'];
+          if (c != null) return (c as num).toInt();
+        }
       }
       final snap = await _db
           .collection('groups').doc(groupId)
           .collection('canvases').count().get();
       final count = snap.count ?? 0;
-      if (groupDoc.exists) {
-        unawaited(
-          groupDoc.reference.update({'drawingsCount': count}).catchError((_) {}),
-        );
-      }
+      unawaited(
+        _db.collection('groups').doc(groupId)
+            .update({'drawingsCount': count}).catchError((_) {}),
+      );
       return count;
     } catch (e) {
       return 0;
