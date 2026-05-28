@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
+import '../services/rate_limiter_service.dart';
 import '../theme/app_theme.dart';
 
 // ─── Layout ────────────────────────────────────────────────────────────────────
@@ -199,6 +200,14 @@ class _MissYouButtonState extends State<MissYouButton>
         groupId: widget.groupId,
         senderName: widget.senderName,
       );
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
+        _animateToCurrentRatio();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
@@ -222,6 +231,12 @@ class _MissYouButtonState extends State<MissYouButton>
         senderName: widget.senderName,
         vibeType: vibeType,
       );
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (e) {
       debugPrint('sendVibe error: $e');
     }
@@ -259,6 +274,12 @@ class _MissYouButtonState extends State<MissYouButton>
         vibeType: 'custom',
         customText: text.trim(),
       );
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (e) {
       debugPrint('sendCustomVibe error: $e');
     }

@@ -17,6 +17,7 @@ class RateLimitException implements Exception {
 /// Limits:
 ///   - Memories : 10 per hour
 ///   - Comments : 30 per hour
+///   - Vibes    : 20 per hour (miss_you + thinking_of_you + want_hug + custom)
 class RateLimiterService {
   static final RateLimiterService _instance = RateLimiterService._();
   factory RateLimiterService() => _instance;
@@ -24,8 +25,10 @@ class RateLimiterService {
 
   static const _keyMemory = 'rl_memory_ts';
   static const _keyComment = 'rl_comment_ts';
+  static const _keyVibe = 'rl_vibe_ts';
   static const _maxMemoriesPerHour = 10;
   static const _maxCommentsPerHour = 30;
+  static const _maxVibesPerHour = 20;
   static const _window = Duration(hours: 1);
 
   // ── Memories ──────────────────────────────────────────────────────────────
@@ -63,6 +66,24 @@ class RateLimiterService {
   Future<void> checkAndRecordComment() async {
     await checkComment();
     await recordComment();
+  }
+
+  // ── Vibes (miss_you + thinking_of_you + want_hug + custom) ───────────────
+
+  /// Throws [RateLimitException] if the vibe limit is exceeded.
+  Future<void> checkVibe() => _check(
+    key: _keyVibe,
+    maxCount: _maxVibesPerHour,
+    itemLabel: 'импульсов',
+  );
+
+  /// Records one successful vibe send.
+  Future<void> recordVibe() => _record(key: _keyVibe);
+
+  /// Checks and records atomically.
+  Future<void> checkAndRecordVibe() async {
+    await checkVibe();
+    await recordVibe();
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────

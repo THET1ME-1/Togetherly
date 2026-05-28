@@ -83,9 +83,9 @@ class _DrawScreenState extends State<DrawScreen>
   static const double _kCanvasPad = 16.0;
   // Live cursor throttle. 60ms felt great but produced ~16 writes/sec per
   // drawing user — combined with the partner's snapshot listener that's
-  // ~16 reads/sec on the other side. 100ms (~10 fps) still feels fluid for
-  // a follow-along cursor and cuts both reads and writes by ~40%.
-  static const int _liveThrottleMs = 100;
+  // ~16 reads/sec on the other side. 150ms (~6.6 fps) still feels fluid for
+  // a follow-along cursor and roughly halves both reads and writes.
+  static const int _liveThrottleMs = 150;
   static const double _kMinScale = 0.2;
   static const double _kMaxScale = 10.0;
 
@@ -563,7 +563,12 @@ class _DrawScreenState extends State<DrawScreen>
 
   int _compareStrokes(DrawStroke a, DrawStroke b) {
     final o = a.orderIndex.compareTo(b.orderIndex);
-    return o != 0 ? o : a.id.compareTo(b.id);
+    if (o != 0) return o;
+    // Стабильный тай-брейкер по userId: id у локального optimistic-штриха
+    // отличается от id, который вернёт Firestore, и при коллизии orderIndex
+    // между двумя рисующими порядок слоёв «прыгал» после подтверждения записи.
+    final u = a.userId.compareTo(b.userId);
+    return u != 0 ? u : a.id.compareTo(b.id);
   }
 
   List<DrawStroke> _composeVisibleStrokes() {
