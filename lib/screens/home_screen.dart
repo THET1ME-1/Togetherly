@@ -780,14 +780,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<bool>(
       valueListenable: mascotHiddenNotifier,
       builder: (context, isHidden, _) {
-        return _MascotButton(
-          mascot: _mascotService.activeMascot,
-          service: _mascotService,
-          theme: _t,
-          streak: _mascotService.state.streakDays,
-          isHidden: isHidden,
-          onTap: _openMascotGallery,
-          onShowOverlay: showMascotOverlay,
+        return ListenableBuilder(
+          listenable: _mascotService,
+          builder: (context, _) {
+            return _MascotButton(
+              mascot: _mascotService.activeMascot,
+              service: _mascotService,
+              theme: _t,
+              streak: _mascotService.state.streakDays,
+              isHidden: isHidden,
+              onTap: _openMascotGallery,
+              onShowOverlay: showMascotOverlay,
+            );
+          },
         );
       },
     );

@@ -2979,6 +2979,7 @@ class FirebaseService {
   }) async {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
+    await RateLimiterService().checkVibe();
     try {
       // 1. Инкремент общего счётчика + per-user счётчик
       await _db.collection('groups').doc(groupId).set({
@@ -3005,6 +3006,7 @@ class FirebaseService {
             'senderName': senderName,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      unawaited(RateLimiterService().recordVibe());
       unawaited(AnalyticsService.instance.logMissYouSent());
     } catch (e) {
       debugPrint('sendMissYou failed: $e');
@@ -3022,6 +3024,7 @@ class FirebaseService {
   }) async {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
+    await RateLimiterService().checkVibe();
     try {
       await _db
           .collection('groups')
@@ -3035,6 +3038,7 @@ class FirebaseService {
               'customText': customText,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      unawaited(RateLimiterService().recordVibe());
       unawaited(AnalyticsService.instance.logVibeSent(vibeType: vibeType));
     } catch (e) {
       debugPrint('sendVibe failed: $e');
