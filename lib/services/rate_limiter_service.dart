@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Thrown when an operation exceeds the per-device hourly rate limit.
+/// Thrown when an operation exceeds the per-device rate limit.
 class RateLimitException implements Exception {
   final String message;
   final int minutesUntilReset;
@@ -17,7 +17,7 @@ class RateLimitException implements Exception {
 /// Limits:
 ///   - Memories : 10 per hour
 ///   - Comments : 30 per hour
-///   - Vibes    : 20 per hour (miss_you + thinking_of_you + want_hug + custom)
+///   - Vibes    : 20 per 15 minutes (miss_you + thinking_of_you + want_hug + custom)
 class RateLimiterService {
   static final RateLimiterService _instance = RateLimiterService._();
   factory RateLimiterService() => _instance;
@@ -28,8 +28,9 @@ class RateLimiterService {
   static const _keyVibe = 'rl_vibe_ts';
   static const _maxMemoriesPerHour = 10;
   static const _maxCommentsPerHour = 30;
-  static const _maxVibesPerHour = 20;
-  static const _window = Duration(hours: 1);
+  static const _maxVibesPerWindow = 20;
+  static const _hourWindow = Duration(hours: 1);
+  static const _vibeWindow = Duration(minutes: 15);
 
   // ── Memories ──────────────────────────────────────────────────────────────
 
@@ -38,11 +39,13 @@ class RateLimiterService {
   Future<void> checkMemory() => _check(
     key: _keyMemory,
     maxCount: _maxMemoriesPerHour,
+    window: _hourWindow,
     itemLabel: 'воспоминаний',
+    windowLabel: 'в час',
   );
 
   /// Records one successful memory write.
-  Future<void> recordMemory() => _record(key: _keyMemory);
+  Future<void> recordMemory() => _record(key: _keyMemory, window: _hourWindow);
 
   /// Checks and records atomically — use when there is no early check opportunity.
   Future<void> checkAndRecordMemory() async {
@@ -56,11 +59,14 @@ class RateLimiterService {
   Future<void> checkComment() => _check(
     key: _keyComment,
     maxCount: _maxCommentsPerHour,
+    window: _hourWindow,
     itemLabel: 'комментариев',
+    windowLabel: 'в час',
   );
 
   /// Records one successful comment write.
-  Future<void> recordComment() => _record(key: _keyComment);
+  Future<void> recordComment() =>
+      _record(key: _keyComment, window: _hourWindow);
 
   /// Checks and records atomically.
   Future<void> checkAndRecordComment() async {
@@ -73,12 +79,14 @@ class RateLimiterService {
   /// Throws [RateLimitException] if the vibe limit is exceeded.
   Future<void> checkVibe() => _check(
     key: _keyVibe,
-    maxCount: _maxVibesPerHour,
+    maxCount: _maxVibesPerWindow,
+    window: _vibeWindow,
     itemLabel: 'импульсов',
+    windowLabel: 'за 15 минут',
   );
 
   /// Records one successful vibe send.
-  Future<void> recordVibe() => _record(key: _keyVibe);
+  Future<void> recordVibe() => _record(key: _keyVibe, window: _vibeWindow);
 
   /// Checks and records atomically.
   Future<void> checkAndRecordVibe() async {
@@ -91,11 +99,13 @@ class RateLimiterService {
   Future<void> _check({
     required String key,
     required int maxCount,
+    required Duration window,
     required String itemLabel,
+    required String windowLabel,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
-    final cutoff = now.subtract(_window);
+    final cutoff = now.subtract(window);
 
     final recent = _readTimestamps(prefs, key)
         .where((t) => t.isAfter(cutoff))
@@ -103,19 +113,22 @@ class RateLimiterService {
 
     if (recent.length >= maxCount) {
       recent.sort();
-      final resetAt = recent.first.add(_window);
+      final resetAt = recent.first.add(window);
       final minutesLeft = resetAt.difference(now).inMinutes + 1;
       throw RateLimitException(
-        'Не более $maxCount $itemLabel в час — попробуй через $minutesLeft мин. 🌸',
+        'Не более $maxCount $itemLabel $windowLabel — попробуй через $minutesLeft мин. 🌸',
         minutesUntilReset: minutesLeft,
       );
     }
   }
 
-  Future<void> _record({required String key}) async {
+  Future<void> _record({
+    required String key,
+    required Duration window,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
-    final cutoff = now.subtract(_window);
+    final cutoff = now.subtract(window);
 
     final kept = _readTimestamps(prefs, key)
         .where((t) => t.isAfter(cutoff))
