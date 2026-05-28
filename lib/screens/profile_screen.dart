@@ -22,6 +22,7 @@ import '../services/timer_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
 import '../services/rewarded_ad_service.dart';
+import '../services/iap_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -49,6 +50,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
+  final IapService _iap = IapService();
+  bool _iapLoading = false;
 
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly-d4856.web.app/privacy-policy',
@@ -111,6 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadStats();
     _loadNotifPrefs();
     _rewardedAd.load(); // предзагружаем rewarded для магазина Коинов
+    _initIap();
   }
 
   Future<void> _loadNotifPrefs() async {
@@ -201,6 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     widget.pairData.removeListener(_onPairDataChanged);
     _dayTimer?.cancel();
     _rewardedAd.dispose();
+    _iap.dispose();
     super.dispose();
   }
 
@@ -2446,6 +2451,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 await _watchRewardedAd();
                               },
                       ),
+                      // ── Купить монеты (IAP) ───────────────────────────
+                      if (_iap.isAvailable) ...[
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            _s.coinPacksSectionTitle,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                        ...kCoinPacks.map((pack) {
+                          final pd = _iap.product(pack.productId);
+                          final priceLabel = pd?.price ?? '…';
+                          return _coinShopItem(
+                            icon: Icons.shopping_bag_outlined,
+                            title: _s.coinPackTitle(pack.coins),
+                            subtitle: priceLabel,
+                            onTap: _iapLoading || _iap.isLoading
+                                ? null
+                                : () async {
+                                    Navigator.pop(ctx);
+                                    await _buyCoins(pack.productId);
+                                  },
+                          );
+                        }),
+                      ],
                     ],
                   ),
                 ),
@@ -2453,6 +2488,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _initIap() async {
+    await _iap.init(
+      onGrantCoins: ({required String productId, required String purchaseToken}) =>
+          widget.userData.purchaseCoins(
+        productId: productId,
+        purchaseToken: purchaseToken,
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _buyCoins(String productId) async {
+    if (_iapLoading) return;
+    setState(() => _iapLoading = true);
+
+    final result = await _iap.buy(productId);
+
+    if (!mounted) return;
+    setState(() => _iapLoading = false);
+
+    String message;
+    switch (result.status) {
+      case IapStatus.success:
+        message = _s.coinPurchaseSuccessAmount(result.coins);
+      case IapStatus.pending:
+        message = _s.coinPurchasePending;
+      case IapStatus.cancelled:
+        return; // тихо игнорируем отмену
+      case IapStatus.error:
+        message = _s.coinPurchaseError;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }

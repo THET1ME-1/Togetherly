@@ -75,5 +75,8 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // Google Play Billing Library for in-app purchases
+    implementation("com.android.billingclient:billing:6.1.0")
 
 }

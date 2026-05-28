@@ -37,6 +37,9 @@
     <!-- Точные будильники для живого виджета-лепестка -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     
+    <!-- In-app billing for consumable products (coins) -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+    
     <application
         android:label="Togetherly"
         android:name="${applicationName}"

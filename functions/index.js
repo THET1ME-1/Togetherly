@@ -539,6 +539,85 @@ exports.adSsvCallback = onRequest({ cors: false }, async (req, res) => {
   }
 });
 
+// ── IAP — пополнение монет через In-App Purchase ────────────────────────────
+
+/// Соответствие productId → количество коинов.
+/// Зеркало kCoinPacks в lib/services/iap_service.dart.
+const COIN_PACKS = {
+  "coins_10":  10,
+  "coins_50":  50,
+  "coins_120": 120,
+  "coins_300": 300,
+};
+
+/**
+ * Начисляет монеты после подтверждённой IAP-покупки.
+ *
+ * Клиент передаёт:
+ *   - productId      — ID продукта ("coins_10" / "coins_50" / "coins_120" / "coins_300")
+ *   - purchaseToken  — токен от Google Play или App Store (для идемпотентности)
+ *
+ * Защита:
+ *   - requireAuth: только авторизованный пользователь
+ *   - productId валидируется по COIN_PACKS — нельзя передать произвольное количество
+ *   - purchaseToken хранится в Firestore: повторный вызов с тем же токеном
+ *     вернёт ok=true без повторного начисления (idempotency)
+ *
+ * ВАЖНО: полная верификация receipt/token от магазина здесь не реализована,
+ * так как для неё нужны учётные данные Google Play Developer API / App Store
+ * Server API. Рекомендуется добавить верификацию через RevenueCat или
+ * Google Play Developer API перед продакшн-релизом.
+ */
+exports.grantCoinsPurchase = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const { productId, purchaseToken } = request.data || {};
+
+  if (!productId || typeof productId !== "string") {
+    throw new HttpsError("invalid-argument", "productId обязателен");
+  }
+  if (!purchaseToken || typeof purchaseToken !== "string") {
+    throw new HttpsError("invalid-argument", "purchaseToken обязателен");
+  }
+
+  const coinsToGrant = COIN_PACKS[productId];
+  if (!coinsToGrant) {
+    throw new HttpsError("invalid-argument", `Неизвестный productId: ${productId}`);
+  }
+
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+  // Каждый purchaseToken хранится как отдельный документ — idempotency key.
+  const tokenRef = userRef.collection("iapPurchases").doc(purchaseToken);
+
+  return db.runTransaction(async (tx) => {
+    const tokenSnap = await tx.get(tokenRef);
+    if (tokenSnap.exists) {
+      // Повторный вызов с тем же токеном — уже начислено, возвращаем текущий баланс.
+      const userSnap = await tx.get(userRef);
+      const coins = Number((userSnap.exists ? userSnap.data() : {}).coins || 0);
+      return { ok: true, alreadyGranted: true, coins };
+    }
+
+    const userSnap = await tx.get(userRef);
+    const data = userSnap.exists ? userSnap.data() : {};
+    const newCoins = Number(data.coins || 0) + coinsToGrant;
+
+    tx.set(userRef, {
+      coins: newCoins,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    tx.set(tokenRef, {
+      productId,
+      amount: coinsToGrant,
+      at: FieldValue.serverTimestamp(),
+    });
+
+    console.log(`IAP: granted ${coinsToGrant} 🪙 to uid=${auth.uid} (product=${productId}, balance=${newCoins})`);
+    return { ok: true, alreadyGranted: false, coins: newCoins, awarded: coinsToGrant };
+  });
+});
+
 /**
  * Единоразовая выдача 1000 🪙 разработчику.
  * Проверка email — на сервере по токену авторизации, подделать невозможно.

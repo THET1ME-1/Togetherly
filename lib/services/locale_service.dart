@@ -327,6 +327,16 @@ abstract class AppStrings {
   String get adNotReady;
   String get rewardPending;
   String get changesApplyImmediately;
+
+  // ── IAP — покупка монет ──
+  String get coinPacksSectionTitle;
+  String coinPackTitle(int coins);
+  String get coinPurchaseSuccess;
+  String coinPurchaseSuccessAmount(int coins);
+  String get coinPurchasePending;
+  String get coinPurchaseCancelled;
+  String get coinPurchaseError;
+  String get coinStoreUnavailable;
   String get editProfileTitle;
   String get uploading;
   String get userNotAuthorized;
@@ -1315,6 +1325,22 @@ class _RuStrings extends AppStrings {
   String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
   @override
   String get rewardPending => 'Награда зачисляется…';
+  @override
+  String get coinPacksSectionTitle => 'Купить монеты';
+  @override
+  String coinPackTitle(int coins) => '$coins монет';
+  @override
+  String get coinPurchaseSuccess => 'Монеты начислены!';
+  @override
+  String coinPurchaseSuccessAmount(int coins) => '+$coins 🪙 зачислено';
+  @override
+  String get coinPurchasePending => 'Платёж обрабатывается…';
+  @override
+  String get coinPurchaseCancelled => 'Покупка отменена';
+  @override
+  String get coinPurchaseError => 'Ошибка покупки. Попробуй ещё раз';
+  @override
+  String get coinStoreUnavailable => 'Магазин недоступен';
   @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
   @override
@@ -2832,6 +2858,22 @@ class _EnStrings extends AppStrings {
   String get adNotReady => 'Ad still loading — try again in a second';
   @override
   String get rewardPending => 'Crediting your reward…';
+  @override
+  String get coinPacksSectionTitle => 'Buy Coins';
+  @override
+  String coinPackTitle(int coins) => '$coins coins';
+  @override
+  String get coinPurchaseSuccess => 'Coins added!';
+  @override
+  String coinPurchaseSuccessAmount(int coins) => '+$coins 🪙 credited';
+  @override
+  String get coinPurchasePending => 'Payment is being processed…';
+  @override
+  String get coinPurchaseCancelled => 'Purchase cancelled';
+  @override
+  String get coinPurchaseError => 'Purchase failed. Please try again';
+  @override
+  String get coinStoreUnavailable => 'Store unavailable';
   @override
   String get changesApplyImmediately => 'Changes apply immediately';
   @override
