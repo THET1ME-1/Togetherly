@@ -21,6 +21,7 @@ import '../services/export_service.dart';
 import '../services/timer_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
+import '../services/rewarded_ad_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -47,6 +48,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final RewardedAdService _rewardedAd = RewardedAdService();
+
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly-d4856.web.app/privacy-policy',
   );
@@ -107,6 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     _loadStats();
     _loadNotifPrefs();
+    _rewardedAd.load(); // предзагружаем rewarded для магазина Коинов
   }
 
   Future<void> _loadNotifPrefs() async {
@@ -196,6 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _missYouSub?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
     _dayTimer?.cancel();
+    _rewardedAd.dispose();
     super.dispose();
   }
 
@@ -2427,6 +2432,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _showThemePicker(context);
                         },
                       ),
+                      _coinShopItem(
+                        icon: Icons.play_circle_outline_rounded,
+                        title: _s.watchAdTitle,
+                        subtitle: _s.watchAdSubtitle,
+                        counterText:
+                            '${widget.userData.adRewardsToday}/${UserData.adRewardsDailyLimit}',
+                        counterExhausted: widget.userData.adRewardsRemaining == 0,
+                        onTap: widget.userData.adRewardsRemaining == 0
+                            ? null
+                            : () async {
+                                Navigator.pop(ctx);
+                                await _watchRewardedAd();
+                                setSheet(() {});
+                              },
+                      ),
                     ],
                   ),
                 ),
@@ -2436,6 +2456,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _watchRewardedAd() async {
+    if (!_rewardedAd.isReady) {
+      _rewardedAd.load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_s.adNotReady),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final uid = widget.userData.uid;
+    if (uid.isEmpty) return;
+    final earned = await _rewardedAd.show(uid: uid);
+    // Сразу подгружаем следующую — пока пользователь смотрит/закрывает.
+    unawaited(_rewardedAd.load());
+    if (!earned || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_s.rewardPending),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    // SSV прилетает обычно <1с после закрытия. Дёргаем баланс с сервера
+    // несколько раз с задержкой — на случай сетевой задержки.
+    for (final delayMs in const [1500, 3500, 7000]) {
+      await Future<void>.delayed(Duration(milliseconds: delayMs));
+      if (!mounted) return;
+      final before = widget.userData.coins;
+      await widget.userData.refreshCoinsFromServer();
+      if (widget.userData.coins > before) {
+        setState(() {});
+        break;
+      }
+    }
   }
 
   Widget _coinShopItem({

@@ -18,13 +18,16 @@ class UserData extends ChangeNotifier {
   String? _badge;
 
   // ── Коины и премиум-контент ──
+  // Локальные значения — только КЭШ. Источник правды — Firestore,
+  // изменения идут исключительно через серверные Cloud Functions.
   int _coins = 0;
   final Set<int> _ownedThemes = <int>{};
   bool _devCoinsGranted = false;
+  int _adRewardsToday = 0;
+  String _adRewardsDate = ''; // YYYY-MM-DD UTC; '' = ещё не получал
 
-  /// Email разработчика, которому единоразово начисляется 1000 🪙
-  static const String _devEmail = 'badzoff@gmail.com';
-  static const int _devGrantAmount = 1000;
+  /// Максимум rewarded-просмотров в сутки (зеркало AD_REWARDS_PER_DAY на сервере)
+  static const int adRewardsDailyLimit = 3;
 
   final FirebaseService _fb = FirebaseService();
 
@@ -67,6 +70,17 @@ class UserData extends ChangeNotifier {
   // ── Коины ─────────────────────────────────────────────────────────────────
   int get coins => _coins;
 
+  /// Сколько rewarded-просмотров пользователь сделал сегодня (UTC).
+  /// Если последняя дата начисления — не сегодня, возвращает 0.
+  int get adRewardsToday {
+    final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    return _adRewardsDate == today ? _adRewardsToday : 0;
+  }
+
+  /// Сколько ещё просмотров доступно сегодня.
+  int get adRewardsRemaining =>
+      (adRewardsDailyLimit - adRewardsToday).clamp(0, adRewardsDailyLimit);
+
   /// Список ID разблокированных премиум-тем
   Set<int> get ownedThemes => Set.unmodifiable(_ownedThemes);
 
@@ -76,42 +90,78 @@ class UserData extends ChangeNotifier {
     return !t.isPremium || _ownedThemes.contains(id);
   }
 
-  /// Начисляет монеты (от rewarded-видео, ежедневного бонуса и т.п.)
-  Future<void> addCoins(int amount) async {
-    if (amount <= 0) return;
-    _coins += amount;
-    await _saveLocal();
-    unawaited(_fb.saveCoinsState(coins: _coins, ownedThemes: _ownedThemes));
+  /// Применяет результат, пришедший с сервера (callable function).
+  /// Используется как единственный путь обновления баланса/owned.
+  void _applyServerResult(Map<String, dynamic> result) {
+    final coins = result['coins'];
+    if (coins is num) _coins = coins.toInt();
+    final owned = result['ownedThemes'];
+    if (owned is List) {
+      _ownedThemes
+        ..clear()
+        ..addAll(owned.whereType<num>().map((e) => e.toInt()));
+    }
+    unawaited(_saveLocal());
     notifyListeners();
   }
 
-  /// Пытается купить тему. Возвращает true при успехе.
-  Future<bool> purchaseTheme(int themeId) async {
-    final t = AppThemes.byIndex(themeId);
-    if (!t.isPremium) return true; // уже бесплатная
-    if (_ownedThemes.contains(themeId)) return true;
-    if (_coins < t.price) return false;
-    _coins -= t.price;
-    _ownedThemes.add(themeId);
-    await _saveLocal();
-    unawaited(_fb.saveCoinsState(coins: _coins, ownedThemes: _ownedThemes));
-    notifyListeners();
+  /// Перезагружает coins/ownedThemes с сервера.
+  /// Используется после rewarded-видео: сервер начислит коины через SSV-callback
+  /// (асинхронно, обычно <1с после закрытия рекламы), а клиент подтянет новое
+  /// значение этим вызовом.
+  Future<void> refreshCoinsFromServer() async {
+    try {
+      final data = await _fb.loadUserProfile(fromServer: true);
+      if (data == null) return;
+      final cloudCoins = data['coins'];
+      if (cloudCoins is num) _coins = cloudCoins.toInt();
+      final cloudOwned = data['ownedThemes'];
+      if (cloudOwned is List) {
+        _ownedThemes
+          ..clear()
+          ..addAll(cloudOwned.whereType<num>().map((e) => e.toInt()));
+      }
+      final cloudAdCount = data['adRewardsToday'];
+      if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
+      final cloudAdDate = data['adRewardsDate'];
+      if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
+      await _saveLocal();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('refreshCoinsFromServer failed: $e');
+    }
+  }
+
+  /// Ежедневный бонус. Возвращает true при успешном начислении (false если cooldown).
+  Future<bool> claimDailyBonus() async {
+    final r = await _fb.callGrantDailyBonus();
+    if (r == null) return false;
+    _applyServerResult(r);
     return true;
   }
 
-  /// Единоразовая выдача монет разработчику (по email).
+  /// Пытается купить тему на сервере. Возвращает true при успехе.
+  Future<bool> purchaseTheme(int themeId) async {
+    final t = AppThemes.byIndex(themeId);
+    if (!t.isPremium) return true; // free
+    if (_ownedThemes.contains(themeId)) return true;
+    final r = await _fb.callPurchaseTheme(themeId);
+    if (r == null) return false;
+    _applyServerResult(r);
+    return _ownedThemes.contains(themeId);
+  }
+
+  /// Единоразовая серверная выдача монет разработчику (проверка email
+  /// делается на сервере по auth-токену, обойти невозможно).
   Future<void> _maybeGrantDevCoins() async {
-    if (_devCoinsGranted) return;
-    if (_email.toLowerCase() != _devEmail.toLowerCase()) return;
-    _coins += _devGrantAmount;
-    _devCoinsGranted = true;
-    await _saveLocal();
-    unawaited(_fb.saveCoinsState(
-      coins: _coins,
-      ownedThemes: _ownedThemes,
-      devCoinsGranted: true,
-    ));
-    notifyListeners();
+    if (_devCoinsGranted) return; // быстрый локальный шорткат
+    final r = await _fb.callGrantDevCoins();
+    if (r == null) return;
+    _applyServerResult(r);
+    if (r['ok'] == true) {
+      _devCoinsGranted = true;
+      await _saveLocal();
+    }
   }
 
   /// Whether the timer card shows a morphing blob shape (true by default)
@@ -144,6 +194,8 @@ class UserData extends ChangeNotifier {
       _badge = prefs.getString('badge');
       _coins = prefs.getInt('coins') ?? 0;
       _devCoinsGranted = prefs.getBool('devCoinsGranted') ?? false;
+      _adRewardsToday = prefs.getInt('adRewardsToday') ?? 0;
+      _adRewardsDate = prefs.getString('adRewardsDate') ?? '';
       _ownedThemes
         ..clear()
         ..addAll(
@@ -191,6 +243,11 @@ class UserData extends ChangeNotifier {
         final cloudGranted = data['devCoinsGranted'];
         if (cloudGranted is bool) _devCoinsGranted = cloudGranted;
 
+        final cloudAdCount = data['adRewardsToday'];
+        if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
+        final cloudAdDate = data['adRewardsDate'];
+        if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
+
         await _saveLocal();
 
         // Propagate name/avatar to all group documents on every login so
@@ -234,6 +291,8 @@ class UserData extends ChangeNotifier {
       }
       await prefs.setInt('coins', _coins);
       await prefs.setBool('devCoinsGranted', _devCoinsGranted);
+      await prefs.setInt('adRewardsToday', _adRewardsToday);
+      await prefs.setString('adRewardsDate', _adRewardsDate);
       await prefs.setStringList(
         'ownedThemes',
         _ownedThemes.map((e) => e.toString()).toList(),
@@ -368,9 +427,13 @@ class UserData extends ChangeNotifier {
     _coins = 0;
     _devCoinsGranted = false;
     _ownedThemes.clear();
+    _adRewardsToday = 0;
+    _adRewardsDate = '';
     await prefs.remove('coins');
     await prefs.remove('devCoinsGranted');
     await prefs.remove('ownedThemes');
+    await prefs.remove('adRewardsToday');
+    await prefs.remove('adRewardsDate');
     notifyListeners();
   }
 }

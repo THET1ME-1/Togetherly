@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -650,32 +651,41 @@ class FirebaseService {
     }
   }
 
-  /// Сохраняет состояние коинов и разблокированных премиум-тем.
-  Future<void> saveCoinsState({
-    required int coins,
-    required Set<int> ownedThemes,
-    bool? devCoinsGranted,
-  }) async {
-    final u = currentUser;
-    if (u == null) return;
+  // ── Коины: вызовы серверных Cloud Functions ─────────────────────────────
+  // Клиент НЕ может писать поля coins/ownedThemes/devCoinsGranted/lastDailyBonusAt/
+  // adRewardsDate/adRewardsToday напрямую — это запрещено Firestore Rules.
+  // Все начисления и списания идут только через эти вызовы.
+
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+
+  Future<Map<String, dynamic>?> _callCoinFn(
+    String name, [
+    Map<String, dynamic>? data,
+  ]) async {
+    if (currentUser == null) return null;
     try {
-      final data = <String, dynamic>{
-        'coins': coins,
-        'ownedThemes': ownedThemes.toList()..sort(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      if (devCoinsGranted != null) {
-        data['devCoinsGranted'] = devCoinsGranted;
-      }
-      await _db
-          .collection('users')
-          .doc(u.uid)
-          .set(data, SetOptions(merge: true))
-          .timeout(const Duration(seconds: 10));
+      final res = await _functions
+          .httpsCallable(name)
+          .call<Map<dynamic, dynamic>>(data ?? const {})
+          .timeout(const Duration(seconds: 15));
+      return Map<String, dynamic>.from(res.data);
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('$name failed: ${e.code} ${e.message}');
+      return null;
     } catch (e) {
-      debugPrint('saveCoinsState failed: $e');
+      debugPrint('$name failed: $e');
+      return null;
     }
   }
+
+  Future<Map<String, dynamic>?> callPurchaseTheme(int themeId) =>
+      _callCoinFn('purchaseTheme', {'themeId': themeId});
+
+  Future<Map<String, dynamic>?> callGrantDailyBonus() =>
+      _callCoinFn('grantDailyBonus');
+
+  Future<Map<String, dynamic>?> callGrantDevCoins() =>
+      _callCoinFn('grantDevCoins');
 
   /// Устанавливает бейдж пользователя (sponsor, helper и т.п.).
   Future<void> setBadge(String badge) async {
