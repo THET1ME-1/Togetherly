@@ -167,33 +167,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _lastLoadedGroupId = currentGroupId;
     _missYouSub?.cancel();
 
-    // Load memories count
-    FirebaseFirestore.instance
-        .collection('groups')
-        .doc(currentGroupId)
-        .collection('memories')
-        .count()
-        .get()
-        .then((snap) {
-          if (mounted && _lastLoadedGroupId == currentGroupId) {
-            setState(() => _memoriesCount = snap.count ?? 0);
-          }
-        })
-        .catchError((_) {});
-
-    // Load drawings count
-    FirebaseFirestore.instance
-        .collection('groups')
-        .doc(currentGroupId)
-        .collection('canvases')
-        .count()
-        .get()
-        .then((snap) {
-          if (mounted && _lastLoadedGroupId == currentGroupId) {
-            setState(() => _drawingsCount = snap.count ?? 0);
-          }
-        })
-        .catchError((_) {});
+    // Load memories & drawings counts from denormalized group doc fields
+    final fb = FirebaseService();
+    fb.getGroupMemoriesCount(currentGroupId).then((c) {
+      if (mounted && _lastLoadedGroupId == currentGroupId) {
+        setState(() => _memoriesCount = c);
+      }
+    });
+    fb.getGroupDrawingsCount(currentGroupId).then((c) {
+      if (mounted && _lastLoadedGroupId == currentGroupId) {
+        setState(() => _drawingsCount = c);
+      }
+    });
 
     // Listen to Miss You count
     _missYouSub = FirebaseService().listenToMissYouCount(

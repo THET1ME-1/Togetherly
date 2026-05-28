@@ -1151,6 +1151,8 @@ class FirebaseService {
       'customRelationshipLabel': '',
       'customRelationshipEmoji': '',
       'customRelationshipTypes': <Map<String, String>>[],
+      'memoriesCount': 0,
+      'drawingsCount': 0,
       'startDate': now,
       'createdAt': now,
     });
@@ -1213,26 +1215,45 @@ class FirebaseService {
 
   /// Find a disbanded group that contains both the current user and [ownerUid].
   /// Returns the groupId of the most recently disbanded match, or null.
+  /// Reads only the user's own groups (from pairIds) instead of scanning ALL groups.
   Future<String?> _findDisbandedGroup(String ownerUid) async {
     final u = currentUser;
     if (u == null) return null;
     try {
-      final query = await _db
-          .collection('groups')
-          .where('members', arrayContains: u.uid)
-          .get();
+      // Read current user's pairIds — avoids querying the entire groups collection.
+      final myDoc = await _db.collection('users').doc(u.uid).get();
+      if (!myDoc.exists) return null;
+      final myData = myDoc.data()!;
+      final pairIds = <String>{};
+      final legacyPairId = myData['pairId'] as String?;
+      if (legacyPairId != null && legacyPairId.isNotEmpty) {
+        pairIds.add(legacyPairId);
+      }
+      final pairIdsList = myData['pairIds'] as List<dynamic>?;
+      if (pairIdsList != null) {
+        pairIds.addAll(
+          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
+        );
+      }
+
       String? bestId;
       Timestamp? bestTs;
-      for (final doc in query.docs) {
-        final data = doc.data();
-        if (data['disbanded'] != true) continue;
-        final docMembers = List<String>.from(data['members'] ?? []);
-        if (!docMembers.contains(ownerUid)) continue;
-        final ts = data['disbandedAt'] as Timestamp?;
-        if (bestId == null ||
-            (ts != null && (bestTs == null || ts.compareTo(bestTs) > 0))) {
-          bestId = doc.id;
-          bestTs = ts;
+      for (final groupId in pairIds) {
+        try {
+          final doc = await _db.collection('groups').doc(groupId).get();
+          if (!doc.exists) continue;
+          final data = doc.data()!;
+          if (data['disbanded'] != true) continue;
+          final docMembers = List<String>.from(data['members'] ?? []);
+          if (!docMembers.contains(ownerUid)) continue;
+          final ts = data['disbandedAt'] as Timestamp?;
+          if (bestId == null ||
+              (ts != null && (bestTs == null || ts.compareTo(bestTs) > 0))) {
+            bestId = groupId;
+            bestTs = ts;
+          }
+        } catch (e) {
+          debugPrint('_findDisbandedGroup: read group $groupId error: $e');
         }
       }
       return bestId;
@@ -2273,6 +2294,11 @@ class FirebaseService {
 
       await ref.set(memory.toFirestore());
       unawaited(
+        _db.collection('groups').doc(groupId).update({
+          'memoriesCount': FieldValue.increment(1),
+        }).catchError((_) {}),
+      );
+      unawaited(
         AnalyticsService.instance.logMemoryAdded(type: type.name),
       );
       return memory;
@@ -2357,6 +2383,11 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .delete();
+      unawaited(
+        _db.collection('groups').doc(groupId).update({
+          'memoriesCount': FieldValue.increment(-1),
+        }).catchError((_) {}),
+      );
     } catch (e) {
       debugPrint('deleteMemory failed: $e');
     }
@@ -3677,6 +3708,65 @@ class FirebaseService {
       return snap.count ?? 0;
     } catch (e) {
       return 0;
+    }
+  }
+
+  /// Read denormalized memories count from group doc, falling back to count query
+  /// for groups that predate the counter field. The result is written back so
+  /// subsequent calls are a single doc read instead of a full index scan.
+  Future<int> getGroupMemoriesCount(String groupId) async {
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (groupDoc.exists) {
+        final c = groupDoc.data()?['memoriesCount'];
+        if (c != null) return (c as num).toInt();
+      }
+      final snap = await _db
+          .collection('groups').doc(groupId)
+          .collection('memories').count().get();
+      final count = snap.count ?? 0;
+      if (groupDoc.exists) {
+        unawaited(
+          groupDoc.reference.update({'memoriesCount': count}).catchError((_) {}),
+        );
+      }
+      return count;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Read denormalized drawings count from group doc, with the same fallback.
+  Future<int> getGroupDrawingsCount(String groupId) async {
+    try {
+      final groupDoc = await _db.collection('groups').doc(groupId).get();
+      if (groupDoc.exists) {
+        final c = groupDoc.data()?['drawingsCount'];
+        if (c != null) return (c as num).toInt();
+      }
+      final snap = await _db
+          .collection('groups').doc(groupId)
+          .collection('canvases').count().get();
+      final count = snap.count ?? 0;
+      if (groupDoc.exists) {
+        unawaited(
+          groupDoc.reference.update({'drawingsCount': count}).catchError((_) {}),
+        );
+      }
+      return count;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Atomically increment/decrement the denormalized drawings counter.
+  Future<void> incrementDrawingsCount(String groupId, int delta) async {
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'drawingsCount': FieldValue.increment(delta),
+      });
+    } catch (e) {
+      debugPrint('incrementDrawingsCount failed: $e');
     }
   }
 

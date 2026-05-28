@@ -1380,32 +1380,19 @@ class HomeWidgetService {
         drawingsCount = cached.drawingsCount;
         missYouCount = cached.missYouCount;
       } else {
-        // 1. Memories count
-        final memSnap = await _db
-            .collection('groups')
-            .doc(groupId)
-            .collection('memories')
-            .count()
-            .get();
-
-        // 2. Drawings count
-        final drawSnap = await _db
-            .collection('groups')
-            .doc(groupId)
-            .collection('canvases')
-            .count()
-            .get();
-
-        // 3. Miss You count (упрощенно, если нет прямого доступа к FirebaseService здесь)
-        // В идеале передать это извне или иметь централизованный доступ
-        missYouCount = 0;
+        final fb = FirebaseService();
         final groupDoc = await _db.collection('groups').doc(groupId).get();
-        if (groupDoc.exists) {
-          missYouCount = groupDoc.data()?['missYouCount'] ?? 0;
-        }
+        if (!groupDoc.exists) return;
+        final groupData = groupDoc.data()!;
 
-        memoriesCount = memSnap.count ?? 0;
-        drawingsCount = drawSnap.count ?? 0;
+        memoriesCount = groupData['memoriesCount'] != null
+            ? (groupData['memoriesCount'] as num).toInt()
+            : await fb.getGroupMemoriesCount(groupId);
+        drawingsCount = groupData['drawingsCount'] != null
+            ? (groupData['drawingsCount'] as num).toInt()
+            : await fb.getGroupDrawingsCount(groupId);
+        missYouCount = groupData['missYouCount'] ?? 0;
+
         _relStatsCache[groupId] = _CachedRelStats(
           memoriesCount: memoriesCount,
           drawingsCount: drawingsCount,
@@ -1765,27 +1752,39 @@ class HomeWidgetService {
     if (groupId.isEmpty) return;
     try {
       final currentUserUid = FirebaseService().uid ?? '';
+      if (currentUserUid.isEmpty) return;
 
-      // Ищем документ партнёра в widgetData
-      final snap = await _db
+      // Определяем UID партнёра из members в group doc (1 read)
+      // вместо чтения всей коллекции widgetData (N reads).
+      String partnerUid = '';
+      try {
+        final groupDoc = await _db.collection('groups').doc(groupId).get();
+        if (!groupDoc.exists) return;
+        final members = List<String>.from(groupDoc.data()?['members'] ?? []);
+        partnerUid = members.firstWhere(
+          (uid) => uid != currentUserUid,
+          orElse: () => '',
+        );
+      } catch (e) {
+        debugPrint('HomeWidgetService.refreshPhotoGrid: group read failed: $e');
+        return;
+      }
+
+      if (partnerUid.isEmpty) return;
+
+      // Читаем только документ партнёра (1 read вместо N)
+      final partnerDoc = await _db
           .collection('groups')
           .doc(groupId)
           .collection('widgetData')
+          .doc(partnerUid)
           .get();
 
-      Map<String, dynamic>? partnerRaw;
-      for (final doc in snap.docs) {
-        final uid = doc.data()['uid'] as String? ?? '';
-        if (uid.isNotEmpty && uid != currentUserUid) {
-          partnerRaw = doc.data();
-          break;
-        }
-      }
-
-      if (partnerRaw == null) {
+      if (!partnerDoc.exists) {
         debugPrint('HomeWidgetService.refreshPhotoGrid: no partner data');
         return;
       }
+      final partnerRaw = partnerDoc.data()!;
 
       final count = (partnerRaw['photoGridCount'] as int?) ?? 1;
       final urls = List<String>.from(partnerRaw['photoGridUrls'] ?? []);
