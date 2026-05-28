@@ -225,18 +225,22 @@ class _LoveAppState extends State<LoveApp> {
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
         FirebaseService().setOnlineStatus(true);
+        FirebaseService().startPresenceHeartbeat();
         MascotInactivityNotificationService.instance.markAppOpened();
       },
       onPause: () {
         FirebaseService().setOnlineStatus(false);
+        FirebaseService().stopPresenceHeartbeat();
         MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
       },
       onDetach: () {
         FirebaseService().setOnlineStatus(false);
+        FirebaseService().stopPresenceHeartbeat();
         MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
       },
       onHide: () {
         FirebaseService().setOnlineStatus(false);
+        FirebaseService().stopPresenceHeartbeat();
         MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
       },
     );
@@ -267,6 +271,7 @@ class _LoveAppState extends State<LoveApp> {
       // Устанавливаем статус "онлайн" при запуске
       if (FirebaseService().isLoggedIn) {
         FirebaseService().setOnlineStatus(true);
+        FirebaseService().startPresenceHeartbeat();
       }
     } catch (_) {
       // Даже при ошибке убираем спиннер

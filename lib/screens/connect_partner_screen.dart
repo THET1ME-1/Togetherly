@@ -89,8 +89,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       ) {
         if (mounted) {
           setState(() {
-            _partnerOnlineStatus[member.uid] =
-                (data['isOnline'] as bool?) ?? false;
+            bool isOnline = (data['isOnline'] as bool?) ?? false;
+            if (isOnline) {
+              final lastSeen = data['lastSeen'] as DateTime?;
+              if (lastSeen != null &&
+                  DateTime.now().difference(lastSeen) >
+                      const Duration(minutes: 2)) {
+                isOnline = false;
+              }
+            }
+            _partnerOnlineStatus[member.uid] = isOnline;
           });
         }
       });
