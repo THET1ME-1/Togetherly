@@ -98,10 +98,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return memory.authorName;
   }
   List<Memory> _memories = [];
-  StreamSubscription? _memorySub;
   bool _loading = true;
-
-
+  bool _loadingMore = false;
+  bool _loadedAll = false;
+  DocumentSnapshot? _lastDoc;
 
   // User location for distance display
   double? _userLat;
@@ -113,7 +113,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAndListen();
+    _loadMemories();
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
   }
@@ -122,29 +122,44 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     if (mounted) setState(() {});
   }
 
-  void _loadAndListen() {
+  Future<void> _loadMemories() async {
     if (_groupId.isEmpty) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
       return;
     }
+    setState(() => _loading = true);
+    final fb = FirebaseService();
+    final result = await fb.loadMemories(groupId: _groupId, limit: 20);
+    if (!mounted) return;
+    setState(() {
+      _memories = result.memories;
+      _loading = false;
+      _loadedAll = result.memories.length < 20;
+      _lastDoc = result.lastDoc;
+    });
+  }
 
-    _memorySub = _fb.listenToMemories(
+  Future<void> _loadNextPage() async {
+    if (_loadingMore || _loadedAll) return;
+    setState(() => _loadingMore = true);
+    final fb = FirebaseService();
+    final result = await fb.loadMemories(
       groupId: _groupId,
-      onData: (memories) {
-        if (mounted) {
-          setState(() {
-            _memories = memories;
-            _loading = false;
-          });
-        }
-      },
+      limit: 10,
+      startAfter: _lastDoc,
     );
+    if (!mounted) return;
+    setState(() {
+      if (result.memories.length < 10) _loadedAll = true;
+      _memories.addAll(result.memories);
+      _lastDoc = result.lastDoc;
+      _loadingMore = false;
+    });
   }
 
   @override
   void dispose() {
     widget.pairData.removeListener(_onPairChanged);
-    _memorySub?.cancel();
     super.dispose();
   }
 

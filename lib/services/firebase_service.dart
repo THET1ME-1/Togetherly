@@ -2405,26 +2405,30 @@ class FirebaseService {
     );
   }
 
-  Future<List<Memory>> loadMemories({
+  Future<({List<Memory> memories, DocumentSnapshot? lastDoc})> loadMemories({
     required String groupId,
     int limit = 50,
+    DocumentSnapshot? startAfter,
   }) async {
     try {
-      final snap = await _db
+      var query = _db
           .collection('groups')
           .doc(groupId)
           .collection('memories')
           .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get()
-          .timeout(const Duration(seconds: 10));
-
-      return snap.docs
-          .map((d) => Memory.fromFirestore(d.id, d.data()))
-          .toList();
+          .limit(limit) as Query<Map<String, dynamic>>;
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+      final snap = await query.get().timeout(const Duration(seconds: 10));
+      final docs = snap.docs;
+      return (
+        memories: docs.map((d) => Memory.fromFirestore(d.id, d.data())).toList(),
+        lastDoc: docs.isNotEmpty ? docs.last : null,
+      );
     } catch (e) {
       debugPrint('loadMemories failed: $e');
-      return [];
+      return (memories: [], lastDoc: null);
     }
   }
 
