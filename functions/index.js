@@ -260,3 +260,4 @@ exports.onWidgetDataEvent = onDocumentCreated(
     await snapshot.ref.delete();
   }
 );
+

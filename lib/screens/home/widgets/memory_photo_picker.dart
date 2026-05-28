@@ -74,6 +74,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
           .doc(widget.groupId)
           .collection('memories')
           .where('type', isEqualTo: 'photo')
+          .limit(50)
           .get();
 
       // Sort newest-first in Dart (no composite index required)
