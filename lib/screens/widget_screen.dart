@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
@@ -26,6 +26,7 @@ import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/ad_banner.dart';
 import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/mood_hearts_preview.dart';
@@ -237,28 +238,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       return {'memoriesCount': 0, 'drawingsCount': 0, 'missYouCount': 0};
     }
 
-    int? memoriesCount;
-    int? drawingsCount;
-
-    try {
-      memoriesCount = await FirebaseFirestore.instance
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .count()
-          .get()
-          .then((snap) => snap.count);
-    } catch (_) {}
-
-    try {
-      drawingsCount = await FirebaseFirestore.instance
-          .collection('groups')
-          .doc(groupId)
-          .collection('canvasCatalogue')
-          .count()
-          .get()
-          .then((snap) => snap.count);
-    } catch (_) {}
+    final fb = FirebaseService();
+    final memoriesCount = await fb.getGroupMemoriesCount(groupId);
+    final drawingsCount = await fb.getGroupDrawingsCount(groupId);
 
     return {
       'memoriesCount': memoriesCount,
@@ -382,29 +364,14 @@ class _WidgetScreenState extends State<WidgetScreen>
       return;
     }
 
-    // Load memories count
-    FirebaseFirestore.instance
-        .collection('groups')
-        .doc(groupId)
-        .collection('memories')
-        .count()
-        .get()
-        .then((snap) {
-          if (mounted) setState(() => _memoriesCount = snap.count ?? 0);
-        })
-        .catchError((_) {});
-
-    // Load drawings count
-    FirebaseFirestore.instance
-        .collection('groups')
-        .doc(groupId)
-        .collection('canvasCatalogue')
-        .count()
-        .get()
-        .then((snap) {
-          if (mounted) setState(() => _drawingsCount = snap.count ?? 0);
-        })
-        .catchError((_) {});
+    // Read denormalized counters from group doc (1 read instead of N).
+    final fb = FirebaseService();
+    fb.getGroupMemoriesCount(groupId).then((c) {
+      if (mounted) setState(() => _memoriesCount = c);
+    });
+    fb.getGroupDrawingsCount(groupId).then((c) {
+      if (mounted) setState(() => _drawingsCount = c);
+    });
 
     // Miss you (from group doc) — через shared hub, не отдельный snapshot.
     _missYouSub = FirebaseService().listenToMissYouCount(
@@ -1572,6 +1539,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
         const SizedBox(height: 16),
 
+        // ── Баннер 1 ──
+        _buildAdBanner(),
+        const SizedBox(height: 16),
+
         // ── 4. Фото-виджет (личный) ──
         if (isPaired || _pair.isSolo) ...[
           _buildGalleryItem(
@@ -1636,6 +1607,10 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           const SizedBox(height: 16),
 
+          // ── Баннер 2 ──
+          _buildAdBanner(),
+          const SizedBox(height: 16),
+
           // ── 6. Статистика отношений ──
           _buildGalleryItem(
             title: LocaleService.current.relationshipStats,
@@ -1649,6 +1624,11 @@ class _WidgetScreenState extends State<WidgetScreen>
         ],
       ],
     );
+  }
+
+  Widget _buildAdBanner() {
+    const realId = 'ca-app-pub-1956369312643059/2560361524';
+    return AdBanner(adUnitId: kDebugMode ? '' : realId);
   }
 
   Widget _buildGalleryItem({

@@ -79,6 +79,7 @@ class CanvasStorageService {
         updatedAt: meta.updatedAt.millisecondsSinceEpoch,
         createdBy: uid,
       );
+      _fb.incrementDrawingsCount(groupId, 1);
     }
 
     return meta;
@@ -159,6 +160,7 @@ class CanvasStorageService {
 
     if (groupId.isNotEmpty) {
       _fb.deleteCanvasMeta(groupId: groupId, canvasId: canvasId);
+      _fb.incrementDrawingsCount(groupId, -1);
     }
   }
 

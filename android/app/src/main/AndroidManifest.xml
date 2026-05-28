@@ -23,9 +23,8 @@
     
     <!-- Интернет (Firebase Storage) -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Удаляем встроенные разрешения AD_ID из зависимостей, если приложение не использует рекламу -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <!-- AdMob — разрешение для рекламного идентификатора -->
+    <!-- Больше не удаляем — приложение использует рекламу (AdMob) -->
     
     <!-- Push-уведомления (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -96,6 +95,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-1956369312643059~3521559179"/>
 
         <!-- image_cropper: UCrop активность -->
         <activity

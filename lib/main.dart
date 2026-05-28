@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
@@ -107,6 +108,22 @@ void main() async {
 
   // Firebase — инициализация
   await Firebase.initializeApp();
+
+  // AdMob — инициализация (только Android/iOS)
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      await MobileAds.instance.initialize();
+      if (kDebugMode) {
+        MobileAds.instance.updateRequestConfiguration(
+          RequestConfiguration(
+            testDeviceIds: <String>[],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('AdMob init failed: $e');
+    }
+  }
 
   // При первом запуске после установки — принудительно выходим из сессии
   // и очищаем SharedPreferences. На iOS Firebase Auth хранит токен в Keychain,
