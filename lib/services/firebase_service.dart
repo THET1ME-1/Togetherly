@@ -643,6 +643,21 @@ class FirebaseService {
     }
   }
 
+  /// Устанавливает бейдж пользователя (sponsor, helper и т.п.).
+  Future<void> setBadge(String badge) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set({'badge': badge}, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('setBadge failed: $e');
+    }
+  }
+
   /// Updates the user's avatar URL in all groups they belong to.
   /// This ensures that partner devices receive the new avatar via the group listener.
   Future<void> updateNameInGroups(String displayName) async {
@@ -3057,12 +3072,13 @@ class FirebaseService {
   Stream<Map<String, dynamic>> streamUserPresence(String uid) {
     return _userDocStream(uid).map((snap) {
       final data = snap.data();
-      if (data == null) return {'isOnline': false, 'lastSeen': null};
+      if (data == null) return {'isOnline': false, 'lastSeen': null, 'badge': null};
       final isOnline = (data['isOnline'] as bool?) ?? false;
       final ts = data['lastSeen'];
       DateTime? lastSeen;
       if (ts is Timestamp) lastSeen = ts.toDate();
-      return {'isOnline': isOnline, 'lastSeen': lastSeen};
+      final badge = data['badge'] as String?;
+      return {'isOnline': isOnline, 'lastSeen': lastSeen, 'badge': badge};
     });
   }
 

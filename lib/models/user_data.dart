@@ -15,6 +15,7 @@ class UserData extends ChangeNotifier {
   bool _isRegistered = false;
   bool _hasSeenWelcome = false;
   String _uid = '';
+  String? _badge;
 
   final FirebaseService _fb = FirebaseService();
 
@@ -26,6 +27,12 @@ class UserData extends ChangeNotifier {
   bool get isRegistered => _isRegistered;
   bool get hasSeenWelcome => _hasSeenWelcome;
   String get uid => _uid;
+  String? get badge => _badge;
+
+  set badge(String? value) {
+    _badge = value;
+    notifyListeners();
+  }
 
   bool get isMale => _gender == Gender.male;
   bool get isFemale => _gender == Gender.female;
@@ -75,6 +82,7 @@ class UserData extends ChangeNotifier {
       if (genderStr == 'female') _gender = Gender.female;
       _themeId = prefs.getInt('themeId') ?? -1;
       _blobAnimationEnabled = prefs.getBool('blobAnimationEnabled') ?? true;
+      _badge = prefs.getString('badge');
 
       // Если авторизован → подтягиваем из облака
       if (_fb.isLoggedIn && _isRegistered) {
@@ -101,6 +109,7 @@ class UserData extends ChangeNotifier {
         final g = data['gender'] as String?;
         if (g == 'male') _gender = Gender.male;
         if (g == 'female') _gender = Gender.female;
+        _badge = data['badge'] as String?;
         await _saveLocal();
 
         // Propagate name/avatar to all group documents on every login so
@@ -137,6 +146,11 @@ class UserData extends ChangeNotifier {
       );
       await prefs.setInt('themeId', _themeId);
       await prefs.setBool('blobAnimationEnabled', _blobAnimationEnabled);
+      if (_badge != null) {
+        await prefs.setString('badge', _badge!);
+      } else {
+        await prefs.remove('badge');
+      }
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
     }

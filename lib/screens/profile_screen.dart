@@ -358,15 +358,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 16),
         // Name
-        Text(
-          widget.userData.displayName.isNotEmpty
-              ? widget.userData.displayName
-              : _s.user,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: Colors.grey.shade900,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.userData.displayName.isNotEmpty
+                  ? widget.userData.displayName
+                  : _s.user,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            if (widget.userData.badge != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: GestureDetector(
+                  onTap: () {
+                    final badge = widget.userData.badge!;
+                    final title = badge;
+                    final desc = badge == 'Sponsor'
+                        ? 'Спонсор проекта'
+                        : badge == 'Helper'
+                            ? 'Помощник проекта'
+                            : badge;
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Row(
+                          children: [
+                            Image.asset(
+                              'assets/images/icons/$title.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(title),
+                          ],
+                        ),
+                        content: Text(desc),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Image.asset(
+                    'assets/images/icons/${widget.userData.badge}.png',
+                    width: 40,
+                    height: 40,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 4),
         // Email

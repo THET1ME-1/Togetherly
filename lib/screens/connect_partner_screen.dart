@@ -39,6 +39,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 
   // Presence: uid → isOnline
   final Map<String, bool> _partnerOnlineStatus = {};
+  final Map<String, String?> _partnerBadges = {};
   final Map<String, StreamSubscription<Map<String, dynamic>>> _presenceSubs =
       {};
 
@@ -79,6 +80,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     for (final uid in removed) {
       _presenceSubs.remove(uid)?.cancel();
       _partnerOnlineStatus.remove(uid);
+      _partnerBadges.remove(uid);
     }
 
     // Добавляем подписки для новых участников
@@ -91,6 +93,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           setState(() {
             _partnerOnlineStatus[member.uid] =
                 (data['isOnline'] as bool?) ?? false;
+            _partnerBadges[member.uid] = data['badge'] as String?;
           });
         }
       });
@@ -421,15 +424,23 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  partners.length == 1
-                      ? pair.displayNameOf(partners.first)
-                      : LocaleService.current.groupOf(partners.length + 1),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      partners.length == 1
+                          ? pair.displayNameOf(partners.first)
+                          : LocaleService.current.groupOf(
+                              partners.length + 1),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (partners.length == 1)
+                      _badgeIcon(partners.first.uid),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 // Relationship type chip
@@ -502,15 +513,21 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                pair.displayNameOf(m).isNotEmpty
-                                    ? pair.displayNameOf(m)
-                                    : LocaleService.current.member,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    pair.displayNameOf(m).isNotEmpty
+                                        ? pair.displayNameOf(m)
+                                        : LocaleService.current.member,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey.shade800,
+                                    ),
+                                  ),
+                                  _badgeIcon(m.uid),
+                                ],
                               ),
                               if (NicknameService.instance
                                   .get(m.uid)
@@ -952,6 +969,54 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _badgeIcon(String uid) {
+    final badge = _partnerBadges[uid];
+    if (badge == null || badge.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: GestureDetector(
+        onTap: () {
+          if (badge == 'Sponsor') {
+            _showBadgeInfo('Sponsor', 'Спонсор проекта');
+          } else if (badge == 'Helper') {
+            _showBadgeInfo('Helper', 'Помощник проекта');
+          }
+        },
+        child: Image.asset(
+          'assets/images/icons/$badge.png',
+          width: 36,
+          height: 36,
+        ),
+      ),
+    );
+  }
+
+  void _showBadgeInfo(String title, String description) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/icons/$title.png',
+              width: 24,
+              height: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
+        content: Text(description),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
