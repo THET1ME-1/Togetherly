@@ -368,11 +368,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                           controller: dateCtrl,
                           keyboardType: TextInputType.datetime,
                           decoration: _dialogInputDeco(
-                            LocaleService.current.dateFormatHint,
+                            '${LocaleService.current.dateFormatHint}  чч:мм',
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () async {
                           final d = await showDatePicker(
@@ -381,11 +381,14 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                             firstDate: DateTime(1900),
                             lastDate: DateTime(2100),
                           );
-                          if (d != null)
-                            setSheetState(() {
-                              pickedDate = d;
-                              dateCtrl.text = _formatDate(d);
-                            });
+                          if (d == null) return;
+                          setSheetState(() {
+                            pickedDate = DateTime(
+                              d.year, d.month, d.day,
+                              pickedDate.hour, pickedDate.minute,
+                            );
+                            dateCtrl.text = _formatDate(pickedDate);
+                          });
                         },
                         child: Container(
                           width: 54,
@@ -396,6 +399,36 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                           ),
                           child: Icon(
                             Icons.calendar_today_rounded,
+                            color: _t.primary,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: ctx,
+                            initialTime: TimeOfDay.fromDateTime(pickedDate),
+                          );
+                          if (t == null) return;
+                          setSheetState(() {
+                            pickedDate = DateTime(
+                              pickedDate.year, pickedDate.month, pickedDate.day,
+                              t.hour, t.minute,
+                            );
+                            dateCtrl.text = _formatDate(pickedDate);
+                          });
+                        },
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: _t.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.access_time_rounded,
                             color: _t.primary,
                             size: 24,
                           ),
@@ -620,40 +653,31 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
           ),
         ),
       );
-  String _formatDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-  DateTime? _parseDate(String s) {
-    final parts = s.split('.');
-    if (parts.length != 3) return null;
-    final d = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    final y = int.tryParse(parts[2]);
-    if (d == null || m == null || y == null) return null;
-    try {
-      return DateTime(y, m, d);
-    } catch (_) {
-      return null;
-    }
+  String _formatDate(DateTime d) {
+    final date =
+        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    return '$date  ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
-  DateTime _normalizeTimerDate(DateTime date) {
-    final now = DateTime.now();
-    if (date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day) {
-      return DateTime(
-        now.year,
-        now.month,
-        now.day,
-        now.hour,
-        now.minute,
-        now.second,
-        now.millisecond,
-        now.microsecond,
-      );
+  DateTime? _parseDate(String s) {
+    final parts = s.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return null;
+    final dateParts = parts[0].split('.');
+    if (dateParts.length != 3) return null;
+    final day = int.tryParse(dateParts[0]);
+    final month = int.tryParse(dateParts[1]);
+    final year = int.tryParse(dateParts[2]);
+    if (day == null || month == null || year == null) return null;
+    int h = 0, min = 0;
+    if (parts.length >= 2) {
+      final timeParts = parts[1].split(':');
+      h = int.tryParse(timeParts[0]) ?? 0;
+      if (timeParts.length >= 2) min = int.tryParse(timeParts[1]) ?? 0;
     }
-    return date;
+    return DateTime(year, month, day, h.clamp(0, 23), min.clamp(0, 59));
   }
+
+  DateTime _normalizeTimerDate(DateTime date) => date;
 }
 
 class _ArcAction {

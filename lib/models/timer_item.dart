@@ -73,7 +73,10 @@ class TimerItem {
     final d = startDate.day.toString().padLeft(2, '0');
     final m = startDate.month.toString().padLeft(2, '0');
     final y = startDate.year.toString();
-    return '$d.$m.$y';
+    final h = startDate.hour;
+    final min = startDate.minute;
+    if (h == 0 && min == 0) return '$d.$m.$y';
+    return '$d.$m.$y  ${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
   }
 
   // ── Сериализация ──
