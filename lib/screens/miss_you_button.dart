@@ -224,13 +224,13 @@ class _MissYouButtonState extends State<MissYouButton>
   Future<void> _onVibeFromPanel(String vibeType, String emoji) async {
     _closePanel();
     HapticFeedback.mediumImpact();
-    _showSentFeedback(emoji);
     try {
       await _fb.sendVibe(
         groupId: widget.groupId,
         senderName: widget.senderName,
         vibeType: vibeType,
       );
+      if (mounted) _showSentFeedback(emoji);
     } on RateLimitException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -266,7 +266,6 @@ class _MissYouButtonState extends State<MissYouButton>
     if (text == null || text.trim().isEmpty) return;
 
     HapticFeedback.mediumImpact();
-    _showSentFeedback('✏️');
     try {
       await _fb.sendVibe(
         groupId: widget.groupId,
@@ -274,6 +273,7 @@ class _MissYouButtonState extends State<MissYouButton>
         vibeType: 'custom',
         customText: text.trim(),
       );
+      if (mounted) _showSentFeedback('✏️');
     } on RateLimitException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
