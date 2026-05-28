@@ -28,6 +28,19 @@ service cloud.firestore {
                       (request.auth.uid == userId && !touchesProtected())
                       || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pairId', 'pairIds'])
                     );
+
+      // IAP-токены: пишет только Cloud Function (admin SDK), клиент — только читает свои.
+      // Нужны для idempotency: не дают начислить монеты дважды за один purchaseToken.
+      match /iapPurchases/{purchaseToken} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false; // только Cloud Function через admin SDK
+      }
+
+      // AdMob SSV idempotency-токены: аналогично — только сервер пишет.
+      match /adRewards/{transactionId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
     }
 
     // ── Коды приглашений ──
