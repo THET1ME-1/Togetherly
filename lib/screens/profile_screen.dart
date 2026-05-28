@@ -2525,52 +2525,276 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<bool> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
     final canAfford = widget.userData.coins >= t.price;
+    final themeName = _themeDisplayName(t.index);
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(_s.buyThemeTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_s.buyThemeDescription(_themeDisplayName(t.index), t.price)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Image.asset(
-                  'assets/images/icons/coin.png',
-                  width: 20,
-                  height: 20,
+      barrierColor: Colors.black.withOpacity(0.35),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: t.primary.withOpacity(0.18),
+                blurRadius: 40,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Превью темы (hero gradient) ──
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '${widget.userData.coins}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(width: 8),
-                if (!canAfford)
-                  Text(
-                    _s.notEnoughCoins,
-                    style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                child: Container(
+                  height: 130,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: t.heroGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-              ],
-            ),
-          ],
+                  child: Stack(
+                    children: [
+                      // декоративные «пузырьки»
+                      Positioned(
+                        top: -20,
+                        right: -10,
+                        child: Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.10),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: -30,
+                        left: 20,
+                        child: Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.22),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _s.coinShopSubtitle,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              themeName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                height: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // ── Содержимое ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+                child: Column(
+                  children: [
+                    Text(
+                      _s.buyThemeTitle,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // ── Цена ──
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t.primaryLight,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/images/icons/coin.png',
+                            width: 30,
+                            height: 30,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            '${t.price}',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              height: 1.0,
+                              color: t.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // ── Баланс ──
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _s.coinBalance,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset(
+                          'assets/images/icons/coin.png',
+                          width: 16,
+                          height: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${widget.userData.coins}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: canAfford
+                                ? Colors.grey.shade800
+                                : Colors.red.shade400,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!canAfford) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _s.notEnoughCoins,
+                        style: TextStyle(
+                          color: Colors.red.shade400,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 22),
+                    // ── Кнопка покупки ──
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: canAfford
+                              ? LinearGradient(
+                                  colors: t.heroGradient,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: canAfford ? null : Colors.grey.shade200,
+                          boxShadow: canAfford
+                              ? [
+                                  BoxShadow(
+                                    color: t.primary.withOpacity(0.35),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: canAfford
+                                ? () => Navigator.pop(ctx, true)
+                                : null,
+                            child: Center(
+                              child: Text(
+                                canAfford
+                                    ? _s.buyThemeConfirm
+                                    : _s.notEnoughCoins,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: canAfford
+                                      ? Colors.white
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey.shade500,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          _s.cancel,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_s.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: t.primary),
-            onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
-            child: Text('${_s.buyThemeConfirm}  ${t.price} 🪙'),
-          ),
-        ],
       ),
     );
     if (confirmed != true) return false;
