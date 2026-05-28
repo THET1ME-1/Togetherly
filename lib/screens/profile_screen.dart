@@ -2444,7 +2444,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             : () async {
                                 Navigator.pop(ctx);
                                 await _watchRewardedAd();
-                                setSheet(() {});
                               },
                       ),
                     ],
@@ -2501,12 +2500,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
+    String? counterText,
+    bool counterExhausted = false,
   }) {
+    final disabled = onTap == null;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: _accentLight.withOpacity(0.45),
+        color: disabled
+            ? Colors.grey.shade100
+            : _accentLight.withOpacity(0.45),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -2522,7 +2526,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: _accent, size: 22),
+                  child: Icon(
+                    icon,
+                    color: disabled ? Colors.grey.shade400 : _accent,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -2534,7 +2542,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
+                          color: disabled
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade900,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -2550,6 +2560,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
+                if (counterText != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: counterExhausted
+                          ? Colors.grey.shade300
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: counterExhausted
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: _accent.withOpacity(0.15),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                    ),
+                    child: Text(
+                      counterText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        height: 1.0,
+                        color: counterExhausted
+                            ? Colors.grey.shade600
+                            : _accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Icon(
                   Icons.chevron_right_rounded,
                   color: Colors.grey.shade400,
