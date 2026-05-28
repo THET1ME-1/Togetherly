@@ -322,6 +322,10 @@ abstract class AppStrings {
   String get buyThemeConfirm;
   String get notEnoughCoins;
   String get themePurchased;
+  String get watchAdTitle;
+  String get watchAdSubtitle;
+  String get adNotReady;
+  String get rewardPending;
   String get changesApplyImmediately;
   String get editProfileTitle;
   String get uploading;
@@ -1303,6 +1307,14 @@ class _RuStrings extends AppStrings {
   String get notEnoughCoins => 'Недостаточно монет';
   @override
   String get themePurchased => 'Тема разблокирована';
+  @override
+  String get watchAdTitle => 'Посмотреть рекламу';
+  @override
+  String get watchAdSubtitle => '+5 🪙 за просмотр, до 3 раз в день';
+  @override
+  String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
+  @override
+  String get rewardPending => 'Награда зачисляется…';
   @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
   @override
@@ -2812,6 +2824,14 @@ class _EnStrings extends AppStrings {
   String get notEnoughCoins => 'Not enough coins';
   @override
   String get themePurchased => 'Theme unlocked';
+  @override
+  String get watchAdTitle => 'Watch an ad';
+  @override
+  String get watchAdSubtitle => '+5 🪙 per view, up to 3 a day';
+  @override
+  String get adNotReady => 'Ad still loading — try again in a second';
+  @override
+  String get rewardPending => 'Crediting your reward…';
   @override
   String get changesApplyImmediately => 'Changes apply immediately';
   @override
