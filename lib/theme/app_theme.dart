@@ -76,6 +76,12 @@ class AppTheme {
   /// Цвет фона лепестков таймера (PetalTimerDial)
   final Color timerDialBackground;
 
+  /// Премиум-тема (требует разблокировки за Коины)
+  final bool isPremium;
+
+  /// Стоимость в Коинах (актуально только если [isPremium])
+  final int price;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -99,6 +105,8 @@ class AppTheme {
     required this.navActiveIcon,
     required this.promptButtonColor,
     required this.timerDialBackground,
+    this.isPremium = false,
+    this.price = 0,
   });
 }
 
@@ -245,8 +253,242 @@ abstract final class AppThemes {
         'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fgreen-background.webp?alt=media',
   );
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // ПРЕМИУМ-ТЕМЫ (требуют покупку за Коины)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // ── 5: Полуночная (Midnight) ─────────────────────────────────────────────
+  static const midnight = AppTheme(
+    index: 5,
+    name: 'Полуночная',
+    primary: Color(0xFF3B4A75),
+    primaryLight: Color(0xFFE5E9F2),
+    bgGradient: [Color(0xFFEBEEF7), Color(0xFFF5F7FC)],
+    heroGradient: [Color(0xFF3B4A75), Color(0xFF1B1F3A)],
+    heroShadowBase: Color(0x261B1F3A),
+    heroShadowExpanded: Color(0x401B1F3A),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF1B1F3A),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFD9DDEA),
+    iconDraw: Color(0xFF3B4A75),
+    iconMood: Color(0xFF3B4A75),
+    iconCalendar: Color(0xFF3B4A75),
+    iconPost: Color(0xFF3B4A75),
+    navActiveBg: Color(0xFFE5E9F2),
+    navActiveIcon: Color(0xFF3B4A75),
+    promptButtonColor: Color(0xFF3B4A75),
+    timerDialBackground: Color(0xFFC4CCE0),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 6: Лавандовая (Lavender) ─────────────────────────────────────────────
+  static const lavender = AppTheme(
+    index: 6,
+    name: 'Лавандовая',
+    primary: Color(0xFFB392D4),
+    primaryLight: Color(0xFFF5EFFB),
+    bgGradient: [Color(0xFFFAF5FF), Color(0xFFFFFCFF)],
+    heroGradient: [Color(0xFFD9C4ED), Color(0xFFB392D4)],
+    heroShadowBase: Color(0x26B392D4),
+    heroShadowExpanded: Color(0x40B392D4),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF8E6FB8),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFE9DDF4),
+    iconDraw: Color(0xFFB392D4),
+    iconMood: Color(0xFFB392D4),
+    iconCalendar: Color(0xFFB392D4),
+    iconPost: Color(0xFFB392D4),
+    navActiveBg: Color(0xFFF1E8FB),
+    navActiveIcon: Color(0xFFB392D4),
+    promptButtonColor: Color(0xFFB392D4),
+    timerDialBackground: Color(0xFFE0CFEF),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 7: Вишнёвая (Cherry) ─────────────────────────────────────────────────
+  static const cherry = AppTheme(
+    index: 7,
+    name: 'Вишнёвая',
+    primary: Color(0xFFA03D5C),
+    primaryLight: Color(0xFFFBEAEF),
+    bgGradient: [Color(0xFFFCF0F3), Color(0xFFFFF8FA)],
+    heroGradient: [Color(0xFFC46A87), Color(0xFF7E2A45)],
+    heroShadowBase: Color(0x26A03D5C),
+    heroShadowExpanded: Color(0x40A03D5C),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF7E2A45),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFEED9DF),
+    iconDraw: Color(0xFFA03D5C),
+    iconMood: Color(0xFFA03D5C),
+    iconCalendar: Color(0xFFA03D5C),
+    iconPost: Color(0xFFA03D5C),
+    navActiveBg: Color(0xFFF9E2E8),
+    navActiveIcon: Color(0xFFA03D5C),
+    promptButtonColor: Color(0xFFA03D5C),
+    timerDialBackground: Color(0xFFE2B4C2),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 8: Мятная (Mint) ─────────────────────────────────────────────────────
+  static const mint = AppTheme(
+    index: 8,
+    name: 'Мятная',
+    primary: Color(0xFF6FBFA3),
+    primaryLight: Color(0xFFE6F7F0),
+    bgGradient: [Color(0xFFF0FBF6), Color(0xFFFAFEFC)],
+    heroGradient: [Color(0xFF9CDCC4), Color(0xFF6FBFA3)],
+    heroShadowBase: Color(0x266FBFA3),
+    heroShadowExpanded: Color(0x406FBFA3),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF4A9A80),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFD3EEE2),
+    iconDraw: Color(0xFF6FBFA3),
+    iconMood: Color(0xFF6FBFA3),
+    iconCalendar: Color(0xFF6FBFA3),
+    iconPost: Color(0xFF6FBFA3),
+    navActiveBg: Color(0xFFDFF3EA),
+    navActiveIcon: Color(0xFF6FBFA3),
+    promptButtonColor: Color(0xFF6FBFA3),
+    timerDialBackground: Color(0xFFBEE2D3),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 9: Закатная (Sunset) ─────────────────────────────────────────────────
+  static const sunset = AppTheme(
+    index: 9,
+    name: 'Закатная',
+    primary: Color(0xFFFF7E5F),
+    primaryLight: Color(0xFFFFEBE2),
+    bgGradient: [Color(0xFFFFE9D6), Color(0xFFFFF4ED)],
+    heroGradient: [Color(0xFFFFB36B), Color(0xFFFF6F61)],
+    heroShadowBase: Color(0x26FF7E5F),
+    heroShadowExpanded: Color(0x40FF7E5F),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFFF6F61),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFF3DCCE),
+    iconDraw: Color(0xFFFF7E5F),
+    iconMood: Color(0xFFFF7E5F),
+    iconCalendar: Color(0xFFFF7E5F),
+    iconPost: Color(0xFFFF7E5F),
+    navActiveBg: Color(0xFFFFE0D2),
+    navActiveIcon: Color(0xFFFF7E5F),
+    promptButtonColor: Color(0xFFFF7E5F),
+    timerDialBackground: Color(0xFFFFC9B5),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 10: Монохром (Monochrome) ────────────────────────────────────────────
+  static const monochrome = AppTheme(
+    index: 10,
+    name: 'Монохром',
+    primary: Color(0xFF555555),
+    primaryLight: Color(0xFFEFEFEF),
+    bgGradient: [Color(0xFFF5F5F7), Color(0xFFFCFCFD)],
+    heroGradient: [Color(0xFF888888), Color(0xFF3A3A3A)],
+    heroShadowBase: Color(0x26555555),
+    heroShadowExpanded: Color(0x40555555),
+    heroGlassOpacity: 0.18,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF3A3A3A),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFE2E2E4),
+    iconDraw: Color(0xFF555555),
+    iconMood: Color(0xFF555555),
+    iconCalendar: Color(0xFF555555),
+    iconPost: Color(0xFF555555),
+    navActiveBg: Color(0xFFECECEE),
+    navActiveIcon: Color(0xFF555555),
+    promptButtonColor: Color(0xFF555555),
+    timerDialBackground: Color(0xFFCFCFCF),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 11: Лесная (Forest) ──────────────────────────────────────────────────
+  static const forest = AppTheme(
+    index: 11,
+    name: 'Лесная',
+    primary: Color(0xFF3F6E47),
+    primaryLight: Color(0xFFE4EFE5),
+    bgGradient: [Color(0xFFEFF5EF), Color(0xFFF8FBF7)],
+    heroGradient: [Color(0xFF6FA078), Color(0xFF284C32)],
+    heroShadowBase: Color(0x263F6E47),
+    heroShadowExpanded: Color(0x403F6E47),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF284C32),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFD4E3D6),
+    iconDraw: Color(0xFF3F6E47),
+    iconMood: Color(0xFF3F6E47),
+    iconCalendar: Color(0xFF3F6E47),
+    iconPost: Color(0xFF3F6E47),
+    navActiveBg: Color(0xFFDFEBE0),
+    navActiveIcon: Color(0xFF3F6E47),
+    promptButtonColor: Color(0xFF3F6E47),
+    timerDialBackground: Color(0xFFBED3C1),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 12: Океан (Ocean) ────────────────────────────────────────────────────
+  static const ocean = AppTheme(
+    index: 12,
+    name: 'Океан',
+    primary: Color(0xFF2A7A8C),
+    primaryLight: Color(0xFFE1F1F4),
+    bgGradient: [Color(0xFFE9F4F7), Color(0xFFF5FAFC)],
+    heroGradient: [Color(0xFF5FB3C2), Color(0xFF1F5A6E)],
+    heroShadowBase: Color(0x262A7A8C),
+    heroShadowExpanded: Color(0x402A7A8C),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF1F5A6E),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFD0E5EA),
+    iconDraw: Color(0xFF2A7A8C),
+    iconMood: Color(0xFF2A7A8C),
+    iconCalendar: Color(0xFF2A7A8C),
+    iconPost: Color(0xFF2A7A8C),
+    navActiveBg: Color(0xFFDCEEF2),
+    navActiveIcon: Color(0xFF2A7A8C),
+    promptButtonColor: Color(0xFF2A7A8C),
+    timerDialBackground: Color(0xFFB4D7DF),
+    isPremium: true,
+    price: 30,
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
-  static const List<AppTheme> all = [pink, purple, blue, orange, green];
+  static const List<AppTheme> all = [
+    pink,
+    purple,
+    blue,
+    orange,
+    green,
+    midnight,
+    lavender,
+    cherry,
+    mint,
+    sunset,
+    monochrome,
+    forest,
+    ocean,
+  ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
   static AppTheme byIndex(int index) {

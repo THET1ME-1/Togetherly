@@ -17,6 +17,15 @@ class UserData extends ChangeNotifier {
   String _uid = '';
   String? _badge;
 
+  // ── Коины и премиум-контент ──
+  int _coins = 0;
+  final Set<int> _ownedThemes = <int>{};
+  bool _devCoinsGranted = false;
+
+  /// Email разработчика, которому единоразово начисляется 1000 🪙
+  static const String _devEmail = 'badzoff@gmail.com';
+  static const int _devGrantAmount = 1000;
+
   final FirebaseService _fb = FirebaseService();
 
   // ── Getters ──
@@ -55,6 +64,56 @@ class UserData extends ChangeNotifier {
   Color get themeAccentLight => theme.primaryLight;
   String get themeName => theme.name;
 
+  // ── Коины ─────────────────────────────────────────────────────────────────
+  int get coins => _coins;
+
+  /// Список ID разблокированных премиум-тем
+  Set<int> get ownedThemes => Set.unmodifiable(_ownedThemes);
+
+  /// Доступна ли тема (free или куплена)
+  bool hasTheme(int id) {
+    final t = AppThemes.byIndex(id);
+    return !t.isPremium || _ownedThemes.contains(id);
+  }
+
+  /// Начисляет монеты (от rewarded-видео, ежедневного бонуса и т.п.)
+  Future<void> addCoins(int amount) async {
+    if (amount <= 0) return;
+    _coins += amount;
+    await _saveLocal();
+    unawaited(_fb.saveCoinsState(coins: _coins, ownedThemes: _ownedThemes));
+    notifyListeners();
+  }
+
+  /// Пытается купить тему. Возвращает true при успехе.
+  Future<bool> purchaseTheme(int themeId) async {
+    final t = AppThemes.byIndex(themeId);
+    if (!t.isPremium) return true; // уже бесплатная
+    if (_ownedThemes.contains(themeId)) return true;
+    if (_coins < t.price) return false;
+    _coins -= t.price;
+    _ownedThemes.add(themeId);
+    await _saveLocal();
+    unawaited(_fb.saveCoinsState(coins: _coins, ownedThemes: _ownedThemes));
+    notifyListeners();
+    return true;
+  }
+
+  /// Единоразовая выдача монет разработчику (по email).
+  Future<void> _maybeGrantDevCoins() async {
+    if (_devCoinsGranted) return;
+    if (_email.toLowerCase() != _devEmail.toLowerCase()) return;
+    _coins += _devGrantAmount;
+    _devCoinsGranted = true;
+    await _saveLocal();
+    unawaited(_fb.saveCoinsState(
+      coins: _coins,
+      ownedThemes: _ownedThemes,
+      devCoinsGranted: true,
+    ));
+    notifyListeners();
+  }
+
   /// Whether the timer card shows a morphing blob shape (true by default)
   bool get blobAnimationEnabled => _blobAnimationEnabled;
 
@@ -83,11 +142,21 @@ class UserData extends ChangeNotifier {
       _themeId = prefs.getInt('themeId') ?? -1;
       _blobAnimationEnabled = prefs.getBool('blobAnimationEnabled') ?? true;
       _badge = prefs.getString('badge');
+      _coins = prefs.getInt('coins') ?? 0;
+      _devCoinsGranted = prefs.getBool('devCoinsGranted') ?? false;
+      _ownedThemes
+        ..clear()
+        ..addAll(
+          (prefs.getStringList('ownedThemes') ?? const <String>[])
+              .map(int.tryParse)
+              .whereType<int>(),
+        );
 
       // Если авторизован → подтягиваем из облака
       if (_fb.isLoggedIn && _isRegistered) {
         _uid = _fb.uid ?? _uid;
         await _syncFromFirestore();
+        await _maybeGrantDevCoins();
       }
     } catch (e) {
       debugPrint('SharedPreferences load failed: $e');
@@ -110,6 +179,18 @@ class UserData extends ChangeNotifier {
         if (g == 'male') _gender = Gender.male;
         if (g == 'female') _gender = Gender.female;
         _badge = data['badge'] as String?;
+
+        final cloudCoins = data['coins'];
+        if (cloudCoins is int) _coins = cloudCoins;
+        final cloudOwned = data['ownedThemes'];
+        if (cloudOwned is List) {
+          _ownedThemes
+            ..clear()
+            ..addAll(cloudOwned.whereType<int>());
+        }
+        final cloudGranted = data['devCoinsGranted'];
+        if (cloudGranted is bool) _devCoinsGranted = cloudGranted;
+
         await _saveLocal();
 
         // Propagate name/avatar to all group documents on every login so
@@ -151,6 +232,12 @@ class UserData extends ChangeNotifier {
       } else {
         await prefs.remove('badge');
       }
+      await prefs.setInt('coins', _coins);
+      await prefs.setBool('devCoinsGranted', _devCoinsGranted);
+      await prefs.setStringList(
+        'ownedThemes',
+        _ownedThemes.map((e) => e.toString()).toList(),
+      );
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
     }
@@ -207,6 +294,7 @@ class UserData extends ChangeNotifier {
         avatarUrl: avatarUrl,
         clearPairData: isNewUser, // Clear Firestore pair data for new users
       );
+      await _maybeGrantDevCoins();
     }
     notifyListeners();
   }
@@ -277,6 +365,12 @@ class UserData extends ChangeNotifier {
     // Clear timer data so new user doesn't see old timers
     await prefs.remove('user_timers');
     await prefs.remove('timer_selected_time_unit');
+    _coins = 0;
+    _devCoinsGranted = false;
+    _ownedThemes.clear();
+    await prefs.remove('coins');
+    await prefs.remove('devCoinsGranted');
+    await prefs.remove('ownedThemes');
     notifyListeners();
   }
 }

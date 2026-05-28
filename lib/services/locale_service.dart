@@ -305,6 +305,23 @@ abstract class AppStrings {
   String get themeNameBlue;
   String get themeNamePeach;
   String get themeNameSage;
+  String get themeNameMidnight;
+  String get themeNameLavender;
+  String get themeNameCherry;
+  String get themeNameMint;
+  String get themeNameSunset;
+  String get themeNameMonochrome;
+  String get themeNameForest;
+  String get themeNameOcean;
+  String premiumThemeLocked(int price);
+  String get coinBalance;
+  String get coinShopTitle;
+  String get coinShopSubtitle;
+  String get buyThemeTitle;
+  String buyThemeDescription(String themeName, int price);
+  String get buyThemeConfirm;
+  String get notEnoughCoins;
+  String get themePurchased;
   String get changesApplyImmediately;
   String get editProfileTitle;
   String get uploading;
@@ -1250,6 +1267,42 @@ class _RuStrings extends AppStrings {
   String get themeNamePeach => 'Персиковая';
   @override
   String get themeNameSage => 'Шалфейная';
+  @override
+  String get themeNameMidnight => 'Полуночная';
+  @override
+  String get themeNameLavender => 'Лавандовая';
+  @override
+  String get themeNameCherry => 'Вишнёвая';
+  @override
+  String get themeNameMint => 'Мятная';
+  @override
+  String get themeNameSunset => 'Закатная';
+  @override
+  String get themeNameMonochrome => 'Монохром';
+  @override
+  String get themeNameForest => 'Лесная';
+  @override
+  String get themeNameOcean => 'Океан';
+  @override
+  String premiumThemeLocked(int price) =>
+      'Премиум-тема за $price 🪙 — открой в магазине';
+  @override
+  String get coinBalance => 'Коины';
+  @override
+  String get coinShopTitle => 'Магазин Коинов';
+  @override
+  String get coinShopSubtitle => 'Кастомизация и приятности';
+  @override
+  String get buyThemeTitle => 'Купить тему?';
+  @override
+  String buyThemeDescription(String themeName, int price) =>
+      'Разблокировать тему «$themeName» за $price 🪙?';
+  @override
+  String get buyThemeConfirm => 'Купить';
+  @override
+  String get notEnoughCoins => 'Недостаточно монет';
+  @override
+  String get themePurchased => 'Тема разблокирована';
   @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
   @override
@@ -2723,6 +2776,42 @@ class _EnStrings extends AppStrings {
   String get themeNamePeach => 'Peach';
   @override
   String get themeNameSage => 'Sage';
+  @override
+  String get themeNameMidnight => 'Midnight';
+  @override
+  String get themeNameLavender => 'Lavender';
+  @override
+  String get themeNameCherry => 'Cherry';
+  @override
+  String get themeNameMint => 'Mint';
+  @override
+  String get themeNameSunset => 'Sunset';
+  @override
+  String get themeNameMonochrome => 'Monochrome';
+  @override
+  String get themeNameForest => 'Forest';
+  @override
+  String get themeNameOcean => 'Ocean';
+  @override
+  String premiumThemeLocked(int price) =>
+      'Premium theme — $price 🪙, unlock it in the Coin shop';
+  @override
+  String get coinBalance => 'Coins';
+  @override
+  String get coinShopTitle => 'Coin Shop';
+  @override
+  String get coinShopSubtitle => 'Customization & treats';
+  @override
+  String get buyThemeTitle => 'Buy this theme?';
+  @override
+  String buyThemeDescription(String themeName, int price) =>
+      'Unlock the "$themeName" theme for $price 🪙?';
+  @override
+  String get buyThemeConfirm => 'Buy';
+  @override
+  String get notEnoughCoins => 'Not enough coins';
+  @override
+  String get themePurchased => 'Theme unlocked';
   @override
   String get changesApplyImmediately => 'Changes apply immediately';
   @override
