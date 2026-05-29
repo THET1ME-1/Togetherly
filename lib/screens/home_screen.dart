@@ -121,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
     _moodService.addListener(_onMoodServiceChanged);
+    _timerService.addListener(_onTimerServiceChanged);
     // Единая точка входа для всех пикеров настроения — MoodService.setMoodForToday.
     // Без bindServices сервис не сможет синхронизировать pair/widget при выборе.
     _moodService.bindServices(
@@ -181,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _memorySub?.cancel();
     _appLifecycleListener?.dispose();
     _mascotService.dispose();
+    _timerService.removeListener(_onTimerServiceChanged);
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
     _moodService.removeListener(_onMoodServiceChanged);
@@ -273,6 +275,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onPairChanged() {
     if (!mounted) return;
     unawaited(_handlePairChanged());
+  }
+
+  /// Когда меняется дефолтный таймер — синхронизируем все виджеты,
+  /// чтобы «Дни вместе» подхватил новый таймер так же, как таймер-виджет.
+  void _onTimerServiceChanged() {
+    if (!mounted || !_pairData.isPaired) return;
+    _scheduleSyncHomeWidgets();
   }
 
   Future<void> _handlePairChanged() async {
