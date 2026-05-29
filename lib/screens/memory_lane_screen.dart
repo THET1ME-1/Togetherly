@@ -36,6 +36,7 @@ import '../widgets/avatar_widget.dart';
 import '../widgets/common/m3_loading.dart';
 import 'map_picker_screen.dart';
 import 'memories_map_screen.dart';
+import 'memory_photo_form_screen.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -545,6 +546,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 theme: widget.theme,
                 currentUserUid: _fb.uid,
               ),
+              settings: const RouteSettings(name: '/memories_map'),
             ),
           ),
           icon: Container(
@@ -932,18 +934,32 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                           );
                         }
-                        final deckPhotos = allPhotos.take(3).toList();
+                        final hasVideo =
+                            memory.videoUrl?.isNotEmpty == true;
+                        // Смешанный пин: видео-плитка идёт первой (поверх колоды)
+                        final deckEntries = <(String, bool)>[
+                          if (hasVideo)
+                            (
+                              memory.imageUrl?.isNotEmpty == true
+                                  ? memory.imageUrl!
+                                  : (allPhotos.isNotEmpty
+                                      ? allPhotos.first
+                                      : ''),
+                              true
+                            ),
+                          for (final p in allPhotos) (p, false),
+                        ].take(3).toList();
                         const cardSize = 48.0;
                         const offset = 7.0;
                         final totalWidth =
-                            cardSize + (deckPhotos.length - 1) * offset;
+                            cardSize + (deckEntries.length - 1) * offset;
                         return SizedBox(
                           width: totalWidth,
                           height: cardSize,
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              for (int i = deckPhotos.length - 1; i >= 0; i--)
+                              for (int i = deckEntries.length - 1; i >= 0; i--)
                                 Positioned(
                                   left: i * offset,
                                   top: 0,
@@ -976,16 +992,35 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         child: ClipRRect(
                                           borderRadius:
                                               BorderRadius.circular(8),
-                                          child: StorageImage(
-                                            imageUrl: deckPhotos[i],
-                                            fit: BoxFit.cover,
-                                            memCacheWidth: 96,
-                                            memCacheHeight: 96,
-                                            errorWidget: (ctx, err, w) => Icon(
-                                              Icons.broken_image_rounded,
-                                              color: Colors.grey.shade300,
-                                              size: 22,
-                                            ),
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              StorageImage(
+                                                imageUrl: deckEntries[i].$1,
+                                                fit: BoxFit.cover,
+                                                memCacheWidth: 96,
+                                                memCacheHeight: 96,
+                                                errorWidget: (ctx, err, w) =>
+                                                    Icon(
+                                                  Icons.broken_image_rounded,
+                                                  color: Colors.grey.shade300,
+                                                  size: 22,
+                                                ),
+                                              ),
+                                              if (deckEntries[i].$2)
+                                                Container(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.25),
+                                                  child: const Center(
+                                                    child: Icon(
+                                                      Icons
+                                                          .play_circle_fill_rounded,
+                                                      color: Colors.white,
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
                                         ),
                                       );
@@ -2030,14 +2065,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
                     // ── PHOTO detail ──
                     if (memory.type == MemoryType.photo) ...[
-                      if (memory.imageUrl != null &&
-                          memory.imageUrl!.isNotEmpty)
+                      if ((memory.imageUrls?.isNotEmpty == true) ||
+                          (memory.imageUrl != null &&
+                              memory.imageUrl!.isNotEmpty))
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: AspectRatio(
                             aspectRatio: 1.0,
                             child: StorageImage(
-                              imageUrl: memory.imageUrl!,
+                              imageUrl: memory.imageUrls?.isNotEmpty == true
+                                  ? memory.imageUrls!.first
+                                  : memory.imageUrl!,
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
@@ -2081,8 +2119,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ),
                     ],
 
-                    // ── VIDEO detail ──
-                    if (memory.type == MemoryType.video) ...[
+                    // ── VIDEO detail ── (также для смешанного фото+видео пина)
+                    if (memory.type == MemoryType.video ||
+                        (memory.type == MemoryType.photo &&
+                            memory.videoUrl?.isNotEmpty == true)) ...[
+                      if (memory.type == MemoryType.photo)
+                        const SizedBox(height: 12),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: Stack(
@@ -2957,6 +2999,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               initialLatitude: editLat,
                               initialLongitude: editLng,
                             ),
+                            settings: const RouteSettings(name: '/map_picker'),
                           ),
                         );
 
@@ -3138,16 +3181,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               const SizedBox(height: 24),
               _addMemoryOption(
-                icon: Icons.photo_rounded,
-                label: LocaleService.current.photo,
+                icon: Icons.perm_media_rounded,
+                label: 'Фото / Видео / Заметка',
                 color: const Color(0xFF3B82F6),
                 type: MemoryType.photo,
-              ),
-              _addMemoryOption(
-                icon: Icons.videocam_rounded,
-                label: LocaleService.current.video,
-                color: const Color(0xFFEC4899),
-                type: MemoryType.video,
               ),
               _addMemoryOption(
                 icon: Icons.location_on_rounded,
@@ -3160,12 +3197,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 label: LocaleService.current.music,
                 color: const Color(0xFF8B5CF6),
                 type: MemoryType.music,
-              ),
-              _addMemoryOption(
-                icon: Icons.edit_note_rounded,
-                label: LocaleService.current.note,
-                color: const Color(0xFFFBBF24),
-                type: MemoryType.text,
               ),
             ],
           ),
@@ -3199,7 +3230,41 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
       onTap: () {
         Navigator.pop(context);
-        _showCreateMemoryForm(type);
+        if (type == MemoryType.photo) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoryPhotoFormScreen(
+                theme: widget.theme,
+                onSave: ({
+                  required type,
+                  required title,
+                  required caption,
+                  mediaPaths,
+                  mediaPath,
+                  locationName,
+                  latitude,
+                  longitude,
+                  required isAdult,
+                }) =>
+                    _saveNewMemory(
+                  type: type,
+                  title: title,
+                  caption: caption,
+                  locationName: locationName ?? '',
+                  latitude: latitude,
+                  longitude: longitude,
+                  mediaPaths: mediaPaths,
+                  mediaPath: mediaPath,
+                  isAdult: isAdult,
+                ),
+              ),
+              settings: const RouteSettings(name: '/memory_photo_form'),
+            ),
+          );
+        } else {
+          _showCreateMemoryForm(type);
+        }
       },
     );
   }
@@ -4406,6 +4471,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     initialLatitude: lat,
                                     initialLongitude: lng,
                                   ),
+                                  settings: const RouteSettings(name: '/map_picker'),
                                 ),
                               );
                               if (result != null && context.mounted) {
@@ -5189,6 +5255,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   initialLatitude: lat,
                                   initialLongitude: lng,
                                 ),
+                                settings: const RouteSettings(name: '/map_picker'),
                               ),
                             );
 
@@ -5814,8 +5881,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         uploadedImageUrl = uploadedImageUrls.first;
       }
 
-      // Upload video if selected
-      if (type == MemoryType.video && mediaPath != null) {
+      // Upload video if selected (even when type==photo: unified picker may
+      // return a photo+video mix, and we don't want to silently drop the video)
+      if (mediaPath != null) {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final ext = mediaPath.split('.').last;
         final fileName = 'memory_$timestamp.$ext';
@@ -6106,6 +6174,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           initialLatitude: memory.latitude,
           initialLongitude: memory.longitude,
         ),
+        settings: const RouteSettings(name: '/map_picker'),
       ),
     );
     if (result == null) return;
@@ -6142,6 +6211,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         for (final url in urls) {
           items.add(GalleryItem(url: url, memoryId: m.id, caption: m.caption));
         }
+        // Смешанный пин: фото + видео — показываем видео отдельным
+        // воспроизводимым элементом (превью = thumbnail видео в imageUrl).
+        if (m.videoUrl?.isNotEmpty == true) {
+          items.add(GalleryItem(
+            url: m.imageUrl?.isNotEmpty == true ? m.imageUrl! : m.videoUrl!,
+            videoUrl: m.videoUrl,
+            memoryId: m.id,
+            caption: m.caption,
+          ));
+        }
       } else if (m.type == MemoryType.video &&
           m.videoUrl?.isNotEmpty == true) {
         items.add(GalleryItem(
@@ -6161,6 +6240,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final memoryId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => _PhotoGalleryScreen(items: items, primary: primary),
+        settings: const RouteSettings(name: '/photo_gallery'),
       ),
     );
     if (memoryId != null && mounted) {
@@ -7549,6 +7629,17 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _buildMedia(Memory memory, Color p) {
     switch (memory.type) {
       case MemoryType.photo:
+        // Смешанный пин: фото + видео — показываем оба блока.
+        if (memory.videoUrl?.isNotEmpty == true) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildPhotoMedia(memory),
+              const SizedBox(height: 12),
+              _buildVideoMedia(memory, p),
+            ],
+          );
+        }
         return _buildPhotoMedia(memory);
       case MemoryType.video:
         return _buildVideoMedia(memory, p);
@@ -7795,6 +7886,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                           url: url,
                           title: memory.title,
                         ),
+                        settings: const RouteSettings(name: '/video_player'),
                       ),
                     );
                   }

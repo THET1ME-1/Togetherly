@@ -327,6 +327,7 @@ class MemoryLanePreview extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => MemoryLaneScreen(pairData: pairData, theme: theme),
+        settings: const RouteSettings(name: '/memory_lane'),
       ),
     );
   }

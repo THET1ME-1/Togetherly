@@ -89,6 +89,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           canvasName: meta.name,
         ),
         fullscreenDialog: true,
+        settings: const RouteSettings(name: '/draw'),
       ),
     );
     // Reload after returning so thumbnails are refreshed.
@@ -124,6 +125,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           canvasName: meta.name,
         ),
         fullscreenDialog: true,
+        settings: const RouteSettings(name: '/draw'),
       ),
     );
     _load();

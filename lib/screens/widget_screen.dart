@@ -4293,6 +4293,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             theme: _t,
             timerStartDate: _widgetTimer?.startDate,
           ),
+          settings: const RouteSettings(name: '/postcard_editor'),
         ),
       ),
       child: Container(

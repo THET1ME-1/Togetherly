@@ -250,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t, userData: widget.userData),
+            settings: const RouteSettings(name: '/memory_lane'),
           ),
         );
       }
@@ -266,6 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
               widgetService: _widgetService,
               theme: _t,
             ),
+            settings: const RouteSettings(name: '/mood_calendar'),
           ),
         );
       }
@@ -416,6 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
           theme: _t,
           myUid: widget.userData.uid,
         ),
+        settings: const RouteSettings(name: '/mascot_gallery'),
       ),
     );
   }
@@ -984,6 +987,7 @@ class _HomeScreenState extends State<HomeScreen> {
           canvasName: meta.name,
         ),
         fullscreenDialog: true,
+        settings: const RouteSettings(name: '/draw'),
       ),
     );
   }
@@ -997,6 +1001,7 @@ class _HomeScreenState extends State<HomeScreen> {
           pairData: _pairData,
           theme: _t,
         ),
+        settings: const RouteSettings(name: '/draw_gallery'),
       ),
     );
   }
@@ -1011,6 +1016,7 @@ class _HomeScreenState extends State<HomeScreen> {
           widgetService: _widgetService,
           theme: _t,
         ),
+        settings: const RouteSettings(name: '/mood_calendar'),
       ),
     );
   }

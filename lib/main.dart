@@ -10,6 +10,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
@@ -105,6 +107,14 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Принудительно используем системный Android Photo Picker (ACTION_PICK_IMAGES)
+  // вместо legacy ACTION_GET_CONTENT, который на MIUI открывает файловый
+  // проводник (DocumentsUI) вместо галереи.
+  final imagePickerImpl = ImagePickerPlatform.instance;
+  if (imagePickerImpl is ImagePickerAndroid) {
+    imagePickerImpl.useAndroidPhotoPicker = true;
+  }
 
   // Firebase — инициализация
   await Firebase.initializeApp();

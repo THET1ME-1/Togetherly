@@ -69,7 +69,8 @@ class _AdBannerState extends State<AdBanner> {
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          debugPrint('AdBanner failed to load: $error');
+          // ignore: avoid_print — нужно в релизе для диагностики
+          print('AdBanner failed: code=${error.code} msg=${error.message} domain=${error.domain}');
         },
       ),
     ).load();

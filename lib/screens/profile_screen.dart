@@ -4416,6 +4416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
                     builder: (_) => WelcomeScreen(userData: userData),
+                    settings: const RouteSettings(name: '/welcome'),
                   ),
                   (_) => false,
                 );
