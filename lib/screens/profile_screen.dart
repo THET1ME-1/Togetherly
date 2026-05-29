@@ -13,6 +13,7 @@ import '../services/firebase_service.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
+import '../models/profile_icon.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/coin_reward_toast.dart';
@@ -377,49 +378,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.grey.shade900,
               ),
             ),
-            if (widget.userData.badge != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 2),
-                child: GestureDetector(
-                  onTap: () {
-                    final badge = widget.userData.badge!;
-                    final title = badge;
-                    final desc = badge == 'Sponsor'
-                        ? 'Спонсор проекта'
-                        : badge == 'Helper'
-                            ? 'Помощник проекта'
-                            : badge;
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Row(
-                          children: [
-                            Image.asset(
-                              'assets/images/icons/$title.png',
-                              width: 24,
-                              height: 24,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(title),
-                          ],
-                        ),
-                        content: Text(desc),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('OK'),
-                          ),
-                        ],
+            // Закреплённая иконка-бейдж. Тап открывает магазин иконок,
+            // где можно сменить/купить/снять иконку.
+            GestureDetector(
+              onTap: () => _showIconPicker(context),
+              child: widget.userData.equippedIcon != null
+                  // Лёгкий сдвиг влево компенсирует прозрачные поля внутри
+                  // ассета, чтобы иконка «прижималась» к имени.
+                  ? Transform.translate(
+                      offset: const Offset(-4, 0),
+                      child: Image.asset(
+                        ProfileIcon.byId(widget.userData.equippedIcon)?.asset ??
+                            'assets/images/icons/${widget.userData.equippedIcon}.webp',
+                        width: 38,
+                        height: 38,
                       ),
-                    );
-                  },
-                  child: Image.asset(
-                    'assets/images/icons/${widget.userData.badge}.png',
-                    width: 40,
-                    height: 40,
-                  ),
-                ),
-              ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: _accent.withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.add_reaction_outlined,
+                          size: 18,
+                          color: _accent.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -2393,7 +2384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           children: [
             Image.asset(
-              'assets/images/icons/coin.png',
+              'assets/images/icons/coin.webp',
               width: 38,
               height: 38,
             ),
@@ -2484,7 +2475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            'assets/images/icons/coin.png',
+                            'assets/images/icons/coin.webp',
                             width: 30,
                             height: 30,
                           ),
@@ -2524,6 +2515,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () {
                           Navigator.pop(ctx);
                           _showThemePicker(context);
+                        },
+                      ),
+                      // ── Иконки профиля ───────────────────────────────
+                      _coinShopItem(
+                        icon: Icons.add_reaction_outlined,
+                        title: _s.iconShopTitle,
+                        subtitle: _s.iconShopSubtitle,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showIconPicker(context);
                         },
                       ),
                       // ── Заработать бесплатно ──────────────────────────
@@ -2839,7 +2840,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
-                // Бейдж с наградой монетами (coin.png + число)
+                // Бейдж с наградой монетами (coin.webp + число)
                 if (coinAmount != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2858,7 +2859,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
-                          'assets/images/icons/coin.png',
+                          'assets/images/icons/coin.webp',
                           width: 14,
                           height: 14,
                         ),
@@ -3080,7 +3081,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Image.asset(
-                            'assets/images/icons/coin.png',
+                            'assets/images/icons/coin.webp',
                             width: 30,
                             height: 30,
                           ),
@@ -3111,7 +3112,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(width: 6),
                         Image.asset(
-                          'assets/images/icons/coin.png',
+                          'assets/images/icons/coin.webp',
                           width: 16,
                           height: 16,
                         ),
@@ -3472,7 +3473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             CrossAxisAlignment.center,
                                         children: [
                                           Image.asset(
-                                            'assets/images/icons/coin.png',
+                                            'assets/images/icons/coin.webp',
                                             width: 22,
                                             height: 22,
                                           ),
@@ -3504,6 +3505,599 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════
+  // Магазин профильных иконок
+  // ═══════════════════════════════════════════════════
+
+  void _showIconPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final equipped = widget.userData.equippedIcon;
+          // Сортировка: сначала купленные/доступные, затем продаваемые
+          // по возрастанию цены, в конце — награды (Sponsor/Helper).
+          final icons = [...ProfileIcon.all]..sort((a, b) {
+              int rank(ProfileIcon i) {
+                if (widget.userData.ownsIcon(i.id)) return 0;
+                if (i.grantOnly) return 2;
+                return 1;
+              }
+
+              final ra = rank(a), rb = rank(b);
+              if (ra != rb) return ra.compareTo(rb);
+              return a.price.compareTo(b.price);
+            });
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.78,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  // Handle + заголовок + баланс
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _s.iconShopTitle,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.grey.shade900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _s.iconShopSubtitle,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Image.asset(
+                              'assets/images/icons/coin.webp',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${widget.userData.coins}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                      child: Column(
+                        children: [
+                          // ── «Без иконки» ──
+                          _noIconTile(
+                            selected: equipped == null,
+                            onTap: equipped == null
+                                ? null
+                                : () async {
+                                    await widget.userData.setBadgeIcon(null);
+                                    setSheet(() {});
+                                    if (mounted) setState(() {});
+                                  },
+                          ),
+                          const SizedBox(height: 16),
+                          // ── Сетка иконок ──
+                          GridView.count(
+                            crossAxisCount: 3,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            mainAxisSpacing: 14,
+                            crossAxisSpacing: 14,
+                            childAspectRatio: 0.72,
+                            children: icons.map((icon) {
+                              return _iconCell(
+                                icon: icon,
+                                isEquipped: equipped == icon.id,
+                                owned: widget.userData.ownsIcon(icon.id),
+                                onTap: () async {
+                                  if (equipped == icon.id) {
+                                    // Повторный тап по закреплённой иконке снимает её.
+                                    await widget.userData.setBadgeIcon(null);
+                                  } else if (widget.userData.ownsIcon(icon.id)) {
+                                    await widget.userData.setBadgeIcon(icon.id);
+                                  } else if (icon.grantOnly) {
+                                    // Награда — купить нельзя, показываем инфо.
+                                    _showIconInfo(icon, rewardLocked: true);
+                                    return;
+                                  } else {
+                                    final bought = await _confirmPurchaseIcon(
+                                        context, icon);
+                                    if (bought) {
+                                      await widget.userData.setBadgeIcon(icon.id);
+                                    }
+                                  }
+                                  setSheet(() {});
+                                  if (mounted) setState(() {});
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _noIconTile({required bool selected, required VoidCallback? onTap}) {
+    return Material(
+      color: selected ? _accentLight.withValues(alpha: 0.55) : Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? _accent : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.block_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _s.noIconOption,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
+              if (selected)
+                Icon(Icons.check_circle_rounded, size: 20, color: _accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconCell({
+    required ProfileIcon icon,
+    required bool isEquipped,
+    required bool owned,
+    required VoidCallback onTap,
+  }) {
+    final locked = !owned;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: isEquipped
+              ? _accentLight.withValues(alpha: 0.55)
+              : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isEquipped ? _accent : Colors.transparent,
+            width: 2.5,
+          ),
+          boxShadow: isEquipped
+              ? [
+                  BoxShadow(
+                    color: _accent.withValues(alpha: 0.22),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Рамка-подложка, чтобы все иконки выглядели одинаково и крупно.
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Opacity(
+                opacity: locked ? 0.5 : 1.0,
+                child: Image.asset(icon.asset, width: 42, height: 42),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              icon.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isEquipped ? FontWeight.w700 : FontWeight.w500,
+                color: isEquipped ? _accent : Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 5),
+            // Нижняя строка: закреплено / куплено / награда / цена
+            if (isEquipped)
+              Icon(Icons.check_circle_rounded, size: 18, color: _accent)
+            else if (owned)
+              Icon(Icons.check_rounded, size: 16, color: Colors.grey.shade400)
+            else if (icon.grantOnly)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_rounded,
+                      size: 11, color: Colors.grey.shade400),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      _s.iconRewardOnly,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/images/icons/coin.webp',
+                      width: 15, height: 15),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${icon.price}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showIconInfo(ProfileIcon icon, {bool rewardLocked = false}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: Row(
+          children: [
+            Image.asset(icon.asset, width: 28, height: 28),
+            const SizedBox(width: 10),
+            Expanded(child: Text(icon.name)),
+          ],
+        ),
+        content: Text(
+          rewardLocked ? '${icon.description}\n\n${_s.iconRewardHint}' : icon.description,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Диалог подтверждения покупки иконки. Возвращает true при успешной покупке.
+  Future<bool> _confirmPurchaseIcon(BuildContext context, ProfileIcon icon) async {
+    final canAfford = widget.userData.coins >= icon.price;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.35),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: _accent.withOpacity(0.18),
+                blurRadius: 40,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Hero с иконкой ──
+              ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_accent, _accent.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: -20,
+                        right: -10,
+                        child: Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.10),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Image.asset(icon.asset, width: 76, height: 76),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                child: Column(
+                  children: [
+                    Text(
+                      icon.name,
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      icon.description,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // ── Цена ──
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _accentLight,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset('assets/images/icons/coin.webp',
+                              width: 28, height: 28),
+                          const SizedBox(width: 10),
+                          Text(
+                            '${icon.price}',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              height: 1.0,
+                              color: _accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _s.coinBalance,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset('assets/images/icons/coin.webp',
+                            width: 16, height: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${widget.userData.coins}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: canAfford
+                                ? Colors.grey.shade800
+                                : Colors.red.shade400,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!canAfford) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _s.notEnoughCoins,
+                        style: TextStyle(
+                          color: Colors.red.shade400,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: canAfford
+                              ? LinearGradient(
+                                  colors: [_accent, _accent.withOpacity(0.7)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: canAfford ? null : Colors.grey.shade200,
+                          boxShadow: canAfford
+                              ? [
+                                  BoxShadow(
+                                    color: _accent.withOpacity(0.35),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap:
+                                canAfford ? () => Navigator.pop(ctx, true) : null,
+                            child: Center(
+                              child: Text(
+                                canAfford
+                                    ? _s.buyThemeConfirm
+                                    : _s.notEnoughCoins,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: canAfford
+                                      ? Colors.white
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey.shade500,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          _s.cancel,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return false;
+    final ok = await widget.userData.purchaseIcon(icon);
+    if (!mounted) return ok;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? _s.iconPurchased : _s.coinPurchaseError),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    return ok;
   }
 
   void _showEditProfileDialog(BuildContext context) {

@@ -681,6 +681,9 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callPurchaseTheme(int themeId) =>
       _callCoinFn('purchaseTheme', {'themeId': themeId});
 
+  Future<Map<String, dynamic>?> callPurchaseIcon(String iconId) =>
+      _callCoinFn('purchaseIcon', {'iconId': iconId});
+
   Future<Map<String, dynamic>?> callGrantDailyBonus() =>
       _callCoinFn('grantDailyBonus');
 
@@ -705,7 +708,8 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callGrantMoodStreakReward(String groupId) =>
       _callCoinFn('grantMoodStreakReward', {'groupId': groupId});
 
-  /// Устанавливает бейдж пользователя (sponsor, helper и т.п.).
+  /// Устанавливает закреплённую иконку-бейдж пользователя.
+  /// Пустая строка снимает иконку (записывает пустое значение).
   Future<void> setBadge(String badge) async {
     final u = currentUser;
     if (u == null) return;
@@ -717,6 +721,25 @@ class FirebaseService {
           .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('setBadge failed: $e');
+    }
+  }
+
+  /// Сохраняет список выданных иконок-наград (Sponsor/Helper) и, опционально,
+  /// текущий закреплённый бейдж за одну запись.
+  Future<void> saveGrantedBadges(List<String> grantedBadges,
+      {String? badge}) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      final data = <String, dynamic>{'grantedBadges': grantedBadges};
+      if (badge != null) data['badge'] = badge;
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set(data, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('saveGrantedBadges failed: $e');
     }
   }
 

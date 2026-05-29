@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
+import 'profile_icon.dart';
 
 enum Gender { male, female }
 
@@ -22,6 +23,10 @@ class UserData extends ChangeNotifier {
   // изменения идут исключительно через серверные Cloud Functions.
   int _coins = 0;
   final Set<int> _ownedThemes = <int>{};
+  // Купленные профильные иконки (КЭШ; источник правды — Firestore/сервер).
+  final Set<String> _ownedIcons = <String>{};
+  // Иконки-награды, выданные вручную (Sponsor/Helper).
+  final Set<String> _grantedBadges = <String>{};
   bool _devCoinsGranted = false;
   int _adRewardsToday = 0;
   String _adRewardsDate = ''; // YYYY-MM-DD UTC; '' = ещё не получал
@@ -90,6 +95,24 @@ class UserData extends ChangeNotifier {
     return !t.isPremium || _ownedThemes.contains(id);
   }
 
+  // ── Профильные иконки ───────────────────────────────────────────────────────
+  /// Купленные иконки (id из [ProfileIcon.all]).
+  Set<String> get ownedIcons => Set.unmodifiable(_ownedIcons);
+
+  /// Иконки-награды, выданные вручную (Sponsor/Helper).
+  Set<String> get grantedBadges => Set.unmodifiable(_grantedBadges);
+
+  /// Закреплённая рядом с именем иконка. null — не выбрана.
+  String? get equippedIcon =>
+      (_badge != null && _badge!.isNotEmpty) ? _badge : null;
+
+  /// Доступна ли иконка пользователю (куплена или выдана).
+  bool ownsIcon(String id) =>
+      _ownedIcons.contains(id) || _grantedBadges.contains(id);
+
+  /// Все доступные пользователю иконки (купленные + выданные), без дублей.
+  Set<String> get availableIcons => {..._ownedIcons, ..._grantedBadges};
+
   /// Применяет результат, пришедший с сервера (callable function).
   /// Используется как единственный путь обновления баланса/owned.
   void _applyServerResult(Map<String, dynamic> result) {
@@ -100,6 +123,12 @@ class UserData extends ChangeNotifier {
       _ownedThemes
         ..clear()
         ..addAll(owned.whereType<num>().map((e) => e.toInt()));
+    }
+    final ownedI = result['ownedIcons'];
+    if (ownedI is List) {
+      _ownedIcons
+        ..clear()
+        ..addAll(ownedI.whereType<String>());
     }
     unawaited(_saveLocal());
     notifyListeners();
@@ -120,6 +149,12 @@ class UserData extends ChangeNotifier {
         _ownedThemes
           ..clear()
           ..addAll(cloudOwned.whereType<num>().map((e) => e.toInt()));
+      }
+      final cloudOwnedIcons = data['ownedIcons'];
+      if (cloudOwnedIcons is List) {
+        _ownedIcons
+          ..clear()
+          ..addAll(cloudOwnedIcons.whereType<String>());
       }
       final cloudAdCount = data['adRewardsToday'];
       if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
@@ -176,6 +211,46 @@ class UserData extends ChangeNotifier {
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedThemes.contains(themeId);
+  }
+
+  /// Покупает профильную иконку на сервере. Возвращает true при успехе.
+  /// Списание монет и запись в ownedIcons делает Cloud Function `purchaseIcon`
+  /// (защищено от обхода цены/двойного списания).
+  Future<bool> purchaseIcon(ProfileIcon icon) async {
+    if (icon.grantOnly) return false; // награды не продаются
+    if (_ownedIcons.contains(icon.id)) return true; // уже куплена
+    final r = await _fb.callPurchaseIcon(icon.id);
+    if (r == null) return false;
+    _applyServerResult(r);
+    return _ownedIcons.contains(icon.id);
+  }
+
+  /// Закрепляет иконку рядом с именем (или снимает, если [id] == null/'').
+  /// badge не влияет на экономику — пишется напрямую (как и раньше).
+  /// Закрепить можно только доступную (купленную/выданную) иконку.
+  Future<void> setBadgeIcon(String? id) async {
+    final clear = id == null || id.isEmpty;
+    if (!clear && !ownsIcon(id)) return; // нельзя закрепить чужую иконку
+    _badge = clear ? null : id;
+    await _saveLocal();
+    await _fb.setBadge(_badge ?? '');
+    notifyListeners();
+  }
+
+  /// Выдаёт иконку-награду (Sponsor/Helper). Идемпотентно.
+  /// Если у пользователя ещё нет закреплённой иконки — закрепляет автоматически.
+  /// Грант определяется по e-mail в [main] (та же модель доверия, что и раньше).
+  Future<void> grantSpecialBadge(String id) async {
+    final added = _grantedBadges.add(id);
+    final autoEquip = _badge == null || _badge!.isEmpty;
+    if (!added && !autoEquip) return; // ничего не изменилось — без записи
+    if (autoEquip) _badge = id;
+    await _saveLocal();
+    await _fb.saveGrantedBadges(
+      _grantedBadges.toList(),
+      badge: _badge,
+    );
+    notifyListeners();
   }
 
   /// Начисляет монеты после успешной IAP-покупки.
@@ -250,6 +325,12 @@ class UserData extends ChangeNotifier {
               .map(int.tryParse)
               .whereType<int>(),
         );
+      _ownedIcons
+        ..clear()
+        ..addAll(prefs.getStringList('ownedIcons') ?? const <String>[]);
+      _grantedBadges
+        ..clear()
+        ..addAll(prefs.getStringList('grantedBadges') ?? const <String>[]);
 
       // Если авторизован → подтягиваем из облака
       if (_fb.isLoggedIn && _isRegistered) {
@@ -286,6 +367,18 @@ class UserData extends ChangeNotifier {
           _ownedThemes
             ..clear()
             ..addAll(cloudOwned.whereType<int>());
+        }
+        final cloudOwnedIcons = data['ownedIcons'];
+        if (cloudOwnedIcons is List) {
+          _ownedIcons
+            ..clear()
+            ..addAll(cloudOwnedIcons.whereType<String>());
+        }
+        final cloudGrantedBadges = data['grantedBadges'];
+        if (cloudGrantedBadges is List) {
+          _grantedBadges
+            ..clear()
+            ..addAll(cloudGrantedBadges.whereType<String>());
         }
         final cloudGranted = data['devCoinsGranted'];
         if (cloudGranted is bool) _devCoinsGranted = cloudGranted;
@@ -344,6 +437,8 @@ class UserData extends ChangeNotifier {
         'ownedThemes',
         _ownedThemes.map((e) => e.toString()).toList(),
       );
+      await prefs.setStringList('ownedIcons', _ownedIcons.toList());
+      await prefs.setStringList('grantedBadges', _grantedBadges.toList());
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
     }
@@ -477,11 +572,17 @@ class UserData extends ChangeNotifier {
     _coins = 0;
     _devCoinsGranted = false;
     _ownedThemes.clear();
+    _ownedIcons.clear();
+    _grantedBadges.clear();
+    _badge = null;
     _adRewardsToday = 0;
     _adRewardsDate = '';
     await prefs.remove('coins');
     await prefs.remove('devCoinsGranted');
     await prefs.remove('ownedThemes');
+    await prefs.remove('ownedIcons');
+    await prefs.remove('grantedBadges');
+    await prefs.remove('badge');
     await prefs.remove('adRewardsToday');
     await prefs.remove('adRewardsDate');
     notifyListeners();

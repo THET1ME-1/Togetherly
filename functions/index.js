@@ -286,6 +286,24 @@ const PREMIUM_THEME_PRICES = {
   12: 30, // Ocean
 };
 
+// Цены профильных иконок (зеркало lib/models/profile_icon.dart).
+// Common = 20, Rare = 35, Premium = 50. Grant-only иконки (Sponsor/Helper)
+// здесь отсутствуют — их нельзя купить.
+const PROFILE_ICON_PRICES = {
+  "Paw": 20,
+  "Sun": 20,
+  "Moon": 20,
+  "Rainbow": 20,
+  "Bunny": 20,
+  "Frog": 20,
+  "Lucky": 35,
+  "UFO": 35,
+  "Together": 35,
+  "Soulmate": 50,
+  "Perfect Match": 50,
+  "Inseparable": 50,
+};
+
 const DEV_EMAIL = "badzoff@gmail.com";
 const DEV_GRANT_AMOUNT = 1000;
 
@@ -351,6 +369,50 @@ exports.purchaseTheme = onCall(async (request) => {
     }, { merge: true });
 
     return { ok: true, alreadyOwned: false, coins: newCoins, ownedThemes: newOwned };
+  });
+});
+
+/**
+ * Покупка профильной иконки за коины.
+ * Транзакционно: списывает цену, добавляет iconId в ownedIcons.
+ * Безопасно от race conditions, двойных списаний и обхода цены клиентом.
+ */
+exports.purchaseIcon = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const iconId = request.data && request.data.iconId;
+  if (typeof iconId !== "string" || !iconId) {
+    throw new HttpsError("invalid-argument", "iconId должен быть строкой");
+  }
+  const price = PROFILE_ICON_PRICES[iconId];
+  if (!price) {
+    throw new HttpsError("invalid-argument", "Иконка не продаётся или не существует");
+  }
+
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const coins = Number(data.coins || 0);
+    const owned = Array.isArray(data.ownedIcons) ? data.ownedIcons : [];
+
+    if (owned.includes(iconId)) {
+      return { ok: true, alreadyOwned: true, coins, ownedIcons: owned };
+    }
+    if (coins < price) {
+      throw new HttpsError("failed-precondition", "Недостаточно монет");
+    }
+
+    const newCoins = coins - price;
+    const newOwned = [...owned, iconId];
+    tx.set(userRef, {
+      coins: newCoins,
+      ownedIcons: newOwned,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { ok: true, alreadyOwned: false, coins: newCoins, ownedIcons: newOwned };
   });
 });
 
