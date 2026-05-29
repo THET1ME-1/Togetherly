@@ -83,6 +83,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           isGalleryFull: _svc.isGalleryFull && editMascot == null,
         ),
         fullscreenDialog: true,
+        settings: const RouteSettings(name: '/mascot_draw'),
       ),
     );
     if (result == null || !mounted) return;

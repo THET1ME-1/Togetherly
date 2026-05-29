@@ -1776,7 +1776,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   void _openQRScanner() async {
     final code = await Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
+      MaterialPageRoute(
+        builder: (_) => const QRScannerScreen(),
+        settings: const RouteSettings(name: '/qr_scanner'),
+      ),
     );
 
     if (code != null && mounted) {
