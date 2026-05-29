@@ -671,6 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: _t,
               isPaired: _pairData.isPaired,
               onTap: (i) => setState(() => _selectedNavIndex = i),
+              onCreatePin: _pairData.isPaired ? _openCreatePin : null,
             ),
           ),
         ],
@@ -694,6 +695,22 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return _buildHomeTab();
     }
+  }
+
+  /// Открыть Memory Lane сразу на создании нового пина (кнопка «+» в навбаре).
+  void _openCreatePin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemoryLaneScreen(
+          pairData: _pairData,
+          theme: _t,
+          userData: widget.userData,
+          openCreateOnStart: true,
+        ),
+        settings: const RouteSettings(name: '/memory_lane'),
+      ),
+    );
   }
 
   // =============================================

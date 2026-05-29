@@ -66,12 +66,15 @@ class MemoryLaneScreen extends StatefulWidget {
   final AppTheme theme;
   final MemoryFilterMode filterMode;
   final UserData? userData;
+  /// Авто-открыть лист создания пина сразу после входа (для кнопки «+» в навбаре).
+  final bool openCreateOnStart;
   const MemoryLaneScreen({
     super.key,
     required this.pairData,
     required this.theme,
     this.filterMode = MemoryFilterMode.none,
     this.userData,
+    this.openCreateOnStart = false,
   });
 
   @override
@@ -122,6 +125,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     _loadMemories();
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
+    if (widget.openCreateOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showAddMemorySheet();
+      });
+    }
   }
 
   void _onPairChanged() {

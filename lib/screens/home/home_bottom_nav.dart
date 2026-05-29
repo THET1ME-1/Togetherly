@@ -9,6 +9,8 @@ class HomeBottomNav extends StatelessWidget {
   final AppTheme theme;
   final bool isPaired;
   final ValueChanged<int> onTap;
+  /// Круглая кнопка «+» справа от таблицы — создание нового пина.
+  final VoidCallback? onCreatePin;
 
   const HomeBottomNav({
     super.key,
@@ -16,6 +18,7 @@ class HomeBottomNav extends StatelessWidget {
     required this.theme,
     required this.isPaired,
     required this.onTap,
+    this.onCreatePin,
   });
 
   static const String _homeIcon =
@@ -41,7 +44,10 @@ class HomeBottomNav extends StatelessWidget {
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 0, 24, 20 + bottomInset),
-      child: Container(
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(100),
@@ -61,7 +67,7 @@ class HomeBottomNav extends StatelessWidget {
           ],
         ),
         child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -113,7 +119,41 @@ class HomeBottomNav extends StatelessWidget {
               ],
             ),
           ),
+            ),
+          ),
+          if (onCreatePin != null) ...[
+            const SizedBox(width: 12),
+            _CreatePinButton(color: primary, onTap: onCreatePin!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Круглая кнопка создания пина — справа от навбара.
+class _CreatePinButton extends StatelessWidget {
+  final Color color;
+  final VoidCallback onTap;
+
+  const _CreatePinButton({required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color,
+      shape: const CircleBorder(),
+      elevation: 6,
+      shadowColor: color.withValues(alpha: 0.45),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: const SizedBox(
+          width: 56,
+          height: 56,
+          child: Icon(Icons.add_rounded, color: Colors.white, size: 30),
         ),
+      ),
     );
   }
 }
