@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'storage_image.dart';
 import '../services/firebase_service.dart';
 
 /// Unified avatar widget used everywhere a user picture is displayed.
@@ -64,7 +64,7 @@ class AvatarWidget extends StatelessWidget {
     final url = _resolveUrl();
     return ClipOval(
       child: url.isNotEmpty
-          ? CachedNetworkImage(
+          ? StorageImage(
               imageUrl: url,
               width: size,
               height: size,

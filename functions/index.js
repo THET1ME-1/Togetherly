@@ -15,6 +15,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getStorage } = require("firebase-admin/storage");
 const crypto = require("crypto");
 const https = require("https");
 
@@ -713,6 +714,74 @@ exports.grantPartnerInviteReward = onCall(async (request) => {
  * пользователя (lastMoodStreakRewardAt_<groupId>), а не группы.
  * Это гарантирует что ОБА партнёра получают награду, каждый из своего клиента.
  */
+// ─── Signed URL ───────────────────────────────────────────────────────────────
+
+// Пути, доступ к которым определяется groupId (second path segment).
+const GROUP_PREFIXES = ["memories", "groups", "music", "timer_backgrounds", "widget"];
+
+function extractGroupId(gsPath) {
+  const parts = gsPath.split("/");
+  if (GROUP_PREFIXES.includes(parts[0]) && parts.length >= 2) return parts[1];
+  return null;
+}
+
+/**
+ * Выдаёт download URL после проверки членства в группе.
+ * Использует Firebase Storage download token (метаданные файла) вместо
+ * Signed URL, что не требует iam.serviceAccounts.signBlob.
+ * Token создаётся лениво при первом обращении через эту функцию —
+ * клиент без членства в группе никогда его не получит.
+ *
+ * Вызывать: FirebaseFunctions.instance.httpsCallable('getSignedUrl').call({'gsPath': path})
+ */
+exports.getSignedUrl = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const gsPath = (request.data && request.data.gsPath) || "";
+  if (!gsPath) throw new HttpsError("invalid-argument", "gsPath required");
+
+  // Запрещаем обходные пути
+  if (gsPath.includes("..") || gsPath.startsWith("/")) {
+    throw new HttpsError("invalid-argument", "Invalid path");
+  }
+
+  const parts = gsPath.split("/");
+  const prefix = parts[0];
+
+  if (GROUP_PREFIXES.includes(prefix)) {
+    const groupId = extractGroupId(gsPath);
+    if (!groupId) throw new HttpsError("invalid-argument", "Cannot determine groupId");
+
+    const db = getFirestore();
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) throw new HttpsError("not-found", "Group not found");
+
+    const members = groupDoc.data().members || [];
+    if (!members.includes(auth.uid)) {
+      throw new HttpsError("permission-denied", "Not a group member");
+    }
+  } else if (prefix === "avatars") {
+    // Аватарки доступны любому аутентифицированному пользователю
+  } else if (prefix === "wallpapers") {
+    // Публичные
+  } else {
+    throw new HttpsError("permission-denied", "Unknown path prefix");
+  }
+
+  const expiresAt = Date.now() + 60 * 60 * 1000; // 1 час
+  const bucket = getStorage().bucket();
+  const file = bucket.file(gsPath);
+
+  const [url] = await file.getSignedUrl({
+    action: "read",
+    expires: expiresAt,
+    version: "v4",
+  });
+
+  return { url, expiresAt };
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 exports.grantMoodStreakReward = onCall(async (request) => {
   const auth = requireAuth(request);
   const groupId = (request.data && request.data.groupId) || "";

@@ -2145,6 +2145,47 @@ class FirebaseService {
   // FILE UPLOAD (Storage)
   // ══════════════════════════════════════════════════════════════════════════════
 
+  // ── Signed URL ──────────────────────────────────────────────────────────────
+
+  // Кэш подписанных URL: gsPath → {url, expiresAt}.
+  // TTL 55 мин — облачная функция выдаёт на 60 мин, буфер 5 мин на запрос.
+  final Map<String, _SignedUrlEntry> _signedUrlCache = {};
+
+  /// Получить временный Signed URL для gs:// пути.
+  /// Результат кэшируется на 55 минут. Если путь — https:// URL, вернёт его как есть.
+  Future<String?> getSignedUrl(String gsPath) async {
+    if (gsPath.isEmpty) return null;
+    // Обратная совместимость: старые записи хранят download URL
+    if (gsPath.startsWith('http')) return gsPath;
+
+    final cached = _signedUrlCache[gsPath];
+    if (cached != null && cached.isValid) return cached.url;
+
+    try {
+      final res = await _functions
+          .httpsCallable('getSignedUrl')
+          .call<Map<dynamic, dynamic>>({'gsPath': gsPath})
+          .timeout(const Duration(seconds: 15));
+      final data = Map<String, dynamic>.from(res.data);
+      final url = data['url'] as String?;
+      final expiresAt = data['expiresAt'] as int?;
+      if (url != null && expiresAt != null) {
+        _signedUrlCache[gsPath] = _SignedUrlEntry(
+          url,
+          DateTime.fromMillisecondsSinceEpoch(expiresAt),
+        );
+        return url;
+      }
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('getSignedUrl failed: ${e.code} ${e.message}');
+    } catch (e) {
+      debugPrint('getSignedUrl failed: $e');
+    }
+    return null;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+
   /// Upload file to Firebase Storage and return download URL
   /// [path] - file path on device
   /// [destination] - storage path (e.g. 'memories/groupId/filename.jpg')
@@ -2264,10 +2305,25 @@ class FirebaseService {
       });
 
       final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      debugPrint('uploadFile: Success! URL = $downloadUrl');
+
+      // Для групповых путей возвращаем gs:// — доступ только через Signed URL.
+      // Для аватарок (avatars/) оставляем download URL: они намеренно доступны
+      // любому авторизованному пользователю и не несут private-данных группы.
+      const privatePathPrefixes = [
+        'memories/', 'groups/', 'music/', 'timer_backgrounds/', 'widget/',
+      ];
+      final isPrivatePath = privatePathPrefixes.any(uploadDestination.startsWith);
+
+      String resultUrl;
+      if (isPrivatePath) {
+        resultUrl = 'gs://${snapshot.ref.bucket}/${snapshot.ref.fullPath}';
+      } else {
+        resultUrl = await snapshot.ref.getDownloadURL();
+      }
+
+      debugPrint('uploadFile: Success! result = $resultUrl');
       _compressedTempFile?.delete().catchError((_) {});
-      return downloadUrl;
+      return resultUrl;
     } on FirebaseException catch (e) {
       debugPrint(
         'uploadFile FirebaseException: code=${e.code} message=${e.message}',
@@ -3944,4 +4000,12 @@ class _DocSnapshotHub {
       };
     });
   }
+}
+
+class _SignedUrlEntry {
+  final String url;
+  final DateTime expiresAt;
+  _SignedUrlEntry(this.url, this.expiresAt);
+  // Считаем валидным пока до истечения больше 5 минут
+  bool get isValid => expiresAt.difference(DateTime.now()).inMinutes > 5;
 }

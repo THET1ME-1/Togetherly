@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import '../models/user_data.dart';
 import '../services/locale_service.dart';
@@ -18,7 +18,7 @@ class WelcomeScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CachedNetworkImage(
+          StorageImage(
             imageUrl:
                 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
             fit: BoxFit.cover,

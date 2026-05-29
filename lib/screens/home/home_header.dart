@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/pair_data.dart';
 import '../../theme/app_theme.dart';
@@ -173,7 +173,7 @@ class HomeHeader extends StatelessWidget {
       ),
       child: ClipOval(
         child: url.isNotEmpty
-            ? CachedNetworkImage(
+            ? StorageImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
                 memCacheWidth: 120,

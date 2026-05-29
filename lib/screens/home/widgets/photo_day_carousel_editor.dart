@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../../../widgets/storage_image.dart';
 import '../../../utils/photo_crop.dart';
 
 /// Bottom-sheet редактор карусели для одного виджета "Фото-виджет".
@@ -414,7 +414,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                 border: Border.all(color: t.primary.withOpacity(0.25)),
               ),
               child: path.startsWith('http')
-                  ? CachedNetworkImage(
+                  ? StorageImage(
                       imageUrl: path,
                       fit: BoxFit.cover,
                       memCacheWidth: 200,

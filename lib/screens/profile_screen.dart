@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -326,7 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: widget.userData.avatarUrl.isNotEmpty
                       ? ClipOval(
-                          child: CachedNetworkImage(
+                          child: StorageImage(
                             imageUrl: widget.userData.avatarUrl,
                             fit: BoxFit.cover,
                             memCacheWidth: 200,
@@ -539,7 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         child: widget.userData.avatarUrl.isNotEmpty
                             ? ClipOval(
-                                child: CachedNetworkImage(
+                                child: StorageImage(
                                   imageUrl: widget.userData.avatarUrl,
                                   fit: BoxFit.cover,
                                   errorWidget: (context, url, error) =>
@@ -1637,7 +1637,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           child: entry.member.avatar.isNotEmpty
                               ? ClipOval(
-                                  child: CachedNetworkImage(
+                                  child: StorageImage(
                                     imageUrl: entry.member.avatar,
                                     fit: BoxFit.cover,
                                     errorWidget: (context, url, error) =>
@@ -3443,7 +3443,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 child: widget.userData.avatarUrl.isNotEmpty
                                     ? ClipOval(
-                                        child: CachedNetworkImage(
+                                        child: StorageImage(
                                           imageUrl: widget.userData.avatarUrl,
                                           fit: BoxFit.cover,
                                           errorWidget: (_, __, ___) =>
