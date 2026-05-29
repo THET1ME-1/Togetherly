@@ -39,6 +39,10 @@
     
     <!-- In-app billing for consumable products (coins) -->
     <uses-permission android:name="com.android.vending.BILLING" />
+
+    <!-- Рекламный идентификатор для Google Mobile Ads (Android 13+/API 33).
+         Без него ad ID заменяется нулями → ломается показ рекламы и аналитика. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     
     <application
         android:label="Togetherly"
