@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -891,7 +891,7 @@ class _MascotThumbnail extends StatelessWidget {
       );
     }
     if (mascot.imageUrl != null) {
-      return CachedNetworkImage(
+      return StorageImage(
         imageUrl: mascot.imageUrl!,
         width: size == double.infinity ? null : size,
         height: size == double.infinity ? null : size,

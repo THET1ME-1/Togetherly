@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -378,7 +378,7 @@ class _SetupScreenState extends State<SetupScreen>
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 500),
-            child: CachedNetworkImage(
+            child: StorageImage(
               key: ValueKey(_bgImageUrl),
               imageUrl: _bgImageUrl,
               fit: BoxFit.cover,
@@ -685,7 +685,7 @@ class _SetupScreenState extends State<SetupScreen>
                                 )
                               : _avatarUrl.isNotEmpty
                               ? ClipOval(
-                                  child: CachedNetworkImage(
+                                  child: StorageImage(
                                     imageUrl: _avatarUrl,
                                     fit: BoxFit.cover,
                                     errorWidget: (context, url, error) => Icon(

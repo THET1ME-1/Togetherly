@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:in_app_update/in_app_update.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -586,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Positioned.fill(
             child: RepaintBoundary(
               child: _t.bgImageUrl != null
-                  ? CachedNetworkImage(
+                  ? StorageImage(
                       imageUrl: _t.bgImageUrl!,
                       fit: BoxFit.cover,
                       width: double.infinity,
@@ -1617,7 +1617,7 @@ class _MascotPreviewWidget extends StatelessWidget {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);
     }
     if (mascot.imageUrl != null) {
-      return CachedNetworkImage(
+      return StorageImage(
         imageUrl: mascot.imageUrl!,
         fit: BoxFit.contain,
         placeholder: (_, _) => const SizedBox.shrink(),

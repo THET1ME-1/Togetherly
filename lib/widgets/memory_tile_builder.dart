@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'storage_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/memory.dart';
@@ -222,7 +222,7 @@ class MemoryTileBuilder {
                         : memory.authorAvatar;
                     final name = liveNameFor?.call(memory.authorUid) ?? memory.authorName;
                     return avatar.isNotEmpty
-                        ? CachedNetworkImage(
+                        ? StorageImage(
                             imageUrl: avatar,
                             fit: BoxFit.cover,
                             memCacheWidth: 120,
@@ -471,7 +471,7 @@ class MemoryTileBuilder {
                                       child: ClipRRect(
                                         borderRadius:
                                             BorderRadius.circular(8),
-                                        child: CachedNetworkImage(
+                                        child: StorageImage(
                                           imageUrl: deckPhotos[i],
                                           fit: BoxFit.cover,
                                           memCacheWidth: 96,
@@ -559,7 +559,7 @@ class MemoryTileBuilder {
               fit: StackFit.expand,
               children: [
                 if (hasThumb)
-                  CachedNetworkImage(
+                  StorageImage(
                     imageUrl: memory.imageUrl!,
                     fit: BoxFit.cover,
                     memCacheWidth: 800,
@@ -781,7 +781,7 @@ class MemoryTileBuilder {
               child: hasCover
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
+                      child: StorageImage(
                         imageUrl: memory.musicCoverUrl!,
                         fit: BoxFit.cover,
                         memCacheWidth: 96,
@@ -1081,7 +1081,7 @@ class MemoryTileBuilder {
                     fit: StackFit.expand,
                     children: [
                       if (hasThumb)
-                        CachedNetworkImage(
+                        StorageImage(
                           imageUrl: memory.imageUrl!,
                           fit: BoxFit.cover,
                           memCacheWidth: 160,

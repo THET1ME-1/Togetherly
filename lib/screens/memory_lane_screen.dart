@@ -6,7 +6,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -283,7 +283,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           Positioned.fill(
             child: RepaintBoundary(
               child: widget.theme.bgImageUrl != null
-                  ? CachedNetworkImage(
+                  ? StorageImage(
                       imageUrl: widget.theme.bgImageUrl!,
                       fit: BoxFit.cover,
                       width: double.infinity,
@@ -696,7 +696,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ),
                 child: ClipOval(
                   child: _liveAvatar(memory).isNotEmpty
-                      ? CachedNetworkImage(
+                      ? StorageImage(
                           imageUrl: _liveAvatar(memory),
                           fit: BoxFit.cover,
                           memCacheWidth: 120,
@@ -976,7 +976,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         child: ClipRRect(
                                           borderRadius:
                                               BorderRadius.circular(8),
-                                          child: CachedNetworkImage(
+                                          child: StorageImage(
                                             imageUrl: deckPhotos[i],
                                             fit: BoxFit.cover,
                                             memCacheWidth: 96,
@@ -1041,7 +1041,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 fit: StackFit.expand,
                 children: [
                   if (hasThumb)
-                    CachedNetworkImage(
+                    StorageImage(
                       imageUrl: memory.imageUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 800,
@@ -1480,7 +1480,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       children: [
                         // Thumbnail or platform-colored fallback
                         if (hasThumb)
-                          CachedNetworkImage(
+                          StorageImage(
                             imageUrl: memory.imageUrl!,
                             fit: BoxFit.cover,
                             memCacheWidth: 160,
@@ -2036,7 +2036,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           borderRadius: BorderRadius.circular(16),
                           child: AspectRatio(
                             aspectRatio: 1.0,
-                            child: CachedNetworkImage(
+                            child: StorageImage(
                               imageUrl: memory.imageUrl!,
                               width: double.infinity,
                               height: double.infinity,
@@ -2089,7 +2089,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           children: [
                             if (memory.imageUrl != null &&
                                 memory.imageUrl!.isNotEmpty)
-                              CachedNetworkImage(
+                              StorageImage(
                                 imageUrl: memory.imageUrl!,
                                 width: double.infinity,
                                 height: 220,
@@ -4773,7 +4773,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: CachedNetworkImage(
+                                  child: StorageImage(
                                     imageUrl: fetchedVideoThumb!,
                                     width: 72,
                                     height: 48,
@@ -6443,7 +6443,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                 child:
                     memory.musicCoverUrl != null &&
                         memory.musicCoverUrl!.isNotEmpty
-                    ? CachedNetworkImage(
+                    ? StorageImage(
                         imageUrl: memory.musicCoverUrl!,
                         width: 60,
                         height: 60,
@@ -7010,7 +7010,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                             child: hasCover
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(10),
-                                    child: CachedNetworkImage(
+                                    child: StorageImage(
                                       imageUrl: memory.musicCoverUrl!,
                                       fit: BoxFit.cover,
                                       memCacheWidth: 96,
@@ -7599,7 +7599,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           borderRadius: BorderRadius.circular(18),
           child: AspectRatio(
             aspectRatio: 1.0,
-            child: CachedNetworkImage(
+            child: StorageImage(
               imageUrl: allPhotos.first,
               fit: BoxFit.cover,
               memCacheWidth: 800,
@@ -7638,7 +7638,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CachedNetworkImage(
+                StorageImage(
                   imageUrl: photos[index],
                   fit: BoxFit.cover,
                   memCacheWidth: 600,
@@ -7759,7 +7759,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       child: Stack(
         children: [
           if (hasThumb)
-            CachedNetworkImage(
+            StorageImage(
               imageUrl: memory.imageUrl!,
               width: double.infinity,
               height: 220,
@@ -7878,7 +7878,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 fit: StackFit.expand,
                 children: [
                   if (hasThumb)
-                    CachedNetworkImage(
+                    StorageImage(
                       imageUrl: memory.imageUrl!,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) =>
@@ -8986,7 +8986,7 @@ class _PhotoGalleryScreen extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CachedNetworkImage(
+                StorageImage(
                   imageUrl: item.url,
                   fit: BoxFit.cover,
                   memCacheWidth: 300,
@@ -9078,7 +9078,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      CachedNetworkImage(
+                      StorageImage(
                         imageUrl: item.url,
                         fit: BoxFit.contain,
                         width: double.infinity,
@@ -9106,7 +9106,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                 minScale: 0.5,
                 maxScale: 4.0,
                 child: Center(
-                  child: CachedNetworkImage(
+                  child: StorageImage(
                     imageUrl: item.url,
                     fit: BoxFit.contain,
                     placeholder: (_, __) => const Center(
@@ -9789,7 +9789,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
                     fit: StackFit.expand,
                     children: [
                       if (hasThumb)
-                        CachedNetworkImage(
+                        StorageImage(
                           imageUrl: memory.imageUrl!,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Container(

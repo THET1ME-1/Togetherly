@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/user_data.dart';
@@ -220,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CachedNetworkImage(
+          StorageImage(
             imageUrl:
                 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
             fit: BoxFit.cover,

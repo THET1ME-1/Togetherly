@@ -11,12 +11,9 @@ service firebase.storage {
     }
 
     // Воспоминания — читают и пишут только участники группы.
-    // ВНИМАНИЕ: эти правила применяются ТОЛЬКО к запросам через Firebase SDK
-    // или fetch без download token. Ссылки вида
-    // https://firebasestorage.googleapis.com/.../o/path?alt=media&token=...
-    // обходят rules и работают для всех, у кого есть URL. Чтобы реально
-    // закрыть доступ, нужно отзывать токены (Cloud Function) и переходить
-    // на загрузку через SDK — см. план Вариант B.
+    // uploadFile не вызывает getDownloadURL() для этих путей — download-токены
+    // не создаются. Доступ к файлам только через Cloud Function getSignedUrl
+    // (проверка членства в группе + Signed URL на 1 час).
     match /memories/{groupId}/{allPaths=**} {
       allow read: if isGroupMember(groupId);
       allow write: if isGroupMember(groupId)

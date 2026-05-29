@@ -1799,15 +1799,28 @@ class HomeWidgetService {
     }
   }
 
-  // ── Скачать фото по URL в локальный кэш ──
+  // ── Скачать фото по URL или gs:// пути в локальный кэш ──
   Future<String> _cachePhotoFromUrl(String url, String key) async {
     if (url.isEmpty) return '';
     try {
+      String httpUrl = url;
+
+      // Для gs:// путей запрашиваем Signed URL через Cloud Function
+      if (url.startsWith('gs://')) {
+        final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+        final signedUrl = await FirebaseService().getSignedUrl(gsPath);
+        if (signedUrl == null || signedUrl.isEmpty) {
+          debugPrint('HomeWidgetService._cachePhotoFromUrl: no signed URL for $url');
+          return '';
+        }
+        httpUrl = signedUrl;
+      }
+
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/widget_$key.jpg');
 
       final response = await http
-          .get(Uri.parse(url))
+          .get(Uri.parse(httpUrl))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {

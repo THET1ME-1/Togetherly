@@ -5,7 +5,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
@@ -1120,7 +1120,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       fit: StackFit.expand,
       children: [
         _t.bgImageUrl != null
-            ? CachedNetworkImage(
+            ? StorageImage(
                 imageUrl: _t.bgImageUrl!,
                 fit: BoxFit.cover,
                 width: double.infinity,
@@ -2494,7 +2494,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         clipBehavior: Clip.antiAlias,
                         child: ownPhotoPath != null && ownPhotoPath.isNotEmpty
                             ? (ownPhotoPath.startsWith('http')
-                                  ? CachedNetworkImage(
+                                  ? StorageImage(
                                       imageUrl: ownPhotoPath,
                                       fit: BoxFit.cover,
                                       memCacheWidth: 160,
@@ -3378,7 +3378,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             trailing: data.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
+                    child: StorageImage(
                       imageUrl: data.photoUrl!,
                       width: 36,
                       height: 36,
@@ -3571,7 +3571,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             trailing: partner.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
+                    child: StorageImage(
                       imageUrl: partner.photoUrl!,
                       width: 36,
                       height: 36,
@@ -3966,7 +3966,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     Widget cell(int index) {
       if (index < partnerUrls.length && partnerUrls[index].isNotEmpty) {
-        return CachedNetworkImage(
+        return StorageImage(
           imageUrl: partnerUrls[index],
           fit: BoxFit.cover,
           placeholder: (_, __) => _photoGridPlaceholder('⏳'),
@@ -5389,7 +5389,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                           padding: const EdgeInsets.only(right: 10),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: CachedNetworkImage(
+                            child: StorageImage(
                               imageUrl: _coverUrl!,
                               width: 44,
                               height: 44,
