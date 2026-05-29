@@ -939,14 +939,19 @@ class _WidgetScreenState extends State<WidgetScreen>
     final hws = HomeWidgetService.instance;
     switch (widgetType) {
       case 'days_counter':
-        // In solo mode systemTimer and _pair.startDate are both null;
-        // fall back to the default user timer so the widget shows real data.
-        final sysTimer = _timerService.systemTimer ??
-            (_pair.pairId.isEmpty ? _timerService.defaultTimer : null);
-        final start = sysTimer?.startDate ?? _pair.startDate;
-        final emoji = sysTimer?.emoji ?? _pair.relationshipEmoji;
-        final days = sysTimer != null
-            ? sysTimer.daysElapsed.abs()
+        // Используем тот же алгоритм выбора таймера, что и Timer-виджет,
+        // чтобы Days Counter всегда показывал дни того же таймера.
+        final activeTimer = await hws.resolveActiveTimerPublic(
+          _timerService.timers,
+          _pair.pairId,
+        );
+        final timer = activeTimer ??
+            _timerService.systemTimer ??
+            _timerService.defaultTimer;
+        final start = timer?.startDate ?? _pair.startDate;
+        final emoji = timer?.emoji ?? _pair.relationshipEmoji;
+        final days = timer != null
+            ? timer.daysElapsed.abs()
             : (start != null ? DateTime.now().difference(start).inDays : 0);
         final startLabel = start != null
             ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
@@ -1496,6 +1501,10 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           const SizedBox(height: 16),
 
+          // ── Баннер 1 ──
+          _buildAdBanner(),
+          const SizedBox(height: 16),
+
           // ── 2. Счётчик дней вместе ──
           _buildGalleryItem(
             title: LocaleService.current.daysTogetherStat,
@@ -1537,10 +1546,6 @@ class _WidgetScreenState extends State<WidgetScreen>
             () => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded,
           ),
         ),
-        const SizedBox(height: 16),
-
-        // ── Баннер 1 ──
-        _buildAdBanner(),
         const SizedBox(height: 16),
 
         // ── 4. Фото-виджет (личный) ──
@@ -1762,11 +1767,11 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   Widget _buildDaysCounterPreview() {
     final s = LocaleService.current;
-    // Данные берём ИЗ системного таймера (isSystem == true)
-    final sysTimer = _timerService.systemTimer;
-    final start = sysTimer?.startDate ?? _pair.startDate;
-    final totalDays = sysTimer != null
-        ? sysTimer.daysElapsed.abs()
+    // Берём тот же активный таймер, что и виджет на рабочем столе
+    final timer = _widgetTimer ?? _timerService.systemTimer;
+    final start = timer?.startDate ?? _pair.startDate;
+    final totalDays = timer != null
+        ? timer.daysElapsed.abs()
         : (start != null ? DateTime.now().difference(start).inDays : 0);
     final startLabel = start != null
         ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'

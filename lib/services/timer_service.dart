@@ -305,8 +305,8 @@ class TimerService extends ChangeNotifier {
       return;
     }
     final timer = defaultTimer ?? _timers.first;
-    debugPrint('TimerService._syncWidgetTimer: syncing timer ${timer.id} title=${timer.title} startDate=${timer.startDate} groupId=$_groupId');
-    await HomeWidgetService.instance.syncTimer(timer, groupId: _groupId);
+    debugPrint('TimerService._syncWidgetTimer: syncing timer ${timer.id} title=${timer.title} days=${timer.daysElapsed} groupId=$_groupId');
+    await HomeWidgetService.instance.syncTimerAndDays(timer, groupId: _groupId);
   }
 
   /// Обновить существующий таймер.

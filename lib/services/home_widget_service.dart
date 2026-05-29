@@ -42,6 +42,12 @@ class HomeWidgetService {
   final Map<String, _CachedWidgetData> _partnerDataCache = {};
   final Map<String, _CachedWidgetData> _myDataCache = {};
 
+  // Последние известные гендерные данные — используются в syncTimerAndDays,
+  // чтобы Days Counter всегда показывал правильную картинку пары даже когда
+  // полный syncAllBoundWidgets ещё не вызывался.
+  String _cachedMyGender = '';
+  String _cachedPartnerGender = '';
+
   /// Сбросить кэш widget-данных (вызывать когда заведомо знаем, что фото поменялось).
   void invalidateWidgetDataCache() {
     _partnerDataCache.clear();
@@ -586,6 +592,9 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
       await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
       await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
+      // Кешируем для syncTimerAndDays — тот не имеет доступа к данным профиля
+      if (myGender.isNotEmpty) _cachedMyGender = myGender;
+      if (partnerGender.isNotEmpty) _cachedPartnerGender = partnerGender;
       // Kotlin WidgetGroupHelper looks up "days_counter_latest_group" (dataType = widgetType)
       await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
       await HomeWidget.updateWidget(
@@ -666,6 +675,39 @@ class HomeWidgetService {
       );
     } catch (e) {
       debugPrint('HomeWidgetService.syncTimer failed: $e');
+    }
+  }
+
+  /// Синхронизирует Timer-виджет И Days Counter одним вызовом.
+  /// Вызывается из TimerService._syncWidgetTimer, чтобы оба виджета
+  /// всегда обновлялись вместе при любом изменении активного таймера.
+  Future<void> syncTimerAndDays(TimerItem timer, {required String groupId}) async {
+    await syncTimer(timer, groupId: groupId);
+    // Days Counter: обновляем дни, дату И гендерные данные из кеша,
+    // чтобы картинка пары всегда соответствовала полу пользователей.
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>(
+        'days_${g}_count',
+        timer.daysElapsed.abs().toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'days_${g}_start_date',
+        _formatDate(timer.startDate),
+      );
+      // Гендер из кеша — заполняется при syncAllBoundWidgets
+      await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', _cachedMyGender);
+      await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', _cachedPartnerGender);
+      await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
+      await HomeWidget.updateWidget(
+        name: 'DaysCounterWidgetProvider',
+        androidName: 'DaysCounterWidgetProvider',
+      );
+      debugPrint(
+        'HomeWidgetService.syncTimerAndDays: days=${timer.daysElapsed.abs()} myGender=$_cachedMyGender partnerGender=$_cachedPartnerGender group=$g',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncTimerAndDays days part failed: $e');
     }
   }
 
@@ -1486,10 +1528,15 @@ class HomeWidgetService {
         'HomeWidgetService.syncAllBoundWidgets: activeGroup=$activeGroupId',
       );
 
+      // Выбираем «активный» таймер один раз — тот же самый идёт и в Timer-виджет,
+      // и в Days Counter, чтобы они гарантированно показывали одно и то же.
+      final activeTimer = await _resolveActiveTimer(activeTimers, activeGroupId);
+
       // ── Days Counter ──
-      debugPrint('  days_counter → syncing (activeGroup=$activeGroupId)');
-      await _syncDaysCounterFromMemory(
+      debugPrint('  days_counter → syncing (activeGroup=$activeGroupId, timer=${activeTimer?.title})');
+      await _syncDaysCounterWithTimer(
         activeGroupId: activeGroupId,
+        activeTimer: activeTimer,
         activeSysTimer: activeSysTimer,
         activeStartDate: activeStartDate,
         activeTimers: activeTimers,
@@ -1500,14 +1547,18 @@ class HomeWidgetService {
       );
 
       // ── Timer ──
-      debugPrint('  timer → syncing (activeGroup=$activeGroupId)');
-      await _syncTimerFromMemory(
-        activeTimers: activeTimers,
-        groupId: activeGroupId,
-        relationshipStatusId: relationshipStatusId,
-        isRomantic: isRomantic,
-        themeIndex: themeIndex,
-      );
+      debugPrint('  timer → syncing (activeGroup=$activeGroupId, timer=${activeTimer?.title})');
+      if (activeTimer != null) {
+        await syncTimer(activeTimer, groupId: activeGroupId, isRomantic: isRomantic, themeIndex: themeIndex);
+      } else {
+        await _syncTimerFromMemory(
+          activeTimers: activeTimers,
+          groupId: activeGroupId,
+          relationshipStatusId: relationshipStatusId,
+          isRomantic: isRomantic,
+          themeIndex: themeIndex,
+        );
+      }
 
       // ── Photo of Day ──
       final widgetIds = await getPhotoDayWidgetIds();
@@ -1552,6 +1603,72 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService.syncAllBoundWidgets failed: $e');
     }
+  }
+
+  /// Публичная версия для вызова из widget_screen.dart (после пина виджета).
+  Future<TimerItem?> resolveActiveTimerPublic(
+    List<TimerItem> activeTimers,
+    String groupId,
+  ) => _resolveActiveTimer(activeTimers, groupId);
+
+  /// Выбирает «активный» таймер для виджетов — тот же алгоритм, что и в
+  /// _syncTimerFromMemory, чтобы Timer-виджет и Days Counter всегда показывали
+  /// одно и то же.
+  Future<TimerItem?> _resolveActiveTimer(
+    List<TimerItem> activeTimers,
+    String groupId,
+  ) async {
+    if (activeTimers.isEmpty) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final savedId = prefs.getString('widget_timer_id_$groupId');
+    if (savedId != null) {
+      try {
+        return activeTimers.firstWhere((t) => t.id == savedId);
+      } catch (_) {}
+    }
+    // Дефолтный таймер (может быть системным или пользовательским)
+    try {
+      return activeTimers.firstWhere((t) => t.isDefault);
+    } catch (_) {}
+    return activeTimers.first;
+  }
+
+  /// Синхронизирует Days Counter используя уже выбранный [activeTimer].
+  /// Если [activeTimer] null — откатывается к системному таймеру / дате пары.
+  Future<void> _syncDaysCounterWithTimer({
+    required String activeGroupId,
+    required TimerItem? activeTimer,
+    required TimerItem? activeSysTimer,
+    required DateTime? activeStartDate,
+    required List<TimerItem> activeTimers,
+    required String coupleNames,
+    required String emoji,
+    String myGender = '',
+    String partnerGender = '',
+  }) async {
+    if (activeTimer != null) {
+      await syncDaysCounter(
+        groupId: activeGroupId,
+        daysCount: activeTimer.daysElapsed.abs(),
+        coupleNames: coupleNames,
+        emoji: activeTimer.emoji,
+        startDate: _formatDate(activeTimer.startDate),
+        myGender: myGender,
+        partnerGender: partnerGender,
+      );
+      return;
+    }
+    // Fallback — старая логика для случаев без таймеров
+    await _syncDaysCounterFromMemory(
+      activeGroupId: activeGroupId,
+      activeSysTimer: activeSysTimer,
+      activeStartDate: activeStartDate,
+      activeTimers: activeTimers,
+      coupleNames: coupleNames,
+      emoji: emoji,
+      myGender: myGender,
+      partnerGender: partnerGender,
+    );
   }
 
   /// Синхронизирует счётчик дней из данных в памяти (текущая группа).
