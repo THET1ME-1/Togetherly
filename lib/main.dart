@@ -109,6 +109,37 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
+  // Google UMP — запрос согласия GDPR (только Android/iOS)
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      final params = ConsentRequestParameters(
+        consentDebugSettings: kDebugMode
+            ? ConsentDebugSettings(
+                debugGeography: DebugGeography.debugGeographyEea,
+                testIdentifiers: <String>[],
+              )
+            : null,
+      );
+      ConsentInformation.instance.requestConsentInfoUpdate(
+        params,
+        () async {
+          await ConsentForm.loadAndShowConsentFormIfRequired(
+            (loadAndShowError) {
+              if (loadAndShowError != null) {
+                debugPrint('UMP consent form error: $loadAndShowError');
+              }
+            },
+          );
+        },
+        (FormError error) {
+          debugPrint('UMP consent info update error: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('UMP consent init failed: $e');
+    }
+  }
+
   // AdMob — инициализация (только Android/iOS)
   if (Platform.isAndroid || Platform.isIOS) {
     try {
