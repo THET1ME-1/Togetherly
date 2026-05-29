@@ -140,6 +140,33 @@ class UserData extends ChangeNotifier {
     return true;
   }
 
+  /// Награда за добавление воспоминания (1 🪙/день).
+  /// Возвращает кол-во начисленных монет, или 0 если cooldown/ошибка.
+  Future<int> claimMemoryReward() async {
+    final r = await _fb.callGrantMemoryReward();
+    if (r == null) return 0;
+    _applyServerResult(r);
+    return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
+  }
+
+  /// Единоразовая награда за приглашение партнёра (50 🪙).
+  /// Возвращает кол-во начисленных монет, или 0 если уже выдано.
+  Future<int> claimPartnerInviteReward() async {
+    final r = await _fb.callGrantPartnerInviteReward();
+    if (r == null) return 0;
+    _applyServerResult(r);
+    return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
+  }
+
+  /// Награда за 7-дневный стрик настроения обоих (10 🪙 раз в 7 дней).
+  /// Возвращает кол-во начисленных монет, или 0 если cooldown.
+  Future<int> claimMoodStreakReward(String groupId) async {
+    final r = await _fb.callGrantMoodStreakReward(groupId);
+    if (r == null) return 0;
+    _applyServerResult(r);
+    return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
+  }
+
   /// Пытается купить тему на сервере. Возвращает true при успехе.
   Future<bool> purchaseTheme(int themeId) async {
     final t = AppThemes.byIndex(themeId);

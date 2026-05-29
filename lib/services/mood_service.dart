@@ -264,6 +264,30 @@ class MoodService extends ChangeNotifier {
     return entries.where((e) => e.dayKey == key).toList();
   }
 
+  /// Количество последовательных дней, когда И я, И все известные партнёры
+  /// заполняли настроение подряд (считается назад от сегодня).
+  int get bothPartnersStreakDays {
+    if (_partnerEntries.isEmpty) return 0;
+    final myDays = _myEntries.map((e) => e.dayKey).toSet();
+    // Берём дни всех партнёров — если несколько, нужно пересечение
+    Set<String>? partnerDays;
+    for (final entries in _partnerEntries.values) {
+      final days = entries.map((e) => e.dayKey).toSet();
+      partnerDays = partnerDays == null ? days : partnerDays.intersection(days);
+    }
+    if (partnerDays == null || partnerDays.isEmpty) return 0;
+    final bothDays = myDays.intersection(partnerDays);
+    int streak = 0;
+    var day = DateTime.now();
+    for (var i = 0; i < 365; i++) {
+      final key = _dayKey(day);
+      if (!bothDays.contains(key)) break;
+      streak++;
+      day = day.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
   /// Группировка по дням (мои записи).
   Map<String, List<MoodEntry>> get myEntriesByDay {
     final map = <String, List<MoodEntry>>{};

@@ -696,6 +696,15 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callGrantDevCoins() =>
       _callCoinFn('grantDevCoins');
 
+  Future<Map<String, dynamic>?> callGrantMemoryReward() =>
+      _callCoinFn('grantMemoryReward');
+
+  Future<Map<String, dynamic>?> callGrantPartnerInviteReward() =>
+      _callCoinFn('grantPartnerInviteReward');
+
+  Future<Map<String, dynamic>?> callGrantMoodStreakReward(String groupId) =>
+      _callCoinFn('grantMoodStreakReward', {'groupId': groupId});
+
   /// Устанавливает бейдж пользователя (sponsor, helper и т.п.).
   Future<void> setBadge(String badge) async {
     final u = currentUser;
