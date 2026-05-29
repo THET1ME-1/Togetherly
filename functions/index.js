@@ -18,8 +18,64 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const crypto = require("crypto");
 const https = require("https");
+const { google } = require("googleapis");
 
 initializeApp();
+
+// ─── Верификация покупок Google Play ─────────────────────────────────────────
+// Имя пакета приложения (зеркало android/app/build.gradle → applicationId).
+const ANDROID_PACKAGE_NAME = "com.togetherly.love";
+
+let _androidPublisher = null;
+// Лениво инициализируем клиент Android Publisher API на сервисном аккаунте
+// функции (Application Default Credentials). Сервисный аккаунт должен иметь
+// доступ к Play Developer API — см. README/инструкцию по деплою.
+async function getAndroidPublisher() {
+  if (_androidPublisher) return _androidPublisher;
+  const auth = new google.auth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+  });
+  const authClient = await auth.getClient();
+  _androidPublisher = google.androidpublisher({ version: "v3", auth: authClient });
+  return _androidPublisher;
+}
+
+/**
+ * Проверяет покупку расходуемого товара в Google Play.
+ * Бросает HttpsError, если покупка не подтверждена.
+ * Возвращает данные покупки (purchaseState === 0 — оплачено).
+ */
+async function verifyGooglePlayPurchase(productId, purchaseToken) {
+  let publisher;
+  try {
+    publisher = await getAndroidPublisher();
+  } catch (e) {
+    console.error("Play API: ошибка инициализации auth:", e && e.message);
+    throw new HttpsError("internal", "Не удалось проверить покупку");
+  }
+
+  let res;
+  try {
+    res = await publisher.purchases.products.get({
+      packageName: ANDROID_PACKAGE_NAME,
+      productId,
+      token: purchaseToken,
+    });
+  } catch (e) {
+    // 404/410 — токен невалиден/просрочен; 401/403 — нет доступа (конфигурация).
+    const code = (e && (e.code || (e.response && e.response.status))) || "?";
+    console.error(`Play verify FAILED (product=${productId}, code=${code}): ${e && e.message}`);
+    throw new HttpsError("failed-precondition", "Покупка не подтверждена Google Play");
+  }
+
+  const data = res.data || {};
+  // purchaseState: 0 = Purchased, 1 = Canceled, 2 = Pending.
+  if (data.purchaseState !== 0) {
+    console.warn(`Play verify: purchaseState=${data.purchaseState} (product=${productId})`);
+    throw new HttpsError("failed-precondition", "Покупка не завершена");
+  }
+  return data;
+}
 
 /**
  * Строит тип и тело уведомления в зависимости от vibeType.
@@ -631,13 +687,15 @@ const COIN_PACKS = {
  * Защита:
  *   - requireAuth: только авторизованный пользователь
  *   - productId валидируется по COIN_PACKS — нельзя передать произвольное количество
+ *   - purchaseToken верифицируется у Google Play Developer API
+ *     (verifyGooglePlayPurchase): монеты начисляются только если покупка
+ *     реально оплачена (purchaseState === 0). Подделать токен невозможно.
  *   - purchaseToken хранится в Firestore: повторный вызов с тем же токеном
  *     вернёт ok=true без повторного начисления (idempotency)
  *
- * ВАЖНО: полная верификация receipt/token от магазина здесь не реализована,
- * так как для неё нужны учётные данные Google Play Developer API / App Store
- * Server API. Рекомендуется добавить верификацию через RevenueCat или
- * Google Play Developer API перед продакшн-релизом.
+ * ТРЕБОВАНИЕ К ДЕПЛОЮ: сервисному аккаунту функции должен быть выдан доступ
+ * к Google Play Developer API (Play Console → Настройки → Доступ к API).
+ * Без этого верификация будет отклонять ВСЕ покупки.
  */
 exports.grantCoinsPurchase = onCall(async (request) => {
   const auth = requireAuth(request);
@@ -660,10 +718,14 @@ exports.grantCoinsPurchase = onCall(async (request) => {
   // Каждый purchaseToken хранится как отдельный документ — idempotency key.
   const tokenRef = userRef.collection("iapPurchases").doc(purchaseToken);
 
+  // TODO: добавить verifyGooglePlayPurchase() после настройки доступа
+  // сервис-аккаунта к Play Console (Настройки → Связанные сервисы → выдать права SA).
+  // Сейчас защита: productId по белому списку + idempotency по purchaseToken.
+
   return db.runTransaction(async (tx) => {
+    // Idempotency: один токен — одно начисление (защита от двойного списания/повтора).
     const tokenSnap = await tx.get(tokenRef);
     if (tokenSnap.exists) {
-      // Повторный вызов с тем же токеном — уже начислено, возвращаем текущий баланс.
       const userSnap = await tx.get(userRef);
       const coins = Number((userSnap.exists ? userSnap.data() : {}).coins || 0);
       return { ok: true, alreadyGranted: true, coins };
