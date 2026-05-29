@@ -196,7 +196,7 @@ class _AnimatedCoinState extends State<_AnimatedCoin>
     return ScaleTransition(
       scale: _scale,
       child: Image.asset(
-        'assets/images/icons/coin.png',
+        'assets/images/icons/coin.webp',
         width: widget.size,
         height: widget.size,
       ),

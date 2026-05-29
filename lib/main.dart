@@ -317,19 +317,22 @@ class _LoveAppState extends State<LoveApp> {
         FirebaseService().setOnlineStatus(true);
       }
 
-      // Проставляем бейджи спонсорам и помощникам
-      if (_userData.email == 'badzoff@gmail.com') {
-        FirebaseService().setBadge('Sponsor');
-        _userData.badge = 'Sponsor';
-      } else if (_userData.email == 'ashatilov2008@gmail.com') {
-        FirebaseService().setBadge('Helper');
-        _userData.badge = 'Helper';
-      } else if (_userData.email == 'alena.petukhova1@gmail.com') {
-        FirebaseService().setBadge('Sponsor');
-        _userData.badge = 'Sponsor';
-      } else if (_userData.email == 'romanhilp22@gmail.com') {
-        FirebaseService().setBadge('Sponsor');
-        _userData.badge = 'Sponsor';
+      // Выдаём иконки-награды спонсорам и помощникам.
+      // grantSpecialBadge только ДОБАВЛЯЕТ иконку в доступные и закрепляет её
+      // лишь если у пользователя ещё нет выбранной иконки — поэтому свободный
+      // выбор иконки пользователем больше не перезатирается при каждом запуске.
+      const sponsorEmails = {
+        'badzoff@gmail.com',
+        'alena.petukhova1@gmail.com',
+        'romanhilp22@gmail.com',
+      };
+      const helperEmails = {
+        'ashatilov2008@gmail.com',
+      };
+      if (sponsorEmails.contains(_userData.email)) {
+        await _userData.grantSpecialBadge('Sponsor');
+      } else if (helperEmails.contains(_userData.email)) {
+        await _userData.grantSpecialBadge('Helper');
       }
     } catch (_) {
       // Даже при ошибке убираем спиннер

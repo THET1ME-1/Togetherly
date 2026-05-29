@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── Пользователи ──
-    // Защита экономики: поля coins / ownedThemes / devCoinsGranted /
+    // Защита экономики: поля coins / ownedThemes / ownedIcons / devCoinsGranted /
     // lastDailyBonusAt / adRewardsDate / adRewardsToday — write-only для сервера
     // (Cloud Functions через admin SDK обходит правила). Клиент не может
     // изменять баланс или разблокированный контент напрямую — только читать.
@@ -18,7 +18,7 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId
                     // При create запрещаем установку защищённых полей с клиента
                     && !request.resource.data.keys().hasAny(
-                         ['coins', 'ownedThemes', 'devCoinsGranted',
+                         ['coins', 'ownedThemes', 'ownedIcons', 'devCoinsGranted',
                           'lastDailyBonusAt', 'adRewardsDate', 'adRewardsToday']);
       allow delete: if request.auth != null && request.auth.uid == userId;
       // Свой документ — всё, КРОМЕ защищённых полей экономики;

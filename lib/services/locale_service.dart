@@ -322,6 +322,13 @@ abstract class AppStrings {
   String get buyThemeConfirm;
   String get notEnoughCoins;
   String get themePurchased;
+  // ── Профильные иконки ──
+  String get iconShopTitle;
+  String get iconShopSubtitle;
+  String get noIconOption;
+  String get iconRewardOnly;
+  String get iconRewardHint;
+  String get iconPurchased;
   String get watchAdTitle;
   String get watchAdSubtitle;
   String get adNotReady;
@@ -1332,6 +1339,18 @@ class _RuStrings extends AppStrings {
   String get notEnoughCoins => 'Недостаточно монет';
   @override
   String get themePurchased => 'Тема разблокирована';
+  @override
+  String get iconShopTitle => 'Иконки профиля';
+  @override
+  String get iconShopSubtitle => 'Укрась свой профиль';
+  @override
+  String get noIconOption => 'Без иконки';
+  @override
+  String get iconRewardOnly => 'Награда';
+  @override
+  String get iconRewardHint => 'Эта иконка выдаётся вручную за вклад в проект.';
+  @override
+  String get iconPurchased => 'Иконка разблокирована';
   @override
   String get watchAdTitle => 'Посмотреть рекламу';
   @override
@@ -2891,6 +2910,18 @@ class _EnStrings extends AppStrings {
   String get notEnoughCoins => 'Not enough coins';
   @override
   String get themePurchased => 'Theme unlocked';
+  @override
+  String get iconShopTitle => 'Profile Icons';
+  @override
+  String get iconShopSubtitle => 'Decorate your profile';
+  @override
+  String get noIconOption => 'No icon';
+  @override
+  String get iconRewardOnly => 'Reward';
+  @override
+  String get iconRewardHint => 'This icon is granted manually for contributing to the project.';
+  @override
+  String get iconPurchased => 'Icon unlocked';
   @override
   String get watchAdTitle => 'Watch an ad';
   @override

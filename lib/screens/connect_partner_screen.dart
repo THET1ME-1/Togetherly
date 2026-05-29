@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
+import '../models/profile_icon.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
@@ -976,18 +977,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   Widget _badgeIcon(String uid) {
     final badge = _partnerBadges[uid];
     if (badge == null || badge.isEmpty) return const SizedBox.shrink();
+    final icon = ProfileIcon.byId(badge);
     return Padding(
       padding: const EdgeInsets.only(left: 2),
       child: GestureDetector(
-        onTap: () {
-          if (badge == 'Sponsor') {
-            _showBadgeInfo('Sponsor', 'Спонсор проекта');
-          } else if (badge == 'Helper') {
-            _showBadgeInfo('Helper', 'Помощник проекта');
-          }
-        },
+        onTap: icon == null ? null : () => _showBadgeInfo(icon),
         child: Image.asset(
-          'assets/images/icons/$badge.png',
+          icon?.asset ?? 'assets/images/icons/$badge.webp',
           width: 36,
           height: 36,
         ),
@@ -995,22 +991,19 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-  void _showBadgeInfo(String title, String description) {
+  void _showBadgeInfo(ProfileIcon icon) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/icons/$title.png',
-              width: 24,
-              height: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(title),
+            Image.asset(icon.asset, width: 28, height: 28),
+            const SizedBox(width: 10),
+            Expanded(child: Text(icon.name)),
           ],
         ),
-        content: Text(description),
+        content: Text(icon.description),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
