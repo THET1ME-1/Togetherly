@@ -400,6 +400,9 @@ class UserData extends ChangeNotifier {
         avatarUrl: avatarUrl,
         clearPairData: isNewUser, // Clear Firestore pair data for new users
       );
+      // Синхронизируем монеты/темы с сервера — важно после переустановки,
+      // когда SharedPreferences очищены, но Firestore хранит реальный баланс.
+      await _syncFromFirestore();
       await _maybeGrantDevCoins();
     }
     notifyListeners();

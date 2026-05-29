@@ -283,6 +283,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // ═══ Settings List ═══
           _buildSettingsCard(context),
           const SizedBox(height: 20),
+          // ═══ Support Authors ═══
+          _buildSupportCard(context),
+          const SizedBox(height: 20),
           // ═══ Danger Zone ═══
           _buildDangerZone(context),
           const SizedBox(height: 40),
@@ -1710,6 +1713,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ═══════════════════════════════════════════════════
+  //  SUPPORT AUTHORS CARD
+  // ═══════════════════════════════════════════════════
+  Widget _buildSupportCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _accent.withAlpha(25),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _accent.withAlpha(50)),
+        boxShadow: [
+          BoxShadow(
+            color: _accent.withAlpha(20),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _openBoosty,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _accent.withAlpha(30),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.favorite_rounded,
+                    color: _accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _s.supportAuthors,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _accent.withAlpha(200),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Boosty',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _accent.withAlpha(130),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _accent.withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: _accent,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
   //  SETTINGS CARD
   // ═══════════════════════════════════════════════════
   Widget _buildSettingsCard(BuildContext context) {
@@ -1791,12 +1880,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.archive_outlined,
             label: _s.exportMemories,
             onTap: () => _handleExportConfig(context),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.favorite_outline_rounded,
-            label: _s.supportAuthors,
-            onTap: _openBoosty,
           ),
           _divider(),
           _settingsTile(
@@ -2560,6 +2643,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   },
                           );
                         }),
+                        const SizedBox(height: 4),
+                        _coinShopItem(
+                          icon: Icons.restore_outlined,
+                          title: _s.restorePurchasesTitle,
+                          subtitle: '',
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _restorePurchases();
+                          },
+                        ),
                       ],
                     ],
                   ),
@@ -2581,6 +2674,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _restorePurchases() async {
+    setState(() => _iapLoading = true);
+    try {
+      await _iap.restorePurchases();
+      // После восстановления подтягиваем актуальный баланс с сервера
+      await widget.userData.refreshCoinsFromServer();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_s.restorePurchasesSuccess),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_s.restorePurchasesError),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _iapLoading = false);
+    }
   }
 
   Future<void> _buyCoins(String productId) async {

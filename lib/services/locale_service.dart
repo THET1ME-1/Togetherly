@@ -349,6 +349,9 @@ abstract class AppStrings {
   String get coinPurchaseCancelled;
   String get coinPurchaseError;
   String get coinStoreUnavailable;
+  String get restorePurchasesTitle;
+  String get restorePurchasesSuccess;
+  String get restorePurchasesError;
   String get editProfileTitle;
   String get uploading;
   String get userNotAuthorized;
@@ -1353,6 +1356,12 @@ class _RuStrings extends AppStrings {
   String get coinPurchaseError => 'Ошибка покупки. Попробуй ещё раз';
   @override
   String get coinStoreUnavailable => 'Магазин недоступен';
+  @override
+  String get restorePurchasesTitle => 'Восстановить покупки';
+  @override
+  String get restorePurchasesSuccess => 'Покупки восстановлены';
+  @override
+  String get restorePurchasesError => 'Не удалось восстановить покупки';
   @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
   @override
@@ -2906,6 +2915,12 @@ class _EnStrings extends AppStrings {
   String get coinPurchaseError => 'Purchase failed. Please try again';
   @override
   String get coinStoreUnavailable => 'Store unavailable';
+  @override
+  String get restorePurchasesTitle => 'Restore Purchases';
+  @override
+  String get restorePurchasesSuccess => 'Purchases restored';
+  @override
+  String get restorePurchasesError => 'Failed to restore purchases';
   @override
   String get changesApplyImmediately => 'Changes apply immediately';
   @override

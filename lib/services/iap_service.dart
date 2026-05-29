@@ -132,6 +132,11 @@ class IapService extends ChangeNotifier {
     );
 
     await _loadProducts();
+
+    // Восстанавливаем незавершённые покупки (если пользователь переустановил
+    // приложение, не завершив предыдущую транзакцию). Поток purchaseStream
+    // доставит их, и _verifyAndGrant() начислит монеты.
+    await _iap.restorePurchases();
   }
 
   /// Загружает ProductDetails для всех продуктов [kCoinPacks].
@@ -264,6 +269,12 @@ class IapService extends ChangeNotifier {
         await _iap.completePurchase(purchase);
       }
     }
+  }
+
+  /// Ручное восстановление покупок. Вызывается из UI по кнопке "Restore".
+  Future<void> restorePurchases() async {
+    if (!_available) return;
+    await _iap.restorePurchases();
   }
 
   // ── Хелперы ───────────────────────────────────────────────────────────────
