@@ -109,13 +109,11 @@
             android:name="com.yalantis.ucrop.UCropActivity"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
 
-        <!-- HomeWidget: фоновый ресивер для обновления виджета когда процесс убит -->
+        <!-- HomeWidget: фоновый ресивер для обновления виджета когда процесс убит.
+             С home_widget 0.8.1+ фоновая работа идёт через WorkManager
+             (HomeWidgetBackgroundWorker), устаревший JobIntentService-сервис убран —
+             он и вызывал краши enqueueWork/completeWork (IllegalArgumentException). -->
         <receiver android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
-            android:exported="false" />
-        <!-- HomeWidget: фоновый JobIntentService — обязательно нужен для Android 8+ и MIUI -->
-        <service
-            android:name="es.antonborri.home_widget.HomeWidgetBackgroundService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="false" />
 
         <!-- ═══ Виджет рабочего стола: Парный ═══ -->
