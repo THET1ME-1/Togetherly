@@ -291,8 +291,16 @@ const DEV_GRANT_AMOUNT = 1000;
 const DAILY_BONUS_AMOUNT = 1;
 const DAILY_BONUS_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20ч (защита от тонких манипуляций tz)
 
-const AD_REWARD_AMOUNT = 5;
+const AD_REWARD_AMOUNT = 3;
 const AD_REWARDS_PER_DAY = 3;
+
+const MEMORY_REWARD_AMOUNT = 1;
+const MEMORY_REWARD_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20ч = 1 раз в день
+
+const PARTNER_INVITE_REWARD = 50;
+
+const MOOD_STREAK_REWARD = 10;
+const MOOD_STREAK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 дней
 
 function requireAuth(request) {
   if (!request.auth || !request.auth.uid) {
@@ -644,6 +652,94 @@ exports.grantDevCoins = onCall(async (request) => {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     return { ok: true, alreadyGranted: false, coins, awarded: DEV_GRANT_AMOUNT };
+  });
+});
+
+/**
+ * Награда за добавление воспоминания. 1 🪙 раз в ~24 часа.
+ * Клиент вызывает после успешного сохранения memory; сервер проверяет cooldown.
+ */
+exports.grantMemoryReward = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const lastClaim = data.lastMemoryRewardAt;
+    const now = Date.now();
+    if (lastClaim && lastClaim.toMillis && now - lastClaim.toMillis() < MEMORY_REWARD_COOLDOWN_MS) {
+      return { ok: false, cooldown: true, coins: Number(data.coins || 0) };
+    }
+    const coins = Number(data.coins || 0) + MEMORY_REWARD_AMOUNT;
+    tx.set(userRef, {
+      coins,
+      lastMemoryRewardAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true, coins, awarded: MEMORY_REWARD_AMOUNT };
+  });
+});
+
+/**
+ * Единоразовая награда за приглашение партнёра. 50 🪙.
+ * Флаг partnerInviteRewardGranted гарантирует идемпотентность.
+ */
+exports.grantPartnerInviteReward = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    if (data.partnerInviteRewardGranted === true) {
+      return { ok: false, alreadyGranted: true, coins: Number(data.coins || 0) };
+    }
+    const coins = Number(data.coins || 0) + PARTNER_INVITE_REWARD;
+    tx.set(userRef, {
+      coins,
+      partnerInviteRewardGranted: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true, coins, awarded: PARTNER_INVITE_REWARD };
+  });
+});
+
+/**
+ * Награда за 7-дневный стрик настроения обоих партнёров. 10 монет раз в 7 дней.
+ * Каждый пользователь получает монеты независимо — cooldown хранится на уровне
+ * пользователя (lastMoodStreakRewardAt_<groupId>), а не группы.
+ * Это гарантирует что ОБА партнёра получают награду, каждый из своего клиента.
+ */
+exports.grantMoodStreakReward = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const groupId = (request.data && request.data.groupId) || "";
+  if (!groupId) throw new HttpsError("invalid-argument", "groupId required");
+
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+  // Ключ cooldown уникален для каждого пользователя + группы
+  const cooldownKey = `lastMoodStreakRewardAt_${groupId}`;
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+
+    const lastReward = data[cooldownKey];
+    const now = Date.now();
+    if (lastReward && lastReward.toMillis && now - lastReward.toMillis() < MOOD_STREAK_COOLDOWN_MS) {
+      return { ok: false, cooldown: true, coins: Number(data.coins || 0) };
+    }
+
+    const coins = Number(data.coins || 0) + MOOD_STREAK_REWARD;
+    tx.set(userRef, {
+      coins,
+      [cooldownKey]: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true, coins, awarded: MOOD_STREAK_REWARD };
   });
 });
 

@@ -25,6 +25,8 @@ import 'package:video_player/video_player.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
+import '../models/user_data.dart';
+import '../widgets/common/coin_reward_toast.dart';
 import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/rate_limiter_service.dart';
@@ -62,11 +64,13 @@ class MemoryLaneScreen extends StatefulWidget {
   final PairData pairData;
   final AppTheme theme;
   final MemoryFilterMode filterMode;
+  final UserData? userData;
   const MemoryLaneScreen({
     super.key,
     required this.pairData,
     required this.theme,
     this.filterMode = MemoryFilterMode.none,
+    this.userData,
   });
 
   @override
@@ -121,6 +125,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   void _onPairChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _tryClaimMemoryReward() async {
+    final ud = widget.userData;
+    if (ud == null || !mounted) return;
+    final amount = await ud.claimMemoryReward();
+    if (amount <= 0 || !mounted) return;
+    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.memoryRewardTitle);
   }
 
   Future<void> _loadMemories() async {
@@ -5902,6 +5914,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
+        _tryClaimMemoryReward();
       }
     } catch (e) {
       debugPrint('Save memory failed: $e');

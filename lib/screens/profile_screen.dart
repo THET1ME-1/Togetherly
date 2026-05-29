@@ -15,6 +15,7 @@ import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
 import '../services/export_service.dart';
@@ -52,6 +53,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
   final IapService _iap = IapService();
   bool _iapLoading = false;
+
+  // Флаги для UI — «получено в этой сессии» (визуальная обратная связь)
+  bool _dailyBonusClaimedThisSession = false;
+  bool _memoryRewardClaimedThisSession = false;
 
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly-d4856.web.app/privacy-policy',
@@ -2428,6 +2433,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
                     children: [
+                      // ── Тема ─────────────────────────────────────────
                       _coinShopItem(
                         icon: Icons.palette_outlined,
                         title: _s.chooseColorTheme,
@@ -2437,10 +2443,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _showThemePicker(context);
                         },
                       ),
+                      // ── Заработать бесплатно ──────────────────────────
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          _s.earnCoinsSection,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                      // Ежедневный вход
+                      StatefulBuilder(builder: (_, setSt) => _coinShopItem(
+                        icon: Icons.calendar_today_rounded,
+                        title: _s.dailyBonusTitle,
+                        subtitle: _s.dailyBonusSubtitle,
+                        coinAmount: 1,
+                        counterText: _dailyBonusClaimedThisSession ? '✓' : null,
+                        counterExhausted: false,
+                        onTap: _dailyBonusClaimedThisSession
+                            ? null
+                            : () async {
+                                final rootCtx = context;
+                                final awarded = await widget.userData.claimDailyBonus();
+                                if (!mounted) return;
+                                if (awarded) {
+                                  setSt(() => _dailyBonusClaimedThisSession = true);
+                                  setState(() {});
+                                  // ignore: use_build_context_synchronously
+                                  CoinRewardToast.show(rootCtx, amount: 1, label: _s.dailyBonusTitle);
+                                }
+                              },
+                      )),
+                      // Воспоминание
+                      StatefulBuilder(builder: (_, setSt) => _coinShopItem(
+                        icon: Icons.photo_album_outlined,
+                        title: _s.memoryRewardTitle,
+                        subtitle: _s.memoryRewardSubtitle,
+                        coinAmount: 1,
+                        counterText: _memoryRewardClaimedThisSession ? '✓' : null,
+                        counterExhausted: false,
+                        onTap: _memoryRewardClaimedThisSession
+                            ? null
+                            : () async {
+                                final rootCtx = context;
+                                final amount = await widget.userData.claimMemoryReward();
+                                if (!mounted) return;
+                                if (amount > 0) {
+                                  setSt(() => _memoryRewardClaimedThisSession = true);
+                                  setState(() {});
+                                  CoinRewardToast.show(rootCtx, amount: amount, label: _s.memoryRewardTitle);
+                                }
+                              },
+                      )),
+                      // Реклама
                       _coinShopItem(
                         icon: Icons.play_circle_outline_rounded,
                         title: _s.watchAdTitle,
                         subtitle: _s.watchAdSubtitle,
+                        coinAmount: 3,
                         counterText:
                             '${widget.userData.adRewardsToday}/${UserData.adRewardsDailyLimit}',
                         counterExhausted: widget.userData.adRewardsRemaining == 0,
@@ -2450,6 +2514,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Navigator.pop(ctx);
                                 await _watchRewardedAd();
                               },
+                      ),
+                      // Стрик настроения
+                      _coinShopItem(
+                        icon: Icons.favorite_border_rounded,
+                        title: _s.moodStreakRewardTitle,
+                        subtitle: _s.moodStreakRewardSubtitle,
+                        coinAmount: 10,
+                        onTap: null,
+                      ),
+                      // Пригласить партнёра
+                      _coinShopItem(
+                        icon: Icons.person_add_outlined,
+                        title: _s.partnerInviteRewardTitle,
+                        subtitle: _s.partnerInviteRewardSubtitle,
+                        coinAmount: 50,
+                        onTap: null,
                       ),
                       // ── Купить монеты (IAP) ───────────────────────────
                       if (_iap.isAvailable) ...[
@@ -2580,6 +2660,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback? onTap,
     String? counterText,
     bool counterExhausted = false,
+    int? coinAmount,
   }) {
     final disabled = onTap == null;
     return Container(
@@ -2587,7 +2668,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Material(
         color: disabled
             ? Colors.grey.shade100
-            : _accentLight.withOpacity(0.45),
+            : _accentLight.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -2637,6 +2718,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
+                // Бейдж с наградой монетами (coin.png + число)
+                if (coinAmount != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: disabled ? Colors.grey.shade200 : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: disabled ? null : [
+                        BoxShadow(
+                          color: _accent.withValues(alpha: 0.15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/images/icons/coin.png',
+                          width: 14,
+                          height: 14,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '+$coinAmount',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1.0,
+                            color: disabled ? Colors.grey.shade500 : _accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                // Счётчик (например 1/3 для рекламы)
                 if (counterText != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -2652,7 +2772,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? null
                           : [
                               BoxShadow(
-                                color: _accent.withOpacity(0.15),
+                                color: _accent.withValues(alpha: 0.15),
                                 blurRadius: 4,
                                 offset: const Offset(0, 1),
                               ),

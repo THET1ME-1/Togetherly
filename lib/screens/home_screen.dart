@@ -43,6 +43,7 @@ import '../services/canvas_storage_service.dart';
 import '../services/emotion_migration_service.dart';
 import '../services/mascot_service.dart';
 import '../widgets/active_mascot_widget.dart';
+import '../widgets/common/coin_reward_toast.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
 import 'home/home_skeleton.dart';
@@ -112,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // пишет 30+ значений в SharedPreferences. При каскаде событий — заметные
   // I/O лаги. Не Firestore reads, но UX-критично на слабых телефонах.
   Timer? _syncMoodWidgetDebounce;
+  Timer? _moodStreakRewardDebounce;
 
   @override
   void initState() {
@@ -152,6 +154,9 @@ class _HomeScreenState extends State<HomeScreen> {
       Future.delayed(const Duration(seconds: 2), _checkForUpdate);
     }
 
+    // Ежедневный бонус и разовые награды — через 4с после старта
+    Future.delayed(const Duration(seconds: 4), _tryClaimStartupRewards);
+
     _appLifecycleListener = AppLifecycleListener(
       onResume: () {
         if (_pairData.isPaired) {
@@ -161,6 +166,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // Re-sync the love widget so partner's latest status/mood appears
         // immediately when the user returns to the home screen.
         _widgetService.syncNow();
+        // Попытка ежедневного бонуса при возврате в приложение
+        _tryClaimDailyBonus();
       },
     );
   }
@@ -169,6 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _syncWidgetsDebounce?.cancel();
     _syncMoodWidgetDebounce?.cancel();
+    _moodStreakRewardDebounce?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
     _appLifecycleListener?.dispose();
@@ -239,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t),
+            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t, userData: widget.userData),
           ),
         );
       }
@@ -535,6 +543,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _syncMoodWidget();
     });
     if (mounted) setState(() {});
+
+    // Проверяем стрик настроения — дебаунс 2с, т.к. _onMoodServiceChanged
+    // срабатывает 3-5 раз подряд за одно действие (cascade: delete→add→pair→widget)
+    if (_pairData.isPaired) {
+      _moodStreakRewardDebounce?.cancel();
+      _moodStreakRewardDebounce = Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        if (_moodService.bothPartnersStreakDays >= 7) _tryClaimMoodStreakReward();
+      });
+    }
   }
 
   String get _statusBadgeText {
@@ -913,7 +931,7 @@ class _HomeScreenState extends State<HomeScreen> {
         transitionDuration: const Duration(milliseconds: 500),
         reverseTransitionDuration: const Duration(milliseconds: 350),
         pageBuilder: (_, __, ___) =>
-            MemoryLaneScreen(pairData: _pairData, theme: _t, filterMode: mode),
+            MemoryLaneScreen(pairData: _pairData, theme: _t, filterMode: mode, userData: widget.userData),
         transitionsBuilder: (_, anim, __, child) {
           final curved = CurvedAnimation(
             parent: anim,
@@ -1217,6 +1235,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
+      // Награда за воспоминание (1 🪙 в день) — после успешного сохранения
+      _tryClaimMemoryReward();
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {
@@ -1455,6 +1475,52 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   // HELPER METHODS: Location, EXIF, Time
   // =============================================
+
+  // ── Ежедневный бонус ────────────────────────────────────────────────────────
+
+  /// Вызывается один раз при старте (через 4с). Надёжнее чем триггер в
+  /// _handlePairChanged, который может прерваться из-за generation-check.
+  Future<void> _tryClaimStartupRewards() async {
+    if (!mounted) return;
+    await _tryClaimDailyBonus();
+    // Разовая награда за партнёра: сервер сам проверит флаг partnerInviteRewardGranted
+    if (_pairData.isPaired) await _tryClaimPartnerInviteReward();
+  }
+
+  Future<void> _tryClaimDailyBonus() async {
+    if (!mounted) return;
+    final awarded = await widget.userData.claimDailyBonus();
+    if (!awarded || !mounted) return;
+    CoinRewardToast.show(context, amount: 1, label: LocaleService.current.dailyBonusTitle);
+  }
+
+  Future<void> _tryClaimMemoryReward() async {
+    if (!mounted) return;
+    final amount = await widget.userData.claimMemoryReward();
+    if (amount <= 0 || !mounted) return;
+    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.memoryRewardTitle);
+  }
+
+  Future<void> _tryClaimPartnerInviteReward() async {
+    if (!mounted) return;
+    // Локальный кеш — пропускаем CF вызов если флаг уже выставлен
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('partnerInviteRewardGranted_local') == true) return;
+
+    final amount = await widget.userData.claimPartnerInviteReward();
+    if (amount > 0) {
+      await prefs.setBool('partnerInviteRewardGranted_local', true);
+    }
+    if (amount <= 0 || !mounted) return;
+    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.partnerInviteRewardTitle);
+  }
+
+  Future<void> _tryClaimMoodStreakReward() async {
+    if (!mounted || _pairData.pairId.isEmpty) return;
+    final amount = await widget.userData.claimMoodStreakReward(_pairData.pairId);
+    if (amount <= 0 || !mounted) return;
+    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.moodStreakRewardTitle);
+  }
 
   // ── In-app update ──────────────────────────────────────────────────────────
 

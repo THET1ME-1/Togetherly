@@ -328,6 +328,18 @@ abstract class AppStrings {
   String get rewardPending;
   String get changesApplyImmediately;
 
+  // ── Бесплатные монеты ──
+  String get dailyBonusTitle;
+  String get dailyBonusSubtitle;
+  String coinEarned(int amount);
+  String get memoryRewardTitle;
+  String get memoryRewardSubtitle;
+  String get partnerInviteRewardTitle;
+  String get partnerInviteRewardSubtitle;
+  String get moodStreakRewardTitle;
+  String get moodStreakRewardSubtitle;
+  String get earnCoinsSection;
+
   // ── IAP — покупка монет ──
   String get coinPacksSectionTitle;
   String coinPackTitle(int coins);
@@ -1299,7 +1311,7 @@ class _RuStrings extends AppStrings {
   String get themeNameOcean => 'Океан';
   @override
   String premiumThemeLocked(int price) =>
-      'Премиум-тема за $price 🪙 — открой в магазине';
+      'Премиум-тема за $price монет — открой в магазине';
   @override
   String get coinBalance => 'Коины';
   @override
@@ -1310,7 +1322,7 @@ class _RuStrings extends AppStrings {
   String get buyThemeTitle => 'Купить тему?';
   @override
   String buyThemeDescription(String themeName, int price) =>
-      'Разблокировать тему «$themeName» за $price 🪙?';
+      'Разблокировать тему «$themeName» за $price монет?';
   @override
   String get buyThemeConfirm => 'Купить';
   @override
@@ -1320,7 +1332,7 @@ class _RuStrings extends AppStrings {
   @override
   String get watchAdTitle => 'Посмотреть рекламу';
   @override
-  String get watchAdSubtitle => '+5 🪙 за просмотр, до 3 раз в день';
+  String get watchAdSubtitle => 'За просмотр, до 3 раз в день';
   @override
   String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
   @override
@@ -1332,7 +1344,7 @@ class _RuStrings extends AppStrings {
   @override
   String get coinPurchaseSuccess => 'Монеты начислены!';
   @override
-  String coinPurchaseSuccessAmount(int coins) => '+$coins 🪙 зачислено';
+  String coinPurchaseSuccessAmount(int coins) => '+$coins монет зачислено';
   @override
   String get coinPurchasePending => 'Платёж обрабатывается…';
   @override
@@ -1343,6 +1355,26 @@ class _RuStrings extends AppStrings {
   String get coinStoreUnavailable => 'Магазин недоступен';
   @override
   String get changesApplyImmediately => 'Изменения применяются сразу';
+  @override
+  String get dailyBonusTitle => 'Ежедневный вход';
+  @override
+  String get dailyBonusSubtitle => 'Каждый день при входе';
+  @override
+  String coinEarned(int amount) => '+$amount монет получено!';
+  @override
+  String get memoryRewardTitle => 'Добавь воспоминание';
+  @override
+  String get memoryRewardSubtitle => 'За новое воспоминание, раз в день';
+  @override
+  String get partnerInviteRewardTitle => 'Пригласи партнёра';
+  @override
+  String get partnerInviteRewardSubtitle => 'Единоразово при подключении';
+  @override
+  String get moodStreakRewardTitle => 'Стрик настроения';
+  @override
+  String get moodStreakRewardSubtitle => 'Оба заполняли 7 дней подряд';
+  @override
+  String get earnCoinsSection => 'Заработать бесплатно';
   @override
   String get editProfileTitle => 'Редактировать профиль';
   @override
@@ -2832,7 +2864,7 @@ class _EnStrings extends AppStrings {
   String get themeNameOcean => 'Ocean';
   @override
   String premiumThemeLocked(int price) =>
-      'Premium theme — $price 🪙, unlock it in the Coin shop';
+      'Premium theme — $price coins, unlock it in the Coin shop';
   @override
   String get coinBalance => 'Coins';
   @override
@@ -2843,7 +2875,7 @@ class _EnStrings extends AppStrings {
   String get buyThemeTitle => 'Buy this theme?';
   @override
   String buyThemeDescription(String themeName, int price) =>
-      'Unlock the "$themeName" theme for $price 🪙?';
+      'Unlock the "$themeName" theme for $price coins?';
   @override
   String get buyThemeConfirm => 'Buy';
   @override
@@ -2853,7 +2885,7 @@ class _EnStrings extends AppStrings {
   @override
   String get watchAdTitle => 'Watch an ad';
   @override
-  String get watchAdSubtitle => '+5 🪙 per view, up to 3 a day';
+  String get watchAdSubtitle => 'Per view, up to 3 a day';
   @override
   String get adNotReady => 'Ad still loading — try again in a second';
   @override
@@ -2865,7 +2897,7 @@ class _EnStrings extends AppStrings {
   @override
   String get coinPurchaseSuccess => 'Coins added!';
   @override
-  String coinPurchaseSuccessAmount(int coins) => '+$coins 🪙 credited';
+  String coinPurchaseSuccessAmount(int coins) => '+$coins coins credited';
   @override
   String get coinPurchasePending => 'Payment is being processed…';
   @override
@@ -2876,6 +2908,26 @@ class _EnStrings extends AppStrings {
   String get coinStoreUnavailable => 'Store unavailable';
   @override
   String get changesApplyImmediately => 'Changes apply immediately';
+  @override
+  String get dailyBonusTitle => 'Daily login';
+  @override
+  String get dailyBonusSubtitle => 'Every day on login';
+  @override
+  String coinEarned(int amount) => '+$amount coins earned!';
+  @override
+  String get memoryRewardTitle => 'Add a memory';
+  @override
+  String get memoryRewardSubtitle => 'Add a memory, once a day';
+  @override
+  String get partnerInviteRewardTitle => 'Invite your partner';
+  @override
+  String get partnerInviteRewardSubtitle => 'One-time on connection';
+  @override
+  String get moodStreakRewardTitle => 'Mood streak';
+  @override
+  String get moodStreakRewardSubtitle => 'Both filled mood 7 days in a row';
+  @override
+  String get earnCoinsSection => 'Earn for free';
   @override
   String get editProfileTitle => 'Edit Profile';
   @override
