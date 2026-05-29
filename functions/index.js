@@ -904,6 +904,169 @@ exports.getSignedUrl = onCall(async (request) => {
   return { url, expiresAt };
 });
 
+// ─── Telegram Bug Bot → Todoist ───────────────────────────────────────────────
+
+const TELEGRAM_BOT_TOKEN = "8990675852:AAHFrpydqd3Vh3VoO48bw1yC6hkPuv0nIFA";
+const TODOIST_API_TOKEN   = "ec3e15b16b1c4aa751853dde7d0aa58973b7757d";
+const TODOIST_PROJECT_ID  = "6ghRcQGgMJv3hwGH";
+const GEMINI_API_KEY      = "AQ.Ab8RN6K5ncvFPd37Nmn-QrZVWpVD8_zJ-wWthFfnqy8UJApCqw";
+
+// Секции проекта Togetherly
+const SECTION_VAZHNOYE  = "6gjcfphM67QjC8Qq"; // Важное
+const SECTION_V_PLANAKH = "6ghRf5Jh49r2rgvH"; // В планах
+
+function classifyBug(text) {
+  const t = text.toLowerCase();
+  if (/crash|вылет|падает|force close|не открывается|вис(ит|нет)|зависает/.test(t))
+    return { labels: ["Баг / Ошибка"], priority: 4, section: SECTION_VAZHNOYE, emoji: "🔴" };
+  if (/ui|интерфейс|кнопка|экран|отображ|вёрст|верст|layout|визуал/.test(t))
+    return { labels: ["Баг / Ошибка", "UI/IX"], priority: 3, section: SECTION_V_PLANAKH, emoji: "🟠" };
+  if (/не работает|сломал|broken|error|ошибка|баг|bug|глюк|глючит/.test(t))
+    return { labels: ["Баг / Ошибка"], priority: 3, section: SECTION_V_PLANAKH, emoji: "🟠" };
+  if (/медленно|лагает|тормоз|freeze|долго загружает/.test(t))
+    return { labels: ["Улучшение"], priority: 2, section: SECTION_V_PLANAKH, emoji: "🟡" };
+  if (/хочу|добавьте|было бы|suggestion|feature|хотелось бы|предлагаю|можно ли/.test(t))
+    return { labels: ["Новая фича"], priority: 1, section: SECTION_V_PLANAKH, emoji: "🟢" };
+  return { labels: ["Баг / Ошибка"], priority: 2, section: SECTION_V_PLANAKH, emoji: "🟠" };
+}
+
+function makeTitle(text) {
+  const sentence = text.split(/[.!?\n]/)[0].trim();
+  const clean = sentence.replace(/^(баг в том,?\s*(что)?|проблема в том,?\s*(что)?|обнаружил,?\s*(что)?|заметил,?\s*(что)?)\s*/i, "");
+  const result = clean.charAt(0).toUpperCase() + clean.slice(1);
+  return result.length > 80 ? result.substring(0, 77) + "..." : result || sentence;
+}
+
+async function geminiRephrase(text) {
+  const prompt = `Ты помощник разработчика мобильного приложения Togetherly. Перефразируй сообщение пользователя в короткое чёткое название задачи на русском языке (максимум 60 символов). Начни с глагола или существительного. Выведи ТОЛЬКО название, без кавычек, точки в конце и лишних слов.\n\nСообщение: ${text}`;
+
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 60, temperature: 0.3 },
+    });
+
+    const req = https.request({
+      hostname: "generativelanguage.googleapis.com",
+      path: `/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+    }, (res) => {
+      let rb = "";
+      res.on("data", chunk => { rb += chunk; });
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(rb);
+          const title = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          resolve(title && title.length > 0 ? title : null);
+        } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.write(body);
+    req.end();
+  });
+}
+
+function httpsPost(hostname, path, headers, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = https.request({
+      hostname,
+      path,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(data),
+        ...headers,
+      },
+    }, (res) => {
+      let rb = "";
+      res.on("data", chunk => { rb += chunk; });
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(rb) }); } catch { resolve({ status: res.statusCode, body: rb }); }
+      });
+    });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function tgSend(chatId, text) {
+  return httpsPost(
+    "api.telegram.org",
+    `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {},
+    { chat_id: chatId, text, parse_mode: "HTML" }
+  );
+}
+
+function todoistCreateTask(content, description, priority, labels, sectionId) {
+  return httpsPost(
+    "api.todoist.com",
+    "/api/v1/tasks",
+    { "Authorization": `Bearer ${TODOIST_API_TOKEN}` },
+    {
+      content,
+      description,
+      project_id: TODOIST_PROJECT_ID,
+      section_id: sectionId,
+      priority,
+      labels,
+      assignee_id: "34940569",
+    }
+  );
+}
+
+exports.telegramWebhook = onRequest({ cors: false }, async (req, res) => {
+  res.status(200).send("ok");
+  if (req.method !== "POST") return;
+
+  try {
+    const message = req.body && (req.body.message || req.body.channel_post);
+    if (!message || !message.text) return;
+
+    const text = message.text.trim();
+    const chatId = message.chat.id;
+    const from = message.from || {};
+    const username = from.username ? `@${from.username}` : (from.first_name || "Аноним");
+
+    if (text.startsWith("/")) {
+      if (text === "/start") {
+        await tgSend(chatId,
+          "👋 Привет! Опиши баг или проблему в Togetherly — я создам задачу для разработчика."
+        );
+      }
+      return;
+    }
+
+    const { labels, priority, section, emoji } = classifyBug(text);
+
+    const title = (await geminiRephrase(text)) || makeTitle(text);
+
+    const result = await todoistCreateTask(
+      title,
+      `От ${username}:\n\n${text}`,
+      priority,
+      labels,
+      section
+    );
+
+    if (result.status >= 400) {
+      console.error(`TelegramBot: Todoist error ${result.status}:`, result.body);
+    }
+
+    await tgSend(chatId,
+      `${emoji} Принято! Спасибо, ${username}.\nМетка: <b>${labels.join(", ")}</b>`
+    );
+
+    console.log(`TelegramBot: [${labels}] p${priority} от ${username}: "${title}"`);
+  } catch (e) {
+    console.error("TelegramBot error:", e);
+  }
+});
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 exports.grantMoodStreakReward = onCall(async (request) => {
