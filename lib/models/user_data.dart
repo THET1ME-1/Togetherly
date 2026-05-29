@@ -265,7 +265,7 @@ class UserData extends ChangeNotifier {
 
   Future<void> _syncFromFirestore() async {
     try {
-      final data = await _fb.loadUserProfile();
+      final data = await _fb.loadUserProfile(fromServer: true);
       if (data != null) {
         _displayName = data['displayName'] ?? _displayName;
         _email = data['email'] ?? _email;

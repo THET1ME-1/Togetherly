@@ -1979,9 +1979,9 @@ class _RuStrings extends AppStrings {
   @override
   String get updateAvailableTitle => 'Доступно обновление';
   @override
-  String get updateAvailableSubtitle => 'Новая версия приложения готова к установке';
+  String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
-  String get updateWhatsNew => 'Улучшения и исправления ошибок';
+  String get updateWhatsNew => 'Исправлена синхронизация монет, улучшения Ленты воспоминаний и исправления ошибок';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3544,9 +3544,9 @@ class _EnStrings extends AppStrings {
   @override
   String get updateAvailableTitle => 'Update available';
   @override
-  String get updateAvailableSubtitle => 'A new version of the app is ready to install';
+  String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
-  String get updateWhatsNew => 'Improvements and bug fixes';
+  String get updateWhatsNew => 'Fixed coin sync, Memory Lane improvements and bug fixes';
   @override
   String get updateButton => 'Update';
   @override
