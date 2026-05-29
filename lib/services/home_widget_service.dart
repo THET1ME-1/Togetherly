@@ -1565,7 +1565,20 @@ class HomeWidgetService {
     String myGender = '',
     String partnerGender = '',
   }) async {
-    if (activeSysTimer != null) {
+    // If a non-system timer is set as default, use it (user's custom primary timer).
+    // This mirrors _syncTimerFromMemory so both widgets show the same timer's data.
+    final customDefault = activeTimers.where((t) => t.isDefault && !t.isSystem).firstOrNull;
+    if (customDefault != null) {
+      await syncDaysCounter(
+        groupId: activeGroupId,
+        daysCount: customDefault.daysElapsed.abs(),
+        coupleNames: coupleNames,
+        emoji: customDefault.emoji,
+        startDate: _formatDate(customDefault.startDate),
+        myGender: myGender,
+        partnerGender: partnerGender,
+      );
+    } else if (activeSysTimer != null) {
       final start = activeSysTimer.startDate;
       await syncDaysCounter(
         groupId: activeGroupId,
