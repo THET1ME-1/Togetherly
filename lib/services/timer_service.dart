@@ -62,7 +62,15 @@ class TimerService extends ChangeNotifier {
 
   Future<void> init() async {
     await _loadLocal();
-    // Sync widget after loading timers (for solo mode on first app launch)
+    if (_groupId.isEmpty) {
+      if (_timers.isEmpty) {
+        // После переустановки: восстанавливаем из облака
+        await _loadFromCloud();
+      } else {
+        // Есть локальные данные: обновляем облако (миграция + актуализация)
+        unawaited(_saveSoloCloud());
+      }
+    }
     await _syncWidgetTimer();
     notifyListeners();
   }
@@ -77,6 +85,29 @@ class TimerService extends ChangeNotifier {
       } catch (_) {}
     }
     _timers = [];
+  }
+
+  /// Восстанавливает соло-таймеры из Firestore (вызывается после переустановки).
+  Future<void> _loadFromCloud() async {
+    try {
+      final remote = await _fb.loadSoloTimers();
+      if (remote != null && remote.isNotEmpty) {
+        _timers = remote.map(TimerItem.fromJson).toList();
+        await _saveLocal();
+        debugPrint('TimerService: восстановлено ${_timers.length} соло-таймеров из облака');
+      }
+    } catch (e) {
+      debugPrint('TimerService: _loadFromCloud error: $e');
+    }
+  }
+
+  /// Сохраняет соло-таймеры в Firestore (fire-and-forget).
+  Future<void> _saveSoloCloud() async {
+    try {
+      await _fb.saveSoloTimers(_timers.map((t) => t.toJson()).toList());
+    } catch (e) {
+      debugPrint('TimerService: _saveSoloCloud error: $e');
+    }
   }
 
   /// Привязать к группе — начинает синхронизацию с Firestore.
@@ -240,6 +271,9 @@ class TimerService extends ChangeNotifier {
   Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, TimerItem.encodeList(_timers));
+    if (_groupId.isEmpty) {
+      unawaited(_saveSoloCloud());
+    }
   }
 
   Future<void> _saveToFirestore() async {
