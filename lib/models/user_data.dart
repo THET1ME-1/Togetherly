@@ -34,6 +34,9 @@ class UserData extends ChangeNotifier {
   /// Максимум rewarded-просмотров в сутки (зеркало AD_REWARDS_PER_DAY на сервере)
   static const int adRewardsDailyLimit = 3;
 
+  /// Монет за один просмотр рекламы (зеркало AD_REWARD_AMOUNT на сервере)
+  static const int adRewardAmount = 3;
+
   final FirebaseService _fb = FirebaseService();
 
   // ── Getters ──
@@ -134,10 +137,30 @@ class UserData extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Гарантирует, что баланс не упадёт ниже [floor].
+  /// Вызывается после оптимистичного начисления, пока SSV ещё не подтвердил.
+  void ensureCoinsAtLeast(int floor) {
+    if (_coins < floor) {
+      _coins = floor;
+      notifyListeners();
+    }
+  }
+
+  /// Оптимистичное начисление награды за рекламу — до подтверждения сервером.
+  /// Даёт мгновенный отклик UI; сервер потом подтвердит через SSV.
+  void applyOptimisticAdReward(int amount) {
+    _coins += amount;
+    final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    if (_adRewardsDate != today) {
+      _adRewardsDate = today;
+      _adRewardsToday = 0;
+    }
+    _adRewardsToday += 1;
+    _saveLocal();
+    notifyListeners();
+  }
+
   /// Перезагружает coins/ownedThemes с сервера.
-  /// Используется после rewarded-видео: сервер начислит коины через SSV-callback
-  /// (асинхронно, обычно <1с после закрытия рекламы), а клиент подтянет новое
-  /// значение этим вызовом.
   Future<void> refreshCoinsFromServer() async {
     try {
       final data = await _fb.loadUserProfile(fromServer: true);

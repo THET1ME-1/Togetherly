@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -68,20 +69,26 @@ class RewardedAdService {
     );
 
     bool earned = false;
+    final completer = Completer<bool>();
+
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) => ad.dispose(),
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        if (!completer.isCompleted) completer.complete(earned);
+      },
       onAdFailedToShowFullScreenContent: (ad, error) {
         debugPrint('RewardedAd show failed: $error');
         ad.dispose();
+        if (!completer.isCompleted) completer.complete(false);
       },
     );
 
-    await ad.show(
+    ad.show(
       onUserEarnedReward: (_, reward) {
         earned = true;
       },
     );
-    return earned;
+    return completer.future;
   }
 
   void dispose() {

@@ -2751,28 +2751,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final uid = widget.userData.uid;
     if (uid.isEmpty) return;
     final earned = await _rewardedAd.show(uid: uid);
-    // Сразу подгружаем следующую — пока пользователь смотрит/закрывает.
     unawaited(_rewardedAd.load());
     if (!earned || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_s.rewardPending),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    // SSV прилетает обычно <1с после закрытия. Дёргаем баланс с сервера
-    // несколько раз с задержкой — на случай сетевой задержки.
-    for (final delayMs in const [1500, 3500, 7000]) {
-      await Future<void>.delayed(Duration(milliseconds: delayMs));
-      if (!mounted) return;
-      final before = widget.userData.coins;
-      await widget.userData.refreshCoinsFromServer();
-      if (widget.userData.coins > before) {
-        setState(() {});
-        break;
+
+    // Мгновенное начисление — не ждём SSV-коллбэка.
+    widget.userData.applyOptimisticAdReward(UserData.adRewardAmount);
+    setState(() {});
+    // Запомним оптимистичный баланс — он нижняя граница при синхронизации.
+    final rewardedCoins = widget.userData.coins;
+
+    // В фоне синхронизируем с сервером, чтобы подтянуть реальное значение.
+    // Если SSV ещё не успел — сервер вернёт старый баланс, поэтому
+    // ensureCoinsAtLeast не даёт просесть ниже уже показанного значения.
+    unawaited(() async {
+      for (final delayMs in const [2000, 5000]) {
+        await Future<void>.delayed(Duration(milliseconds: delayMs));
+        if (!mounted) return;
+        await widget.userData.refreshCoinsFromServer();
+        widget.userData.ensureCoinsAtLeast(rewardedCoins);
+        if (mounted) setState(() {});
       }
-    }
+    }());
   }
 
   Widget _coinShopItem({

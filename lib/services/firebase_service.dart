@@ -2952,6 +2952,40 @@ class FirebaseService {
     }
   }
 
+  // ── Solo timers (Firestore backup for reinstall recovery) ──
+
+  /// Сохраняет соло-таймеры в документ пользователя для восстановления после переустановки.
+  Future<void> saveSoloTimers(List<Map<String, dynamic>> timers) async {
+    final id = uid;
+    if (id == null) return;
+    try {
+      await _db.collection('users').doc(id).set(
+        {'soloTimers': timers},
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('saveSoloTimers failed: $e');
+    }
+  }
+
+  /// Загружает соло-таймеры из Firestore (вызывается после переустановки).
+  Future<List<Map<String, dynamic>>?> loadSoloTimers() async {
+    final id = uid;
+    if (id == null) return null;
+    try {
+      final snap = await _db
+          .collection('users')
+          .doc(id)
+          .get(const GetOptions(source: Source.server));
+      final raw = snap.data()?['soloTimers'];
+      if (raw is! List || (raw).isEmpty) return null;
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      debugPrint('loadSoloTimers failed: $e');
+      return null;
+    }
+  }
+
   /// Listen to timers changes in real-time.
   /// Skips the callback when only other group fields changed (e.g. memberMoods)
   /// to avoid redundant _mergeRemoteTimers calls on every partner mood update.
