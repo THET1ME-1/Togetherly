@@ -4,7 +4,8 @@
       "Bash(curl -s -X POST https://api.todoist.com/sync/v9/sync -H 'Authorization: Bearer ec3e15b16b1c4aa751853dde7d0aa58973b7757d' -H 'Content-Type: application/json' -d '{\"commands\":[{\"type\":\"section_update\",\"uuid\":\"aa1b1234-1234-1234-1234-aa1b12341234\",\"args\":{\"id\":\"6gjcfphM67QjC8Qq\",\"name\":\"Срочно\"}}]}')",
       "Bash(curl -s -X GET https://api.todoist.com/api/v1/sections/6gjcfphM67QjC8Qq -H 'Authorization: Bearer ec3e15b16b1c4aa751853dde7d0aa58973b7757d')",
       "Bash(curl -s -X POST https://api.todoist.com/api/v1/sections/6gjcfphM67QjC8Qq -H 'Authorization: Bearer ec3e15b16b1c4aa751853dde7d0aa58973b7757d' -H 'Content-Type: application/json' -d '{\"name\":\"Срочно\",\"project_id\":\"6ghRcQGgMJv3hwGH\"}')",
-      "Bash(python -c \"import sys,json; [print\\(s['id'], s['name']\\) for s in json.load\\(sys.stdin\\).get\\('results',[]\\)]\")"
+      "Bash(python -c \"import sys,json; [print\\(s['id'], s['name']\\) for s in json.load\\(sys.stdin\\).get\\('results',[]\\)]\")",
+      "Bash(Select-String -Pattern \"error -\")"
     ]
   }
 }
