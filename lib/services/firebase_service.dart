@@ -1613,9 +1613,10 @@ class FirebaseService {
   /// Сохраняет дату годовщины для пары (общая для группы).
   Future<void> updateAnniversaryDate(String groupId, DateTime? date) async {
     try {
-      await _db.collection('groups').doc(groupId).update({
-        'anniversaryDate': date != null ? Timestamp.fromDate(date) : null,
-      });
+      await _db.collection('groups').doc(groupId).set(
+        {'anniversaryDate': date != null ? Timestamp.fromDate(date) : null},
+        SetOptions(merge: true),
+      );
     } catch (e) {
       debugPrint('updateAnniversaryDate failed: $e');
     }
@@ -1627,9 +1628,10 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
-      await _db.collection('users').doc(u.uid).update({
-        'birthDate': date != null ? Timestamp.fromDate(date) : null,
-      });
+      await _db.collection('users').doc(u.uid).set(
+        {'birthDate': date != null ? Timestamp.fromDate(date) : null},
+        SetOptions(merge: true),
+      );
       // Обновляем в каждой группе, чтобы партнёр видел дату рождения.
       final groupIds = <String>[];
       // Пробуем прочитать pairIds из users/{uid}
@@ -1849,6 +1851,16 @@ class FirebaseService {
       'customRelationshipEmoji': data['customRelationshipEmoji'] as String?,
       'customRelationshipTypes':
           data['customRelationshipTypes'] as List<dynamic>?,
+      'anniversaryDate':
+          (data['anniversaryDate'] as Timestamp?)?.toDate(),
+      'memberBirthdays': () {
+        final raw = data['memberBirthdays'] as Map<String, dynamic>?;
+        if (raw == null) return null;
+        return raw.map((k, v) => MapEntry(
+              k,
+              v is Timestamp ? v.toDate() : null,
+            ));
+      }(),
       'raw': data,
     };
   }
