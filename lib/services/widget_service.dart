@@ -663,11 +663,11 @@ class WidgetService extends ChangeNotifier {
       );
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
-      // photoForPartnerUrl — фото, которое пользователь явно отправил партнёру;
-      // photoUrl — резервное поле для остальных случаев.
+      // Для MY стороны приоритет у photoUrl (прямая загрузка в парный виджет).
+      // Для PARTNER стороны приоритет у photoForPartnerUrl (партнёр явно поделился).
       await HomeWidget.saveWidgetData<String>(
         'my_photo_url',
-        my?.photoForPartnerUrl ?? my?.photoUrl ?? '',
+        my?.photoUrl ?? my?.photoForPartnerUrl ?? '',
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_photo_url',
@@ -739,7 +739,7 @@ class WidgetService extends ChangeNotifier {
 
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
       _cachePhotosForWidget(
-        my?.photoForPartnerUrl ?? my?.photoUrl,
+        my?.photoUrl ?? my?.photoForPartnerUrl,
         partner?.photoForPartnerUrl ?? partner?.photoUrl,
       );
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
@@ -859,6 +859,20 @@ class WidgetService extends ChangeNotifier {
       return;
     }
     try {
+      String httpUrl = url;
+
+      // gs:// пути не поддерживаются http.get — получаем signed URL через Cloud Function
+      if (url.startsWith('gs://')) {
+        final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+        final signedUrl = await FirebaseService().getSignedUrl(gsPath);
+        if (signedUrl == null || signedUrl.isEmpty) {
+          debugPrint('_downloadPhoto($key): no signed URL for gs:// path');
+          await HomeWidget.saveWidgetData<String>(key, '');
+          return;
+        }
+        httpUrl = signedUrl;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
       final cachedPath = prefs.getString('${key}_cached_path') ?? '';
@@ -875,7 +889,7 @@ class WidgetService extends ChangeNotifier {
       final file = File('${dir.path}/$key.jpg');
 
       final response = await http
-          .get(Uri.parse(url))
+          .get(Uri.parse(httpUrl))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -885,6 +899,7 @@ class WidgetService extends ChangeNotifier {
         await prefs.setString('${key}_cached_path', file.path);
         debugPrint('_downloadPhoto: $key cached at ${file.path}');
       } else {
+        debugPrint('_downloadPhoto($key): HTTP ${response.statusCode} for $url');
         await HomeWidget.saveWidgetData<String>(key, '');
       }
     } catch (e) {

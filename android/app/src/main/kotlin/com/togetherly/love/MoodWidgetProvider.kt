@@ -78,7 +78,7 @@ class MoodWidgetProvider : HomeWidgetProvider() {
                 val waterColor = parseColor(colorHex)
                 val t = score / 5.0
                 val easedFill = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
-                val heartBitmap = createWaterHeartBitmap(120, easedFill, waterColor)
+                val heartBitmap = createWaterHeartBitmap(88, easedFill, waterColor)
                 views.setImageViewBitmap(heartId, heartBitmap)
                 views.setTextViewText(labelId, label)
 
@@ -160,6 +160,13 @@ class MoodWidgetProvider : HomeWidgetProvider() {
         val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
 
+        // Отступ 6% с каждой стороны — чтобы антиалиасинг не обрезался по краям bitmap
+        val margin = size * 0.06f
+        val drawScale = (size - 2f * margin) / size
+        canvas.save()
+        canvas.translate(margin, margin)
+        canvas.scale(drawScale, drawScale)
+
         val heartPath = createHeartPath(size.toFloat(), size.toFloat())
 
         val bgPaint = Paint().apply {
@@ -227,6 +234,8 @@ class MoodWidgetProvider : HomeWidgetProvider() {
             isAntiAlias = true
         }
         canvas.drawPath(heartPath, borderPaint)
+
+        canvas.restore() // restore translate+scale inset
 
         return output
     }

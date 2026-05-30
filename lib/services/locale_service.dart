@@ -1531,7 +1531,7 @@ class _RuStrings extends AppStrings {
   @override
   String get videoLabel => 'Видео';
   @override
-  String get location => 'Место';
+  String get location => 'Локация';
   @override
   String get audio => 'Аудио';
   @override
