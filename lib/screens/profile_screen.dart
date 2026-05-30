@@ -1416,151 +1416,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? '${initial.day.toString().padLeft(2, '0')}.${initial.month.toString().padLeft(2, '0')}.${initial.year}'
           : '',
     );
-    // Поставим курсор в конец
     ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
-
-    String? error;
 
     final result = await showDialog<DateTime>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Text(
-              title,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
-              ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: ctrl,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [_DateDotFormatter()],
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                    color: primary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'ДД.ММ.ГГГГ',
-                    hintStyle: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey.shade300,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    errorText: error,
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(
-                          color: Colors.grey.shade300, width: 2),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: primary, width: 2),
-                    ),
-                    errorBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.red, width: 2),
-                    ),
-                  ),
-                  onChanged: (_) {
-                    if (error != null) {
-                      setDialogState(() => error = null);
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                // Кнопка открыть системный календарь
-                TextButton.icon(
-                  onPressed: () async {
-                    final calInitial = _parseDateInput(ctrl.text) ??
-                        initial ??
-                        DateTime(lastYear - 25);
-                    final calPicked = await showDatePicker(
-                      context: ctx,
-                      initialDate: calInitial,
-                      firstDate: DateTime(firstYear),
-                      lastDate: DateTime(lastYear),
-                      builder: (c, child) => Theme(
-                        data: Theme.of(c).copyWith(
-                          colorScheme: ColorScheme.light(
-                            primary: primary,
-                            onPrimary: Colors.white,
-                            surface: Colors.white,
-                            onSurface: Colors.grey.shade900,
-                          ),
-                          textButtonTheme: TextButtonThemeData(
-                            style: TextButton.styleFrom(
-                                foregroundColor: primary),
-                          ),
-                        ),
-                        child: child!,
-                      ),
-                    );
-                    if (calPicked != null) {
-                      ctrl.text =
-                          '${calPicked.day.toString().padLeft(2, '0')}.${calPicked.month.toString().padLeft(2, '0')}.${calPicked.year}';
-                      ctrl.selection = TextSelection.collapsed(
-                          offset: ctrl.text.length);
-                      setDialogState(() => error = null);
-                    }
-                  },
-                  icon: Icon(Icons.calendar_month_rounded,
-                      size: 16, color: primary),
-                  label: Text(
-                    'Открыть календарь',
-                    style: TextStyle(fontSize: 13, color: primary),
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey.shade500),
-                child: const Text('Отмена'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: primary,
-                  shape: const StadiumBorder(),
-                ),
-                onPressed: () {
-                  final parsed = _parseDateInput(ctrl.text);
-                  if (parsed == null) {
-                    setDialogState(
-                        () => error = 'Введите дату в формате ДД.ММ.ГГГГ');
-                    return;
-                  }
-                  if (parsed.year < firstYear || parsed.year > lastYear) {
-                    setDialogState(() =>
-                        error = 'Год должен быть от $firstYear до $lastYear');
-                    return;
-                  }
-                  Navigator.pop(ctx, parsed);
-                },
-                child: const Text('Готово'),
-              ),
-            ],
-          );
-        },
+      // useRootNavigator: true чтобы клавиатура не переполняла диалог
+      useRootNavigator: true,
+      builder: (ctx) => _DateInputDialog(
+        title: title,
+        ctrl: ctrl,
+        primary: primary,
+        firstYear: firstYear,
+        lastYear: lastYear,
+        initial: initial,
+        parseDateInput: _parseDateInput,
       ),
     );
-    ctrl.dispose();
+    // Не вызываем ctrl.dispose() здесь — диалог может ещё делать rebuild
+    // во время анимации закрытия. GC очистит сам.
     return result;
   }
 
@@ -4728,20 +4601,188 @@ class _DateDotFormatter extends TextInputFormatter {
     TextEditingValue old,
     TextEditingValue value,
   ) {
-    // Оставляем только цифры и точки.
     final digits = value.text.replaceAll(RegExp(r'[^\d]'), '');
-
-    // Строим строку с авто-точками на позициях 2 и 5 (ДД.ММ.ГГГГ).
     final buf = StringBuffer();
     for (int i = 0; i < digits.length && i < 8; i++) {
       if (i == 2 || i == 4) buf.write('.');
       buf.write(digits[i]);
     }
-
     final text = buf.toString();
     return TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+// ── Диалог ввода даты — отдельный StatefulWidget ─────────────────────────────
+
+class _DateInputDialog extends StatefulWidget {
+  final String title;
+  final TextEditingController ctrl;
+  final Color primary;
+  final int firstYear;
+  final int lastYear;
+  final DateTime? initial;
+  final DateTime? Function(String) parseDateInput;
+
+  const _DateInputDialog({
+    required this.title,
+    required this.ctrl,
+    required this.primary,
+    required this.firstYear,
+    required this.lastYear,
+    required this.initial,
+    required this.parseDateInput,
+  });
+
+  @override
+  State<_DateInputDialog> createState() => _DateInputDialogState();
+}
+
+class _DateInputDialogState extends State<_DateInputDialog> {
+  String? _error;
+
+  @override
+  void dispose() {
+    // Безопасно — контроллер диспозится вместе с виджетом,
+    // когда диалог полностью исчез из дерева.
+    widget.ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final parsed = widget.parseDateInput(widget.ctrl.text);
+    if (parsed == null) {
+      setState(() => _error = 'Введите дату в формате ДД.ММ.ГГГГ');
+      return;
+    }
+    if (parsed.year < widget.firstYear || parsed.year > widget.lastYear) {
+      setState(() =>
+          _error = 'Год от ${widget.firstYear} до ${widget.lastYear}');
+      return;
+    }
+    Navigator.pop(context, parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.primary;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        widget.title,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          color: Colors.grey.shade900,
+        ),
+      ),
+      // scrollable: true чтобы не переполняться при открытой клавиатуре
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: widget.ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [_DateDotFormatter()],
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 3,
+              color: p,
+            ),
+            decoration: InputDecoration(
+              hintText: 'ДД.ММ.ГГГГ',
+              hintStyle: TextStyle(
+                fontSize: 22,
+                // Достаточно тёмный серый — виден на белом
+                color: Colors.grey.shade400,
+                letterSpacing: 3,
+                fontWeight: FontWeight.w400,
+              ),
+              errorText: _error,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: p, width: 2),
+              ),
+              errorBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.red, width: 2),
+              ),
+              focusedErrorBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.red, width: 2),
+              ),
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () async {
+              final calInitial = widget.parseDateInput(widget.ctrl.text) ??
+                  widget.initial ??
+                  DateTime(widget.lastYear - 25);
+              final calPicked = await showDatePicker(
+                context: context,
+                initialDate: calInitial,
+                firstDate: DateTime(widget.firstYear),
+                lastDate: DateTime(widget.lastYear),
+                builder: (c, child) => Theme(
+                  data: Theme.of(c).copyWith(
+                    colorScheme: ColorScheme.light(
+                      primary: p,
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                      onSurface: Colors.grey.shade900,
+                    ),
+                    textButtonTheme: TextButtonThemeData(
+                      style: TextButton.styleFrom(foregroundColor: p),
+                    ),
+                  ),
+                  child: child!,
+                ),
+              );
+              if (calPicked != null && mounted) {
+                widget.ctrl.text =
+                    '${calPicked.day.toString().padLeft(2, '0')}.${calPicked.month.toString().padLeft(2, '0')}.${calPicked.year}';
+                widget.ctrl.selection = TextSelection.collapsed(
+                    offset: widget.ctrl.text.length);
+                setState(() => _error = null);
+              }
+            },
+            icon: Icon(Icons.calendar_month_rounded, size: 16, color: p),
+            label: Text('Открыть календарь',
+                style: TextStyle(fontSize: 13, color: p)),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          style: TextButton.styleFrom(foregroundColor: Colors.grey.shade500),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: p,
+            shape: const StadiumBorder(),
+          ),
+          onPressed: _submit,
+          child: const Text('Готово'),
+        ),
+      ],
     );
   }
 }
