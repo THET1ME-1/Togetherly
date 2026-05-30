@@ -6,7 +6,7 @@
     android:background="@drawable/timer_widget_bg"
     android:clipToOutline="true">
 
-    <!-- Декоративное большое сердце (фон, справа) -->
+    <!-- Декоративное большое сердце (фон, справа); скрывается в компактном режиме -->
     <ImageView
         android:id="@+id/timer_bg_heart"
         android:layout_width="90dp"
@@ -19,6 +19,7 @@
 
     <!-- Основной контент -->
     <LinearLayout
+        android:id="@+id/timer_content_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -28,8 +29,9 @@
         android:paddingTop="12dp"
         android:paddingBottom="12dp">
 
-        <!-- Строка: маленькое сердце + название -->
+        <!-- Строка: маленькое сердце + название; скрывается в компактном режиме -->
         <LinearLayout
+            android:id="@+id/timer_header_row"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"

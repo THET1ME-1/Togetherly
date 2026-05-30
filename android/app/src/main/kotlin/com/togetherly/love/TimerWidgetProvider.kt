@@ -11,6 +11,8 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
 import android.net.Uri
+import android.os.Bundle
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -33,6 +35,11 @@ class TimerWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val minW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180)
+            val minH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
+            val isCompact = minW < 150 || minH < 90
+
             val g = WidgetGroupHelper.getOrBind(context, "timer", widgetId)
             val views = RemoteViews(context.packageName, R.layout.timer_widget).apply {
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
@@ -87,9 +94,31 @@ class TimerWidgetProvider : HomeWidgetProvider() {
                     else
                         drawStar(180, colors.iconFrom, colors.iconTo)
                 )
+
+                // Компактный режим: скрываем шапку и декоративный фон
+                val headerVis = if (isCompact) View.GONE else View.VISIBLE
+                val bgHeartVis = if (isCompact) View.GONE else View.VISIBLE
+                setViewVisibility(R.id.timer_header_row, headerVis)
+                setViewVisibility(R.id.timer_bg_heart, bgHeartVis)
+
+                val density = context.resources.displayMetrics.density
+                val padStart = (16 * density).toInt()
+                val padEnd = ((if (isCompact) 16 else 100) * density).toInt()
+                val padVert = (12 * density).toInt()
+                setViewPadding(R.id.timer_content_layout, padStart, padVert, padEnd, padVert)
             }
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        val widgetData = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId), widgetData)
     }
 
     // ─── Палитра ────────────────────────────────────────────────────────
