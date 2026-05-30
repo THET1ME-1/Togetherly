@@ -37,6 +37,8 @@ import '../widgets/common/m3_loading.dart';
 import 'map_picker_screen.dart';
 import 'memories_map_screen.dart';
 import 'memory_photo_form_screen.dart';
+import 'memory_music_form_screen.dart';
+import 'memory_location_form_screen.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -3270,6 +3272,57 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               settings: const RouteSettings(name: '/memory_photo_form'),
             ),
           );
+        } else if (type == MemoryType.music) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoryMusicFormScreen(
+                theme: widget.theme,
+                onFetchMeta: _fetchMusicMeta,
+                onSave: ({
+                  required musicTitle,
+                  required musicArtist,
+                  required musicUrl,
+                  musicCoverUrl,
+                  musicPath,
+                  caption = '',
+                }) =>
+                    _saveNewMemory(
+                  type: MemoryType.music,
+                  caption: caption,
+                  musicTitle: musicTitle,
+                  musicArtist: musicArtist,
+                  musicUrl: musicUrl,
+                  musicCoverUrl: musicCoverUrl,
+                  musicPath: musicPath,
+                ),
+              ),
+              settings: const RouteSettings(name: '/memory_music_form'),
+            ),
+          );
+        } else if (type == MemoryType.location) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoryLocationFormScreen(
+                theme: widget.theme,
+                onSave: ({
+                  required locationName,
+                  latitude,
+                  longitude,
+                  caption = '',
+                }) =>
+                    _saveNewMemory(
+                  type: MemoryType.location,
+                  caption: caption,
+                  locationName: locationName,
+                  latitude: latitude,
+                  longitude: longitude,
+                ),
+              ),
+              settings: const RouteSettings(name: '/memory_location_form'),
+            ),
+          );
         } else {
           _showCreateMemoryForm(type);
         }
@@ -3848,7 +3901,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
 
     // ── Яндекс Музыка ──
-    if (lower.contains('music.yandex.') || lower.contains('music.yandex.com')) {
+    if (lower.contains('music.yandex.')) {
       try {
         final pageResp = await http.get(
           Uri.parse(url),
@@ -3859,22 +3912,63 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         );
         if (pageResp.statusCode == 200) {
           final body = pageResp.body;
-          final titleMatch = RegExp(
-            r'<title[^>]*>(.+?)</title>',
+          String? title;
+          String? artist;
+          String? cover;
+
+          // 1. Самый надёжный источник — структурированные данные ld+json
+          //    (MusicRecording: name, byArtist.name, thumbnailUrl).
+          for (final m in RegExp(
+            r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',
             caseSensitive: false,
-          ).firstMatch(body);
-          if (titleMatch != null) {
-            final pageTitle = titleMatch.group(1) ?? '';
-            // Format: "Song Name — Artist слушать онлайн на Яндекс Музыке"
-            final parts = pageTitle.split('—');
-            if (parts.length >= 2) {
-              final title = parts[0].trim();
-              final artistPart = parts[1]
-                  .split(RegExp(r'слушать|listen'))
-                  .first
-                  .trim();
-              return {'title': title, 'artist': artistPart, 'cover': null};
+            dotAll: true,
+          ).allMatches(body)) {
+            try {
+              final ld = json.decode(m.group(1)!.trim());
+              if (ld is! Map<String, dynamic>) continue;
+              if (ld['name'] is String) title = ld['name'] as String;
+              final byArtist = ld['byArtist'];
+              if (byArtist is Map && byArtist['name'] is String) {
+                artist = byArtist['name'] as String;
+              } else if (byArtist is List && byArtist.isNotEmpty) {
+                artist = byArtist
+                    .whereType<Map>()
+                    .map((a) => a['name'])
+                    .whereType<String>()
+                    .join(', ');
+              }
+              if (ld['thumbnailUrl'] is String) {
+                cover = ld['thumbnailUrl'] as String;
+              }
+              if (title != null) break;
+            } catch (_) {}
+          }
+
+          // 2. Fallback на Open Graph / описание.
+          String? ogContent(String prop) => RegExp(
+                'property="$prop"\\s+content="([^"]*)"',
+                caseSensitive: false,
+              ).firstMatch(body)?.group(1);
+
+          title ??= ogContent('og:title');
+          // og:image отдаёт обложку нужного размера (m1000x1000).
+          final ogImage = ogContent('og:image');
+          if (ogImage != null && ogImage.isNotEmpty) cover = ogImage;
+          // og:description формата "Artist • Трек • 2026" → берём исполнителя.
+          if (artist == null || artist.isEmpty) {
+            final desc = ogContent('og:description');
+            if (desc != null && desc.contains('•')) {
+              artist = desc.split('•').first.trim();
             }
+          }
+
+          if ((title != null && title.isNotEmpty) ||
+              (cover != null && cover.isNotEmpty)) {
+            return {
+              'title': title != null ? _decodeHtmlEntities(title) : null,
+              'artist': artist != null ? _decodeHtmlEntities(artist) : null,
+              'cover': cover,
+            };
           }
         }
       } catch (e) {
