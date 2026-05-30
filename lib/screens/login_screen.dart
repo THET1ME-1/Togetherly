@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
-import '../widgets/common/m3_loading.dart';
+
 import 'home_screen.dart';
 import 'setup_screen.dart';
 import 'welcome_screen.dart';
@@ -420,10 +420,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: M3LoadingDots(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
                                     color: Colors.white,
-                                    dotSize: 5,
-                                    gap: 3,
                                   ),
                                 )
                               : Text(

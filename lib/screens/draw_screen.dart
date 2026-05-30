@@ -18,7 +18,7 @@ import '../services/canvas_storage_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/common/m3_loading.dart';
+
 
 //  Palette
 
@@ -1896,10 +1896,9 @@ class _DrawScreenState extends State<DrawScreen>
                   height: 40,
                   child: Padding(
                     padding: const EdgeInsets.all(11),
-                    child: M3LoadingDots(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
                       color: widget.theme.primary,
-                      dotSize: 4,
-                      gap: 2,
                     ),
                   ),
                 )

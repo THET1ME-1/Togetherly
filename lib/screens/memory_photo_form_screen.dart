@@ -10,7 +10,7 @@ import 'package:video_compress/video_compress.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/common/m3_loading.dart';
+
 import 'map_picker_screen.dart';
 
 /// type авто-определяется: фото → photo, видео → video, без медиа → text.
@@ -630,8 +630,8 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: M3LoadingDots(
-                        color: Colors.white, dotSize: 4, gap: 2))
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
                 : null,
             label: s.useCurrent,
             color: primary,
