@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -1390,19 +1389,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Celebration helpers ──
 
-  String get _dateLocale =>
-      LocaleService.instance.isRussian ? 'ru' : 'en';
-
-  // Годовщина — без года, только день и месяц (ежегодная дата).
   String _formatAnniversaryDate(DateTime? date) {
     if (date == null) return _s.notSet;
-    return DateFormat('d MMMM', _dateLocale).format(date);
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
 
-  // День рождения — с годом, чтобы видеть возраст.
   String _formatBirthdayDate(DateTime? date) {
     if (date == null) return _s.notSet;
-    return DateFormat('d MMMM yyyy', _dateLocale).format(date);
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
 
   Future<void> _showAnniversaryDatePicker(
