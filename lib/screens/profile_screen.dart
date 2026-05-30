@@ -1401,12 +1401,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final groupId = connection?.pairId ?? '';
     if (groupId.isEmpty) return;
     final initial = connection?.anniversaryDate ?? DateTime.now();
+    final primary = _accent;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(1990),
       lastDate: DateTime.now(),
       helpText: _s.anniversaryDate,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: primary,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: Colors.grey.shade900,
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(foregroundColor: primary),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked == null || !mounted) return;
     // Сохраняем в Firestore (группа получит обновление через listener).
@@ -1423,12 +1438,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _showBirthdayPicker(BuildContext context) async {
     final initial = widget.userData.birthDate ??
         DateTime(DateTime.now().year - 25);
+    final primary = _accent;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(1920),
       lastDate: DateTime.now(),
       helpText: _s.myBirthday,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: primary,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: Colors.grey.shade900,
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(foregroundColor: primary),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked == null || !mounted) return;
     await widget.userData.updateBirthDate(picked);
