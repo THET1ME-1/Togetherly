@@ -673,7 +673,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _accent),
+                M3LoadingDots(color: _accentLight),
                 const SizedBox(height: 16),
                 Text(
                   _s.uploading,
@@ -2245,7 +2245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _accent),
+                M3LoadingDots(color: _accentLight),
                 const SizedBox(height: 16),
                 Text(
                   _s.creatingArchive,
