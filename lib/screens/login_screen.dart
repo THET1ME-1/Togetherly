@@ -1,7 +1,7 @@
 import 'dart:math' as math;
-import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
@@ -19,7 +19,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const Color _accent = Color(0xFFFF7E8B);
+  static const Color _accent = Color(0xFFFF6B9D);
+  static const List<Color> _btnGradient = [
+    Color(0xFFFF8FA3),
+    Color(0xFFFF6B9D),
+  ];
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -217,20 +221,23 @@ class _LoginScreenState extends State<LoginScreen> {
     final hasSpecial = pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
 
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          StorageImage(
-            imageUrl:
-                'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            placeholder: (_, __) => const ColoredBox(color: Color(0xFFFFF0EA)),
-            errorWidget: (_, __, ___) =>
-                const ColoredBox(color: Color(0xFFFFF0EA)),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFE4EC),
+              Color(0xFFFFF1F4),
+              Color(0xFFFCE9FF),
+            ],
+            stops: [0.0, 0.5, 1.0],
           ),
-          SafeArea(
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
@@ -271,22 +278,52 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  // Heart header
+                  Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: _btnGradient,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent.withValues(alpha: 0.4),
+                          blurRadius: 28,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      color: Colors.white,
+                      size: 46,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   // Title
                   Text(
                     _s.welcomeBack,
-                    style: TextStyle(
-                      fontSize: 28,
+                    style: GoogleFonts.rubik(
+                      fontSize: 30,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: const Color(0xFF2B2230),
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     _s.loginToAccount,
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                    style: GoogleFonts.rubik(
+                      fontSize: 14,
+                      color: const Color(0xFF2B2230).withValues(alpha: 0.5),
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
                   // ═══ Form Card ═══
                   Container(
                     width: double.infinity,
@@ -351,38 +388,54 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 28),
                   // Login button
-                  SizedBox(
+                  Container(
                     width: double.infinity,
                     height: 58,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _signInWithEmail,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accent,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: _accent.withOpacity(0.6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(32),
-                        ),
-                        elevation: 12,
-                        shadowColor: _accent.withOpacity(0.4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: _isLoading
+                            ? _btnGradient
+                                .map((c) => c.withValues(alpha: 0.6))
+                                .toList()
+                            : _btnGradient,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: M3LoadingDots(
-                                color: Colors.white,
-                                dotSize: 5,
-                                gap: 3,
-                              ),
-                            )
-                          : Text(
-                              _s.login,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent.withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(32),
+                        onTap: _isLoading ? null : _signInWithEmail,
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: M3LoadingDots(
+                                    color: Colors.white,
+                                    dotSize: 5,
+                                    gap: 3,
+                                  ),
+                                )
+                              : Text(
+                                  _s.login,
+                                  style: GoogleFonts.rubik(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -467,6 +520,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
