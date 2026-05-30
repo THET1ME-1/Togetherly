@@ -4734,7 +4734,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
                 context: context,
                 initialDate: calInitial,
                 firstDate: DateTime(widget.firstYear),
-                lastDate: DateTime(widget.lastYear),
+                lastDate: DateTime(widget.lastYear, 12, 31),
                 builder: (c, child) => Theme(
                   data: Theme.of(c).copyWith(
                     colorScheme: ColorScheme.light(
