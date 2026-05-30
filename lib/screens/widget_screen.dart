@@ -4559,7 +4559,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _t.primary),
+                M3LoadingDots(color: _t.primaryLight),
                 const SizedBox(height: 16),
                 Text(_s.uploadingPhoto, style: GoogleFonts.rubik(fontSize: 14)),
               ],

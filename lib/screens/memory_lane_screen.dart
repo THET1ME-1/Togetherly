@@ -337,7 +337,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               slivers: [
                 _buildAppBar(),
                 if (_loading)
-                  SliverFillRemaining(child: M3PageLoading(color: primary))
+                  SliverFillRemaining(child: M3PageLoading(color: widget.theme.primaryLight))
                 else if (_memories.isEmpty)
                   _buildEmpty()
                 else ...[

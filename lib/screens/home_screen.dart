@@ -1180,7 +1180,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: primary),
+                M3LoadingDots(color: primaryLight),
                 const SizedBox(height: 16),
                 Text(
                   LocaleService.current.posting,

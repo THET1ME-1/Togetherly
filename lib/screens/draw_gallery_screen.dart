@@ -295,7 +295,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         ],
       ),
       body: _loading
-          ? Center(child: M3LoadingDots(color: t.primary))
+          ? Center(child: M3LoadingDots(color: t.primaryLight))
           : _canvases.isEmpty
           ? _buildEmpty(s, t)
           : _buildGrid(s, t),
