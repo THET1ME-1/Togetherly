@@ -46,7 +46,7 @@ import '../widgets/active_mascot_widget.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
-import 'home/home_skeleton.dart';
+
 import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 
@@ -67,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
-  bool _isLoading = true;
+
   StreamSubscription? _deepLinkSub;
 
   // -- Pair data --
@@ -205,10 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initPairData() async {
     await _pairData.init(myName: widget.userData.displayName);
-    if (mounted)
-      setState(() {
-        _isLoading = false;
-      });
   }
 
   /// Проверяет, запущено ли приложение кликом на виджет
@@ -629,10 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: false,
             child: Column(
               children: [
-                if (_isLoading)
-                  HomeSkeletonHeader(primary: _t.primary)
-                else
-                  HomeHeader(
+                HomeHeader(
                     theme: _t,
                     isPaired: _pairData.isPaired,
                     partnerCount: _pairData.partnerCount,
@@ -680,9 +673,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading && _selectedNavIndex == 0) {
-      return HomeSkeletonBody(primary: _t.primary);
-    }
     switch (_selectedNavIndex) {
       case 0:
         return _buildHomeTab();

@@ -179,10 +179,6 @@ class UserData extends ChangeNotifier {
           ..clear()
           ..addAll(cloudOwnedIcons.whereType<String>());
       }
-      final cloudAdCount = data['adRewardsToday'];
-      if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
-      final cloudAdDate = data['adRewardsDate'];
-      if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
       await _saveLocal();
       notifyListeners();
     } catch (e) {
