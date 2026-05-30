@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -1399,40 +1400,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
   }
 
+  /// Показывает диалог ввода даты с авто-точками (ДД.ММ.ГГГГ).
+  /// [firstYear] / [lastYear] — допустимый диапазон лет.
+  /// Возвращает выбранную дату или null если отменено.
+  Future<DateTime?> _showDateInputDialog({
+    required BuildContext context,
+    required String title,
+    required DateTime? initial,
+    required int firstYear,
+    required int lastYear,
+  }) async {
+    final primary = _accent;
+    final ctrl = TextEditingController(
+      text: initial != null
+          ? '${initial.day.toString().padLeft(2, '0')}.${initial.month.toString().padLeft(2, '0')}.${initial.year}'
+          : '',
+    );
+    // Поставим курсор в конец
+    ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+
+    String? error;
+
+    final result = await showDialog<DateTime>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              title,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_DateDotFormatter()],
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: primary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'ДД.ММ.ГГГГ',
+                    hintStyle: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade300,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    errorText: error,
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                          color: Colors.grey.shade300, width: 2),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: primary, width: 2),
+                    ),
+                    errorBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.red, width: 2),
+                    ),
+                  ),
+                  onChanged: (_) {
+                    if (error != null) {
+                      setDialogState(() => error = null);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Кнопка открыть системный календарь
+                TextButton.icon(
+                  onPressed: () async {
+                    final calInitial = _parseDateInput(ctrl.text) ??
+                        initial ??
+                        DateTime(lastYear - 25);
+                    final calPicked = await showDatePicker(
+                      context: ctx,
+                      initialDate: calInitial,
+                      firstDate: DateTime(firstYear),
+                      lastDate: DateTime(lastYear),
+                      builder: (c, child) => Theme(
+                        data: Theme.of(c).copyWith(
+                          colorScheme: ColorScheme.light(
+                            primary: primary,
+                            onPrimary: Colors.white,
+                            surface: Colors.white,
+                            onSurface: Colors.grey.shade900,
+                          ),
+                          textButtonTheme: TextButtonThemeData(
+                            style: TextButton.styleFrom(
+                                foregroundColor: primary),
+                          ),
+                        ),
+                        child: child!,
+                      ),
+                    );
+                    if (calPicked != null) {
+                      ctrl.text =
+                          '${calPicked.day.toString().padLeft(2, '0')}.${calPicked.month.toString().padLeft(2, '0')}.${calPicked.year}';
+                      ctrl.selection = TextSelection.collapsed(
+                          offset: ctrl.text.length);
+                      setDialogState(() => error = null);
+                    }
+                  },
+                  icon: Icon(Icons.calendar_month_rounded,
+                      size: 16, color: primary),
+                  label: Text(
+                    'Открыть календарь',
+                    style: TextStyle(fontSize: 13, color: primary),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade500),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: primary,
+                  shape: const StadiumBorder(),
+                ),
+                onPressed: () {
+                  final parsed = _parseDateInput(ctrl.text);
+                  if (parsed == null) {
+                    setDialogState(
+                        () => error = 'Введите дату в формате ДД.ММ.ГГГГ');
+                    return;
+                  }
+                  if (parsed.year < firstYear || parsed.year > lastYear) {
+                    setDialogState(() =>
+                        error = 'Год должен быть от $firstYear до $lastYear');
+                    return;
+                  }
+                  Navigator.pop(ctx, parsed);
+                },
+                child: const Text('Готово'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
+  /// Парсит строку ДД.ММ.ГГГГ → DateTime или null если некорректно.
+  DateTime? _parseDateInput(String text) {
+    final parts = text.split('.');
+    if (parts.length != 3) return null;
+    final d = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final y = int.tryParse(parts[2]);
+    if (d == null || m == null || y == null) return null;
+    if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1000) return null;
+    try {
+      return DateTime(y, m, d);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _showAnniversaryDatePicker(
     BuildContext context,
     Connection? connection,
   ) async {
     final groupId = connection?.pairId ?? '';
     if (groupId.isEmpty) return;
-    final initial = connection?.anniversaryDate ?? DateTime.now();
-    final primary = _accent;
-    final picked = await showDatePicker(
+    final picked = await _showDateInputDialog(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(1990),
-      lastDate: DateTime.now(),
-      helpText: _s.anniversaryDate,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: primary,
-            onPrimary: Colors.white,
-            surface: Colors.white,
-            onSurface: Colors.grey.shade900,
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(foregroundColor: primary),
-          ),
-        ),
-        child: child!,
-      ),
+      title: _s.anniversaryDate,
+      initial: connection?.anniversaryDate,
+      firstYear: 1900,
+      lastYear: DateTime.now().year,
     );
     if (picked == null || !mounted) return;
-    // Сохраняем в Firestore (группа получит обновление через listener).
     final fb = FirebaseService();
     await fb.updateAnniversaryDate(groupId, picked);
-    // Обновляем расписание уведомлений.
     await CelebrationNotificationService.instance.onDatesChanged(
       anniversaryDate: picked,
       birthDate: widget.userData.birthDate,
@@ -1441,33 +1604,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _showBirthdayPicker(BuildContext context) async {
-    final initial = widget.userData.birthDate ??
-        DateTime(DateTime.now().year - 25);
-    final primary = _accent;
-    final picked = await showDatePicker(
+    final picked = await _showDateInputDialog(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(1920),
-      lastDate: DateTime.now(),
-      helpText: _s.myBirthday,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: primary,
-            onPrimary: Colors.white,
-            surface: Colors.white,
-            onSurface: Colors.grey.shade900,
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(foregroundColor: primary),
-          ),
-        ),
-        child: child!,
-      ),
+      title: _s.myBirthday,
+      initial: widget.userData.birthDate,
+      firstYear: 1920,
+      lastYear: DateTime.now().year,
     );
     if (picked == null || !mounted) return;
     await widget.userData.updateBirthDate(picked);
-    // Обновляем расписание уведомлений.
     final conn = widget.pairData.manager.activeConnection;
     await CelebrationNotificationService.instance.onDatesChanged(
       anniversaryDate: conn?.anniversaryDate,
@@ -4571,6 +4716,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Форматтер авто-точек для ввода даты ДД.ММ.ГГГГ ──────────────────────────
+
+class _DateDotFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue old,
+    TextEditingValue value,
+  ) {
+    // Оставляем только цифры и точки.
+    final digits = value.text.replaceAll(RegExp(r'[^\d]'), '');
+
+    // Строим строку с авто-точками на позициях 2 и 5 (ДД.ММ.ГГГГ).
+    final buf = StringBuffer();
+    for (int i = 0; i < digits.length && i < 8; i++) {
+      if (i == 2 || i == 4) buf.write('.');
+      buf.write(digits[i]);
+    }
+
+    final text = buf.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }
