@@ -2056,7 +2056,16 @@ class _RuStrings extends AppStrings {
   @override
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
-  String get updateWhatsNew => 'Исправлена синхронизация монет, улучшения Ленты воспоминаний и исправления ошибок';
+  String get updateWhatsNew =>
+      '• Значительно ускорена загрузка приложения.\n'
+      '• Добавлено сохранение таймера для соло-режима.\n'
+      '• Исправлены показ рекламы и вознаграждения.\n'
+      '• Починили работу парного виджета — теперь фото отображается.\n'
+      '• Редизайн страницы приветствия.\n'
+      '• Улучшен внешний вид виджета «Настроение».\n'
+      '• Редизайн создания пина «Музыка»; снова работает Яндекс Музыка.\n'
+      '• Редизайн создания пина «Место» → теперь «Локация».\n'
+      '• В профиле: дата и точное время годовщины и дня рождения с уведомлениями.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3672,7 +3681,16 @@ class _EnStrings extends AppStrings {
   @override
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
-  String get updateWhatsNew => 'Fixed coin sync, Memory Lane improvements and bug fixes';
+  String get updateWhatsNew =>
+      '• Significantly faster app startup.\n'
+      '• Solo-mode timer is now backed up to the cloud.\n'
+      '• Fixed rewarded ads and coin rewards.\n'
+      '• Fixed the Pair widget — photo now shows correctly.\n'
+      '• Welcome screen redesign.\n'
+      '• Mood widget visual improvements.\n'
+      '• Music pin redesign; Yandex Music support restored.\n'
+      '• Location pin redesign (now called "Location").\n'
+      '• Profile: set anniversary & birthday date + time with auto-notifications.';
   @override
   String get updateButton => 'Update';
   @override

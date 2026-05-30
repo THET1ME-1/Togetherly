@@ -2078,6 +2078,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
           // What's new block
           Container(
             width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 220),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
@@ -2085,15 +2086,21 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
               border: Border.all(color: Colors.grey.shade200),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.star_rounded, color: p, size: 18),
                 const SizedBox(width: 10),
-                Text(
-                  LocaleService.current.updateWhatsNew,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      LocaleService.current.updateWhatsNew,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                        height: 1.6,
+                      ),
+                    ),
                   ),
                 ),
               ],
