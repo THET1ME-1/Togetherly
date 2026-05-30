@@ -49,6 +49,8 @@ import 'widget_screen.dart';
 
 import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
+import '../services/celebration_notification_service.dart';
+import '../widgets/celebration_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -157,6 +159,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Ежедневный бонус и разовые награды — через 4с после старта
     Future.delayed(const Duration(seconds: 4), _tryClaimStartupRewards);
+
+    // Пересчёт расписания уведомлений о праздниках при каждом старте.
+    Future.microtask(() async {
+      await CelebrationNotificationService.instance.rescheduleOnAppStart();
+    });
 
     _appLifecycleListener = AppLifecycleListener(
       onResume: () {
@@ -707,6 +714,15 @@ class _HomeScreenState extends State<HomeScreen> {
   // HOME TAB
   // =============================================
   Widget _buildHomeTab() {
+    // ── Проверяем праздники сегодня ──
+    final conn = _pairData.manager.activeConnection;
+    final anniversaryDate = conn?.anniversaryDate;
+    final myBirthDate = widget.userData.birthDate;
+    final isAnniversaryToday = anniversaryDate != null &&
+        CelebrationNotificationService.isToday(anniversaryDate);
+    final isBirthdayToday = myBirthDate != null &&
+        CelebrationNotificationService.isToday(myBirthDate);
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
@@ -715,6 +731,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Баннер праздника (если сегодня годовщина или ДР) ──
+          if (isAnniversaryToday)
+            CelebrationBanner(
+              message: LocaleService.current.celebrationBannerAnniversary,
+              emoji: '🎉',
+              color: const Color(0xFFE91E8C),
+            ),
+          if (isBirthdayToday && !isAnniversaryToday)
+            CelebrationBanner(
+              message: LocaleService.current.celebrationBannerBirthday,
+              emoji: '🎂',
+              color: const Color(0xFFFF6B35),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(

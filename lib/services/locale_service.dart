@@ -281,6 +281,23 @@ abstract class AppStrings {
   String get notSelected;
   String daysTogetherLabel(String days);
   String get invitePartnerToCount;
+  String get anniversaryDate;
+  String get myBirthday;
+  String get partnerBirthday;
+  String get notifCelebrations;
+  String get notifCelebrationsHint;
+  String get anniversaryTodayTitle;
+  String get anniversaryTodayBody;
+  String get birthdayTodayTitle;
+  String get birthdayTodayBody;
+  String get anniversaryTomorrowTitle;
+  String get anniversaryTomorrowBody;
+  String get birthdayTomorrowTitle;
+  String get birthdayTomorrowBody;
+  String get celebrationBannerAnniversary;
+  String get celebrationBannerBirthday;
+  String get daysUntilAnniversary;
+  String get daysUntilBirthday;
   String get inLoveRelType;
   String get marriedRelType;
   String get friendsRelType;
@@ -1255,6 +1272,45 @@ class _RuStrings extends AppStrings {
   @override
   String get invitePartnerToCount =>
       'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️';
+  @override
+  String get anniversaryDate => 'Годовщина';
+  @override
+  String get myBirthday => 'Мой день рождения';
+  @override
+  String get partnerBirthday => 'День рождения партнёра';
+  @override
+  String get notifCelebrations => 'Уведомления о праздниках';
+  @override
+  String get notifCelebrationsHint =>
+      'Напомним за день и точно в день годовщины и дня рождения';
+  @override
+  String get anniversaryTodayTitle => '🎉 С годовщиной!';
+  @override
+  String get anniversaryTodayBody =>
+      'Поздравляем вас с годовщиной вместе! Откройте Togetherly, чтобы отметить этот день.';
+  @override
+  String get birthdayTodayTitle => '🎂 С днём рождения!';
+  @override
+  String get birthdayTodayBody =>
+      'Сегодня ваш особенный день! Откройте Togetherly, чтобы отметить его вместе.';
+  @override
+  String get anniversaryTomorrowTitle => '🌹 Завтра годовщина!';
+  @override
+  String get anniversaryTomorrowBody =>
+      'Не забудьте — завтра ваша годовщина. Придумайте что-то особенное!';
+  @override
+  String get birthdayTomorrowTitle => '🎈 Завтра день рождения!';
+  @override
+  String get birthdayTomorrowBody =>
+      'Завтра ваш день рождения. Откройте Togetherly заранее!';
+  @override
+  String get celebrationBannerAnniversary => 'С годовщиной! 🎉';
+  @override
+  String get celebrationBannerBirthday => 'С днём рождения! 🎂';
+  @override
+  String get daysUntilAnniversary => 'до годовщины';
+  @override
+  String get daysUntilBirthday => 'до дня рождения';
   @override
   String get inLoveRelType => 'Влюблённые';
   @override
@@ -2826,6 +2882,45 @@ class _EnStrings extends AppStrings {
   @override
   String get invitePartnerToCount =>
       'Invite a partner to start\ncounting days together ❤️';
+  @override
+  String get anniversaryDate => 'Anniversary';
+  @override
+  String get myBirthday => 'My Birthday';
+  @override
+  String get partnerBirthday => "Partner's Birthday";
+  @override
+  String get notifCelebrations => 'Celebration Notifications';
+  @override
+  String get notifCelebrationsHint =>
+      "We'll remind you the day before and on the day of anniversaries and birthdays";
+  @override
+  String get anniversaryTodayTitle => '🎉 Happy Anniversary!';
+  @override
+  String get anniversaryTodayBody =>
+      'Congratulations on your anniversary together! Open Togetherly to celebrate.';
+  @override
+  String get birthdayTodayTitle => '🎂 Happy Birthday!';
+  @override
+  String get birthdayTodayBody =>
+      "Today is your special day! Open Togetherly to celebrate together.";
+  @override
+  String get anniversaryTomorrowTitle => '🌹 Anniversary Tomorrow!';
+  @override
+  String get anniversaryTomorrowBody =>
+      "Don't forget — your anniversary is tomorrow. Plan something special!";
+  @override
+  String get birthdayTomorrowTitle => '🎈 Birthday Tomorrow!';
+  @override
+  String get birthdayTomorrowBody =>
+      'Your birthday is tomorrow. Open Togetherly to get ready!';
+  @override
+  String get celebrationBannerAnniversary => 'Happy Anniversary! 🎉';
+  @override
+  String get celebrationBannerBirthday => 'Happy Birthday! 🎂';
+  @override
+  String get daysUntilAnniversary => 'until anniversary';
+  @override
+  String get daysUntilBirthday => 'until birthday';
   @override
   String get inLoveRelType => 'In Love';
   @override

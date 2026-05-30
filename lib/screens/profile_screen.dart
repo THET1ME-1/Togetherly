@@ -25,6 +25,7 @@ import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/iap_service.dart';
+import '../services/celebration_notification_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1323,6 +1324,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: _s.together,
               value: daysString,
             ),
+            _divider(),
+            // ── Годовщина ──
+            GestureDetector(
+              onTap: () => _showAnniversaryDatePicker(
+                  context, selectedPartner?.connection),
+              behavior: HitTestBehavior.opaque,
+              child: _infoRow(
+                icon: Icons.celebration_rounded,
+                label: _s.anniversaryDate,
+                value: _formatCelebrationDate(
+                    selectedPartner?.connection.anniversaryDate),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
+            ),
+            _divider(),
+            // ── Мой день рождения ──
+            GestureDetector(
+              onTap: () => _showBirthdayPicker(context),
+              behavior: HitTestBehavior.opaque,
+              child: _infoRow(
+                icon: Icons.cake_rounded,
+                label: _s.myBirthday,
+                value: _formatCelebrationDate(widget.userData.birthDate),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
+            ),
+            // ── День рождения партнёра (read-only) ──
+            if (selectedPartner != null) ...[
+              _divider(),
+              _infoRow(
+                icon: Icons.cake_rounded,
+                label: _s.partnerBirthday,
+                value: _formatCelebrationDate(
+                  selectedPartner.connection.memberBirthdays[
+                      selectedPartner.member.uid],
+                ),
+              ),
+            ],
           ],
           if (!hasPaired) ...[
             const SizedBox(height: 12),
@@ -1338,6 +1385,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  // ── Celebration helpers ──
+
+  String _formatCelebrationDate(DateTime? date) {
+    if (date == null) return _s.notSet;
+    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+  }
+
+  Future<void> _showAnniversaryDatePicker(
+    BuildContext context,
+    Connection? connection,
+  ) async {
+    final groupId = connection?.pairId ?? '';
+    if (groupId.isEmpty) return;
+    final initial = connection?.anniversaryDate ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1990),
+      lastDate: DateTime.now(),
+      helpText: _s.anniversaryDate,
+    );
+    if (picked == null || !mounted) return;
+    // Сохраняем в Firestore (группа получит обновление через listener).
+    final fb = FirebaseService();
+    await fb.updateAnniversaryDate(groupId, picked);
+    // Обновляем расписание уведомлений.
+    await CelebrationNotificationService.instance.onDatesChanged(
+      anniversaryDate: picked,
+      birthDate: widget.userData.birthDate,
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showBirthdayPicker(BuildContext context) async {
+    final initial = widget.userData.birthDate ??
+        DateTime(DateTime.now().year - 25);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now(),
+      helpText: _s.myBirthday,
+    );
+    if (picked == null || !mounted) return;
+    await widget.userData.updateBirthDate(picked);
+    // Обновляем расписание уведомлений.
+    final conn = widget.pairData.manager.activeConnection;
+    await CelebrationNotificationService.instance.onDatesChanged(
+      anniversaryDate: conn?.anniversaryDate,
+      birthDate: picked,
+    );
+    if (mounted) setState(() {});
   }
 
   // ── Relationship type helpers ──
