@@ -912,38 +912,47 @@ const TODOIST_PROJECT_ID  = "6ghRcQGgMJv3hwGH";
 const GEMINI_API_KEY      = "AQ.Ab8RN6K5ncvFPd37Nmn-QrZVWpVD8_zJ-wWthFfnqy8UJApCqw";
 
 // Секции проекта Togetherly
-const SECTION_VAZHNOYE  = "6gjcfphM67QjC8Qq"; // Важное
-const SECTION_V_PLANAKH = "6ghRf5Jh49r2rgvH"; // В планах
+const SECTION_SROCHNO          = "6gjcfphM67QjC8Qq"; // 🔴 Срочно
+const SECTION_OT_POLZOVATELEY  = "6gjw3rP83qwqmvvH"; // 🐛 От пользователей
 
-function classifyBug(text) {
+function classifyFallback(text) {
   const t = text.toLowerCase();
-  if (/crash|вылет|падает|force close|не открывается|вис(ит|нет)|зависает/.test(t))
-    return { labels: ["Баг / Ошибка"], priority: 4, section: SECTION_VAZHNOYE, emoji: "🔴" };
-  if (/ui|интерфейс|кнопка|экран|отображ|вёрст|верст|layout|визуал/.test(t))
-    return { labels: ["Баг / Ошибка", "UI/IX"], priority: 3, section: SECTION_V_PLANAKH, emoji: "🟠" };
-  if (/не работает|сломал|broken|error|ошибка|баг|bug|глюк|глючит/.test(t))
-    return { labels: ["Баг / Ошибка"], priority: 3, section: SECTION_V_PLANAKH, emoji: "🟠" };
-  if (/медленно|лагает|тормоз|freeze|долго загружает/.test(t))
-    return { labels: ["Улучшение"], priority: 2, section: SECTION_V_PLANAKH, emoji: "🟡" };
-  if (/хочу|добавьте|было бы|suggestion|feature|хотелось бы|предлагаю|можно ли/.test(t))
-    return { labels: ["Новая фича"], priority: 1, section: SECTION_V_PLANAKH, emoji: "🟢" };
-  return { labels: ["Баг / Ошибка"], priority: 2, section: SECTION_V_PLANAKH, emoji: "🟠" };
+  if (/crash|вылет|падает|force close|не открывается|зависает/.test(t))
+    return { category: "crash" };
+  if (/ui|интерфейс|кнопка|экран|отображ|верст|layout|визуал/.test(t))
+    return { category: "ui_bug" };
+  if (/не работает|сломал|ошибка|баг|bug|глюк/.test(t))
+    return { category: "bug" };
+  if (/медленно|лагает|тормоз|freeze/.test(t))
+    return { category: "performance" };
+  if (/хочу|добавьте|было бы|feature|предлагаю|можно ли/.test(t))
+    return { category: "feature" };
+  if (/как|вопрос|подскажите|работает ли|есть ли/.test(t))
+    return { category: "question" };
+  return { category: "bug" };
 }
 
 function makeTitle(text) {
   const sentence = text.split(/[.!?\n]/)[0].trim();
   const clean = sentence.replace(/^(баг в том,?\s*(что)?|проблема в том,?\s*(что)?|обнаружил,?\s*(что)?|заметил,?\s*(что)?)\s*/i, "");
   const result = clean.charAt(0).toUpperCase() + clean.slice(1);
-  return result.length > 80 ? result.substring(0, 77) + "..." : result || sentence;
+  return result.length > 70 ? result.substring(0, 67) + "..." : result || sentence;
 }
 
-async function geminiRephrase(text) {
-  const prompt = `Ты помощник разработчика мобильного приложения Togetherly. Перефразируй сообщение пользователя в короткое чёткое название задачи на русском языке (максимум 60 символов). Начни с глагола или существительного. Выведи ТОЛЬКО название, без кавычек, точки в конце и лишних слов.\n\nСообщение: ${text}`;
+async function geminiAnalyze(text) {
+  const prompt = `Ты помощник разработчика мобильного приложения Togetherly (приложение для пар).
+Пользователь написал в поддержку: "${text}"
+
+Определи:
+1. category — ОДНО из: crash (падает/вылетает), bug (не работает), ui_bug (визуальная проблема), performance (медленно/лагает), feature (запрос новой функции), question (вопрос как что-то работает), spam (бессмыслица/оскорбление)
+2. title — короткое название задачи на русском (до 60 символов), начни с глагола или существительного
+
+Ответь ТОЛЬКО JSON без markdown: {"category":"...","title":"..."}`;
 
   return new Promise((resolve) => {
     const body = JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 60, temperature: 0.3 },
+      generationConfig: { maxOutputTokens: 100, temperature: 0.2 },
     });
 
     const req = https.request({
@@ -957,8 +966,14 @@ async function geminiRephrase(text) {
       res.on("end", () => {
         try {
           const json = JSON.parse(rb);
-          const title = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          resolve(title && title.length > 0 ? title : null);
+          const raw = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+          const cleaned = raw.replace(/```json|```/g, "").trim();
+          const parsed = JSON.parse(cleaned);
+          if (parsed.category && parsed.title) {
+            resolve(parsed);
+          } else {
+            resolve(null);
+          }
         } catch { resolve(null); }
       });
     });
@@ -966,6 +981,25 @@ async function geminiRephrase(text) {
     req.write(body);
     req.end();
   });
+}
+
+function buildTodoistMeta(category) {
+  switch (category) {
+    case "crash":
+      return { labels: ["Баг / Ошибка"], priority: 4, section: SECTION_SROCHNO, emoji: "🔴" };
+    case "ui_bug":
+      return { labels: ["Баг / Ошибка", "UI/IX"], priority: 3, section: SECTION_OT_POLZOVATELEY, emoji: "🟠" };
+    case "bug":
+      return { labels: ["Баг / Ошибка"], priority: 3, section: SECTION_OT_POLZOVATELEY, emoji: "🟠" };
+    case "performance":
+      return { labels: ["Улучшение"], priority: 2, section: SECTION_OT_POLZOVATELEY, emoji: "🟡" };
+    case "feature":
+      return { labels: ["Новая фича"], priority: 1, section: SECTION_OT_POLZOVATELEY, emoji: "🟢" };
+    case "question":
+      return { labels: ["Вопрос"], priority: 1, section: SECTION_OT_POLZOVATELEY, emoji: "💬" };
+    default:
+      return null; // spam
+  }
 }
 
 function httpsPost(hostname, path, headers, body) {
@@ -1019,35 +1053,96 @@ function todoistCreateTask(content, description, priority, labels, sectionId) {
   );
 }
 
+function todoistAddComment(taskId, content, attachment) {
+  return httpsPost(
+    "api.todoist.com",
+    "/api/v1/comments",
+    { "Authorization": `Bearer ${TODOIST_API_TOKEN}` },
+    { task_id: taskId, content, attachment }
+  );
+}
+
+function httpsGet(hostname, path) {
+  return new Promise((resolve, reject) => {
+    https.get({ hostname, path }, (res) => {
+      let rb = "";
+      res.on("data", chunk => { rb += chunk; });
+      res.on("end", () => {
+        try { resolve(JSON.parse(rb)); } catch { resolve(null); }
+      });
+    }).on("error", reject);
+  });
+}
+
+async function getTelegramFileUrl(fileId) {
+  try {
+    const res = await httpsGet("api.telegram.org", `/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
+    if (!res || !res.ok || !res.result) return null;
+    const fp = res.result.file_path;
+    return { url: `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fp}`, fileName: fp.split("/").pop() };
+  } catch { return null; }
+}
+
 exports.telegramWebhook = onRequest({ cors: false }, async (req, res) => {
   res.status(200).send("ok");
   if (req.method !== "POST") return;
 
   try {
     const message = req.body && (req.body.message || req.body.channel_post);
-    if (!message || !message.text) return;
+    if (!message) return;
 
-    const text = message.text.trim();
+    // Определяем медиа-вложение
+    let mediaFileId = null;
+    let mediaMime = "image/jpeg";
+    if (message.photo) {
+      mediaFileId = message.photo[message.photo.length - 1].file_id;
+      mediaMime = "image/jpeg";
+    } else if (message.video) {
+      mediaFileId = message.video.file_id;
+      mediaMime = message.video.mime_type || "video/mp4";
+    } else if (message.document) {
+      mediaFileId = message.document.file_id;
+      mediaMime = message.document.mime_type || "application/octet-stream";
+    }
+
+    const text = (message.caption || message.text || "").trim();
+    if (!text && !mediaFileId) return;
+
     const chatId = message.chat.id;
     const from = message.from || {};
     const username = from.username ? `@${from.username}` : (from.first_name || "Аноним");
+    const tgLink = from.username ? `https://t.me/${from.username}` : null;
 
     if (text.startsWith("/")) {
       if (text === "/start") {
         await tgSend(chatId,
-          "👋 Привет! Опиши баг или проблему в Togetherly — я создам задачу для разработчика."
+          "👋 Привет! Опиши баг или проблему в Togetherly — я создам задачу для разработчика. Можешь приложить скриншот или видео."
         );
       }
       return;
     }
 
-    const { labels, priority, section, emoji } = classifyBug(text);
+    const taskText = text || (mediaMime.startsWith("image") ? "Скриншот от пользователя" : "Видео от пользователя");
 
-    const title = (await geminiRephrase(text)) || makeTitle(text);
+    const gemini = await geminiAnalyze(taskText);
+    const category = gemini?.category || classifyFallback(taskText).category;
+    const title = gemini?.title || makeTitle(taskText);
 
+    // Спам — не создаём задачу
+    if (category === "spam") {
+      await tgSend(chatId, "Спасибо за обращение!");
+      console.log(`TelegramBot: spam от ${username}, пропущено`);
+      return;
+    }
+
+    const meta = buildTodoistMeta(category);
+    if (!meta) return;
+    const { labels, priority, section, emoji } = meta;
+
+    const replyLine = tgLink ? `\n\n↩️ Ответить: ${tgLink}` : "";
     const result = await todoistCreateTask(
       title,
-      `От ${username}:\n\n${text}`,
+      `От ${username}:\n\n${taskText}${replyLine}`,
       priority,
       labels,
       section
@@ -1057,11 +1152,25 @@ exports.telegramWebhook = onRequest({ cors: false }, async (req, res) => {
       console.error(`TelegramBot: Todoist error ${result.status}:`, result.body);
     }
 
-    await tgSend(chatId,
-      `${emoji} Принято! Спасибо, ${username}.\nМетка: <b>${labels.join(", ")}</b>`
-    );
+    // Прикрепляем медиа как комментарий к задаче
+    if (mediaFileId && result.status < 400 && result.body && result.body.id) {
+      const fileInfo = await getTelegramFileUrl(mediaFileId);
+      if (fileInfo) {
+        await todoistAddComment(result.body.id, "📎 Вложение от пользователя", {
+          file_name: fileInfo.fileName,
+          file_type: mediaMime,
+          file_url: fileInfo.url,
+        });
+      }
+    }
 
-    console.log(`TelegramBot: [${labels}] p${priority} от ${username}: "${title}"`);
+    const mediaNote = mediaFileId ? " + 📎" : "";
+    const replyText = category === "question"
+      ? `💬 Вопрос получен, ${username}! Разработчик ответит в ближайшее время.`
+      : `${emoji} Принято! Спасибо, ${username}.\nМетка: <b>${labels.join(", ")}</b>${mediaNote}`;
+
+    await tgSend(chatId, replyText);
+    console.log(`TelegramBot: [${category}] от ${username}: "${title}"${mediaFileId ? " [media]" : ""}`);
   } catch (e) {
     console.error("TelegramBot error:", e);
   }
