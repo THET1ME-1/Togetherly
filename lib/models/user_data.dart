@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
@@ -17,6 +18,9 @@ class UserData extends ChangeNotifier {
   bool _hasSeenWelcome = false;
   String _uid = '';
   String? _badge;
+
+  // ── Дата рождения (только день+месяц важны для поздравлений) ──
+  DateTime? _birthDate;
 
   // ── Коины и премиум-контент ──
   // Локальные значения — только КЭШ. Источник правды — Firestore,
@@ -56,6 +60,8 @@ class UserData extends ChangeNotifier {
 
   bool get isMale => _gender == Gender.male;
   bool get isFemale => _gender == Gender.female;
+
+  DateTime? get birthDate => _birthDate;
 
   // ── Тема оформления ──────────────────────────────────────────────────────
   int _themeId = -1; // -1 → используется тема по умолчанию (pink)
@@ -337,6 +343,10 @@ class UserData extends ChangeNotifier {
       _devCoinsGranted = prefs.getBool('devCoinsGranted') ?? false;
       _adRewardsToday = prefs.getInt('adRewardsToday') ?? 0;
       _adRewardsDate = prefs.getString('adRewardsDate') ?? '';
+      final bdMs = prefs.getInt('birthDate');
+      _birthDate = bdMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(bdMs)
+          : null;
       _ownedThemes
         ..clear()
         ..addAll(
@@ -407,6 +417,13 @@ class UserData extends ChangeNotifier {
         final cloudAdDate = data['adRewardsDate'];
         if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
 
+        final bdRaw = data['birthDate'];
+        if (bdRaw is Timestamp) {
+          _birthDate = bdRaw.toDate();
+        } else if (bdRaw is String && bdRaw.isNotEmpty) {
+          _birthDate = DateTime.tryParse(bdRaw);
+        }
+
         await _saveLocal();
 
         // Propagate name/avatar to all group documents on every login so
@@ -443,6 +460,11 @@ class UserData extends ChangeNotifier {
       );
       await prefs.setInt('themeId', _themeId);
       await prefs.setBool('blobAnimationEnabled', _blobAnimationEnabled);
+      if (_birthDate != null) {
+        await prefs.setInt('birthDate', _birthDate!.millisecondsSinceEpoch);
+      } else {
+        await prefs.remove('birthDate');
+      }
       if (_badge != null) {
         await prefs.setString('badge', _badge!);
       } else {
@@ -563,6 +585,13 @@ class UserData extends ChangeNotifier {
   Future<void> setBlobAnimationEnabled(bool value) async {
     _blobAnimationEnabled = value;
     await _saveLocal();
+    notifyListeners();
+  }
+
+  Future<void> updateBirthDate(DateTime? date) async {
+    _birthDate = date;
+    await _saveLocal();
+    await _fb.updateMyBirthDate(date);
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
@@ -98,6 +99,10 @@ class Connection {
   // Relationship status
   RelationshipStatus? currentStatus;
   List<RelationshipStatus> customStatuses = [];
+
+  // Celebrations
+  DateTime? anniversaryDate;
+  Map<String, DateTime> memberBirthdays = {};
 
   Connection({
     required this.id,
@@ -835,6 +840,23 @@ class Connection {
               .toList();
         } else {
           customStatuses = [];
+        }
+
+        // Update celebration dates
+        final annRaw = data['anniversaryDate'];
+        if (annRaw is Timestamp) {
+          anniversaryDate = annRaw.toDate();
+        } else if (annRaw == null) {
+          anniversaryDate = null;
+        }
+        final bdMap = data['memberBirthdays'] as Map<String, dynamic>?;
+        if (bdMap != null) {
+          memberBirthdays = {};
+          for (final entry in bdMap.entries) {
+            if (entry.value is Timestamp) {
+              memberBirthdays[entry.key] = (entry.value as Timestamp).toDate();
+            }
+          }
         }
 
         onChanged?.call();

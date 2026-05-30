@@ -1608,6 +1608,51 @@ class FirebaseService {
     }
   }
 
+  // ── Celebration dates ──────────────────────────────────────────────────────
+
+  /// Сохраняет дату годовщины для пары (общая для группы).
+  Future<void> updateAnniversaryDate(String groupId, DateTime? date) async {
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'anniversaryDate': date != null ? Timestamp.fromDate(date) : null,
+      });
+    } catch (e) {
+      debugPrint('updateAnniversaryDate failed: $e');
+    }
+  }
+
+  /// Сохраняет дату рождения текущего пользователя.
+  /// Записывает в users/{uid}/birthDate И в groups/{groupId}/memberBirthdays.{uid}.
+  Future<void> updateMyBirthDate(DateTime? date) async {
+    final u = currentUser;
+    if (u == null) return;
+    try {
+      await _db.collection('users').doc(u.uid).update({
+        'birthDate': date != null ? Timestamp.fromDate(date) : null,
+      });
+      // Обновляем в каждой группе, чтобы партнёр видел дату рождения.
+      final groupIds = <String>[];
+      // Пробуем прочитать pairIds из users/{uid}
+      try {
+        final userDoc = await _db.collection('users').doc(u.uid).get();
+        final ids = userDoc.data()?['pairIds'] as List?;
+        if (ids != null) groupIds.addAll(ids.whereType<String>());
+        final legacy = userDoc.data()?['pairId'] as String?;
+        if (legacy != null && legacy.isNotEmpty && !groupIds.contains(legacy)) {
+          groupIds.add(legacy);
+        }
+      } catch (_) {}
+      for (final gid in groupIds) {
+        await _db.collection('groups').doc(gid).update({
+          'memberBirthdays.${u.uid}':
+              date != null ? Timestamp.fromDate(date) : FieldValue.delete(),
+        });
+      }
+    } catch (e) {
+      debugPrint('updateMyBirthDate failed: $e');
+    }
+  }
+
   /// Add a custom relationship type to the group's shared list
   Future<void> addCustomRelationshipType(
     String groupId,
