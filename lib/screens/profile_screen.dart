@@ -1390,15 +1390,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Celebration helpers ──
 
-  String _formatAnniversaryDate(DateTime? date) {
+  String _formatCelebrationDate(DateTime? date) {
     if (date == null) return _s.notSet;
-    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+    final d = '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+    if (date.hour == 0 && date.minute == 0) return d;
+    final t = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    return '$d  $t';
   }
 
-  String _formatBirthdayDate(DateTime? date) {
-    if (date == null) return _s.notSet;
-    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
-  }
+  String _formatAnniversaryDate(DateTime? date) => _formatCelebrationDate(date);
+  String _formatBirthdayDate(DateTime? date) => _formatCelebrationDate(date);
 
   /// Показывает диалог ввода даты с авто-точками (ДД.ММ.ГГГГ).
   /// [firstYear] / [lastYear] — допустимый диапазон лет.
@@ -1418,13 +1419,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
 
+    // Контроллер времени — предзаполняем если уже есть время (не 00:00)
+    final hasTime = initial != null &&
+        (initial.hour != 0 || initial.minute != 0);
+    final timeCtrl = TextEditingController(
+      text: hasTime
+          ? '${initial.hour.toString().padLeft(2, '0')}:${initial.minute.toString().padLeft(2, '0')}'
+          : '',
+    );
+
     final result = await showDialog<DateTime>(
       context: context,
-      // useRootNavigator: true чтобы клавиатура не переполняла диалог
       useRootNavigator: true,
       builder: (ctx) => _DateInputDialog(
         title: title,
         ctrl: ctrl,
+        timeCtrl: timeCtrl,
         primary: primary,
         firstYear: firstYear,
         lastYear: lastYear,
@@ -1432,8 +1442,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         parseDateInput: _parseDateInput,
       ),
     );
-    // Не вызываем ctrl.dispose() здесь — диалог может ещё делать rebuild
-    // во время анимации закрытия. GC очистит сам.
     return result;
   }
 
@@ -4615,11 +4623,34 @@ class _DateDotFormatter extends TextInputFormatter {
   }
 }
 
-// ── Диалог ввода даты — отдельный StatefulWidget ─────────────────────────────
+// ── Форматтер авто-двоеточия для ввода времени ЧЧ:ММ ────────────────────────
+
+class _TimeColonFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue old,
+    TextEditingValue value,
+  ) {
+    final digits = value.text.replaceAll(RegExp(r'[^\d]'), '');
+    final buf = StringBuffer();
+    for (int i = 0; i < digits.length && i < 4; i++) {
+      if (i == 2) buf.write(':');
+      buf.write(digits[i]);
+    }
+    final text = buf.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+// ── Диалог ввода даты + времени — StatefulWidget ─────────────────────────────
 
 class _DateInputDialog extends StatefulWidget {
   final String title;
-  final TextEditingController ctrl;
+  final TextEditingController ctrl;      // дата
+  final TextEditingController timeCtrl;  // время
   final Color primary;
   final int firstYear;
   final int lastYear;
@@ -4629,6 +4660,7 @@ class _DateInputDialog extends StatefulWidget {
   const _DateInputDialog({
     required this.title,
     required this.ctrl,
+    required this.timeCtrl,
     required this.primary,
     required this.firstYear,
     required this.lastYear,
@@ -4645,25 +4677,67 @@ class _DateInputDialogState extends State<_DateInputDialog> {
 
   @override
   void dispose() {
-    // Безопасно — контроллер диспозится вместе с виджетом,
-    // когда диалог полностью исчез из дерева.
     widget.ctrl.dispose();
+    widget.timeCtrl.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final parsed = widget.parseDateInput(widget.ctrl.text);
-    if (parsed == null) {
+    final parsedDate = widget.parseDateInput(widget.ctrl.text);
+    if (parsedDate == null) {
       setState(() => _error = 'Введите дату в формате ДД.ММ.ГГГГ');
       return;
     }
-    if (parsed.year < widget.firstYear || parsed.year > widget.lastYear) {
+    if (parsedDate.year < widget.firstYear ||
+        parsedDate.year > widget.lastYear) {
       setState(() =>
           _error = 'Год от ${widget.firstYear} до ${widget.lastYear}');
       return;
     }
-    Navigator.pop(context, parsed);
+    // Разбираем время если введено
+    int hour = 0, minute = 0;
+    final timeParts = widget.timeCtrl.text.split(':');
+    if (timeParts.length == 2) {
+      hour = int.tryParse(timeParts[0]) ?? 0;
+      minute = int.tryParse(timeParts[1]) ?? 0;
+      if (hour > 23 || minute > 59) {
+        setState(() => _error = 'Время должно быть в формате ЧЧ:ММ');
+        return;
+      }
+    }
+    Navigator.pop(
+      context,
+      DateTime(parsedDate.year, parsedDate.month, parsedDate.day, hour, minute),
+    );
   }
+
+  InputDecoration _fieldDecoration({
+    required String hint,
+    required Color p,
+    bool showError = false,
+  }) =>
+      InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          fontSize: 20,
+          color: Colors.grey.shade400,
+          letterSpacing: 2,
+          fontWeight: FontWeight.w400,
+        ),
+        errorText: showError ? _error : null,
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: p, width: 2),
+        ),
+        errorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+        focusedErrorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.red, width: 2),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -4678,51 +4752,60 @@ class _DateInputDialogState extends State<_DateInputDialog> {
           color: Colors.grey.shade900,
         ),
       ),
-      // scrollable: true чтобы не переполняться при открытой клавиатуре
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: widget.ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [_DateDotFormatter()],
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 3,
-              color: p,
-            ),
-            decoration: InputDecoration(
-              hintText: 'ДД.ММ.ГГГГ',
-              hintStyle: TextStyle(
-                fontSize: 22,
-                // Достаточно тёмный серый — виден на белом
-                color: Colors.grey.shade400,
-                letterSpacing: 3,
-                fontWeight: FontWeight.w400,
+          // ── Дата (3) + Время (2) ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Дата — flex 3
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: widget.ctrl,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_DateDotFormatter()],
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: p,
+                  ),
+                  decoration: _fieldDecoration(
+                    hint: 'ДД.ММ.ГГГГ',
+                    p: p,
+                    showError: true,
+                  ),
+                  onChanged: (_) {
+                    if (_error != null) setState(() => _error = null);
+                  },
+                ),
               ),
-              errorText: _error,
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+              const SizedBox(width: 12),
+              // Время — flex 2
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: widget.timeCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_TimeColonFormatter()],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: p,
+                  ),
+                  decoration: _fieldDecoration(hint: 'ЧЧ:ММ', p: p),
+                ),
               ),
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: p, width: 2),
-              ),
-              errorBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.red, width: 2),
-              ),
-              focusedErrorBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.red, width: 2),
-              ),
-            ),
-            onChanged: (_) {
-              if (_error != null) setState(() => _error = null);
-            },
+            ],
           ),
           const SizedBox(height: 10),
           TextButton.icon(
