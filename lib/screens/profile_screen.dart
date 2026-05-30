@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -1333,7 +1334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: _infoRow(
                 icon: Icons.celebration_rounded,
                 label: _s.anniversaryDate,
-                value: _formatCelebrationDate(
+                value: _formatAnniversaryDate(
                     selectedPartner?.connection.anniversaryDate),
                 trailing: Icon(
                   Icons.chevron_right_rounded,
@@ -1350,7 +1351,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: _infoRow(
                 icon: Icons.cake_rounded,
                 label: _s.myBirthday,
-                value: _formatCelebrationDate(widget.userData.birthDate),
+                value: _formatBirthdayDate(widget.userData.birthDate),
                 trailing: Icon(
                   Icons.chevron_right_rounded,
                   color: Colors.grey.shade400,
@@ -1364,7 +1365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _infoRow(
                 icon: Icons.cake_rounded,
                 label: _s.partnerBirthday,
-                value: _formatCelebrationDate(
+                value: _formatBirthdayDate(
                   selectedPartner.connection.memberBirthdays[
                       selectedPartner.member.uid],
                 ),
@@ -1389,9 +1390,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Celebration helpers ──
 
-  String _formatCelebrationDate(DateTime? date) {
+  String get _dateLocale =>
+      LocaleService.instance.isRussian ? 'ru' : 'en';
+
+  // Годовщина — без года, только день и месяц (ежегодная дата).
+  String _formatAnniversaryDate(DateTime? date) {
     if (date == null) return _s.notSet;
-    return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+    return DateFormat('d MMMM', _dateLocale).format(date);
+  }
+
+  // День рождения — с годом, чтобы видеть возраст.
+  String _formatBirthdayDate(DateTime? date) {
+    if (date == null) return _s.notSet;
+    return DateFormat('d MMMM yyyy', _dateLocale).format(date);
   }
 
   Future<void> _showAnniversaryDatePicker(
