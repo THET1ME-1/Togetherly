@@ -5233,10 +5233,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               ? SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: M3LoadingDots(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                     color: primary,
-                                    dotSize: 4,
-                                    gap: 2,
                                   ),
                                 )
                               : const Icon(Icons.my_location_rounded),
@@ -5573,10 +5572,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     child: SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: M3LoadingDots(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                         color: Colors.grey,
-                                        dotSize: 4,
-                                        gap: 2,
                                       ),
                                     ),
                                   )
@@ -5844,7 +5842,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               SizedBox(
                 width: 20,
                 height: 20,
-                child: M3LoadingDots(color: Colors.white, dotSize: 5, gap: 2),
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
               ),
               const SizedBox(width: 12),
               Text(LocaleService.current.uploadingMemory),
@@ -6617,10 +6615,9 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: M3LoadingDots(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
                               color: Colors.white,
-                              dotSize: 5,
-                              gap: 2,
                             ),
                           )
                         : Icon(
@@ -7220,10 +7217,9 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                                 ? SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: M3LoadingDots(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
                                       color: primary,
-                                      dotSize: 5,
-                                      gap: 2,
                                     ),
                                   )
                                 : SvgPicture.asset(
@@ -8883,10 +8879,9 @@ class _CommentsSectionState extends State<_CommentsSection> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: M3LoadingDots(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
                           color: Colors.white,
-                          dotSize: 4,
-                          gap: 2,
                         ),
                       )
                     : const Icon(
@@ -9210,10 +9205,9 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                     imageUrl: item.url,
                     fit: BoxFit.contain,
                     placeholder: (_, __) => const Center(
-                      child: M3LoadingDots(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
                         color: Colors.white54,
-                        dotSize: 6,
-                        gap: 4,
                       ),
                     ),
                     errorWidget: (_, __, ___) => const Icon(

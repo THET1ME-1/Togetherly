@@ -8,7 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../services/locale_service.dart';
-import '../widgets/common/m3_loading.dart';
+
 
 // ─── Data class ─────────────────────────────────────────────────────────────
 class _PlaceResult {
@@ -663,10 +663,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         child: _loadingAddr
                             ? Row(
                                 children: [
-                                  M3LoadingDots(
-                                    color: primary,
-                                    dotSize: 4,
-                                    gap: 2,
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: primary,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(

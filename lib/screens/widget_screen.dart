@@ -5324,10 +5324,9 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: M3LoadingDots(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                   color: Colors.grey,
-                                  dotSize: 4,
-                                  gap: 2,
                                 ),
                               ),
                             )
