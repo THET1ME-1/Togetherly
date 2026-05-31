@@ -282,6 +282,7 @@ abstract class AppStrings {
   String daysTogetherLabel(String days);
   String get invitePartnerToCount;
   String get anniversaryDate;
+  String get firstKissDate;
   String get myBirthday;
   String get partnerBirthday;
   String get notifCelebrations;
@@ -1274,6 +1275,8 @@ class _RuStrings extends AppStrings {
       'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️';
   @override
   String get anniversaryDate => 'Годовщина';
+  @override
+  String get firstKissDate => 'Первый поцелуй';
   @override
   String get myBirthday => 'Мой день рождения';
   @override
@@ -2893,6 +2896,8 @@ class _EnStrings extends AppStrings {
       'Invite a partner to start\ncounting days together ❤️';
   @override
   String get anniversaryDate => 'Anniversary';
+  @override
+  String get firstKissDate => 'First Kiss';
   @override
   String get myBirthday => 'My Birthday';
   @override
