@@ -2621,6 +2621,7 @@ class FirebaseService {
     required String groupId,
     int limit = 50,
     DocumentSnapshot? startAfter,
+    bool cacheFirst = false,
   }) async {
     try {
       var query = _db
@@ -2632,7 +2633,25 @@ class FirebaseService {
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
-      final snap = await query.get().timeout(const Duration(seconds: 10));
+      // cacheFirst: для начального открытия экрана сначала читаем из локального
+      // persistent-кэша (его уже прогрел live-слушатель listenToMemories на home),
+      // что даёт 0 серверных чтений и мгновенную отрисовку. Если кэш пуст
+      // (холодный старт до запуска слушателя), падаем на сервер.
+      QuerySnapshot<Map<String, dynamic>> snap;
+      if (cacheFirst) {
+        try {
+          snap = await query
+              .get(const GetOptions(source: Source.cache))
+              .timeout(const Duration(seconds: 5));
+          if (snap.docs.isEmpty) {
+            snap = await query.get().timeout(const Duration(seconds: 10));
+          }
+        } catch (_) {
+          snap = await query.get().timeout(const Duration(seconds: 10));
+        }
+      } else {
+        snap = await query.get().timeout(const Duration(seconds: 10));
+      }
       final docs = snap.docs;
       return (
         memories: docs.map((d) => Memory.fromFirestore(d.id, d.data())).toList(),
@@ -3135,14 +3154,28 @@ class FirebaseService {
     required String groupId,
     required String uid,
     required void Function(List<Map<String, dynamic>> entries) onData,
+    DateTime? since,
   }) {
-    return _db
+    // Раньше слушатель тянул ВСЮ историю настроений (без лимита), причём дважды
+    // на каждого пользователя — свои + записи партнёра. На каждом холодном старте
+    // новый listener-объект не имеет resume-token → Firestore перечитывает всю
+    // историю с сервера. У долгосрочных пар это сотни чтений за один запуск.
+    // Окно [since] ограничивает live-слушатель недавним диапазоном; старые записи
+    // вне окна догружаются одноразовым get() по требованию (см. loadMoodEntries).
+    Query<Map<String, dynamic>> query = _db
         .collection('groups')
         .doc(groupId)
         .collection('moodCalendar')
         .doc(uid)
         .collection('entries')
-        .orderBy('timestamp', descending: true)
+        .orderBy('timestamp', descending: true);
+    if (since != null) {
+      query = query.where(
+        'timestamp',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(since),
+      );
+    }
+    return query
         .snapshots()
         .listen((snap) {
           final entries = snap.docs.map((d) => d.data()).toList();

@@ -10,6 +10,15 @@ import 'widget_service.dart';
 class MoodService extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService();
 
+  /// Окно live-слушателя mood-истории. Покрывает все горячие пути
+  /// (home, mini-calendar, mood-виджет, year-view текущего года и streak до
+  /// 365 дней), но обрезает бесконечный рост чтений у долгосрочных пар.
+  /// Записи старше окна догружаются по требованию в mood_calendar_screen.
+  static const Duration _listenWindow = Duration(days: 400);
+
+  DateTime get _listenSince =>
+      DateTime.now().subtract(_listenWindow);
+
   String _groupId = '';
   String get groupId => _groupId;
 
@@ -77,6 +86,7 @@ class MoodService extends ChangeNotifier {
     _myMoodSub = _fb.listenToMoodEntries(
       groupId: _groupId,
       uid: uid,
+      since: _listenSince,
       onData: (entries) {
         _myEntries = entries.map((e) => MoodEntry.fromFirestore(e)).toList();
         _myEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -93,6 +103,7 @@ class MoodService extends ChangeNotifier {
     _partnerMoodSubs[partnerUid] = _fb.listenToMoodEntries(
       groupId: _groupId,
       uid: partnerUid,
+      since: _listenSince,
       onData: (entries) {
         _partnerEntries[partnerUid] = entries
             .map((e) => MoodEntry.fromFirestore(e))
