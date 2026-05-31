@@ -31,6 +31,7 @@ import 'home/home_bottom_nav.dart';
 import 'connect_partner_screen.dart';
 import 'expandable_timer_card.dart';
 import 'memory_lane_screen.dart';
+import 'together/together_launcher.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
@@ -743,6 +744,16 @@ class _HomeScreenState extends State<HomeScreen> {
               message: LocaleService.current.celebrationBannerBirthday,
               emoji: '🎂',
               color: const Color(0xFFFF6B35),
+            ),
+          // ── Приглашение «смотрим вместе» от партнёра (0 новых чтений:
+          //    реюзает hub-листенер group-doc) ──
+          if (_pairData.isPaired)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              child: TogetherInviteBanner(
+                pairId: _pairData.pairId,
+                partnerUid: _pairData.partnerUid,
+              ),
             ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),

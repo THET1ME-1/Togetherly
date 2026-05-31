@@ -2231,6 +2231,59 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  TOGETHER SESSIONS (совместные занятия)
+  //  Приглашение хранится в group-doc.activeSession и доставляется через
+  //  УЖЕ работающий group-doc hub-листенер → НОЛЬ новых Firestore-чтений.
+  //  Сама синхронизация плеера идёт в RTDB (TogetherSessionService).
+  // ══════════════════════════════════════════════
+
+  /// Поток активного приглашения для группы. Реюзает hub-подписку group-doc,
+  /// поэтому новых чтений не создаёт.
+  Stream<Map<String, dynamic>?> activeSessionStream(String pairId) {
+    return _groupDocStream(pairId).map(
+      (snap) => snap.exists
+          ? (snap.data()?['activeSession'] as Map<String, dynamic>?)
+          : null,
+    );
+  }
+
+  /// Объявить активный совместный сеанс (вызывает хост). Один write —
+  /// партнёрский live-листенер ловит его без дополнительного чтения.
+  Future<void> setActiveSession({
+    required String groupId,
+    required String activity,
+    required String mediaId,
+    required String hostName,
+  }) async {
+    if (groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).set({
+        'activeSession': {
+          'activity': activity,
+          'mediaId': mediaId,
+          'hostUid': uid,
+          'hostName': hostName,
+          'startedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('setActiveSession failed: $e');
+    }
+  }
+
+  /// Убрать активный сеанс из group-doc.
+  Future<void> clearActiveSession(String groupId) async {
+    if (groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'activeSession': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('clearActiveSession failed: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════
   //  MEMORIES — shared timeline for each group
   //  Firestore: groups/{groupId}/memories/{memoryId}
   // ══════════════════════════════════════════════
