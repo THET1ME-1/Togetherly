@@ -6454,7 +6454,6 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 
   bool _isExternalLink = false;
   String? _sourceName;
-  Color? _sourceColor;
 
   StreamSubscription? _posSub;
   StreamSubscription? _durSub;
@@ -6472,7 +6471,6 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.memory.musicUrl != widget.memory.musicUrl) {
       _sourceName = null;
-      _sourceColor = null;
       _isExternalLink = false;
       _detectSource();
     }
@@ -6485,36 +6483,28 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
 
     if (lower.contains('spotify')) {
       _sourceName = 'Spotify';
-      _sourceColor = const Color(0xFF1DB954);
       _isExternalLink = true;
     } else if (lower.contains('music.youtube.com')) {
       _sourceName = 'YouTube Music';
-      _sourceColor = const Color(0xFFFF0000);
       _isExternalLink = true;
     } else if (lower.contains('youtube') || lower.contains('youtu.be')) {
       _sourceName = 'YouTube';
-      _sourceColor = const Color(0xFFFF0000);
       _isExternalLink = true;
     } else if (lower.contains('music.apple.com')) {
       _sourceName = 'Apple Music';
-      _sourceColor = const Color(0xFFFC3C44);
       _isExternalLink = true;
     } else if (lower.contains('deezer')) {
       _sourceName = 'Deezer';
-      _sourceColor = const Color(0xFFA238FF);
       _isExternalLink = true;
     } else if (lower.contains('soundcloud')) {
       _sourceName = 'SoundCloud';
-      _sourceColor = const Color(0xFFFF5500);
       _isExternalLink = true;
     } else if (lower.contains('music.yandex') ||
         lower.contains('yandex.ru/music')) {
       _sourceName = 'Яндекс Музыка';
-      _sourceColor = const Color(0xFFFFCC00);
       _isExternalLink = true;
     } else if (lower.contains('tidal.com')) {
       _sourceName = 'Tidal';
-      _sourceColor = const Color(0xFF000000);
       _isExternalLink = true;
     } else if (lower.startsWith('http') &&
         !lower.contains('firebasestorage') &&
@@ -6606,43 +6596,40 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
   @override
   Widget build(BuildContext context) {
     final memory = widget.memory;
+    final p = widget.primary;
+    final hasLocalPlayer = !_isExternalLink;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F0FF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4D9FC)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.withValues(alpha: 0.07), p.withValues(alpha: 0.02)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: p.withValues(alpha: 0.14)),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              // Album art / cover
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child:
-                    memory.musicCoverUrl != null &&
-                        memory.musicCoverUrl!.isNotEmpty
-                    ? StorageImage(
-                        imageUrl: memory.musicCoverUrl!,
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            _defaultMusicCover(),
-                      )
-                    : _defaultMusicCover(),
-              ),
+              // Album art / cover + винил-перекличка с экраном создания
+              _buildCover(memory, p),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_sourceName != null) ...[
+                      _sourceChip(p),
+                      const SizedBox(height: 6),
+                    ],
                     Text(
                       memory.musicTitle ?? LocaleService.current.audioFile,
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
                         color: Colors.grey.shade900,
                       ),
                       maxLines: 2,
@@ -6651,7 +6638,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                     if (memory.musicArtist != null &&
                         memory.musicArtist!.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.only(top: 6),
                         child: Wrap(
                           spacing: 4,
                           runSpacing: 4,
@@ -6663,17 +6650,18 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                                 (a) => Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
-                                    vertical: 2,
+                                    vertical: 3,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: widget.primary.withOpacity(0.08),
+                                    color: p.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     a,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: widget.primary,
+                                      fontWeight: FontWeight.w600,
+                                      color: p,
                                     ),
                                   ),
                                 ),
@@ -6685,49 +6673,15 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                 ),
               ),
               // Play / Pause button — only for local audio files
-              if (!_isExternalLink)
-                GestureDetector(
-                  onTap: _loading
-                      ? null
-                      : () {
-                          if (_player == null ||
-                              !_isPlaying && _position == Duration.zero) {
-                            _initAndPlay();
-                          } else if (_isPlaying) {
-                            _player?.pause();
-                          } else {
-                            _player?.play();
-                          }
-                        },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF8B5CF6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Icon(
-                            _isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                  ),
-                ),
+              if (hasLocalPlayer) ...[
+                const SizedBox(width: 10),
+                _buildPlayButton(p),
+              ],
             ],
           ),
           // Progress bar — only for local audio
-          if (!_isExternalLink && _duration > Duration.zero) ...[
-            const SizedBox(height: 12),
+          if (hasLocalPlayer && _duration > Duration.zero) ...[
+            const SizedBox(height: 14),
             WaveProgressBar(
               value: _duration.inMilliseconds > 0
                   ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(
@@ -6735,7 +6689,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                       1.0,
                     )
                   : 0.0,
-              color: const Color(0xFF8B5CF6),
+              color: p,
               isPlaying: _isPlaying,
               onChanged: (v) {
                 _player?.seek(
@@ -6769,12 +6723,12 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
               style: TextStyle(fontSize: 12, color: Colors.red.shade400),
             ),
           ],
-          // Branded link button for external streaming services
+          // Открыть в стриминговом сервисе — залитая кнопка под цвет темы
           if (_isExternalLink && memory.musicUrl != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: FilledButton.icon(
                 onPressed: () {
                   launchUrl(
                     Uri.parse(memory.musicUrl!),
@@ -6782,8 +6736,8 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                   );
                 },
                 icon: const Icon(
-                  Icons.open_in_new_rounded,
-                  size: 16,
+                  Icons.play_arrow_rounded,
+                  size: 20,
                   color: Colors.white,
                 ),
                 label: Text(
@@ -6792,17 +6746,17 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                   ),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _sourceColor ?? const Color(0xFF8B5CF6),
+                style: FilledButton.styleFrom(
+                  backgroundColor: p,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 0,
                 ),
               ),
@@ -6813,23 +6767,194 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
     );
   }
 
-  Widget _defaultMusicCover() {
+  // Обложка + винил, выглядывающий из-за неё — та же деталь, что и на
+  // экране создания музыкального пина.
+  Widget _buildCover(Memory memory, Color p) {
+    final hasCover =
+        memory.musicCoverUrl != null && memory.musicCoverUrl!.isNotEmpty;
+    final cover = ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: hasCover
+          ? StorageImage(
+              imageUrl: memory.musicCoverUrl!,
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
+              errorWidget: (context, url, error) => _defaultMusicCover(p),
+            )
+          : _defaultMusicCover(p),
+    );
+    return SizedBox(
+      width: 82,
+      height: 64,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 0,
+            top: 4,
+            child: CustomPaint(
+              size: const Size(56, 56),
+              painter: _MiniVinylPainter(labelColor: p),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: p.withValues(alpha: 0.22),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: cover,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sourceChip(Color p) {
     return Container(
-      width: 60,
-      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+        color: p.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.graphic_eq_rounded, size: 11, color: p),
+          const SizedBox(width: 5),
+          Text(
+            _sourceName!,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: p,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayButton(Color p) {
+    return GestureDetector(
+      onTap: _loading
+          ? null
+          : () {
+              if (_player == null ||
+                  !_isPlaying && _position == Duration.zero) {
+                _initAndPlay();
+              } else if (_isPlaying) {
+                _player?.pause();
+              } else {
+                _player?.play();
+              }
+            },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: p,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: p.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        child: _loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(
+                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+      ),
+    );
+  }
+
+  Widget _defaultMusicCover(Color p) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p, Color.lerp(p, Colors.black, 0.28)!],
+        ),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: const Icon(
         Icons.music_note_rounded,
         color: Colors.white,
-        size: 20,
+        size: 24,
       ),
     );
   }
+}
+
+// ── Mini vinyl disc — компактная версия винила с экрана создания ──────────────
+class _MiniVinylPainter extends CustomPainter {
+  final Color labelColor;
+  const _MiniVinylPainter({required this.labelColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    final body = Paint()
+      ..shader = const RadialGradient(
+        colors: [Color(0xFF2A2A2E), Color(0xFF111113)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawCircle(center, radius, body);
+
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = Colors.white.withValues(alpha: 0.06);
+    for (double r = radius * 0.45; r < radius - 1.5; r += 4) {
+      canvas.drawCircle(center, r, groove);
+    }
+
+    final label = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          labelColor.withValues(alpha: 0.95),
+          labelColor.withValues(alpha: 0.70),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius * 0.36));
+    canvas.drawCircle(center, radius * 0.36, label);
+
+    canvas.drawCircle(
+      center,
+      radius * 0.05,
+      Paint()..color = const Color(0xFF111113),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MiniVinylPainter old) => old.labelColor != labelColor;
 }
 
 // ══════════════════════════════════════════════════════
@@ -8656,6 +8781,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     ? LocaleService.current.unpinMemory
                     : LocaleService.current.pinMemory,
                 color: p,
+                // Закрепление — основное действие: залитая кнопка под цвет темы.
+                filled: !memory.isPinned,
                 onTap: () {
                   Navigator.pop(context);
                   widget.onTogglePin();
@@ -8668,7 +8795,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 child: _actionBtn(
                   icon: Icons.download_rounded,
                   label: LocaleService.current.saveToDevice,
-                  color: const Color(0xFF3B82F6),
+                  color: p,
                   onTap: () {
                     Navigator.pop(context);
                     widget.onDownload();
@@ -8686,7 +8813,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 child: _actionBtn(
                   icon: Icons.edit_rounded,
                   label: LocaleService.current.editMemory,
-                  color: Colors.grey.shade700,
+                  color: p,
                   onTap: () {
                     Navigator.pop(context);
                     widget.onEdit();
@@ -8719,7 +8846,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               child: _actionBtn(
                 icon: Icons.add_location_alt_rounded,
                 label: LocaleService.current.selectLocation,
-                color: const Color(0xFF10B981),
+                color: p,
                 onTap: () {
                   Navigator.pop(context);
                   widget.onSetLocation!();
@@ -8737,33 +8864,35 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     required String label,
     required Color color,
     required VoidCallback onTap,
+    bool filled = false,
   }) {
-    // Compute withOpacity values once instead of on every build call
-    final bgColor = color.withValues(alpha: 0.08);
-    final borderColor = color.withValues(alpha: 0.22);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor, width: 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 17, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: color,
+    // Залитая кнопка — сплошной цвет, белый текст; обычная — мягкая заливка
+    // тем же цветом без рамки (меньше цветов, всё под тему).
+    final bgColor = filled ? color : color.withValues(alpha: 0.10);
+    final fgColor = filled ? Colors.white : color;
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: fgColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: fgColor,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

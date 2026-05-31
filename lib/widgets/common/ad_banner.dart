@@ -30,6 +30,7 @@ class AdBanner extends StatefulWidget {
 class _AdBannerState extends State<AdBanner> {
   BannerAd? _ad;
   bool _loaded = false;
+  String? _errorText;
 
   @override
   void initState() {
@@ -69,8 +70,11 @@ class _AdBannerState extends State<AdBanner> {
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          // ignore: avoid_print — нужно в релизе для диагностики
-          print('AdBanner failed: code=${error.code} msg=${error.message} domain=${error.domain}');
+          if (kDebugMode && mounted) {
+            setState(() {
+              _errorText = 'Ad error ${error.code}: ${error.message}';
+            });
+          }
         },
       ),
     ).load();
@@ -78,12 +82,21 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded || _ad == null) return const SizedBox.shrink();
-
-    return Container(
-      height: widget.height,
-      alignment: Alignment.center,
-      child: AdWidget(ad: _ad!),
-    );
+    if (_loaded && _ad != null) {
+      return Container(
+        height: widget.height,
+        alignment: Alignment.center,
+        child: AdWidget(ad: _ad!),
+      );
+    }
+    if (kDebugMode && _errorText != null) {
+      return Container(
+        height: widget.height,
+        color: Colors.red.shade100,
+        alignment: Alignment.center,
+        child: Text(_errorText!, style: const TextStyle(fontSize: 10, color: Colors.red)),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
