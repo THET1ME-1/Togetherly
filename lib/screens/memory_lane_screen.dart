@@ -28,6 +28,7 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../services/firebase_service.dart';
+import 'together/together_launcher.dart';
 import '../services/home_widget_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/locale_service.dart';
@@ -1729,6 +1730,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     memory: memory,
                     platformColor: platformColor,
                     platformName: platformName,
+                    pairId: pair.pairId,
+                    partnerUid: pair.partnerUid,
                   )
                 : buildSubCard(),
           ),
@@ -3201,6 +3204,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 type: MemoryType.photo,
               ),
               _addMemoryOption(
+                icon: Icons.link_rounded,
+                label: LocaleService.current.videoLink,
+                color: const Color(0xFFEC4899),
+                type: MemoryType.video,
+              ),
+              _addMemoryOption(
                 icon: Icons.location_on_rounded,
                 label: LocaleService.current.location,
                 color: const Color(0xFF22C55E),
@@ -3328,7 +3337,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
           );
         } else {
-          _showCreateMemoryForm(type);
+          // Видео по ссылке (и прочие легаси-типы) — открываем форму сразу
+          // на вкладке «По ссылке».
+          _showCreateMemoryForm(type, startWithUrl: type == MemoryType.video);
         }
       },
     );
@@ -4080,7 +4091,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return {};
   }
 
-  void _showCreateMemoryForm(MemoryType type) {
+  void _showCreateMemoryForm(MemoryType type, {bool startWithUrl = false}) {
     final titleCtrl = TextEditingController();
     final captionCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
@@ -4103,7 +4114,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     bool isFetchingVideoMeta = false;
     String? fetchedVideoThumb;
     String? fetchedVideoAuthor;
-    bool useVideoUrl = false;
+    bool useVideoUrl = startWithUrl;
     bool isAdultPhoto = false;
 
     showModalBottomSheet(
@@ -10025,11 +10036,15 @@ class _YouTubeInlineCard extends StatefulWidget {
   final Memory memory;
   final Color platformColor;
   final String platformName;
+  final String pairId;
+  final String partnerUid;
 
   const _YouTubeInlineCard({
     required this.memory,
     required this.platformColor,
     required this.platformName,
+    required this.pairId,
+    required this.partnerUid,
   });
 
   @override
@@ -10285,6 +10300,40 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
               ),
             ),
           ),
+          // ── Смотреть вместе (совместный просмотр через RTDB, 0 чтений) ──
+          if (widget.pairId.isNotEmpty &&
+              (memory.videoUrl?.isNotEmpty == true))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => TogetherLauncher.hostVideo(
+                    context,
+                    pairId: widget.pairId,
+                    partnerUid: widget.partnerUid,
+                    videoUrl: memory.videoUrl!,
+                  ),
+                  icon: Icon(Icons.people_alt_rounded,
+                      size: 16, color: platformColor),
+                  label: Text(
+                    'Смотреть вместе',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: platformColor,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: platformColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
