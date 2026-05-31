@@ -2070,6 +2070,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           _divider(),
           _settingsTile(
+            icon: Icons.replay_rounded,
+            label: _s.resetMissYouCount,
+            onTap: () => _handleResetMissYouCount(context),
+          ),
+          _divider(),
+          _settingsTile(
             icon: Icons.info_outline_rounded,
             label: _s.aboutApp,
             onTap: _openAboutApp,
@@ -2405,6 +2411,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Icon(Icons.check_circle_rounded, color: _accent, size: 20),
           ],
         ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  RESET MISS YOU COUNT
+  // ═══════════════════════════════════════════════════
+  Future<void> _handleResetMissYouCount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(_s.resetMissYouConfirmTitle),
+        content: Text(_s.resetMissYouConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
+            child: Text(_s.reset),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final groupId = widget.pairData.pairId;
+    if (groupId.isEmpty) return;
+    await FirebaseService().resetMyMissYouCount(groupId: groupId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(this.context).showSnackBar(
+      SnackBar(
+        content: Text(_s.resetMissYouConfirmTitle),
+        backgroundColor: _accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

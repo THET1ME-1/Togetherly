@@ -803,6 +803,9 @@ abstract class AppStrings {
 
   // ── Profile (extended) ──
   String get exportMemories;
+  String get resetMissYouCount;
+  String get resetMissYouConfirmTitle;
+  String get resetMissYouConfirmBody;
   String get noActiveGroupForExport;
   String get creatingArchive;
   String exportError(String e);
@@ -2389,6 +2392,13 @@ class _RuStrings extends AppStrings {
   // ── Profile (extended) ──
   @override
   String get exportMemories => 'Экспорт воспоминаний';
+  @override
+  String get resetMissYouCount => 'Сбросить мои нажатия «Скучаю»';
+  @override
+  String get resetMissYouConfirmTitle => 'Сбросить счётчик?';
+  @override
+  String get resetMissYouConfirmBody =>
+      'Твои нажатия «Я скучаю» обнулятся. Счётчик партнёра останется без изменений.';
   @override
   String get noActiveGroupForExport => 'Нет активной группы для экспорта';
   @override
@@ -4002,6 +4012,13 @@ class _EnStrings extends AppStrings {
   // ── Profile (extended) ──
   @override
   String get exportMemories => 'Export Memories';
+  @override
+  String get resetMissYouCount => 'Reset My Miss You Taps';
+  @override
+  String get resetMissYouConfirmTitle => 'Reset counter?';
+  @override
+  String get resetMissYouConfirmBody =>
+      'Your Miss You taps will be reset to zero. Your partner\'s count stays unchanged.';
   @override
   String get noActiveGroupForExport => 'No active group for export';
   @override
