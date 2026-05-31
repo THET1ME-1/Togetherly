@@ -60,11 +60,18 @@ Future<void> _initConsentAndAds() async {
   // Таймаут 5 с — не блокируем запуск если UMP завис
   await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
 
+  // Redmi Note 12 Pro (Alex) — для тестирования рекламы в release-сборках
+  const releaseTestDeviceIds = <String>['766303ABCCDC5AE221EAA39549B48EF5'];
+
   try {
     await MobileAds.instance.initialize();
-    if (kDebugMode) {
+    final testIds = [
+      if (kDebugMode) ...const <String>[],
+      ...releaseTestDeviceIds,
+    ];
+    if (testIds.isNotEmpty) {
       MobileAds.instance.updateRequestConfiguration(
-        RequestConfiguration(testDeviceIds: <String>[]),
+        RequestConfiguration(testDeviceIds: testIds),
       );
     }
   } catch (e) {

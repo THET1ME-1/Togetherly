@@ -4264,9 +4264,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
+          final mq = MediaQuery.of(ctx);
           return Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              bottom: mq.viewInsets.bottom + mq.viewPadding.bottom,
             ),
             child: Container(
               decoration: const BoxDecoration(
@@ -4484,7 +4485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // ── Кнопки ──
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + mq.viewPadding.bottom),
                     child: Row(
                       children: [
                         Expanded(

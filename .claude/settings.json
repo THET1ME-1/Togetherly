@@ -5,7 +5,16 @@
       "Bash(curl -s -X GET https://api.todoist.com/api/v1/sections/6gjcfphM67QjC8Qq -H 'Authorization: Bearer ec3e15b16b1c4aa751853dde7d0aa58973b7757d')",
       "Bash(curl -s -X POST https://api.todoist.com/api/v1/sections/6gjcfphM67QjC8Qq -H 'Authorization: Bearer ec3e15b16b1c4aa751853dde7d0aa58973b7757d' -H 'Content-Type: application/json' -d '{\"name\":\"Срочно\",\"project_id\":\"6ghRcQGgMJv3hwGH\"}')",
       "Bash(python -c \"import sys,json; [print\\(s['id'], s['name']\\) for s in json.load\\(sys.stdin\\).get\\('results',[]\\)]\")",
-      "Bash(Select-String -Pattern \"error -\")"
+      "Bash(Select-String -Pattern \"error -\")",
+      "Bash(adb connect *)",
+      "Bash(adb -s 192.168.31.22:43377 devices)",
+      "Bash(adb -s 192.168.31.22:43377 logcat -c)",
+      "Bash(adb -s 192.168.31.22:43377 shell \"am start -n com.togetherly.love/.MainActivity\")",
+      "Bash(adb -s 192.168.31.22:43377 logcat -d)",
+      "Bash(adb -s 192.168.31.22:43377 shell \"am force-stop com.togetherly.love\")",
+      "Bash(Get-Content \"C:\\\\Temp\\\\claude\\\\c--Users-Alex-Documents-GitHub-love-app\\\\934d5a2e-f8c9-48d5-92d8-d3f0f98d27b7\\\\tasks\\\\bvelu2g13.output\" -Tail 15)",
+      "Bash(adb -s 192.168.31.22:43377 install -r build/app/outputs/flutter-apk/app-release.apk)",
+      "Bash(adb -s 192.168.31.22:43377 shell monkey -p com.togetherly.love -c android.intent.category.LAUNCHER 1)"
     ]
   }
 }
