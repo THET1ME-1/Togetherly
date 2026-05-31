@@ -43,6 +43,10 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
 
   Set<String> _present = {};
 
+  // Громкость видео — локальная (у каждого своя, не синкается → 0 записей).
+  int _volume = 100;
+  bool _muted = false;
+
   String get _uid => _fb.uid ?? '';
 
   // Якорь для расчёта ожидаемой позиции: фиксируем позицию и локальное время
@@ -52,13 +56,24 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   bool _remotePlaying = false;
 
   String _currentMediaId = '';
-  bool _applyingRemote = false; // подавляет эхо при применении удалённого состояния
   bool _lastIsPlaying = false;
   int _lastPosMs = 0;
   bool _ended = false;
 
+  // Эхо-подавление по времени, а не флагом: seekTo/play/pause у плеера
+  // применяются АСИНХРОННО (JS round-trip), и их событие приходит уже после
+  // того, как синхронный флаг сброшен. Поэтому после применения удалённого
+  // состояния глушим локальные пуши на окно времени, иначе устройства
+  // зацикливаются, пиная друг друга («срабатывает через раз»).
+  DateTime _suppressLocalUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Кто сейчас «ведущий» — только он шлёт heartbeat, чтобы оба не пушили
+  // одновременно и не создавали ping-pong микро-перемоток.
+  late bool _iAmController = widget.isHost;
+
   static const int _driftThresholdMs = 1500;
-  static const int _seekJumpMs = 2500; // скачок позиции = пользовательский seek
+  static const int _seekJumpMs = 2000; // скачок позиции = пользовательский seek
+  static const Duration _suppressWindow = Duration(milliseconds: 1500);
 
   @override
   void initState() {
@@ -113,12 +128,14 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       return;
     }
 
+    // Удалённое состояние пришло от партнёра → ведущий теперь он.
+    _iAmController = false;
+
     // Смена видео.
     if (state.mediaId.isNotEmpty && state.mediaId != _currentMediaId) {
       _currentMediaId = state.mediaId;
-      _applyingRemote = true;
+      _suppressLocalUntil = DateTime.now().add(_suppressWindow);
       _controller.load(state.mediaId);
-      _applyingRemote = false;
     }
 
     // Якорим позицию по моменту получения (обходит расхождение часов).
@@ -127,20 +144,27 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     _remoteBaseAt = nowLocal;
     _remotePlaying = state.isPlaying;
 
-    _applyingRemote = true;
     final target = _expectedRemoteMs();
     final curMs = _controller.value.position.inMilliseconds;
-    if ((curMs - target).abs() > _driftThresholdMs) {
+    final needSeek = (curMs - target).abs() > _driftThresholdMs;
+    final needPlay = state.isPlaying && !_controller.value.isPlaying;
+    final needPause = !state.isPlaying && _controller.value.isPlaying;
+
+    // Глушим локальные пуши до того, как применяем — событие плеера придёт
+    // асинхронно и попадёт в окно.
+    if (needSeek || needPlay || needPause) {
+      _suppressLocalUntil = DateTime.now().add(_suppressWindow);
+    }
+    if (needSeek) {
       _controller.seekTo(Duration(milliseconds: target));
     }
-    if (state.isPlaying && !_controller.value.isPlaying) {
+    if (needPlay) {
       _controller.play();
-    } else if (!state.isPlaying && _controller.value.isPlaying) {
+    } else if (needPause) {
       _controller.pause();
     }
     _lastIsPlaying = state.isPlaying;
     _lastPosMs = target;
-    _applyingRemote = false;
     if (mounted) setState(() {});
   }
 
@@ -152,7 +176,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
 
   // ── Локальные действия пользователя → пуш в RTDB ──────────────────────────
   void _onPlayerEvent() {
-    if (_applyingRemote || _ended) return;
+    if (_ended) return;
     final v = _controller.value;
     final posMs = v.position.inMilliseconds;
     final playing = v.isPlaying;
@@ -160,8 +184,14 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     final playStateChanged = playing != _lastIsPlaying;
     final seeked = (posMs - _lastPosMs).abs() > _seekJumpMs;
 
+    // Базовые значения обновляем ВСЕГДА (в т.ч. в окне подавления), иначе
+    // после окна старый baseline даст ложный «seek».
     _lastIsPlaying = playing;
     _lastPosMs = posMs;
+
+    // В окне подавления (только что применили удалённое состояние) не пушим —
+    // это эхо наших же seekTo/play/pause.
+    if (DateTime.now().isBefore(_suppressLocalUntil)) return;
 
     if (playStateChanged || seeked) {
       _push(playing, posMs);
@@ -169,6 +199,8 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   }
 
   void _push(bool playing, int posMs) {
+    // Любое наше действие делает нас ведущим (heartbeat теперь шлём мы).
+    _iAmController = true;
     _session.pushAction(
       pairId: widget.pairId,
       isPlaying: playing,
@@ -176,10 +208,10 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     );
   }
 
-  // Пульс шлёт только тот, кто инициировал последнее действие (мы — последний
-  // controller, пока партнёр не перехватил), чтобы партнёр корректировал дрейф.
+  // Пульс шлёт только ведущий, чтобы оба устройства не пушили одновременно и
+  // не создавали ping-pong микро-перемоток. Даёт партнёру свежий якорь дрейфа.
   void _maybeHeartbeat() {
-    if (_ended || !mounted) return;
+    if (_ended || !mounted || !_iAmController) return;
     if (!_controller.value.isPlaying) return;
     _push(true, _controller.value.position.inMilliseconds);
   }
@@ -230,6 +262,29 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
 
   bool get _partnerHere =>
       widget.partnerUid.isNotEmpty && _present.contains(widget.partnerUid);
+
+  void _setVolume(int v) {
+    setState(() {
+      _volume = v;
+      _muted = v == 0;
+    });
+    _controller.setVolume(v);
+  }
+
+  void _toggleMute() {
+    if (_muted) {
+      // Восстанавливаем прежний уровень (или 100, если был 0).
+      final restore = _volume == 0 ? 100 : _volume;
+      setState(() {
+        _muted = false;
+        _volume = restore;
+      });
+      _controller.setVolume(restore);
+    } else {
+      setState(() => _muted = true);
+      _controller.setVolume(0);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -306,6 +361,50 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+              // ── Громкость видео (локальная) ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _muted || _volume == 0
+                            ? Icons.volume_off_rounded
+                            : (_volume < 50
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded),
+                        color: Colors.white,
+                      ),
+                      onPressed: _toggleMute,
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: Colors.white,
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: Colors.white,
+                          overlayColor: Colors.white24,
+                        ),
+                        child: Slider(
+                          value: (_muted ? 0 : _volume).toDouble(),
+                          min: 0,
+                          max: 100,
+                          onChanged: (v) => _setVolume(v.round()),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        '${_muted ? 0 : _volume}',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
