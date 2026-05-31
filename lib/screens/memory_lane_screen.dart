@@ -153,7 +153,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
     setState(() => _loading = true);
     final fb = FirebaseService();
-    final result = await fb.loadMemories(groupId: _groupId, limit: 20);
+    // Начальное открытие — cache-first: live-слушатель на home уже прогрел
+    // persistent-кэш, серверное чтение не нужно. Pull-to-refresh ниже всё равно
+    // ходит на сервер, когда пользователь хочет свежак.
+    final result =
+        await fb.loadMemories(groupId: _groupId, limit: 20, cacheFirst: true);
     if (!mounted) return;
     setState(() {
       _memories = result.memories;
