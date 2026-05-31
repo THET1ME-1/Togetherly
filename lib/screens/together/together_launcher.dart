@@ -1,10 +1,57 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
+import '../../services/rewarded_ad_service.dart';
 import 'watch_together_screen.dart';
 
 /// Точки входа в совместный просмотр: запуск хостом и баннер-приглашение гостю.
 class TogetherLauncher {
+  // Rewarded на старте показываем ТОЛЬКО хосту и один раз за запуск сеанса.
+  // Гость заходит без рекламы (иначе старт рассинхронится). Если реклама не
+  // загружена — не блокируем фичу, просто пускаем и грузим на следующий раз.
+  static final RewardedAdService _ads = RewardedAdService();
+
+  /// Предзагрузка rewarded — звать заранее (напр. при открытии карточки видео),
+  /// чтобы к тапу «Смотреть вместе» ролик уже был готов. Идемпотентно.
+  static void preloadStartAd() => _ads.load();
+
+  /// Opt-in перед стартом: предлагаем хосту посмотреть rewarded ради коинов.
+  /// Политика AdMob требует явного согласия и упоминания награды — авто-показ
+  /// rewarded недопустим. Отказ НЕ блокирует совместный просмотр.
+  static Future<void> _offerStartAd(BuildContext context) async {
+    if (!_ads.isReady) {
+      _ads.load(); // не готово — не навязываем, грузим на следующий раз
+      return;
+    }
+    final watch = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Смотреть вместе'),
+        content: const Text(
+          'Посмотри короткую рекламу — поддержишь приложение '
+          'и получишь коины 🪙',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Позже'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text('Смотреть'),
+          ),
+        ],
+      ),
+    );
+    if (watch == true) {
+      final uid = FirebaseService().uid ?? '';
+      await _ads.show(uid: uid);
+      unawaited(_ads.load()); // грузим следующий
+    }
+  }
+
   /// Показать диалог вставки YouTube-ссылки и запустить совместный просмотр
   /// как хост.
   static Future<void> startWatchTogether(
@@ -47,6 +94,10 @@ class TogetherLauncher {
       return;
     }
 
+    // Rewarded на старте (только хост). Фичу не блокируем, если не готово.
+    await _offerStartAd(context);
+    if (!context.mounted) return;
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(
@@ -61,12 +112,12 @@ class TogetherLauncher {
 
   /// Запустить совместный просмотр конкретного видео как хост (URL уже известен,
   /// диалог не нужен) — напр. из карточки видео-воспоминания.
-  static void hostVideo(
+  static Future<void> hostVideo(
     BuildContext context, {
     required String pairId,
     required String partnerUid,
     required String videoUrl,
-  }) {
+  }) async {
     final videoId = YoutubePlayer.convertUrlToId(videoUrl);
     if (videoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -74,6 +125,11 @@ class TogetherLauncher {
       );
       return;
     }
+
+    // Rewarded на старте (только хост). Фичу не блокируем, если не готово.
+    await _offerStartAd(context);
+    if (!context.mounted) return;
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(

@@ -10056,6 +10056,15 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
   bool _isPlaying = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Предзагрузка rewarded к моменту тапа «Смотреть вместе» (если есть пара).
+    if (widget.pairId.isNotEmpty) {
+      TogetherLauncher.preloadStartAd();
+    }
+  }
+
+  @override
   void dispose() {
     _controller?.dispose();
     super.dispose();
