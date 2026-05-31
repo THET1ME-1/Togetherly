@@ -978,14 +978,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final badge = _partnerBadges[uid];
     if (badge == null || badge.isEmpty) return const SizedBox.shrink();
     final icon = ProfileIcon.byId(badge);
-    return Padding(
-      padding: const EdgeInsets.only(left: 2),
+    return Transform.translate(
+      offset: const Offset(-4, 0),
       child: GestureDetector(
         onTap: icon == null ? null : () => _showBadgeInfo(icon),
         child: Image.asset(
           icon?.asset ?? 'assets/images/icons/$badge.webp',
-          width: 36,
-          height: 36,
+          width: 38,
+          height: 38,
         ),
       ),
     );

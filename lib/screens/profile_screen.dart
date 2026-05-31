@@ -57,8 +57,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final IapService _iap = IapService();
   bool _iapLoading = false;
 
-  // Флаги для UI — «получено в этой сессии» (визуальная обратная связь)
-  bool _memoryRewardClaimedThisSession = false;
 
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly-d4856.web.app/privacy-policy',
@@ -2708,7 +2706,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: _s.dailyBonusSubtitle,
                         coinAmount: 1,
                         counterText: widget.userData.dailyBonusClaimedThisSession ? '✓' : null,
-                        counterExhausted: false,
+                        counterExhausted: widget.userData.dailyBonusClaimedThisSession,
                         onTap: widget.userData.dailyBonusClaimedThisSession
                             ? null
                             : () async {
@@ -2723,26 +2721,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       // Воспоминание — скрыто в соло-режиме
                       if (!widget.pairData.isSolo)
-                        StatefulBuilder(builder: (_, setSt) => _coinShopItem(
+                        _coinShopItem(
                           icon: Icons.photo_album_outlined,
                           title: _s.memoryRewardTitle,
                           subtitle: _s.memoryRewardSubtitle,
                           coinAmount: 1,
-                          counterText: _memoryRewardClaimedThisSession ? '✓' : null,
-                          counterExhausted: false,
-                          onTap: _memoryRewardClaimedThisSession
+                          counterText: widget.userData.memoryRewardClaimedThisSession ? '✓' : null,
+                          counterExhausted: widget.userData.memoryRewardClaimedThisSession,
+                          onTap: widget.userData.memoryRewardClaimedThisSession
                               ? null
                               : () async {
                                   final amount = await widget.userData.claimMemoryReward();
                                   if (!mounted) return;
                                   if (amount > 0) {
-                                    setSt(() => _memoryRewardClaimedThisSession = true);
-                                    setState(() {});
                                     // ignore: use_build_context_synchronously
                                     CoinRewardToast.show(context, amount: amount, label: _s.memoryRewardTitle);
                                   }
                                 },
-                        )),
+                        ),
                       // Реклама
                       _coinShopItem(
                         icon: Icons.play_circle_outline_rounded,
