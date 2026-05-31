@@ -23,6 +23,55 @@ import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'widgets/common/m3_loading.dart';
 
+/// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob SDK.
+/// МobileAds.initialize() ДОЛЖЕН вызываться ПОСЛЕ завершения consent flow,
+/// иначе на EEA-устройствах SDK стартует без согласия и реклама блокируется.
+Future<void> _initConsentAndAds() async {
+  final params = ConsentRequestParameters(
+    consentDebugSettings: kDebugMode
+        ? ConsentDebugSettings(
+            debugGeography: DebugGeography.debugGeographyEea,
+            testIdentifiers: <String>[],
+          )
+        : null,
+  );
+
+  final completer = Completer<void>();
+
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+    () async {
+      try {
+        await ConsentForm.loadAndShowConsentFormIfRequired(
+          (error) {
+            if (error != null) debugPrint('UMP form error: $error');
+          },
+        );
+      } finally {
+        completer.complete();
+      }
+    },
+    (FormError error) {
+      debugPrint('UMP update error: $error');
+      completer.complete();
+    },
+  );
+
+  // Таймаут 5 с — не блокируем запуск если UMP завис
+  await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
+
+  try {
+    await MobileAds.instance.initialize();
+    if (kDebugMode) {
+      MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(testDeviceIds: <String>[]),
+      );
+    }
+  } catch (e) {
+    debugPrint('AdMob init failed: $e');
+  }
+}
+
 /// Top-level background handler — должен быть функцией верхнего уровня.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -119,51 +168,9 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
-  // Google UMP — запрос согласия GDPR (только Android/iOS)
+  // Google UMP + AdMob — consent должен быть получен ДО инициализации SDK
   if (Platform.isAndroid || Platform.isIOS) {
-    try {
-      final params = ConsentRequestParameters(
-        consentDebugSettings: kDebugMode
-            ? ConsentDebugSettings(
-                debugGeography: DebugGeography.debugGeographyEea,
-                testIdentifiers: <String>[],
-              )
-            : null,
-      );
-      ConsentInformation.instance.requestConsentInfoUpdate(
-        params,
-        () async {
-          await ConsentForm.loadAndShowConsentFormIfRequired(
-            (loadAndShowError) {
-              if (loadAndShowError != null) {
-                debugPrint('UMP consent form error: $loadAndShowError');
-              }
-            },
-          );
-        },
-        (FormError error) {
-          debugPrint('UMP consent info update error: $error');
-        },
-      );
-    } catch (e) {
-      debugPrint('UMP consent init failed: $e');
-    }
-  }
-
-  // AdMob — инициализация (только Android/iOS)
-  if (Platform.isAndroid || Platform.isIOS) {
-    try {
-      await MobileAds.instance.initialize();
-      if (kDebugMode) {
-        MobileAds.instance.updateRequestConfiguration(
-          RequestConfiguration(
-            testDeviceIds: <String>[],
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('AdMob init failed: $e');
-    }
+    await _initConsentAndAds();
   }
 
   // При первом запуске после установки — принудительно выходим из сессии

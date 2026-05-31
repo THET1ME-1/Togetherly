@@ -46,6 +46,10 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	
+	<!-- Google Mobile Ads: iOS App ID из AdMob-аккаунта (Apps → App settings → App ID) -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-1956369312643059~ЗАМЕНИ_НА_IOS_APP_ID</string>
+
 	<!-- Permissions для фото/видео -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We need access to your photos to add memories to your shared gallery</string>
