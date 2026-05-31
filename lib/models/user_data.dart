@@ -87,6 +87,10 @@ class UserData extends ChangeNotifier {
   bool _dailyBonusClaimedThisSession = false;
   bool get dailyBonusClaimedThisSession => _dailyBonusClaimedThisSession;
 
+  bool _memoryRewardClaimedThisSession = false;
+  bool _memoryRewardClaimInProgress = false;
+  bool get memoryRewardClaimedThisSession => _memoryRewardClaimedThisSession;
+
   /// Сколько rewarded-просмотров пользователь сделал сегодня (UTC).
   /// Если последняя дата начисления — не сегодня, возвращает 0.
   int get adRewardsToday {
@@ -211,10 +215,21 @@ class UserData extends ChangeNotifier {
   /// Награда за добавление воспоминания (1 🪙/день).
   /// Возвращает кол-во начисленных монет, или 0 если cooldown/ошибка.
   Future<int> claimMemoryReward() async {
-    final r = await _fb.callGrantMemoryReward();
-    if (r == null) return 0;
-    _applyServerResult(r);
-    return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
+    if (_memoryRewardClaimedThisSession || _memoryRewardClaimInProgress) return 0;
+    _memoryRewardClaimInProgress = true;
+    try {
+      final r = await _fb.callGrantMemoryReward();
+      if (r == null) return 0;
+      _applyServerResult(r);
+      final amount = (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
+      if (amount > 0) {
+        _memoryRewardClaimedThisSession = true;
+        notifyListeners();
+      }
+      return amount;
+    } finally {
+      _memoryRewardClaimInProgress = false;
+    }
   }
 
   /// Единоразовая награда за приглашение партнёра (50 🪙).
