@@ -3299,6 +3299,24 @@ class FirebaseService {
     }, onError: (e) => debugPrint('listenToMissYouCount error: $e'));
   }
 
+  /// Сбросить свои нажатия «Я скучаю» до 0.
+  Future<void> resetMyMissYouCount({required String groupId}) async {
+    final myUid = uid;
+    if (myUid == null || groupId.isEmpty) return;
+    final docRef = _db.collection('groups').doc(groupId);
+    await _db.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      final data = snap.data() ?? {};
+      final counts = (data['missYouCounts'] as Map<String, dynamic>?) ?? {};
+      final myCount = (counts[myUid] as num?)?.toInt() ?? 0;
+      if (myCount == 0) return;
+      txn.update(docRef, {
+        'missYouCount': FieldValue.increment(-myCount),
+        'missYouCounts.$myUid': 0,
+      });
+    });
+  }
+
   /// Слушать per-user счётчики «Я скучаю» (Map uid → count).
   StreamSubscription listenToMissYouCounts({
     required String groupId,
