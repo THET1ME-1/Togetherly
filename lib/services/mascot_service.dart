@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mascot.dart';
 import 'firebase_service.dart';
+import 'home_widget_service.dart';
 
 /// Manages the mascot gallery and group streak for one group.
 /// Bind to a group via [bindToGroup] when the user is paired.
@@ -53,6 +54,7 @@ class MascotService extends ChangeNotifier {
       state,
     ) {
       _state = state;
+      _syncStreakWidget();
       notifyListeners();
     }, onError: (e) => debugPrint('[MascotService] group state error: $e'));
 
@@ -110,7 +112,20 @@ class MascotService extends ChangeNotifier {
     }
 
     _isLoading = false;
+    // Record streak (stored per active mascot) may have just loaded — refresh
+    // the home-screen «Огонёк» widget so its «Рекорд: N» подпись is correct.
+    _syncStreakWidget();
     notifyListeners();
+  }
+
+  /// Pushes the current group streak to the native «Огонёк пары» home widget.
+  void _syncStreakWidget() {
+    final record = activeMascot?.recordStreak ?? 0;
+    HomeWidgetService.instance.syncStreak(
+      streakDays: _state.streakDays,
+      recordStreak: record > _state.streakDays ? record : _state.streakDays,
+      lastOpenedDate: _state.streakLastOpenedDate ?? '',
+    );
   }
 
   Future<void> _migrateOldDefaults(List<Mascot> oldOnes) async {
