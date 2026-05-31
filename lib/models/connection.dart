@@ -101,6 +101,7 @@ class Connection {
 
   // Celebrations
   DateTime? anniversaryDate;
+  DateTime? firstKissDate;
   Map<String, DateTime> memberBirthdays = {};
 
   Connection({
@@ -843,6 +844,7 @@ class Connection {
 
         // Update celebration dates (_parseGroupDoc already converts Timestamp→DateTime)
         anniversaryDate = data['anniversaryDate'] as DateTime?;
+        firstKissDate = data['firstKissDate'] as DateTime?;
         final bdRaw = data['memberBirthdays'] as Map<String, dynamic>?;
         if (bdRaw != null) {
           memberBirthdays = {};

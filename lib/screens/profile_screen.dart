@@ -1341,6 +1341,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             _divider(),
+            // ── Первый поцелуй ──
+            GestureDetector(
+              onTap: () => _showFirstKissDatePicker(
+                  context, selectedPartner?.connection),
+              behavior: HitTestBehavior.opaque,
+              child: _infoRow(
+                icon: Icons.favorite_rounded,
+                label: _s.firstKissDate,
+                value: _formatCelebrationDate(
+                    selectedPartner?.connection.firstKissDate),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
+            ),
+            _divider(),
             // ── Мой день рождения ──
             GestureDetector(
               onTap: () => _showBirthdayPicker(context),
@@ -1478,6 +1496,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       anniversaryDate: picked,
       birthDate: widget.userData.birthDate,
     );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showFirstKissDatePicker(
+    BuildContext context,
+    Connection? connection,
+  ) async {
+    final groupId = connection?.pairId ?? '';
+    if (groupId.isEmpty) return;
+    final picked = await _showDateInputDialog(
+      context: context,
+      title: _s.firstKissDate,
+      initial: connection?.firstKissDate,
+      firstYear: 1900,
+      lastYear: DateTime.now().year,
+    );
+    if (picked == null || !mounted) return;
+    final fb = FirebaseService();
+    await fb.updateFirstKissDate(groupId, picked);
     if (mounted) setState(() {});
   }
 

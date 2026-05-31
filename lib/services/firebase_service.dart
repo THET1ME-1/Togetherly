@@ -1622,6 +1622,18 @@ class FirebaseService {
     }
   }
 
+  /// Сохраняет дату первого поцелуя для пары (общая для группы).
+  Future<void> updateFirstKissDate(String groupId, DateTime? date) async {
+    try {
+      await _db.collection('groups').doc(groupId).set(
+        {'firstKissDate': date != null ? Timestamp.fromDate(date) : null},
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('updateFirstKissDate failed: $e');
+    }
+  }
+
   /// Сохраняет дату рождения текущего пользователя.
   /// Записывает в users/{uid}/birthDate И в groups/{groupId}/memberBirthdays.{uid}.
   Future<void> updateMyBirthDate(DateTime? date) async {
@@ -1853,6 +1865,8 @@ class FirebaseService {
           data['customRelationshipTypes'] as List<dynamic>?,
       'anniversaryDate':
           (data['anniversaryDate'] as Timestamp?)?.toDate(),
+      'firstKissDate':
+          (data['firstKissDate'] as Timestamp?)?.toDate(),
       'memberBirthdays': () {
         final raw = data['memberBirthdays'] as Map<String, dynamic>?;
         if (raw == null) return null;
