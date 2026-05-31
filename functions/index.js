@@ -1208,3 +1208,93 @@ exports.grantMoodStreakReward = onCall(async (request) => {
   });
 });
 
+// ─── Модерация: просмотр memory-медиа из Storage ──────────────────────────────
+// Листинг файлов и подпись URL идут ТОЛЬКО через Storage Admin SDK. Firestore
+// не затрагивается вовсе → 0 Firestore reads. Admin SDK обходит storage.rules,
+// поэтому проверка членства в группе (которая делала бы firestore.get) не нужна.
+//
+// Доступ закрыт shared-secret в заголовке x-mod-secret (или ?secret=).
+// ВАЖНО: смени значение ниже или задай переменной окружения MOD_SECRET перед
+// деплоем. Эта панель показывает приватные фото чужих пар — держи URL и секрет
+// в тайне.
+const MOD_SECRET = process.env.MOD_SECRET || "ZQz5WvZKW0H2";
+
+function checkModSecret(req) {
+  const provided = req.get("x-mod-secret") || (req.query && req.query.secret) || "";
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(String(MOD_SECRET));
+  // timingSafeEqual бросает при разной длине — сравниваем длину отдельно
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(a, b);
+  } catch (_) {
+    return false;
+  }
+}
+
+const _MOD_IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+const _MOD_VIDEO_EXT = /\.(mp4|mov|webm|m4v|3gp)$/i;
+
+exports.modBrowseMemories = onRequest({ cors: true }, async (req, res) => {
+  if (!checkModSecret(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+
+  const groupId = String((req.query && req.query.groupId) || "").trim();
+  if (groupId.includes("/") || groupId.includes("..")) {
+    res.status(400).json({ error: "bad groupId" });
+    return;
+  }
+
+  const prefix = groupId ? `memories/${groupId}/` : "memories/";
+  const max = Math.min(Number(req.query && req.query.max) || 60, 200);
+  const pageToken = (req.query && req.query.pageToken)
+    ? String(req.query.pageToken)
+    : undefined;
+
+  try {
+    const bucket = getStorage().bucket();
+    const [files, nextQuery] = await bucket.getFiles({
+      prefix,
+      maxResults: max,
+      pageToken,
+      autoPaginate: false,
+    });
+
+    const expiresAt = Date.now() + 60 * 60 * 1000; // 1 час
+    const items = [];
+    for (const file of files) {
+      const name = file.name;
+      const isVid = _MOD_VIDEO_EXT.test(name);
+      const isImg = _MOD_IMAGE_EXT.test(name);
+      if (!isVid && !isImg) continue; // только фото/видео-превью
+
+      const parts = name.split("/");
+      const [url] = await file.getSignedUrl({
+        action: "read",
+        expires: expiresAt,
+        version: "v4",
+      });
+      items.push({
+        path: name,
+        groupId: parts[1] || "",
+        name: parts[parts.length - 1],
+        kind: isVid ? "video" : "image",
+        size: Number((file.metadata && file.metadata.size) || 0),
+        updated: (file.metadata && file.metadata.updated) || null,
+        url,
+      });
+    }
+
+    res.json({
+      items,
+      nextPageToken: (nextQuery && nextQuery.pageToken) || null,
+      expiresAt,
+    });
+  } catch (e) {
+    console.error("modBrowseMemories error:", e && e.message);
+    res.status(500).json({ error: "internal" });
+  }
+});
+

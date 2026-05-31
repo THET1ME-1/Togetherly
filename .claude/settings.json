@@ -17,7 +17,11 @@
       "Bash(adb -s 192.168.31.22:43377 shell monkey -p com.togetherly.love -c android.intent.category.LAUNCHER 1)",
       "Bash(Get-ChildItem build\\\\app\\\\outputs\\\\flutter-apk\\\\app-release.apk -ErrorAction SilentlyContinue)",
       "Bash(Select-Object Name,Length,LastWriteTime)",
-      "PowerShell(Get-Process -Name java,gradle -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Process -Name java,gradle -ErrorAction SilentlyContinue)",
+      "Bash(grep -rhoE \"'memories/[^']*'|\\\\\"memories/[^\\\\\"]*\\\\\"|memories/\\\\$\\\\{[^}]*\\\\}|memories/' *\\\\+|destination\" lib/)",
+      "Bash(node --check index.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('../firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json валиден'\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")"
     ]
   }
 }

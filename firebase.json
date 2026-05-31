@@ -7,7 +7,8 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      { "source": "/invite/**", "destination": "/invite/index.html" }
+      { "source": "/invite/**", "destination": "/invite/index.html" },
+      { "source": "/modapi/memories", "function": { "functionId": "modBrowseMemories", "region": "us-central1" } }
     ],
     "headers": [
       {
