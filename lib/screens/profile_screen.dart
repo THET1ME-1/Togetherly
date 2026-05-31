@@ -58,7 +58,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _iapLoading = false;
 
   // Флаги для UI — «получено в этой сессии» (визуальная обратная связь)
-  bool _dailyBonusClaimedThisSession = false;
   bool _memoryRewardClaimedThisSession = false;
 
   static final Uri _privacyPolicyUri = Uri.parse(
@@ -2703,48 +2702,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       // Ежедневный вход
-                      StatefulBuilder(builder: (_, setSt) => _coinShopItem(
+                      _coinShopItem(
                         icon: Icons.calendar_today_rounded,
                         title: _s.dailyBonusTitle,
                         subtitle: _s.dailyBonusSubtitle,
                         coinAmount: 1,
-                        counterText: _dailyBonusClaimedThisSession ? '✓' : null,
+                        counterText: widget.userData.dailyBonusClaimedThisSession ? '✓' : null,
                         counterExhausted: false,
-                        onTap: _dailyBonusClaimedThisSession
+                        onTap: widget.userData.dailyBonusClaimedThisSession
                             ? null
                             : () async {
                                 final rootCtx = context;
                                 final awarded = await widget.userData.claimDailyBonus();
                                 if (!mounted) return;
                                 if (awarded) {
-                                  setSt(() => _dailyBonusClaimedThisSession = true);
-                                  setState(() {});
                                   // ignore: use_build_context_synchronously
                                   CoinRewardToast.show(rootCtx, amount: 1, label: _s.dailyBonusTitle);
                                 }
                               },
-                      )),
-                      // Воспоминание
-                      StatefulBuilder(builder: (_, setSt) => _coinShopItem(
-                        icon: Icons.photo_album_outlined,
-                        title: _s.memoryRewardTitle,
-                        subtitle: _s.memoryRewardSubtitle,
-                        coinAmount: 1,
-                        counterText: _memoryRewardClaimedThisSession ? '✓' : null,
-                        counterExhausted: false,
-                        onTap: _memoryRewardClaimedThisSession
-                            ? null
-                            : () async {
-                                final rootCtx = context;
-                                final amount = await widget.userData.claimMemoryReward();
-                                if (!mounted) return;
-                                if (amount > 0) {
-                                  setSt(() => _memoryRewardClaimedThisSession = true);
-                                  setState(() {});
-                                  CoinRewardToast.show(rootCtx, amount: amount, label: _s.memoryRewardTitle);
-                                }
-                              },
-                      )),
+                      ),
+                      // Воспоминание — скрыто в соло-режиме
+                      if (!widget.pairData.isSolo)
+                        StatefulBuilder(builder: (_, setSt) => _coinShopItem(
+                          icon: Icons.photo_album_outlined,
+                          title: _s.memoryRewardTitle,
+                          subtitle: _s.memoryRewardSubtitle,
+                          coinAmount: 1,
+                          counterText: _memoryRewardClaimedThisSession ? '✓' : null,
+                          counterExhausted: false,
+                          onTap: _memoryRewardClaimedThisSession
+                              ? null
+                              : () async {
+                                  final amount = await widget.userData.claimMemoryReward();
+                                  if (!mounted) return;
+                                  if (amount > 0) {
+                                    setSt(() => _memoryRewardClaimedThisSession = true);
+                                    setState(() {});
+                                    // ignore: use_build_context_synchronously
+                                    CoinRewardToast.show(context, amount: amount, label: _s.memoryRewardTitle);
+                                  }
+                                },
+                        )),
                       // Реклама
                       _coinShopItem(
                         icon: Icons.play_circle_outline_rounded,
