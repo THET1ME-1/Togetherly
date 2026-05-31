@@ -84,6 +84,9 @@ class UserData extends ChangeNotifier {
   // ── Коины ─────────────────────────────────────────────────────────────────
   int get coins => _coins;
 
+  bool _dailyBonusClaimedThisSession = false;
+  bool get dailyBonusClaimedThisSession => _dailyBonusClaimedThisSession;
+
   /// Сколько rewarded-просмотров пользователь сделал сегодня (UTC).
   /// Если последняя дата начисления — не сегодня, возвращает 0.
   int get adRewardsToday {
@@ -197,7 +200,12 @@ class UserData extends ChangeNotifier {
     final r = await _fb.callGrantDailyBonus();
     if (r == null) return false;
     _applyServerResult(r);
-    return true;
+    final awarded = r['ok'] == true;
+    if (awarded) {
+      _dailyBonusClaimedThisSession = true;
+      notifyListeners();
+    }
+    return awarded;
   }
 
   /// Награда за добавление воспоминания (1 🪙/день).
