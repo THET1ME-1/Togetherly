@@ -608,6 +608,48 @@ class HomeWidgetService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  //  1b. ОГОНЁК ПАРЫ  (серия дней подряд)
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Синхронизирует виджет «Огонёк пары» — сколько дней подряд пара заходила.
+  ///
+  /// [streakDays]     — текущая серия (дней подряд).
+  /// [recordStreak]   — рекорд серии (для подписи «Рекорд: N»).
+  /// [lastOpenedDate] — дата последнего совместного захода «YYYY-MM-DD».
+  ///   По ней нативный виджет сам решает, «горит» серия или потухла, поэтому
+  ///   счётчик корректно обнуляется даже без открытия приложения.
+  Future<void> syncStreak({
+    required int streakDays,
+    int recordStreak = 0,
+    String lastOpenedDate = '',
+  }) async {
+    try {
+      await HomeWidget.saveWidgetData<String>(
+        'streak_days',
+        streakDays.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'streak_record',
+        recordStreak.toString(),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'streak_last_date',
+        lastOpenedDate,
+      );
+      await HomeWidget.updateWidget(
+        name: 'StreakWidgetProvider',
+        androidName: 'StreakWidgetProvider',
+      );
+      debugPrint(
+        'HomeWidgetService: streak synced — $streakDays days '
+        '(record=$recordStreak, last=$lastOpenedDate)',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncStreak failed: $e');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  2. ТАЙМЕР / ОБРАТНЫЙ ОТСЧЁТ
   // ════════════════════════════════════════════════════════════════════════
 

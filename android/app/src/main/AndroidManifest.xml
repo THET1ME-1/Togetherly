@@ -143,6 +143,18 @@
                 android:resource="@xml/days_counter_widget_info" />
         </receiver>
 
+        <!-- ═══ Виджет: Огонёк пары (серия дней подряд) ═══ -->
+        <receiver android:name=".StreakWidgetProvider"
+            android:exported="true"
+            android:label="Огонёк пары">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/streak_widget_info" />
+        </receiver>
+
         <!-- ═══ Виджет: Таймер / Обратный отсчёт ═══ -->
         <receiver android:name=".TimerWidgetProvider"
             android:exported="true"

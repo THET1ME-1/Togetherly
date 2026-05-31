@@ -873,8 +873,13 @@ class _WidgetScreenState extends State<WidgetScreen>
         );
       }
 
-      // Save next_bind_group so Kotlin picks it up on first onUpdate
-      if (widgetType != null && !widgetType.startsWith('photo_day') && widgetType != 'pair') {
+      // Save next_bind_group so Kotlin picks it up on first onUpdate.
+      // 'streak' uses global keys (not per-group binding) — skip it, otherwise
+      // the default switch branch would wrongly hijack the timer binding.
+      if (widgetType != null &&
+          !widgetType.startsWith('photo_day') &&
+          widgetType != 'pair' &&
+          widgetType != 'streak') {
         final realType = widgetType;
         final bindTypeKey = switch (realType) {
           'petal_timer' => 'petal_timer',
@@ -1515,6 +1520,17 @@ class _WidgetScreenState extends State<WidgetScreen>
             widgetType: 'days_counter',
           ),
           const SizedBox(height: 16),
+
+          // ── 2б. Огонёк пары (серия дней подряд) ──
+          _buildGalleryItem(
+            title: 'Огонёк пары',
+            subtitle: 'Сколько дней подряд вы заходите вместе',
+            svgString: _flameSvg,
+            qualifiedName: 'com.togetherly.love.StreakWidgetProvider',
+            preview: _buildStreakPreview(),
+            widgetType: 'streak',
+          ),
+          const SizedBox(height: 16),
         ],
 
         // ── 3. Таймер ──
@@ -1764,6 +1780,75 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ════════════════════════════════════════════════════════════════════════════
   // ВИДЖЕТ-ПРЕВЬЮ: Счётчик дней
   // ════════════════════════════════════════════════════════════════════════════
+
+  static const String _flameSvg =
+      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12.963 2.286a.75.75 0 0 0-1.071-.136 9.742 9.742 0 0 0-3.539 6.177 7.547 7.547 0 0 1-1.705-1.715.75.75 0 0 0-1.152-.082A9 9 0 1 0 15.68 4.534a7.46 7.46 0 0 1-2.717-2.248ZM15.75 14.25a3.75 3.75 0 1 1-7.313-1.172c.628.465 1.35.81 2.133 1a5.99 5.99 0 0 1 1.925-3.547 3.75 3.75 0 0 1 3.255 3.719Z" clip-rule="evenodd" /></svg>''';
+
+  /// Иллюстративный превью виджета «Огонёк пары».
+  Widget _buildStreakPreview() {
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFB23E), Color(0xFFFF6A3D), Color(0xFFF9417B)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('🔥', style: TextStyle(fontSize: 76)),
+            const SizedBox(width: 18),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'СЕРИЯ ВМЕСТЕ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                const Text(
+                  '7',
+                  style: TextStyle(
+                    fontSize: 64,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.05,
+                  ),
+                ),
+                const Text(
+                  'дней подряд',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Так держать!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildDaysCounterPreview() {
     final s = LocaleService.current;

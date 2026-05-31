@@ -11,6 +11,8 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
 import android.net.Uri
+import android.os.Bundle
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -33,6 +35,13 @@ class TimerWidgetProvider : HomeWidgetProvider() {
         widgetData: SharedPreferences,
     ) {
         appWidgetIds.forEach { widgetId ->
+            // Компактный режим, когда виджет сильно сжали: показываем только
+            // число дней, без шапки (сердечко + название) и фонового сердца.
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val minW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+            val minH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+            val isCompact = (minW in 1 until 130) || (minH in 1 until 80)
+
             val g = WidgetGroupHelper.getOrBind(context, "timer", widgetId)
             val views = RemoteViews(context.packageName, R.layout.timer_widget).apply {
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
@@ -87,9 +96,37 @@ class TimerWidgetProvider : HomeWidgetProvider() {
                     else
                         drawStar(180, colors.iconFrom, colors.iconTo)
                 )
+
+                // Компактный режим: прячем шапку, фоновое сердце и дату, а
+                // правый отступ убираем, чтобы число заняло всю ширину.
+                val hiddenInCompact = if (isCompact) View.GONE else View.VISIBLE
+                setViewVisibility(R.id.timer_header_row, hiddenInCompact)
+                setViewVisibility(R.id.timer_bg_heart, hiddenInCompact)
+                setViewVisibility(R.id.timer_date, if (isCompact) View.GONE else View.VISIBLE)
+
+                val density = context.resources.displayMetrics.density
+                val padStart = (16 * density).toInt()
+                val padEnd = ((if (isCompact) 16 else 20) * density).toInt()
+                val padVert = (12 * density).toInt()
+                setViewPadding(R.id.timer_content_layout, padStart, padVert, padEnd, padVert)
             }
             appWidgetManager.updateAppWidget(widgetId, views)
         }
+    }
+
+    // Пересобираем виджет при изменении размера, чтобы вовремя включить/выключить
+    // компактный режим. Берём данные из тех же "HomeWidgetPreferences", что и
+    // плагин home_widget (иначе виджет обнулится при ресайзе).
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        val widgetData = context.getSharedPreferences(
+            "HomeWidgetPreferences", Context.MODE_PRIVATE
+        )
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId), widgetData)
     }
 
     // ─── Палитра ────────────────────────────────────────────────────────
