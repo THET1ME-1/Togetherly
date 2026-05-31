@@ -1235,66 +1235,92 @@ function checkModSecret(req) {
 const _MOD_IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 const _MOD_VIDEO_EXT = /\.(mp4|mov|webm|m4v|3gp)$/i;
 
-exports.modBrowseMemories = onRequest({ cors: true }, async (req, res) => {
-  if (!checkModSecret(req)) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-
-  const groupId = String((req.query && req.query.groupId) || "").trim();
-  if (groupId.includes("/") || groupId.includes("..")) {
-    res.status(400).json({ error: "bad groupId" });
-    return;
-  }
-
-  const prefix = groupId ? `memories/${groupId}/` : "memories/";
-  const max = Math.min(Number(req.query && req.query.max) || 60, 200);
-  const pageToken = (req.query && req.query.pageToken)
-    ? String(req.query.pageToken)
-    : undefined;
-
-  try {
-    const bucket = getStorage().bucket();
-    const [files, nextQuery] = await bucket.getFiles({
-      prefix,
-      maxResults: max,
-      pageToken,
-      autoPaginate: false,
-    });
-
-    const expiresAt = Date.now() + 60 * 60 * 1000; // 1 час
-    const items = [];
-    for (const file of files) {
-      const name = file.name;
-      const isVid = _MOD_VIDEO_EXT.test(name);
-      const isImg = _MOD_IMAGE_EXT.test(name);
-      if (!isVid && !isImg) continue; // только фото/видео-превью
-
-      const parts = name.split("/");
-      const [url] = await file.getSignedUrl({
-        action: "read",
-        expires: expiresAt,
-        version: "v4",
-      });
-      items.push({
-        path: name,
-        groupId: parts[1] || "",
-        name: parts[parts.length - 1],
-        kind: isVid ? "video" : "image",
-        size: Number((file.metadata && file.metadata.size) || 0),
-        updated: (file.metadata && file.metadata.updated) || null,
-        url,
-      });
+// GCS list API отдаёт объекты только в алфавитном порядке имён — серверной
+// сортировки по дате нет. Поэтому выгружаем ВЕСЬ список под префиксом (только
+// list-операции, без скачивания и без подписи), сортируем по дате создания на
+// сервере и подписываем URL лишь для запрошенного окна [offset, offset+max).
+exports.modBrowseMemories = onRequest(
+  { cors: true, memory: "512MiB", timeoutSeconds: 120 },
+  async (req, res) => {
+    if (!checkModSecret(req)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
     }
 
-    res.json({
-      items,
-      nextPageToken: (nextQuery && nextQuery.pageToken) || null,
-      expiresAt,
-    });
-  } catch (e) {
-    console.error("modBrowseMemories error:", e && e.message);
-    res.status(500).json({ error: "internal" });
+    const groupId = String((req.query && req.query.groupId) || "").trim();
+    if (groupId.includes("/") || groupId.includes("..")) {
+      res.status(400).json({ error: "bad groupId" });
+      return;
+    }
+
+    const prefix = groupId ? `memories/${groupId}/` : "memories/";
+    const max = Math.min(Number(req.query && req.query.max) || 60, 200);
+    const offset = Math.max(Number(req.query && req.query.offset) || 0, 0);
+    const sort = String((req.query && req.query.sort) || "newest");
+
+    try {
+      const bucket = getStorage().bucket();
+      // autoPaginate: true (по умолчанию) проходит все страницы списка сам.
+      const [files] = await bucket.getFiles({ prefix });
+
+      // Оставляем только фото/видео и собираем лёгкие метаданные (без подписи).
+      const all = [];
+      for (const file of files) {
+        const name = file.name;
+        const isVid = _MOD_VIDEO_EXT.test(name);
+        const isImg = _MOD_IMAGE_EXT.test(name);
+        if (!isVid && !isImg) continue;
+        const md = file.metadata || {};
+        const created = md.timeCreated || md.updated || null;
+        all.push({
+          file,
+          name,
+          kind: isVid ? "video" : "image",
+          size: Number(md.size || 0),
+          created,
+          createdMs: created ? Date.parse(created) || 0 : 0,
+        });
+      }
+
+      // Сортировка по дате создания.
+      all.sort((a, b) =>
+        sort === "oldest" ? a.createdMs - b.createdMs : b.createdMs - a.createdMs
+      );
+
+      const total = all.length;
+      const window = all.slice(offset, offset + max);
+
+      // Подписываем URL только для видимого окна.
+      const expiresAt = Date.now() + 60 * 60 * 1000; // 1 час
+      const items = [];
+      for (const e of window) {
+        const parts = e.name.split("/");
+        const [url] = await e.file.getSignedUrl({
+          action: "read",
+          expires: expiresAt,
+          version: "v4",
+        });
+        items.push({
+          path: e.name,
+          groupId: parts[1] || "",
+          name: parts[parts.length - 1],
+          kind: e.kind,
+          size: e.size,
+          updated: e.created,
+          url,
+        });
+      }
+
+      res.json({
+        items,
+        total,
+        nextOffset: offset + window.length < total ? offset + window.length : null,
+        expiresAt,
+      });
+    } catch (e) {
+      console.error("modBrowseMemories error:", e && e.message);
+      res.status(500).json({ error: "internal" });
+    }
   }
-});
+);
 
