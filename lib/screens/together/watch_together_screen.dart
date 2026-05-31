@@ -47,6 +47,12 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   int _volume = 100;
   bool _muted = false;
 
+  // Эфемерный чат сеанса (RTDB, 0 Firestore-чтений).
+  final TextEditingController _chatCtrl = TextEditingController();
+  final ScrollController _chatScroll = ScrollController();
+  final List<ChatMessage> _messages = [];
+  StreamSubscription<ChatMessage>? _chatSub;
+
   String get _uid => _fb.uid ?? '';
 
   // Якорь для расчёта ожидаемой позиции: фиксируем позицию и локальное время
@@ -111,6 +117,11 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     _sessionSub = _session.watch(widget.pairId).listen(_onRemoteState);
     _presenceSub = _session.watchPresence(widget.pairId).listen((p) {
       if (mounted) setState(() => _present = p);
+    });
+    _chatSub = _session.watchChatMessages(widget.pairId).listen((m) {
+      if (!mounted) return;
+      setState(() => _messages.add(m));
+      _scrollChatToBottom();
     });
     _heartbeat = Timer.periodic(const Duration(seconds: 8), (_) => _maybeHeartbeat());
   }
@@ -240,11 +251,33 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     Navigator.of(context).pop();
   }
 
+  void _sendChat() {
+    final t = _chatCtrl.text.trim();
+    if (t.isEmpty) return;
+    _session.sendChatMessage(pairId: widget.pairId, text: t);
+    _chatCtrl.clear();
+  }
+
+  void _scrollChatToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScroll.hasClients) {
+        _chatScroll.animateTo(
+          _chatScroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     _heartbeat?.cancel();
     _sessionSub?.cancel();
     _presenceSub?.cancel();
+    _chatSub?.cancel();
+    _chatCtrl.dispose();
+    _chatScroll.dispose();
     _controller.removeListener(_onPlayerEvent);
     _controller.dispose();
     // Страховка: снимаем презенс/сеанс, если экран закрыли мимо _exit
@@ -362,7 +395,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               // ── Громкость видео (локальная) ──
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -406,10 +439,92 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                   ],
                 ),
               ),
+              const Divider(color: Colors.white12, height: 16),
+              Expanded(child: _buildChatList()),
+              _buildChatInput(),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildChatList() {
+    if (_messages.isEmpty) {
+      return const Center(
+        child: Text(
+          'Напишите первое сообщение 💬',
+          style: TextStyle(color: Colors.white24, fontSize: 13),
+        ),
+      );
+    }
+    return ListView.builder(
+      controller: _chatScroll,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      itemCount: _messages.length,
+      itemBuilder: (context, i) {
+        final m = _messages[i];
+        final mine = m.uid == _uid;
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.72,
+            ),
+            decoration: BoxDecoration(
+              color: mine ? const Color(0xFFEC4899) : Colors.white12,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              m.text,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChatInput() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _chatCtrl,
+                style: const TextStyle(color: Colors.white),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendChat(),
+                minLines: 1,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Сообщение…',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.white10,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.send_rounded, color: Color(0xFFEC4899)),
+              onPressed: _sendChat,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

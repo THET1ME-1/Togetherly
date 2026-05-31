@@ -64,6 +64,35 @@ class LiveSessionState {
   }
 }
 
+/// Сообщение эфемерного чата сеанса (живёт в RTDB, исчезает с сессией).
+@immutable
+class ChatMessage {
+  final String id;
+  final String uid;
+  final String name;
+  final String text;
+  final int ts;
+
+  const ChatMessage({
+    required this.id,
+    required this.uid,
+    required this.name,
+    required this.text,
+    required this.ts,
+  });
+
+  factory ChatMessage.fromSnapshot(DataSnapshot snap) {
+    final m = (snap.value as Map?) ?? const {};
+    return ChatMessage(
+      id: snap.key ?? '',
+      uid: (m['uid'] as String?) ?? '',
+      name: (m['name'] as String?) ?? '',
+      text: (m['text'] as String?) ?? '',
+      ts: (m['ts'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 /// Сервис совместных занятий. Синхронизация плеера идёт ТОЛЬКО через RTDB —
 /// ноль Firestore-чтений. Приглашение партнёра — через поле activeSession в
 /// group-doc (его ловит уже работающий live-листенер) + опционально FCM.
@@ -166,6 +195,38 @@ class TogetherSessionService {
       debugPrint('TogetherSessionService.pushAction failed: $e');
     }
     return seq;
+  }
+
+  // ── Эфемерный чат сеанса (RTDB, 0 Firestore-чтений) ──────────────────────
+  DatabaseReference _chatRef(String pairId) =>
+      _sessionRef(pairId).child('chat');
+
+  /// Отправить сообщение в чат сеанса.
+  Future<void> sendChatMessage({
+    required String pairId,
+    required String text,
+  }) async {
+    final t = text.trim();
+    if (t.isEmpty || pairId.isEmpty || _uid.isEmpty) return;
+    try {
+      await _chatRef(pairId).push().set({
+        'uid': _uid,
+        'name': _fb.displayName,
+        'text': t,
+        'ts': ServerValue.timestamp,
+      });
+    } catch (e) {
+      debugPrint('sendChatMessage failed: $e');
+    }
+  }
+
+  /// Поток сообщений чата: при подписке отдаёт последние ≤50, далее — новые.
+  /// onChildAdded экономнее onValue (только дельты).
+  Stream<ChatMessage> watchChatMessages(String pairId) {
+    return _chatRef(pairId)
+        .limitToLast(50)
+        .onChildAdded
+        .map((event) => ChatMessage.fromSnapshot(event.snapshot));
   }
 
   /// Завершить сеанс — удалить узел RTDB.
