@@ -2089,7 +2089,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
           // What's new block
           Container(
             width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 220),
+            constraints: const BoxConstraints(maxHeight: 300),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
