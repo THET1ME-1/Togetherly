@@ -966,6 +966,31 @@ class FirebaseService {
     }
   }
 
+  /// Checks whether [code] exists on the Firestore SERVER (bypasses local cache).
+  /// Returns true  → code is confirmed on server and owned by current user.
+  /// Returns false → code is not on server (was never written or write failed).
+  /// Returns null  → offline / unreachable, cannot determine.
+  Future<bool?> isInviteCodeOnServer(String code) async {
+    if (code.isEmpty) return false;
+    final u = currentUser;
+    if (u == null) return false;
+    try {
+      final doc = await _db
+          .collection('inviteCodes')
+          .doc(code)
+          .get(GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 6));
+      return doc.exists && doc.data()?['ownerUid'] == u.uid;
+    } on FirebaseException catch (e) {
+      if (e.code == 'unavailable' || e.code == 'failed-precondition') {
+        return null; // offline
+      }
+      return false;
+    } catch (_) {
+      return null; // timeout or other error — treat as offline
+    }
+  }
+
   /// Create invite code tied to a specific group (for adding more members)
   Future<String> generateGroupInviteCode(
     String groupId, {
@@ -1300,45 +1325,33 @@ class FirebaseService {
 
   /// Find a disbanded group that contains both the current user and [ownerUid].
   /// Returns the groupId of the most recently disbanded match, or null.
-  /// Reads only the user's own groups (from pairIds) instead of scanning ALL groups.
+  ///
+  /// Queries by membership instead of reading the user's pairIds: a disbanded
+  /// group is REMOVED from both members' pairIds at leave time (see
+  /// [unpairById]), so it can no longer be found there. The `members` array is
+  /// left intact on soft-delete, so an `arrayContains` query still finds it —
+  /// and stays scoped to the user's own groups (not the whole collection).
   Future<String?> _findDisbandedGroup(String ownerUid) async {
     final u = currentUser;
     if (u == null) return null;
     try {
-      // Read current user's pairIds — avoids querying the entire groups collection.
-      final myDoc = await _db.collection('users').doc(u.uid).get();
-      if (!myDoc.exists) return null;
-      final myData = myDoc.data()!;
-      final pairIds = <String>{};
-      final legacyPairId = myData['pairId'] as String?;
-      if (legacyPairId != null && legacyPairId.isNotEmpty) {
-        pairIds.add(legacyPairId);
-      }
-      final pairIdsList = myData['pairIds'] as List<dynamic>?;
-      if (pairIdsList != null) {
-        pairIds.addAll(
-          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
-        );
-      }
+      final snap = await _db
+          .collection('groups')
+          .where('members', arrayContains: u.uid)
+          .get();
 
       String? bestId;
       Timestamp? bestTs;
-      for (final groupId in pairIds) {
-        try {
-          final doc = await _db.collection('groups').doc(groupId).get();
-          if (!doc.exists) continue;
-          final data = doc.data()!;
-          if (data['disbanded'] != true) continue;
-          final docMembers = List<String>.from(data['members'] ?? []);
-          if (!docMembers.contains(ownerUid)) continue;
-          final ts = data['disbandedAt'] as Timestamp?;
-          if (bestId == null ||
-              (ts != null && (bestTs == null || ts.compareTo(bestTs) > 0))) {
-            bestId = groupId;
-            bestTs = ts;
-          }
-        } catch (e) {
-          debugPrint('_findDisbandedGroup: read group $groupId error: $e');
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if (data['disbanded'] != true) continue;
+        final docMembers = List<String>.from(data['members'] ?? []);
+        if (!docMembers.contains(ownerUid)) continue;
+        final ts = data['disbandedAt'] as Timestamp?;
+        if (bestId == null ||
+            (ts != null && (bestTs == null || ts.compareTo(bestTs) > 0))) {
+          bestId = doc.id;
+          bestTs = ts;
         }
       }
       return bestId;

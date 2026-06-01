@@ -66,6 +66,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     _subscribeToPartnerPresence();
     // Переподписываемся при изменении состава группы
     widget.pairData.addListener(_onPairDataChanged);
+
+    // Если код пустой (генерация не удалась при запуске без сети) — пробуем снова
+    if (widget.pairData.inviteCode.isEmpty && !widget.pairData.isPaired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.pairData.regenerateCode();
+      });
+    }
   }
 
   void _onPairDataChanged() {
@@ -756,30 +763,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   ),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: pair.inviteCode.split('').map((ch) {
-                    return Container(
-                      width: 40,
-                      height: 50,
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primary.withOpacity(0.12)),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        ch,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: primary,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+                _buildCodeCells(code: pair.inviteCode, color: primary),
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -787,7 +771,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       child: _themedOutlineButton(
                         icon: Icons.copy_rounded,
                         label: LocaleService.current.copy,
-                        onTap: () {
+                        onTap: pair.inviteCode.isEmpty ? null : () {
                           Clipboard.setData(
                             ClipboardData(text: pair.inviteCode),
                           );
@@ -800,7 +784,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       child: _themedOutlineButton(
                         icon: Icons.share_rounded,
                         label: LocaleService.current.share,
-                        onTap: () async {
+                        onTap: pair.inviteCode.isEmpty ? null : () async {
                           await Share.share(
                             LocaleService.current.shareInviteText(
                               pair.inviteCode,
@@ -1100,29 +1084,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: pair.inviteCode.split('').map((ch) {
-                return Container(
-                  width: 42,
-                  height: 52,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: primary.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: primary.withOpacity(0.15)),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    ch,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: primary,
-                    ),
-                  ),
-                );
-              }).toList(),
+            _buildCodeCells(
+              code: pair.inviteCode,
+              color: primary,
+              cellWidth: 42,
+              cellHeight: 52,
+              fontSize: 22,
             ),
             const SizedBox(height: 20),
             Row(
@@ -1464,31 +1431,98 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
+  /// Показывает 6 ячеек с символами кода. Если код пустой — пульсирующий
+  /// скелетон (код ещё генерируется на сервере).
+  Widget _buildCodeCells({
+    required String code,
+    required Color color,
+    double cellWidth = 40,
+    double cellHeight = 50,
+    double fontSize = 20,
+  }) {
+    if (code.isEmpty) {
+      return AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, _) {
+          final alpha = 0.04 + _pulseController.value * 0.09;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(6, (_) {
+              return Container(
+                width: cellWidth,
+                height: cellHeight,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: alpha),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: color.withValues(alpha: (alpha * 2).clamp(0.0, 1.0)),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: code.split('').map((ch) {
+        return Container(
+          width: cellWidth,
+          height: cellHeight,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.12)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            ch,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _themedOutlineButton({
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
+    final enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 42,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: primary.withOpacity(0.15)),
-          color: primary.withOpacity(0.04),
+          border: Border.all(
+            color: primary.withValues(alpha: enabled ? 0.15 : 0.06),
+          ),
+          color: primary.withValues(alpha: enabled ? 0.04 : 0.02),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: primary),
+            Icon(
+              icon,
+              size: 15,
+              color: primary.withValues(alpha: enabled ? 1.0 : 0.3),
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: primary,
+                color: primary.withValues(alpha: enabled ? 1.0 : 0.3),
               ),
             ),
           ],
