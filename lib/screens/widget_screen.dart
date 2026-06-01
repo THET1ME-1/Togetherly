@@ -709,10 +709,10 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     List<String> uploadedUrls = [];
 
-    // Upload local files, keep http urls
+    // Upload local files, keep remote urls (http/https or gs://)
     for (int i = 0; i < paths.length; i++) {
       final path = paths[i];
-      if (path.startsWith('http')) {
+      if (path.startsWith('http') || path.startsWith('gs://')) {
         uploadedUrls.add(path);
       } else {
         try {
@@ -2578,7 +2578,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: ownPhotoPath != null && ownPhotoPath.isNotEmpty
-                            ? (ownPhotoPath.startsWith('http')
+                            ? (ownPhotoPath.startsWith('http') || ownPhotoPath.startsWith('gs://')
                                   ? StorageImage(
                                       imageUrl: ownPhotoPath,
                                       fit: BoxFit.cover,
