@@ -413,7 +413,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: t.primary.withOpacity(0.25)),
               ),
-              child: path.startsWith('http')
+              child: path.startsWith('http') || path.startsWith('gs://')
                   ? StorageImage(
                       imageUrl: path,
                       fit: BoxFit.cover,
