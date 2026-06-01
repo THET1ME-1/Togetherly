@@ -798,7 +798,7 @@ class HomeWidgetService {
 
       for (int i = 0; i < photoUrls.length; i++) {
         final url = photoUrls[i];
-        if (url.startsWith('http')) {
+        if (url.startsWith('http') || url.startsWith('gs://')) {
           final p = await _cachePhotoFromUrl(
             url,
             'photo_day_carousel_${widgetId}_$i',
@@ -1844,6 +1844,8 @@ class HomeWidgetService {
   // ── Скачать фото по URL или gs:// пути в локальный кэш ──
   Future<String> _cachePhotoFromUrl(String url, String key) async {
     if (url.isEmpty) return '';
+    final dir = await getApplicationSupportDirectory();
+    final file = File('${dir.path}/widget_$key.jpg');
     try {
       String httpUrl = url;
 
@@ -1853,13 +1855,11 @@ class HomeWidgetService {
         final signedUrl = await FirebaseService().getSignedUrl(gsPath);
         if (signedUrl == null || signedUrl.isEmpty) {
           debugPrint('HomeWidgetService._cachePhotoFromUrl: no signed URL for $url');
+          if (file.existsSync()) return file.path;
           return '';
         }
         httpUrl = signedUrl;
       }
-
-      final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/widget_$key.jpg');
 
       final response = await http
           .get(Uri.parse(httpUrl))
@@ -1870,8 +1870,14 @@ class HomeWidgetService {
         debugPrint('HomeWidgetService: photo cached → ${file.path}');
         return file.path;
       }
+      // Download failed — fall back to previously cached file if it exists
+      if (file.existsSync()) {
+        debugPrint('HomeWidgetService: download failed (${response.statusCode}), using cached file');
+        return file.path;
+      }
     } catch (e) {
       debugPrint('HomeWidgetService._cachePhotoFromUrl failed: $e');
+      if (file.existsSync()) return file.path;
     }
     return '';
   }
