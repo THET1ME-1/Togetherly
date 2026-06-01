@@ -86,13 +86,14 @@ class ConnectionsManager extends ChangeNotifier {
                 ? connection.inviteCode
                 : null;
             final fc = await _fb.generateNewInviteCode(oldCode: oldCode);
-            connection.inviteCode = fc.isNotEmpty
-                ? fc
-                : Connection.generateLocalCode();
+            if (fc.isNotEmpty) {
+              connection.inviteCode = fc;
+            } else {
+              connection.inviteCode = '';
+              unawaited(_scheduleCodeRetry(connection));
+            }
           }
         }
-      } else if (connection.inviteCode.isEmpty) {
-        connection.inviteCode = Connection.generateLocalCode();
       }
 
       // Only refresh pair status for connections that already have a pairId.
@@ -633,11 +634,12 @@ class ConnectionsManager extends ChangeNotifier {
     // Always generate a fresh unique invite code for the new connection
     if (_fb.isLoggedIn) {
       final firestoreCode = await _fb.generateNewInviteCode();
-      connection.inviteCode = firestoreCode.isNotEmpty
-          ? firestoreCode
-          : Connection.generateLocalCode();
-    } else {
-      connection.inviteCode = Connection.generateLocalCode();
+      if (firestoreCode.isNotEmpty) {
+        connection.inviteCode = firestoreCode;
+      } else {
+        connection.inviteCode = '';
+        unawaited(_scheduleCodeRetry(connection));
+      }
     }
 
     // Auto-switch to the new connection
@@ -688,11 +690,11 @@ class ConnectionsManager extends ChangeNotifier {
         final firestoreCode = connection.pairId.isNotEmpty
             ? await _fb.generateGroupInviteCode(connection.pairId)
             : await _fb.generateNewInviteCode();
-        connection.inviteCode = firestoreCode.isNotEmpty
-            ? firestoreCode
-            : Connection.generateLocalCode();
-      } else {
-        connection.inviteCode = Connection.generateLocalCode();
+        if (firestoreCode.isNotEmpty) {
+          connection.inviteCode = firestoreCode;
+        } else {
+          unawaited(_scheduleCodeRetry(connection));
+        }
       }
     }
 
@@ -711,11 +713,11 @@ class ConnectionsManager extends ChangeNotifier {
         final firestoreCode = connection.pairId.isNotEmpty
             ? await _fb.generateGroupInviteCode(connection.pairId)
             : await _fb.generateNewInviteCode();
-        connection.inviteCode = firestoreCode.isNotEmpty
-            ? firestoreCode
-            : Connection.generateLocalCode();
-      } else {
-        connection.inviteCode = Connection.generateLocalCode();
+        if (firestoreCode.isNotEmpty) {
+          connection.inviteCode = firestoreCode;
+        } else {
+          unawaited(_scheduleCodeRetry(connection));
+        }
       }
     }
 
@@ -740,6 +742,35 @@ class ConnectionsManager extends ChangeNotifier {
     if (_connections.isEmpty) return false;
     if (_activeConnectionIndex >= _connections.length) return false;
     return _connections[_activeConnectionIndex].isSolo;
+  }
+
+  // ── Background code retry ──
+  /// Replaces a locally-generated invite code with a Firestore-backed one as
+  /// soon as the server is reachable. Called fire-and-forget (unawaited) right
+  /// after any [Connection.generateLocalCode] fallback.
+  Future<void> _scheduleCodeRetry(Connection conn) async {
+    const delays = [2, 5, 10, 20, 40, 60, 120];
+    for (final delaySec in delays) {
+      await Future.delayed(Duration(seconds: delaySec));
+      if (!_connections.contains(conn)) return;
+      if (conn.isPaired && conn.pairId.isNotEmpty) return;
+      if (!_fb.isLoggedIn) continue;
+
+      final serverCheck = await _fb.isInviteCodeOnServer(conn.inviteCode);
+      if (serverCheck == true) return; // write queued offline already reached server
+      if (serverCheck == null) continue; // still offline, retry later
+
+      // Code is not on server → generate a fresh Firestore code
+      final newCode = await _fb.generateNewInviteCode();
+      if (newCode.isNotEmpty) {
+        conn.inviteCode = newCode;
+        await _saveLocal();
+        notifyListeners();
+        debugPrint('_scheduleCodeRetry: replaced local code with Firestore code');
+        return;
+      }
+    }
+    debugPrint('_scheduleCodeRetry: gave up after all retries');
   }
 
   // ── Persistence ──

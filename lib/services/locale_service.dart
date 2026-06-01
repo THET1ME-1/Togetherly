@@ -1687,9 +1687,9 @@ class _RuStrings extends AppStrings {
   String get codeCopied => 'Код скопирован!';
   @override
   String shareInviteText(String code, String link) =>
-      'Присоединяйся ко мне в Love App! Используй код: $code\n\nИли нажми: $link';
+      'Присоединяйся ко мне в Togetherly! Используй код: $code\n\nИли нажми: $link';
   @override
-  String get loveAppInvitation => 'Приглашение Love App';
+  String get loveAppInvitation => 'Приглашение Togetherly';
   @override
   String get newCodeGenerated => 'Новый код сгенерирован';
   @override
@@ -1704,9 +1704,9 @@ class _RuStrings extends AppStrings {
   String membersOfMax(int current, int max) => '$current/$max участников';
   @override
   String shareGroupInviteText(String code, String link) =>
-      'Присоединяйся к нашей группе в Love App! Используй код: $code\n\nИли нажми: $link';
+      'Присоединяйся к нашей группе в Togetherly! Используй код: $code\n\nИли нажми: $link';
   @override
-  String get groupInvitation => 'Приглашение в группу Love App';
+  String get groupInvitation => 'Приглашение в группу Togetherly';
   @override
   String connectedWithCouple(String name) => 'Вы с $name теперь вместе!';
   @override
@@ -1766,7 +1766,7 @@ class _RuStrings extends AppStrings {
   String get resetNickname => 'Сбросить';
   @override
   String joinMeLinkText(String link) =>
-      'Присоединяйся ко мне в Love App! $link';
+      'Присоединяйся ко мне в Togetherly! $link';
   @override
   String get custom => 'Свой';
   @override
@@ -3328,9 +3328,9 @@ class _EnStrings extends AppStrings {
   String get codeCopied => 'Code copied!';
   @override
   String shareInviteText(String code, String link) =>
-      'Join me on Love App! Use code: $code\n\nOr click: $link';
+      'Join me on Togetherly! Use code: $code\n\nOr click: $link';
   @override
-  String get loveAppInvitation => 'Love App Invitation';
+  String get loveAppInvitation => 'Togetherly Invitation';
   @override
   String get newCodeGenerated => 'New code generated';
   @override
@@ -3345,9 +3345,9 @@ class _EnStrings extends AppStrings {
   String membersOfMax(int current, int max) => '$current/$max members';
   @override
   String shareGroupInviteText(String code, String link) =>
-      'Join our group on Love App! Use code: $code\n\nOr click: $link';
+      'Join our group on Togetherly! Use code: $code\n\nOr click: $link';
   @override
-  String get groupInvitation => 'Love App Group Invitation';
+  String get groupInvitation => 'Togetherly Group Invitation';
   @override
   String connectedWithCouple(String name) => "You're connected with $name!";
   @override
@@ -3406,7 +3406,7 @@ class _EnStrings extends AppStrings {
   @override
   String get resetNickname => 'Reset';
   @override
-  String joinMeLinkText(String link) => 'Join me on Love App! $link';
+  String joinMeLinkText(String link) => 'Join me on Togetherly! $link';
   @override
   String get custom => 'Custom';
   @override

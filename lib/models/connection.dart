@@ -492,9 +492,12 @@ class Connection {
 
     final oldCode = inviteCode;
     final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
-    inviteCode = firestoreCode.isNotEmpty
-        ? firestoreCode
-        : Connection.generateLocalCode();
+    if (firestoreCode.isNotEmpty) {
+      inviteCode = firestoreCode;
+    } else {
+      inviteCode = '';
+      _retryCodeInBackground();
+    }
 
     onChanged?.call();
   }
@@ -517,7 +520,6 @@ class Connection {
     final oldCode = inviteCode;
     String firestoreCode;
     if (isPaired && pairId.isNotEmpty) {
-      // Group invite code — tied to this group
       firestoreCode = await _fb.generateGroupInviteCode(
         pairId,
         oldCode: oldCode,
@@ -525,10 +527,42 @@ class Connection {
     } else {
       firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
     }
-    inviteCode = firestoreCode.isNotEmpty
-        ? firestoreCode
-        : Connection.generateLocalCode();
+    if (firestoreCode.isNotEmpty) {
+      inviteCode = firestoreCode;
+    } else {
+      inviteCode = '';
+      _retryCodeInBackground();
+    }
     onChanged?.call();
+  }
+
+  /// Запускает фоновую попытку получить Firestore-код после сбоя генерации.
+  void _retryCodeInBackground() {
+    const delays = [2, 5, 10, 20, 40, 60, 120];
+    Future(() async {
+      for (final delaySec in delays) {
+        await Future.delayed(Duration(seconds: delaySec));
+        if (isPaired && pairId.isNotEmpty) return;
+        if (!_fb.isLoggedIn) continue;
+
+        // Если код уже появился (предыдущая попытка дошла до сервера), выходим
+        if (inviteCode.isNotEmpty) {
+          final serverCheck = await _fb.isInviteCodeOnServer(inviteCode);
+          if (serverCheck == true) return;
+          if (serverCheck == null) continue;
+        }
+
+        final newCode = isPaired && pairId.isNotEmpty
+            ? await _fb.generateGroupInviteCode(pairId)
+            : await _fb.generateNewInviteCode();
+        if (newCode.isNotEmpty) {
+          inviteCode = newCode;
+          onChanged?.call();
+          debugPrint('_retryCodeInBackground: replaced local code');
+          return;
+        }
+      }
+    });
   }
 
   /// Generate a group-specific invite code (for adding more members)
