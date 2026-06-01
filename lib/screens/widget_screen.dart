@@ -776,7 +776,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final uploadedUrls = <String>[];
 
     for (final path in paths) {
-      if (path.startsWith('http')) {
+      if (path.startsWith('http') || path.startsWith('gs://')) {
         uploadedUrls.add(path);
         continue;
       }
