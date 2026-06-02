@@ -288,10 +288,14 @@ class UserData extends ChangeNotifier {
   /// Выдаёт иконку-награду (Sponsor/Helper). Идемпотентно.
   /// Если у пользователя ещё нет закреплённой иконки — закрепляет автоматически.
   /// Грант определяется по e-mail в [main] (та же модель доверия, что и раньше).
-  Future<void> grantSpecialBadge(String id) async {
+  ///
+  /// Возвращает true, только если бейдж выдан ВПЕРВЫЕ (его не было в наборе) —
+  /// чтобы вызывающий код мог разово уведомить пользователя, а не на каждом
+  /// запуске.
+  Future<bool> grantSpecialBadge(String id) async {
     final added = _grantedBadges.add(id);
     final autoEquip = _badge == null || _badge!.isEmpty;
-    if (!added && !autoEquip) return; // ничего не изменилось — без записи
+    if (!added && !autoEquip) return false; // ничего не изменилось — без записи
     if (autoEquip) _badge = id;
     await _saveLocal();
     await _fb.saveGrantedBadges(
@@ -299,6 +303,7 @@ class UserData extends ChangeNotifier {
       badge: _badge,
     );
     notifyListeners();
+    return added;
   }
 
   /// Начисляет монеты после успешной IAP-покупки.

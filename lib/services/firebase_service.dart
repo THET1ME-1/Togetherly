@@ -461,6 +461,20 @@ class FirebaseService {
     return _LocalNotificationContent(title: title, body: body);
   }
 
+  /// Публичная обёртка для разовых локальных уведомлений (например, выдача
+  /// бейджа спонсора/помощника). Использует общий канал с FCM-уведомлениями.
+  Future<void> showLocalNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) =>
+      _showLocalNotification(
+        id: id,
+        title: title,
+        body: body,
+        channelId: _kChannelId,
+      );
+
   static Future<void> _showLocalNotification({
     required int id,
     required String title,
