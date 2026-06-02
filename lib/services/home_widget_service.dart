@@ -1145,7 +1145,8 @@ class HomeWidgetService {
 
         // Single photo — cache and display directly.
         final selectedUrl = ownUrls.first;
-        final localPath = selectedUrl.startsWith('http')
+        final localPath =
+            (selectedUrl.startsWith('http') || selectedUrl.startsWith('gs://'))
             ? await _cachePhotoFromUrl(selectedUrl, 'photo_day_solo_$widgetId')
             : selectedUrl;
 
