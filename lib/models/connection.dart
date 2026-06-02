@@ -790,7 +790,9 @@ class Connection {
               'Members: [$dump]',
             );
             // Fire-and-forget cleanup; safe to call repeatedly.
-            unawaited(_fb.cleanupPhantomMembersInGroup(pairId));
+            // force: переполнение группы — это и есть видимый баг, лечим сразу,
+            // не дожидаясь снятия 24ч-троттла.
+            unawaited(_fb.cleanupPhantomMembersInGroup(pairId, force: true));
           }
 
           // If all partners left (only me remaining), mark as unpaired
