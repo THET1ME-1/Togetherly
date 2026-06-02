@@ -349,14 +349,31 @@ class _LoveAppState extends State<LoveApp> {
         'badzoff@gmail.com',
         'alena.petukhova1@gmail.com',
         'romanhilp22@gmail.com',
+        'nakotumari@gmail.com',
+        'lrt56k@mail.ru',
       };
       const helperEmails = {
         'ashatilov2008@gmail.com',
       };
       if (sponsorEmails.contains(_userData.email)) {
-        await _userData.grantSpecialBadge('Sponsor');
+        final granted = await _userData.grantSpecialBadge('Sponsor');
+        if (granted) {
+          await FirebaseService().showLocalNotification(
+            id: 8801,
+            title: '🎉 Вам вручён значок «Спонсор»!',
+            body: 'Спасибо за поддержку — теперь рядом с вашим именем '
+                'красуется особый бейдж 💖',
+          );
+        }
       } else if (helperEmails.contains(_userData.email)) {
-        await _userData.grantSpecialBadge('Helper');
+        final granted = await _userData.grantSpecialBadge('Helper');
+        if (granted) {
+          await FirebaseService().showLocalNotification(
+            id: 8802,
+            title: '🎉 Вам вручён значок «Помощник»!',
+            body: 'Спасибо за помощь проекту — особый бейдж теперь ваш 💖',
+          );
+        }
       }
     } catch (_) {
       // Даже при ошибке убираем спиннер
