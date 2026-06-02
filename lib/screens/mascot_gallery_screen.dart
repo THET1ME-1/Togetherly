@@ -461,14 +461,15 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                   _openDrawScreen(editMascot: mascot);
                 },
               ),
-            _ActionTile(
-              icon: Icons.drive_file_rename_outline,
-              label: 'Переименовать',
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _rename(mascot);
-              },
-            ),
+            if (!mascot.isDefault)
+              _ActionTile(
+                icon: Icons.drive_file_rename_outline,
+                label: 'Переименовать',
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _rename(mascot);
+                },
+              ),
             if (canExport) ...[
               _ActionTile(
                 icon: Icons.download_outlined,

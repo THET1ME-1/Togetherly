@@ -1260,6 +1260,16 @@ class _WidgetScreenState extends State<WidgetScreen>
     final my = _ws.myData ?? WidgetData(uid: '');
     final partner = _ws.firstPartnerData ?? WidgetData(uid: '');
 
+    // Те же источники фото, что и в нативном виджете (_syncToNativeWidget):
+    // моя сторона — photoUrl, иначе photoForPartnerUrl; сторона партнёра —
+    // photoForPartnerUrl, иначе photoUrl.
+    final myPhoto = (my.photoUrl?.isNotEmpty ?? false)
+        ? my.photoUrl!
+        : (my.photoForPartnerUrl ?? '');
+    final partnerPhoto = (partner.photoForPartnerUrl?.isNotEmpty ?? false)
+        ? partner.photoForPartnerUrl!
+        : (partner.photoUrl ?? '');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1284,172 +1294,173 @@ class _WidgetScreenState extends State<WidgetScreen>
             ],
           ),
         ),
-        Container(
-          width: double.infinity,
+        // 1:1 с нативным LoveWidget: две половины (фото или цветная панель),
+        // по центру круглый эмодзи, аватар в углу, белый разделитель с сердцем.
+        DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: [
-                _t.heroGradient[0],
-                _t.heroGradient.length > 1
-                    ? _t.heroGradient[1]
-                    : _t.heroGradient[0],
-              ],
-            ),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: _t.heroShadowBase.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    // ── Левая половина: Я ──
-                    Expanded(
-                      child: _buildPreviewHalf(
-                        data: my,
-                        label: _s.me,
-                        isLeft: true,
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
+              aspectRatio: 2.0,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildPreviewHalf(
+                      data: my,
+                      photoUrl: myPhoto,
+                      panelColor: const Color(0xFFFFCDD9),
+                      isLeft: true,
+                    ),
+                  ),
+                  // Разделитель с сердцем (как в нативном виджете)
+                  Container(
+                    width: 14,
+                    color: Colors.white,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '♥',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFFF6B8A),
                       ),
                     ),
-                    // ── Разделитель ──
-                    Container(
-                      width: 1,
-                      height: 80,
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withOpacity(0),
-                            Colors.white.withOpacity(0.5),
-                            Colors.white.withOpacity(0),
-                          ],
-                        ),
-                      ),
+                  ),
+                  Expanded(
+                    child: _buildPreviewHalf(
+                      data: partner,
+                      photoUrl: partnerPhoto,
+                      panelColor: const Color(0xFFE8DAFF),
+                      isLeft: false,
                     ),
-                    // ── Правая половина: Партнёр ──
-                    Expanded(
-                      child: _buildPreviewHalf(
-                        data: partner,
-                        label: _pair.partnerName.isNotEmpty
-                            ? _pair.partnerName
-                            : _s.partner,
-                        isLeft: false,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
       ],
     );
   }
 
   Widget _buildPreviewHalf({
     required WidgetData data,
-    required String label,
+    required String photoUrl,
+    required Color panelColor,
     required bool isLeft,
   }) {
-    return Column(
-      crossAxisAlignment: isLeft
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.end,
+    final hasPhoto = photoUrl.isNotEmpty;
+    final textColor = hasPhoto ? Colors.white : const Color(0xCC000000);
+    final subColor = hasPhoto
+        ? Colors.white.withOpacity(0.85)
+        : const Color(0x99000000);
+
+    Widget panel() => ColoredBox(color: panelColor);
+
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        // Имя
-        Text(
-          label,
-          style: GoogleFonts.rubik(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Colors.white.withOpacity(0.7),
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Emoji
-        if (data.hasMood)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipOval(child: Image.asset(data.moodEmoji, width: 20, height: 20, fit: BoxFit.cover)),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  data.localizedMoodLabel,
-                  style: GoogleFonts.rubik(fontSize: 10, color: Colors.white),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+        // Фон: фото (cover) или цветная панель
+        if (hasPhoto)
+          StorageImage(
+            imageUrl: photoUrl,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => panel(),
+            errorWidget: (_, __, ___) => panel(),
           )
         else
-          Text(
-            '—',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.white.withOpacity(0.4),
-            ),
-          ),
-        const SizedBox(height: 4),
-        // Статус
-        Text(
-          data.hasStatus ? data.status : _s.noStatus,
-          style: GoogleFonts.rubik(
-            fontSize: 10,
-            fontWeight: data.hasStatus ? FontWeight.w600 : FontWeight.w400,
-            color: Colors.white.withOpacity(data.hasStatus ? 0.95 : 0.35),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 3),
-        // Сообщение
-        if (data.hasMessage)
-          Text(
-            '«${data.message}»',
-            style: GoogleFonts.rubik(
-              fontSize: 9,
-              fontStyle: FontStyle.italic,
-              color: Colors.white.withOpacity(0.75),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        // Музыка
-        if (data.hasMusic)
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Row(
+          panel(),
+        // Лёгкое затемнение поверх фото
+        if (hasPhoto) const ColoredBox(color: Color(0x1A000000)),
+        // Центральный контент
+        Padding(
+          padding: const EdgeInsets.all(6),
+          child: Center(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.music_note_rounded,
-                  size: 10,
-                  color: Colors.white.withOpacity(0.6),
-                ),
-                const SizedBox(width: 2),
-                Flexible(
-                  child: Text(
-                    '${data.musicTitle}',
+                if (data.hasMood)
+                  ClipOval(
+                    child: Image.asset(
+                      data.moodEmoji,
+                      width: 38,
+                      height: 38,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                if (data.hasStatus) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    data.status,
+                    textAlign: TextAlign.center,
                     style: GoogleFonts.rubik(
-                      fontSize: 9,
-                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
+                ],
+                if (data.hasMessage) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    data.message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.rubik(
+                      fontSize: 9,
+                      color: subColor,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (data.hasMusic) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    '♪ ${data.musicTitle}',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.rubik(
+                      fontSize: 8,
+                      color: subColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
+            ),
+          ),
+        ),
+        // Аватар в нижнем углу (как в нативном виджете)
+        if (data.avatarUrl.isNotEmpty)
+          Positioned(
+            bottom: 4,
+            left: isLeft ? 4 : null,
+            right: isLeft ? null : 4,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: ClipOval(
+                child: StorageImage(
+                  imageUrl: data.avatarUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) =>
+                      ColoredBox(color: Colors.white.withOpacity(0.4)),
+                ),
+              ),
             ),
           ),
       ],

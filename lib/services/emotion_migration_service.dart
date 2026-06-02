@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/mood_entry.dart';
@@ -16,8 +13,6 @@ class EmotionMigrationService {
   static final EmotionMigrationService instance = EmotionMigrationService._();
 
   static const String _kDoneKey = 'emotion_v2_migration_done';
-  static const int _kNotificationId = 7777;
-  static const String _kChannelId = 'emotion_update_v2';
 
   // Maps old moodId → new moodId (null = no equivalent, delete entry).
   static const Map<String, String?> _oldToNewId = {
@@ -74,8 +69,6 @@ class EmotionMigrationService {
   };
 
   final _db = FirebaseFirestore.instance;
-  final _notifPlugin = FlutterLocalNotificationsPlugin();
-  bool _notifReady = false;
 
   /// Runs migration once. Safe to call on every app open — exits early if
   /// migration already completed.
@@ -89,7 +82,6 @@ class EmotionMigrationService {
       if (prefs.getBool(_kDoneKey) ?? false) return;
 
       await _migrateEntries(groupId: groupId, uid: uid);
-      await _showUpdateNotification();
 
       await prefs.setBool(_kDoneKey, true);
       debugPrint('EmotionMigrationService: migration complete');
@@ -175,59 +167,4 @@ class EmotionMigrationService {
     }
   }
 
-  Future<void> _showUpdateNotification() async {
-    try {
-      await _initNotif();
-      await _notifPlugin.show(
-        id: _kNotificationId,
-        title: 'Эмоции обновились ✨',
-        body: 'Мы обновили дизайн эмоций — выбери свою новую!',
-        notificationDetails: NotificationDetails(
-          android: const AndroidNotificationDetails(
-            _kChannelId,
-            'Обновления',
-            channelDescription: 'Обновления приложения',
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
-            icon: '@drawable/ic_notification',
-          ),
-          iOS: const DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: false,
-            presentSound: false,
-          ),
-        ),
-      );
-    } catch (e) {
-      debugPrint('EmotionMigrationService._showUpdateNotification failed: $e');
-    }
-  }
-
-  Future<void> _initNotif() async {
-    if (_notifReady) return;
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@drawable/ic_notification'),
-      iOS: DarwinInitializationSettings(),
-    );
-    await _notifPlugin.initialize(settings: settings);
-
-    if (Platform.isAndroid) {
-      final androidPlugin = _notifPlugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      await androidPlugin?.requestNotificationsPermission();
-      await androidPlugin?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          _kChannelId,
-          'Обновления',
-          description: 'Обновления приложения',
-          importance: Importance.defaultImportance,
-          playSound: false,
-          enableVibration: false,
-        ),
-      );
-    }
-    _notifReady = true;
-  }
 }

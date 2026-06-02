@@ -1957,84 +1957,142 @@ class FirebaseService {
   ///
   /// Returns the list of removed uids. Safe to call repeatedly — does nothing
   /// when no phantoms exist.
-  Future<List<String>> cleanupPhantomMembersInGroup(String groupId) async {
+  Future<List<String>> cleanupPhantomMembersInGroup(
+    String groupId, {
+    bool force = false,
+  }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return const [];
 
-    // Throttle: фантомы — это редкий баг (старый аккаунт с тем же email).
-    // Прогоняли проверку при каждом запуске → group.get() + N×user.get() на
-    // группу. У пользователя с 2 группами это ~6 reads на холодный старт.
-    // Раз в 24 часа более чем достаточно.
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'phantom_check_last_$groupId';
-      final lastMs = prefs.getInt(key) ?? 0;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      const oneDayMs = 24 * 60 * 60 * 1000;
-      if (now - lastMs < oneDayMs) {
-        return const [];
-      }
-      await prefs.setInt(key, now);
-    } catch (_) {
-      // SharedPreferences недоступны — продолжаем без throttle.
-    }
-
+    // Сначала читаем group doc (1 read) — нужно знать members/maxMembers, чтобы
+    // решить, можно ли пропустить дорогой per-user скан по троттлу.
+    final Map<String, dynamic> data;
+    final List<String> members;
     try {
       final groupDoc = await _db.collection('groups').doc(groupId).get();
       if (!groupDoc.exists) return const [];
-
-      final data = groupDoc.data()!;
+      data = groupDoc.data()!;
       final rawMembers = List<String>.from(data['members'] ?? []);
-      final members = rawMembers.toSet().toList();
-      if (members.length <= 1) {
-        debugPrint(
-          'cleanupPhantomMembersInGroup($groupId): only ${members.length} member(s), nothing to check',
-        );
-        return const [];
+      members = rawMembers.toSet().toList();
+    } catch (e) {
+      debugPrint('cleanupPhantomMembersInGroup($groupId) group read failed: $e');
+      return const [];
+    }
+    if (members.length <= 1) return const [];
+
+    final maxMembers = (data['maxMembers'] as num?)?.toInt() ?? 2;
+    final overCapacity = members.length > maxMembers;
+
+    // Throttle: фантомы — редкий баг. Per-user скан (N×user.get) гоняем не чаще
+    // раза в сутки. НО при переполнении группы (overCapacity) или явном force
+    // лечим немедленно — это и есть видимый баг «Группа из N+1».
+    if (!force && !overCapacity) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'phantom_check_last_$groupId';
+        final lastMs = prefs.getInt(key) ?? 0;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (now - lastMs < oneDayMs) return const [];
+        await prefs.setInt(key, now);
+      } catch (_) {
+        // SharedPreferences недоступны — продолжаем без throttle.
+      }
+    }
+
+    try {
+      final memberAvatars =
+          Map<String, dynamic>.from(data['memberAvatars'] ?? {});
+
+      // Читаем user doc КАЖДОГО участника (включая себя), различая
+      // «документа нет» (orphan) и «ошибка чтения» (не трогаем).
+      final docExists = <String, bool>{};
+      final docData = <String, Map<String, dynamic>>{};
+      for (final uid in members) {
+        try {
+          final d = await _db.collection('users').doc(uid).get();
+          docExists[uid] = d.exists;
+          if (d.exists) docData[uid] = d.data() ?? const <String, dynamic>{};
+        } catch (e) {
+          debugPrint('  [skip] $uid — cant read user doc: $e');
+          // null/unknown — не считаем orphan, чтобы не удалить при сбое сети.
+        }
       }
 
-      // My email — prefer Firebase Auth (always fresh), fall back to Firestore.
+      // Мой email — из Auth (свежий), иначе из своего user doc.
       String myEmail = (u.email ?? '').toLowerCase();
       if (myEmail.isEmpty) {
-        try {
-          final myDoc = await _db.collection('users').doc(u.uid).get();
-          myEmail = (myDoc.data()?['email'] as String? ?? '').toLowerCase();
-        } catch (_) {}
+        myEmail = (docData[u.uid]?['email'] as String? ?? '').toLowerCase();
       }
 
       debugPrint(
-        'cleanupPhantomMembersInGroup($groupId): myUid=${u.uid}, myEmail=$myEmail, members=$members',
+        'cleanupPhantomMembersInGroup($groupId): myUid=${u.uid}, '
+        'myEmail=$myEmail, members=$members, overCapacity=$overCapacity',
       );
 
       final phantoms = <String>[];
-      for (final memberUid in members) {
-        if (memberUid == u.uid) {
-          debugPrint('  [self] $memberUid — keeping (current session)');
-          continue;
+
+      // 1) Orphans: участник, у которого ТОЧНО нет user doc (get вернул !exists),
+      //    и это не я. Старая логика — оставляем.
+      for (final uid in members) {
+        if (uid == u.uid) continue;
+        if (docExists[uid] == false) {
+          debugPrint('  [orphan] $uid — no users/$uid doc, will remove');
+          phantoms.add(uid);
         }
-        try {
-          final memberDoc = await _db.collection('users').doc(memberUid).get();
-          if (!memberDoc.exists) {
-            debugPrint('  [orphan] $memberUid — no users/$memberUid doc, will remove');
-            phantoms.add(memberUid);
-            continue;
+      }
+
+      // 2) Self-twins: участники с тем же email, что и у меня (включая меня).
+      //    Это разные uid одного человека (Google + email/пароль). Из кластера
+      //    оставляем ОДНОГО «настоящего» — детерминированно, по следам
+      //    активности, НЕ по тому, кто сейчас залогинен. Тогда оригинал не
+      //    удалит ни одно устройство, а планшет-фантом при необходимости
+      //    выселит сам себя.
+      if (myEmail.isNotEmpty) {
+        final twins = <String>[];
+        for (final uid in members) {
+          if (phantoms.contains(uid)) continue; // уже помечен orphan
+          final email = uid == u.uid
+              ? myEmail
+              : (docData[uid]?['email'] as String? ?? '').toLowerCase();
+          if (email == myEmail) twins.add(uid);
+        }
+
+        if (twins.length >= 2) {
+          // Очки «настоящести» — считаются ТОЛЬКО из Firestore-данных, поэтому
+          // одинаковы на всех устройствах (детерминизм → нет гонки/двойного
+          // удаления). Текущая сессия НЕ получает бонуса.
+          int score(String uid) {
+            var s = 0;
+            final avatarInGroup =
+                (memberAvatars[uid] as String? ?? '').isNotEmpty;
+            if (avatarInGroup) s += 4;
+            final profileAvatar =
+                (docData[uid]?['avatarUrl'] as String? ?? '').isNotEmpty;
+            if (profileAvatar) s += 2;
+            if ((docData[uid]?['pairId'] as String?) == groupId) s += 1;
+            return s;
           }
-          final memberData = memberDoc.data() ?? const <String, dynamic>{};
-          final memberEmail =
-              (memberData['email'] as String? ?? '').toLowerCase();
-          final memberName = memberData['displayName'] as String? ?? '';
-          if (myEmail.isNotEmpty && memberEmail == myEmail) {
-            debugPrint(
-              '  [phantom-self] $memberUid name="$memberName" email=$memberEmail — same email as me, will remove',
-            );
-            phantoms.add(memberUid);
-          } else {
-            debugPrint(
-              '  [partner] $memberUid name="$memberName" email=$memberEmail — real partner, keeping',
-            );
+
+          // Победитель = max score; тай-брейк — меньший uid (стабильно).
+          final winner = twins.reduce((a, b) {
+            final sa = score(a), sb = score(b);
+            if (sa != sb) return sa > sb ? a : b;
+            return a.compareTo(b) <= 0 ? a : b;
+          });
+
+          for (final uid in twins) {
+            if (uid != winner && !phantoms.contains(uid)) {
+              debugPrint(
+                '  [phantom-self] $uid — same email, lost to winner=$winner '
+                '(score ${score(uid)} vs ${score(winner)}), will remove',
+              );
+              phantoms.add(uid);
+            }
           }
-        } catch (e) {
-          debugPrint('  [skip] $memberUid — cant read user doc: $e');
+          debugPrint(
+            '  [self-twins] keeping winner=$winner of $twins',
+          );
         }
       }
 
