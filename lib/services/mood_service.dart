@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import 'firebase_service.dart';
@@ -37,6 +38,36 @@ class MoodService extends ChangeNotifier {
     _widgetService = widgetService;
   }
 
+  // ── Настройка: несколько настроений в день ───────────────────────────────
+  // false (по умолчанию) — одно настроение в день: setMoodForToday/ForDate
+  // удаляют прежние записи дня перед добавлением. true — каждое настроение
+  // сохраняется отдельной записью (как было в ранних версиях).
+  static const String _kMultiplePerDayKey = 'mood_allow_multiple_per_day';
+  bool _settingsLoaded = false;
+  bool _allowMultiplePerDay = false;
+  bool get allowMultipleMoodsPerDay => _allowMultiplePerDay;
+
+  /// Загружает настройки из SharedPreferences (идемпотентно).
+  Future<void> loadSettings() async {
+    if (_settingsLoaded) return;
+    _settingsLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _allowMultiplePerDay = prefs.getBool(_kMultiplePerDayKey) ?? false;
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setAllowMultipleMoodsPerDay(bool value) async {
+    _settingsLoaded = true;
+    _allowMultiplePerDay = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kMultiplePerDayKey, value);
+    } catch (_) {}
+    notifyListeners();
+  }
+
   /// Мои записи настроений
   List<MoodEntry> _myEntries = [];
   List<MoodEntry> get myEntries => List.unmodifiable(_myEntries);
@@ -71,6 +102,7 @@ class MoodService extends ChangeNotifier {
 
   /// Привязаться к группе и начать слушать.
   void bindToGroup(String groupId) {
+    loadSettings();
     if (groupId == _groupId && groupId.isNotEmpty) return;
     unbindFromGroup(notify: false);
     _groupId = groupId;
@@ -176,12 +208,17 @@ class MoodService extends ChangeNotifier {
     if (_groupId.isEmpty) return;
     final today = DateTime.now();
 
-    // 1. Удаляем все существующие записи на сегодня — параллельно, чтобы
-    // listener не успел показать несогласованное промежуточное состояние.
-    final existing = myEntriesForDay(today);
-    await Future.wait(
-      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
-    );
+    // 1. В одиночном режиме удаляем все существующие записи на сегодня —
+    // параллельно, чтобы listener не успел показать несогласованное состояние.
+    // В мультирежиме записи дня сохраняются, новое настроение добавляется
+    // отдельной записью.
+    if (!_allowMultiplePerDay) {
+      final existing = myEntriesForDay(today);
+      await Future.wait(
+        existing
+            .map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+      );
+    }
 
     // 2. Календарь — каноничный источник.
     await addMood(moodId: moodId, imagePath: imagePath, label: label);
@@ -212,11 +249,15 @@ class MoodService extends ChangeNotifier {
       return;
     }
 
-    // Прошлая дата — только календарь.
-    final existing = myEntriesForDay(date);
-    await Future.wait(
-      existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
-    );
+    // Прошлая дата — только календарь. В одиночном режиме заменяем запись дня,
+    // в мультирежиме добавляем ещё одну.
+    if (!_allowMultiplePerDay) {
+      final existing = myEntriesForDay(date);
+      await Future.wait(
+        existing
+            .map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+      );
+    }
     await addMood(
       moodId: moodId,
       imagePath: imagePath,

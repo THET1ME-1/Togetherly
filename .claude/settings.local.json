@@ -32,7 +32,8 @@
       "Bash(flutter create *)",
       "Bash(git ls-remote *)",
       "Bash(git worktree *)",
-      "PowerShell(flutter analyze lib/services/home_widget_service.dart lib/services/timer_service.dart lib/screens/widget_screen.dart 2>&1)"
+      "PowerShell(flutter analyze lib/services/home_widget_service.dart lib/services/timer_service.dart lib/screens/widget_screen.dart 2>&1)",
+      "Bash(git log *)"
     ]
   }
 }

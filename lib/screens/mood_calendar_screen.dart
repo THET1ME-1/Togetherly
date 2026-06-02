@@ -49,6 +49,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     super.initState();
     _currentMonth = DateTime(DateTime.now().year, DateTime.now().month);
     _mood.addListener(_onChanged);
+    _mood.loadSettings();
 
     // Subscribe to partner moods
     for (final p in _pair.partners) {
@@ -64,6 +65,89 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   void _onChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _showMoodSettings() {
+    final s = LocaleService.current;
+    final primary = widget.theme.primary;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                s.moodSettings,
+                style: GoogleFonts.rubik(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Переключатель слушает _mood, поэтому используем StatefulBuilder
+              // для мгновенного обновления внутри листа.
+              StatefulBuilder(
+                builder: (ctx, setSheetState) => Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.moodMultiplePerDay,
+                            style: GoogleFonts.rubik(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            s.moodMultiplePerDaySubtitle,
+                            style: GoogleFonts.rubik(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Switch.adaptive(
+                      value: _mood.allowMultipleMoodsPerDay,
+                      activeColor: primary,
+                      onChanged: (v) {
+                        _mood.setAllowMultipleMoodsPerDay(v);
+                        setSheetState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── Period helpers ──
@@ -147,6 +231,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       )
                     : null,
                 tooltip: LocaleService.current.zoomIn,
+              ),
+              IconButton(
+                icon: const Icon(Icons.tune_rounded, size: 22),
+                onPressed: _showMoodSettings,
+                tooltip: LocaleService.current.moodSettings,
               ),
             ],
           ),

@@ -390,6 +390,9 @@ abstract class AppStrings {
 
   // ── Mood Calendar Screen ──
   String get moodCalendarTitle;
+  String get moodSettings;
+  String get moodMultiplePerDay;
+  String get moodMultiplePerDaySubtitle;
   String get zoomIn;
   String get zoomOut;
   String get week;
@@ -1489,6 +1492,13 @@ class _RuStrings extends AppStrings {
   // ── Mood Calendar ──
   @override
   String get moodCalendarTitle => 'Календарь настроений';
+  @override
+  String get moodSettings => 'Настройки настроений';
+  @override
+  String get moodMultiplePerDay => 'Несколько настроений в день';
+  @override
+  String get moodMultiplePerDaySubtitle =>
+      'Записывать каждое настроение отдельно, а не заменять прежнее';
   @override
   String get zoomIn => 'Увеличить';
   @override
@@ -3130,6 +3140,13 @@ class _EnStrings extends AppStrings {
   // ── Mood Calendar ──
   @override
   String get moodCalendarTitle => 'Mood Calendar';
+  @override
+  String get moodSettings => 'Mood settings';
+  @override
+  String get moodMultiplePerDay => 'Multiple moods per day';
+  @override
+  String get moodMultiplePerDaySubtitle =>
+      'Save each mood separately instead of replacing the previous one';
   @override
   String get zoomIn => 'Zoom In';
   @override
