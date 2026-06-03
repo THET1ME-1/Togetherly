@@ -1566,6 +1566,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         builder: (_) => ChatScreen(
           pairData: widget.pairData,
           theme: widget.theme,
+          userData: widget.userData,
           myDisplayName: widget.userData?.displayName ??
               FirebaseService().currentUser?.displayName ??
               'Me',

@@ -144,6 +144,26 @@ class ChatService {
     return prefs.getInt(_lastReadKey(groupId)) ?? 0;
   }
 
+  // ── Фон чата (локальный, у каждого свой) ────────────────────────────────────
+
+  String _bgKey(String groupId) => 'chat_bg_$groupId';
+
+  /// Путь к локальному файлу фона чата (null — фон не задан).
+  Future<String?> backgroundPath(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_bgKey(groupId));
+  }
+
+  Future<void> setBackgroundPath(String groupId, String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_bgKey(groupId), path);
+  }
+
+  Future<void> clearBackground(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_bgKey(groupId));
+  }
+
   /// Поток: есть ли непрочитанные сообщения от партнёра (для красной точки).
   /// Слушает только последнее сообщение — минимальный трафик RTDB.
   Stream<bool> watchHasUnread(String groupId) {
