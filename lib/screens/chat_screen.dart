@@ -520,11 +520,17 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
+      // Когда клавиатура открыта, Scaffold уже поднимает композер над ней —
+      // добавлять инсет системной навигации не нужно (иначе двойной отступ
+      // и большой зазор между полем и клавиатурой).
       padding: EdgeInsets.fromLTRB(
         12,
         8,
         12,
-        8 + MediaQuery.of(context).viewPadding.bottom,
+        8 +
+            (MediaQuery.of(context).viewInsets.bottom > 0
+                ? 0
+                : MediaQuery.of(context).viewPadding.bottom),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
