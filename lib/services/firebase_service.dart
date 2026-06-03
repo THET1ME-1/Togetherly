@@ -3394,20 +3394,21 @@ class FirebaseService {
     if (myUid == null || groupId.isEmpty) return;
     await RateLimiterService().checkVibe();
     try {
-      // 1. Инкремент общего счётчика + per-user счётчик
+      // 1. Инкремент общего счётчика + per-user счётчик — ОДНОЙ атомарной
+      // записью. Раньше это были два отдельных round-trip'а (set + update):
+      // если приложение убивали/теряли сеть сразу после нажатия, общий
+      // счётчик и пуш проходили, а missYouCounts.<uid> — нет, и у партнёра
+      // в новой кнопке навсегда оставался 0. merge:true делает глубокий merge
+      // вложенной мапы, поэтому чужие записи в missYouCounts не затираются.
       await _db.collection('groups').doc(groupId).set({
         'missYouCount': FieldValue.increment(1),
+        'missYouCounts': {myUid: FieldValue.increment(1)},
         'lastMissYou': {
           'senderUid': myUid,
           'senderName': senderName,
           'timestamp': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
-
-      // Per-user счётчик через dot-notation update
-      await _db.collection('groups').doc(groupId).update({
-        'missYouCounts.$myUid': FieldValue.increment(1),
-      });
 
       // 2. Добавить запись в subcollection для push-триггера
       await _db

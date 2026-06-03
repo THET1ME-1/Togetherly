@@ -2029,7 +2029,11 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
         24,
         16,
         24,
-        MediaQuery.of(context).padding.bottom + 24,
+        // viewPadding (не padding): внутри прозрачного modal bottom sheet
+        // padding.bottom часто приходит 0, и кнопка «Обновить» уезжала под
+        // системную навигацию телефона. viewPadding всегда отражает реальный
+        // инсет системной панели.
+        MediaQuery.of(context).viewPadding.bottom + 24,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
