@@ -2073,28 +2073,9 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Исправили баг с начислением монет в соло-режиме.\n'
-      '— Сблизили иконку партнёра с ником на экране подключения.\n'
-      '— Исправили некорректное начисление монет и статус блока воспоминаний.\n'
-      '— Визуальные исправления.\n'
-      '— Новый виджет «Огонёк пары» 🔥.\n'
-      '— Добавили в профиль возле даты годовщины установку даты и времени первого поцелуя.\n'
-      '— Добавлена кнопка обнуления количества нажатий на кнопку «Я скучаю».\n'
-      '\n'
-      '— ДОБАВЛЕН СОВМЕСТНЫЙ ПРОСМОТР ВИДЕО (только для YouTube).\n'
-      '\n'
-      'Инструкция:\n'
-      '1. Заходим в создание пина.\n'
-      '2. Выбираем пункт «Ссылка на видео».\n'
-      '3. Вставляем ссылку с YouTube.\n'
-      '4. Нажимаем «Добавить воспоминание».\n'
-      '5. Обновляем страницу воспоминаний → должен появиться видео-пин с кнопкой «Смотреть вместе» (просмотр рекламы).\n'
-      '6. Нажимаем на неё. Партнёру на главном экране высветится уведомление-приглашение.\n'
-      '7. Готово.\n'
-      '\n'
-      'Чтобы разблокировать возможность смотреть видео совместно — хост может посмотреть рекламный ролик (получит коины, если ещё не получал за рекламу).\n'
-      '\n'
-      '!! Оба должны быть в приложении.';
+      '— Добавили в виджете «Дни вместе» возможность заменить системные рисунки на свои аватарки. Цена: 20 монет. В будущем улучшим.\n'
+      '— Исправили работу реал тайм кнопки «Я скучаю».\n'
+      '— Улучшение UI/UX.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3727,28 +3708,9 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Fixed a coin reward bug in solo mode.\n'
-      '— Moved the partner icon closer to the nickname on the connect screen.\n'
-      '— Fixed incorrect coin rewards and the memories block status.\n'
-      '— Visual fixes.\n'
-      '— New "Couple Spark" widget 🔥.\n'
-      '— Added setting the date and time of your first kiss next to the anniversary date in the profile.\n'
-      '— Added a button to reset the "I miss you" tap count.\n'
-      '\n'
-      '— ADDED WATCH VIDEOS TOGETHER (YouTube only).\n'
-      '\n'
-      'How to:\n'
-      '1. Open pin creation.\n'
-      '2. Choose "Video link".\n'
-      '3. Paste a YouTube link.\n'
-      '4. Tap "Add memory".\n'
-      '5. Refresh the memories page → a video pin with a "Watch together" button should appear (watching an ad).\n'
-      '6. Tap it. Your partner gets an invite notification on the home screen.\n'
-      '7. Done.\n'
-      '\n'
-      'To unlock watching videos together, the host can watch a rewarded ad (and earn coins if not earned from ads yet).\n'
-      '\n'
-      '!! Both must be in the app.';
+      '— Added the option to replace the default drawings with your own avatars in the "Days Together" widget. Price: 20 coins. More improvements to come.\n'
+      '— Fixed the real-time behavior of the "I miss you" button.\n'
+      '— UI/UX improvements.';
   @override
   String get updateButton => 'Update';
   @override

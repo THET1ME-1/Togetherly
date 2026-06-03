@@ -39,7 +39,19 @@
       "PowerShell(if \\($?\\) { \"index.js: syntax OK\" })",
       "PowerShell(firebase functions:list 2>&1)",
       "PowerShell(firebase deploy --only functions:purchaseFeature 2>&1)",
-      "PowerShell(flutter build apk --debug 2>&1)"
+      "PowerShell(flutter build apk --debug 2>&1)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" log --oneline --all -- \"android/app/google-services.json\" \"ios/Runner/GoogleService-Info.plist\")",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" log --oneline -- \"lib/screens/miss_you_button.dart\" \"lib/services/firebase_service.dart\")",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show 1b31220 --stat)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show d74aa55 --stat)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show d74aa55 -- lib/screens/miss_you_button.dart)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" log --oneline -- \"lib/services/firebase_service.dart\")",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show 1b31220 -- lib/services/firebase_service.dart)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show ef831ed --stat)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show ef831ed -- lib/services/firebase_service.dart)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show cbef8d6 -- lib/services/firebase_service.dart)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show b6106f9 --stat)",
+      "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show 508a80b --stat)"
     ]
   }
 }
