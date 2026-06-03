@@ -53,6 +53,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   late String _rotationType;
   late int _rotationInterval;
   bool _isSaving = false;
+  // Были ли фото при открытии редактора — нужно, чтобы разрешить «Удалить фото»
+  // (сохранение пустого списка), когда пользователь убрал все ранее выбранные.
+  bool _hadInitialPhotos = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -62,6 +65,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         .where((p) => p.trim().isNotEmpty)
         .take(PhotoDayCarouselEditor.kMaxPhotos)
         .toList();
+    _hadInitialPhotos = _paths.isNotEmpty;
     _rotationType = widget.initialRotationType;
     _rotationInterval = widget.initialRotationInterval;
   }
@@ -149,7 +153,8 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   }
 
   Future<void> _save() async {
-    if (_paths.isEmpty) return;
+    // Пустой список — это валидное действие «удалить все фото»: сохраняем его,
+    // чтобы можно было очистить выбранные фото (в т.ч. «Фото для партнёра»).
     setState(() => _isSaving = true);
     try {
       await widget.onSave(
@@ -308,9 +313,14 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _paths.isEmpty || _isSaving ? null : _save,
+                      // Кнопка активна, когда есть что сохранить ИЛИ когда есть
+                      // что удалить (изначально были фото, а теперь список пуст).
+                      onPressed: (_isSaving ||
+                              (_paths.isEmpty && !_hadInitialPhotos))
+                          ? null
+                          : _save,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: t.primary,
+                        backgroundColor: _paths.isEmpty ? Colors.red.shade400 : t.primary,
                         foregroundColor: Colors.white,
                         disabledBackgroundColor: Colors.grey.shade300,
                         shape: RoundedRectangleBorder(
@@ -328,7 +338,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                               ),
                             )
                           : Text(
-                              'Сохранить',
+                              _paths.isEmpty ? 'Удалить фото' : 'Сохранить',
                               style: GoogleFonts.rubik(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
