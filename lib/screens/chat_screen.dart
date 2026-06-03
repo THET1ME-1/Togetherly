@@ -53,6 +53,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _chat.ensureMember(_groupId);
     _loadPins();
     _controller.addListener(_onTextChanged);
   }
