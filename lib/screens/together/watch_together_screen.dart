@@ -66,6 +66,11 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   int _lastPosMs = 0;
   bool _ended = false;
 
+  /// YouTube вернул ошибку встраивания (101/150 — владелец запретил
+  /// воспроизведение вне youtube.com). Такое видео не проиграть нигде, кроме
+  /// сайта/приложения YouTube — показываем понятное сообщение.
+  bool _embedError = false;
+
   // Эхо-подавление по времени, а не флагом: seekTo/play/pause у плеера
   // применяются АСИНХРОННО (JS round-trip), и их событие приходит уже после
   // того, как синхронный флаг сброшен. Поэтому после применения удалённого
@@ -189,6 +194,15 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   void _onPlayerEvent() {
     if (_ended) return;
     final v = _controller.value;
+
+    // Ошибки встраивания YouTube: 101 и 150 — владелец запретил
+    // воспроизведение вне youtube.com. 100 — видео удалено/приватное.
+    final embedBlocked =
+        v.errorCode == 101 || v.errorCode == 150 || v.errorCode == 100;
+    if (embedBlocked != _embedError && mounted) {
+      setState(() => _embedError = embedBlocked);
+    }
+
     final posMs = v.position.inMilliseconds;
     final playing = v.isPlaying;
 
@@ -319,6 +333,50 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     }
   }
 
+  Widget _buildEmbedErrorOverlay() {
+    return Container(
+      color: Colors.black.withOpacity(0.92),
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lock_outline_rounded,
+              color: Colors.white70, size: 40),
+          const SizedBox(height: 14),
+          const Text(
+            'Это видео нельзя смотреть вместе',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Автор ролика запретил воспроизведение вне YouTube. '
+            'Выберите другое видео — большинство роликов работает.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.3),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: () => _exit(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text('Выбрать другое'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return YoutubePlayerBuilder(
@@ -363,7 +421,13 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
           ),
           body: Column(
             children: [
-              player,
+              Stack(
+                children: [
+                  player,
+                  if (_embedError)
+                    Positioned.fill(child: _buildEmbedErrorOverlay()),
+                ],
+              ),
               const SizedBox(height: 16),
               // Статус подключения партнёра.
               Row(
