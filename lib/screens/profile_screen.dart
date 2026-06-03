@@ -40,12 +40,14 @@ class ProfileScreen extends StatefulWidget {
   final PairData pairData;
   final TimerService timerService;
   final WidgetService widgetService;
+  final VoidCallback? onSwitchToHome;
   const ProfileScreen({
     super.key,
     required this.userData,
     required this.pairData,
     required this.timerService,
     required this.widgetService,
+    this.onSwitchToHome,
   });
 
   @override
@@ -3188,11 +3190,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return names[index];
   }
 
-  Future<bool> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
+  // null = предпросмотр запрошен, false = отмена, true = куплено
+  Future<bool?> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
     final canAfford = widget.userData.coins >= t.price;
     final themeName = _themeDisplayName(t.index);
 
-    final confirmed = await showDialog<bool>(
+    // null = preview, false = cancel, true = buy
+    final result = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withOpacity(0.35),
       builder: (ctx) => Dialog(
@@ -3213,166 +3217,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Превью темы ──
+              // ── Градиентная шапка с названием темы ──
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(28),
                 ),
                 child: Container(
-                  height: 220,
+                  height: 120,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: t.bgGradient,
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                      colors: t.heroGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Hero-карточка (таймер)
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: t.heroGradient,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: t.heroShadowBase,
-                                blurRadius: 12,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '365',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                height: 4,
-                                width: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.4),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                height: 18,
-                                decoration: BoxDecoration(
-                                  color: Colors.white
-                                      .withOpacity(t.heroGlassOpacity * 0.8),
-                                  borderRadius: BorderRadius.circular(9),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                  child: Center(
+                    child: Text(
+                      themeName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        height: 1.0,
                       ),
-                      const SizedBox(height: 8),
-                      // Кнопки быстрых действий
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          t.iconDraw,
-                          t.iconMood,
-                          t.iconCalendar,
-                          t.iconPost,
-                        ]
-                            .map(
-                              (c) => Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.88),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: c.withOpacity(0.20),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.favorite_rounded,
-                                  color: c,
-                                  size: 18,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 8),
-                      // Нижняя навигация
-                      Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.88),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: t.navActiveBg,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(
-                                Icons.home_rounded,
-                                color: t.navActiveIcon,
-                                size: 16,
-                              ),
-                            ),
-                            Icon(Icons.photo_library_outlined,
-                                color: Colors.grey.shade400, size: 18),
-                            Icon(Icons.brush_outlined,
-                                color: Colors.grey.shade400, size: 18),
-                            Icon(Icons.person_outline_rounded,
-                                color: Colors.grey.shade400, size: 18),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
               // ── Содержимое ──
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
                 child: Column(
                   children: [
-                    Text(
-                      _s.buyThemeTitle,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     // ── Цена ──
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -3404,7 +3281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     // ── Баланс ──
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -3446,8 +3323,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 22),
-                    // ── Кнопка покупки ──
+                    const SizedBox(height: 20),
+                    // ── Посмотреть ──
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, null),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: t.primary, width: 1.5),
+                          foregroundColor: t.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.visibility_outlined, size: 20),
+                        label: const Text(
+                          'Посмотреть',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // ── Купить ──
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -3526,7 +3427,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
-    if (confirmed != true) return false;
+    if (result == false) return false; // отмена
+    if (result == null) return null;   // предпросмотр
+    // result == true → покупка
     final ok = await widget.userData.purchaseTheme(t.index);
     if (!ok) return false;
     if (mounted) {
@@ -3615,9 +3518,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return GestureDetector(
                             onTap: () async {
                               if (isLocked) {
-                                final purchased =
+                                final result =
                                     await _confirmPurchaseTheme(context, t);
-                                if (!purchased) return;
+                                if (result == false) return; // отмена
+                                if (result == null) {
+                                  // Предпросмотр: закрыть шторку, применить
+                                  // тему временно и перейти на главный экран
+                                  if (ctx.mounted) Navigator.of(ctx).pop();
+                                  widget.userData.setPreviewTheme(t.index);
+                                  widget.onSwitchToHome?.call();
+                                  return;
+                                }
+                                // result == true → тема куплена
                               }
                               await widget.userData.setThemeId(i);
                               setSheet(() {});
