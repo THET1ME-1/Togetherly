@@ -36,7 +36,10 @@
       "Bash(git log *)",
       "PowerShell(flutter analyze lib/screens/widget_screen.dart lib/screens/profile_screen.dart lib/widgets/common/ad_banner.dart lib/services/rewarded_ad_service.dart)",
       "PowerShell(node --check functions/index.js)",
-      "PowerShell(if \\($?\\) { \"index.js: syntax OK\" })"
+      "PowerShell(if \\($?\\) { \"index.js: syntax OK\" })",
+      "PowerShell(firebase functions:list 2>&1)",
+      "PowerShell(firebase deploy --only functions:purchaseFeature 2>&1)",
+      "PowerShell(flutter build apk --debug 2>&1)"
     ]
   }
 }
