@@ -663,11 +663,15 @@ class WidgetService extends ChangeNotifier {
       );
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
-      // Для MY стороны приоритет у photoUrl (прямая загрузка в парный виджет).
-      // Для PARTNER стороны приоритет у photoForPartnerUrl (партнёр явно поделился).
+      // MY сторона показывает ТОЛЬКО photoUrl (фото, явно выбранное для
+      // парного виджета). НЕ падаем на photoForPartnerUrl — это отдельная
+      // функция «Фото партнёра» (что я отправляю партнёру), и её фото не
+      // должно протекать на мою половину парного виджета.
+      // PARTNER сторона: приоритет photoForPartnerUrl — это фото, которым
+      // партнёр осознанно поделился, чтобы оно показывалось у меня.
       await HomeWidget.saveWidgetData<String>(
         'my_photo_url',
-        my?.photoUrl ?? my?.photoForPartnerUrl ?? '',
+        my?.photoUrl ?? '',
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_photo_url',
@@ -737,9 +741,11 @@ class WidgetService extends ChangeNotifier {
         }
       });
 
-      // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно
+      // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно.
+      // MY сторона — только photoUrl (см. комментарий выше про my_photo_url):
+      // фото «для партнёра» не должно попадать на мою половину парного виджета.
       _cachePhotosForWidget(
-        my?.photoUrl ?? my?.photoForPartnerUrl,
+        my?.photoUrl,
         partner?.photoForPartnerUrl ?? partner?.photoUrl,
       );
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
