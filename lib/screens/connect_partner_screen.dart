@@ -9,19 +9,24 @@ import 'package:share_plus/share_plus.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../models/profile_icon.dart';
+import '../models/user_data.dart';
+import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/nickname_service.dart';
 import '../theme/app_theme.dart';
+import 'chat_screen.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
   final AppTheme theme;
+  final UserData? userData;
   const ConnectPartnerScreen({
     super.key,
     required this.pairData,
     required this.theme,
+    this.userData,
   });
 
   @override
@@ -571,6 +576,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ),
           const SizedBox(height: 16),
+
+          // ── Chat ──
+          _buildChatButton(),
+          const SizedBox(height: 12),
 
           // ── Action Row ──
           Row(
@@ -1546,6 +1555,93 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           color: primary.withOpacity(0.04),
         ),
         child: Icon(icon, size: 16, color: primary),
+      ),
+    );
+  }
+
+  void _openChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          pairData: widget.pairData,
+          theme: widget.theme,
+          myDisplayName: widget.userData?.displayName ??
+              FirebaseService().currentUser?.displayName ??
+              'Me',
+        ),
+      ),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Widget _buildChatButton() {
+    return GestureDetector(
+      onTap: _openChat,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: widget.theme.heroGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withOpacity(0.25),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.chat_bubble_rounded,
+                    color: Colors.white, size: 24),
+                // Красная точка непрочитанных
+                Positioned(
+                  right: -3,
+                  top: -3,
+                  child: StreamBuilder<bool>(
+                    stream: ChatService.instance
+                        .watchHasUnread(widget.pairData.pairId),
+                    builder: (context, snap) {
+                      if (snap.data != true) return const SizedBox.shrink();
+                      return Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                LocaleService.current.chatTitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white70, size: 16),
+          ],
+        ),
       ),
     );
   }

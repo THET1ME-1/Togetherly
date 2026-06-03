@@ -832,8 +832,23 @@ abstract class AppStrings {
   String get notifNewMemorySub;
   String get notifMood;
   String get notifMoodSub;
+  String get notifChat;
+  String get notifChatSub;
   String get openSystemSettings;
   String get notifSystemSettingsHint;
+
+  // ── Chat ──
+  String get chatTitle;
+  String get chatHint;
+  String get chatEmpty;
+  String get chatEditMessage;
+  String get chatDeleteMessage;
+  String get chatEdited;
+  String get chatDeletedPlaceholder;
+  String get chatAttachPin;
+  String get chatSave;
+  String chatNotifTitle(String name);
+  String chatDeleteConfirm(String text);
 
   // ── Lock Screen Mood ──
   String get lockScreenMood;
@@ -2453,9 +2468,37 @@ class _RuStrings extends AppStrings {
   @override
   String get notifMoodSub => 'Когда партнёр обновляет своё настроение';
   @override
+  String get notifChat => 'Сообщения в чате';
+  @override
+  String get notifChatSub => 'Когда партнёр пишет тебе в чат';
+  @override
   String get openSystemSettings => 'Системные настройки';
   @override
   String get notifSystemSettingsHint => 'Настройки хранятся на устройстве';
+
+  // ── Chat ──
+  @override
+  String get chatTitle => 'Чат';
+  @override
+  String get chatHint => 'Сообщение…';
+  @override
+  String get chatEmpty => 'Пока нет сообщений.\nНапишите первым 💬';
+  @override
+  String get chatEditMessage => 'Редактировать';
+  @override
+  String get chatDeleteMessage => 'Удалить';
+  @override
+  String get chatEdited => 'изменено';
+  @override
+  String get chatDeletedPlaceholder => 'Сообщение удалено';
+  @override
+  String get chatAttachPin => 'Прикрепить пин';
+  @override
+  String get chatSave => 'Сохранить';
+  @override
+  String chatNotifTitle(String name) => '$name пишет вам 💬';
+  @override
+  String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
   @override
   String get lockScreenMood => 'Настроение на экране блокировки';
   @override
@@ -4073,9 +4116,37 @@ class _EnStrings extends AppStrings {
   @override
   String get notifMoodSub => 'When your partner updates their mood';
   @override
+  String get notifChat => 'Chat Messages';
+  @override
+  String get notifChatSub => 'When your partner messages you';
+  @override
   String get openSystemSettings => 'System Settings';
   @override
   String get notifSystemSettingsHint => 'Settings are stored on this device';
+
+  // ── Chat ──
+  @override
+  String get chatTitle => 'Chat';
+  @override
+  String get chatHint => 'Message…';
+  @override
+  String get chatEmpty => 'No messages yet.\nSay hi first 💬';
+  @override
+  String get chatEditMessage => 'Edit';
+  @override
+  String get chatDeleteMessage => 'Delete';
+  @override
+  String get chatEdited => 'edited';
+  @override
+  String get chatDeletedPlaceholder => 'Message deleted';
+  @override
+  String get chatAttachPin => 'Attach pin';
+  @override
+  String get chatSave => 'Save';
+  @override
+  String chatNotifTitle(String name) => '$name messages you 💬';
+  @override
+  String chatDeleteConfirm(String text) => 'Delete this message?';
   @override
   String get lockScreenMood => 'Lock Screen Mood';
   @override

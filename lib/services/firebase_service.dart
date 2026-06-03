@@ -297,6 +297,7 @@ class FirebaseService {
   static const _kNotifMissYou = 'notif_miss_you';
   static const _kNotifNewMemory = 'notif_new_memory';
   static const _kNotifMood = 'notif_mood';
+  static const _kNotifChat = 'notif_chat';
 
   /// Сохраняет настройку уведомлений в Firestore, чтобы Cloud Functions
   /// могли проверять её перед отправкой push-уведомлений.
@@ -304,6 +305,7 @@ class FirebaseService {
     bool? missYou,
     bool? newMemory,
     bool? mood,
+    bool? chat,
   }) async {
     final u = currentUser;
     if (u == null) return;
@@ -311,6 +313,7 @@ class FirebaseService {
     if (missYou != null) updates['notifMissYou'] = missYou;
     if (newMemory != null) updates['notifNewMemory'] = newMemory;
     if (mood != null) updates['notifMood'] = mood;
+    if (chat != null) updates['notifChat'] = chat;
     if (updates.isEmpty) return;
     try {
       await _db
@@ -398,6 +401,12 @@ class FirebaseService {
         );
         return false;
       }
+      if (type == 'chat' && !(prefs.getBool(_kNotifChat) ?? true)) {
+        debugPrint(
+          'FCM foreground: chat notification suppressed by user prefs',
+        );
+        return false;
+      }
     } catch (e) {
       debugPrint('FCM foreground pref check failed: \$e');
     }
@@ -446,6 +455,22 @@ class FirebaseService {
             body: body.isNotEmpty ? body : '✉️',
           );
       }
+    }
+
+    if (type == 'chat') {
+      await NicknameService.instance.init();
+      await LocaleService.instance.init();
+      final senderUid = message.data['senderUid'] ?? '';
+      final fallbackSenderName = message.data['senderName'] ?? 'Partner';
+      final senderName = NicknameService.instance.resolve(
+        senderUid,
+        fallbackSenderName,
+      );
+      final body = (message.data['body'] ?? '').toString().trim();
+      return _LocalNotificationContent(
+        title: LocaleService.current.chatNotifTitle(senderName),
+        body: body.isNotEmpty ? body : '✉️',
+      );
     }
 
     final notification = message.notification;
@@ -3386,6 +3411,33 @@ class FirebaseService {
 
   /// Отправить «Я скучаю» — записывает в Firestore.
   /// Cloud Function слушает этот документ и отправляет push-уведомление.
+  /// Триггер push-уведомления о новом сообщении чата. Сам чат живёт в RTDB —
+  /// здесь пишется только эфемерный документ-событие, который Cloud Function
+  /// (onChatMessageEvent) читает, рассылает FCM и тут же удаляет. История
+  /// чата в Firestore не хранится → ноль чтений при просмотре.
+  Future<void> sendChatPush({
+    required String groupId,
+    required String senderName,
+    required String text,
+  }) async {
+    final myUid = uid;
+    if (myUid == null || groupId.isEmpty) return;
+    try {
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('chatEvents')
+          .add({
+            'senderUid': myUid,
+            'senderName': senderName,
+            'text': text.length > 120 ? '${text.substring(0, 120)}…' : text,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      debugPrint('sendChatPush failed: $e');
+    }
+  }
+
   Future<void> sendMissYou({
     required String groupId,
     required String senderName,
