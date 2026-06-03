@@ -34,24 +34,11 @@ class RateLimiterService {
 
   // ── Memories ──────────────────────────────────────────────────────────────
 
-  /// Throws [RateLimitException] if the memory limit is exceeded.
-  /// Does NOT record — call [recordMemory] after the write succeeds.
-  Future<void> checkMemory() => _check(
-    key: _keyMemory,
-    maxCount: _maxMemoriesPerHour,
-    window: _hourWindow,
-    itemLabel: 'воспоминаний',
-    windowLabel: 'в час',
-  );
+  Future<void> checkMemory() async {}
 
-  /// Records one successful memory write.
-  Future<void> recordMemory() => _record(key: _keyMemory, window: _hourWindow);
+  Future<void> recordMemory() async {}
 
-  /// Checks and records atomically — use when there is no early check opportunity.
-  Future<void> checkAndRecordMemory() async {
-    await checkMemory();
-    await recordMemory();
-  }
+  Future<void> checkAndRecordMemory() async {}
 
   // ── Comments ──────────────────────────────────────────────────────────────
 

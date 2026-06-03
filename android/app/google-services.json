@@ -1,6 +1,7 @@
-﻿{
+{
   "project_info": {
     "project_number": "941141989934",
+    "firebase_url": "https://togetherly-d4856-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "togetherly-d4856",
     "storage_bucket": "togetherly-d4856.firebasestorage.app"
   },
@@ -13,6 +14,38 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "941141989934-6o8ene0k0lhq9rp08apmdaqjeuoq753q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.togetherly.love",
+            "certificate_hash": "46c2de7ad18019f38c161a6d7275b1f00991ee6d"
+          }
+        },
+        {
+          "client_id": "941141989934-i88bfreu369frbp37sk4pdfosr84c4dr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.togetherly.love",
+            "certificate_hash": "e77d82128a3f4f2dcf50680abd62ab26f2819dd3"
+          }
+        },
+        {
+          "client_id": "941141989934-ngihk6b13i9rsbpls9t7ka2gp56s6vab.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.togetherly.love",
+            "certificate_hash": "d52afd98918e58c4c453228b7a38c218f9037964"
+          }
+        },
+        {
+          "client_id": "941141989934-svqlrcuikqh4hh8nsi0d2fcajt4hhdoo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.togetherly.love",
+            "certificate_hash": "d21a870173efca0a01c1c2ae22b80f37a074b3da"
+          }
+        },
         {
           "client_id": "941141989934-tsglnvua139egis1oajaovb2sfgd81cf.apps.googleusercontent.com",
           "client_type": 3
