@@ -33,6 +33,18 @@ class ChatService {
 
   String get _uid => _fb.uid ?? '';
 
+  /// Регистрирует пользователя в members чата (нужно для security-rules:
+  /// читать/писать может только участник). Вызывается при открытии чата и
+  /// перед первой отправкой. Идемпотентно.
+  Future<void> ensureMember(String groupId) async {
+    if (groupId.isEmpty || _uid.isEmpty) return;
+    try {
+      await _db.ref('chats/$groupId/members/$_uid').set(true);
+    } catch (e) {
+      debugPrint('ChatService.ensureMember failed: $e');
+    }
+  }
+
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
@@ -60,6 +72,7 @@ class ChatService {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
     try {
+      await ensureMember(groupId);
       await _messagesRef(groupId).push().set({
         'uid': _uid,
         'name': senderName,
