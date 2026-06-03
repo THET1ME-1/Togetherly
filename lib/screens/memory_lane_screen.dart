@@ -71,6 +71,9 @@ class MemoryLaneScreen extends StatefulWidget {
   final UserData? userData;
   /// Авто-открыть лист создания пина сразу после входа (для кнопки «+» в навбаре).
   final bool openCreateOnStart;
+
+  /// Авто-открыть деталь конкретного пина после загрузки (переход из чата).
+  final String? initialMemoryId;
   const MemoryLaneScreen({
     super.key,
     required this.pairData,
@@ -78,6 +81,7 @@ class MemoryLaneScreen extends StatefulWidget {
     this.filterMode = MemoryFilterMode.none,
     this.userData,
     this.openCreateOnStart = false,
+    this.initialMemoryId,
   });
 
   @override
@@ -125,7 +129,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMemories();
+    _loadMemories().then((_) {
+      if (widget.initialMemoryId != null) _openInitialMemory();
+    });
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
     if (widget.openCreateOnStart) {
@@ -133,6 +139,34 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         if (mounted) _showAddMemorySheet();
       });
     }
+  }
+
+  /// Открыть деталь пина, на который сослались из чата.
+  Future<void> _openInitialMemory() async {
+    final id = widget.initialMemoryId;
+    if (id == null || !mounted) return;
+    Memory? target;
+    for (final m in _memories) {
+      if (m.id == id) {
+        target = m;
+        break;
+      }
+    }
+    // Пина нет в первой странице — точечно дочитываем один документ.
+    if (target == null && _groupId.isNotEmpty) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('groups')
+            .doc(_groupId)
+            .collection('memories')
+            .doc(id)
+            .get();
+        if (doc.exists) {
+          target = Memory.fromFirestore(doc.id, doc.data()!);
+        }
+      } catch (_) {}
+    }
+    if (target != null && mounted) _showMemoryDetail(target);
   }
 
   void _onPairChanged() {

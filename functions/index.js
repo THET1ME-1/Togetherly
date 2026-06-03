@@ -321,6 +321,131 @@ exports.onWidgetDataEvent = onDocumentCreated(
   }
 );
 
+/**
+ * Cloud Function: onChatMessageEvent
+ *
+ * Срабатывает, когда пользователь отправляет сообщение в чат пары. Сам чат
+ * живёт в Realtime Database (ноль Firestore-чтений при просмотре истории) —
+ * здесь обрабатывается лишь эфемерный документ-событие для push-уведомления,
+ * который удаляется сразу после отправки FCM.
+ */
+exports.onChatMessageEvent = onDocumentCreated(
+  "groups/{groupId}/chatEvents/{eventId}",
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const data = snapshot.data();
+    const senderUid = data.senderUid;
+    const senderName = data.senderName || "Your partner";
+    const text = (data.text || "").trim();
+    const groupId = event.params.groupId;
+
+    const db = getFirestore();
+
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) {
+      await snapshot.ref.delete();
+      return;
+    }
+
+    const members = groupDoc.data().members || [];
+    const recipients = members.filter((uid) => uid !== senderUid);
+    if (recipients.length === 0) {
+      await snapshot.ref.delete();
+      return;
+    }
+
+    // Собираем токены получателей, у которых не отключены чат-уведомления.
+    const tokenToUid = {};
+    for (const uid of recipients) {
+      const userDoc = await db.collection("users").doc(uid).get();
+      if (!userDoc.exists) continue;
+      const userData = userDoc.data();
+
+      if (userData.notifChat === false) {
+        console.log(`ChatEvent [${groupId}]: notifications disabled for uid=${uid}, skipping`);
+        continue;
+      }
+
+      const tokensList = userData.fcmTokens;
+      if (Array.isArray(tokensList) && tokensList.length > 0) {
+        for (const t of tokensList) {
+          if (t) tokenToUid[t] = uid;
+        }
+      } else if (userData.fcmToken) {
+        tokenToUid[userData.fcmToken] = uid;
+      }
+    }
+
+    const tokens = Object.keys(tokenToUid);
+    if (tokens.length === 0) {
+      await snapshot.ref.delete();
+      return;
+    }
+
+    // Data-only сообщение — заголовок собирается на клиенте (никнейм + локаль).
+    const messageData = {
+      type: "chat",
+      groupId,
+      senderUid,
+      senderName,
+      body: text || "✉️",
+    };
+
+    const message = {
+      data: messageData,
+      android: { priority: "high" },
+      apns: {
+        headers: { "apns-priority": "10" },
+        payload: {
+          aps: { sound: "default", badge: 1, contentAvailable: true },
+        },
+      },
+    };
+
+    const messaging = getMessaging();
+    const results = await Promise.allSettled(
+      tokens.map((token) => messaging.send({ ...message, token }))
+    );
+
+    // Чистим устаревшие токены.
+    const staleTokens = [];
+    results.forEach((result, i) => {
+      if (
+        result.status === "rejected" &&
+        (result.reason?.code ===
+          "messaging/registration-token-not-registered" ||
+          result.reason?.code === "messaging/invalid-registration-token")
+      ) {
+        staleTokens.push(tokens[i]);
+      }
+    });
+    for (const staleToken of staleTokens) {
+      const uid = tokenToUid[staleToken];
+      if (!uid) continue;
+      try {
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) continue;
+        const updates = { fcmTokens: FieldValue.arrayRemove(staleToken) };
+        if (userSnap.data().fcmToken === staleToken) updates.fcmToken = "";
+        await userRef.update(updates);
+      } catch (e) {
+        console.warn(`Failed to remove stale token for uid=${uid}: ${e}`);
+      }
+    }
+
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
+    console.log(
+      `ChatEvent [${groupId}]: sent=${successCount}/${tokens.length}, stale=${staleTokens.length}`
+    );
+
+    // Событие больше не нужно.
+    await snapshot.ref.delete();
+  }
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // КОИНЫ — серверно-авторитетный экономический модуль
 // ═══════════════════════════════════════════════════════════════════════════

@@ -88,9 +88,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notifMissYou = true;
   bool _notifNewMemory = true;
   bool _notifMood = true;
+  bool _notifChat = true;
   static const _kNotifMissYou = 'notif_miss_you';
   static const _kNotifNewMemory = 'notif_new_memory';
   static const _kNotifMood = 'notif_mood';
+  static const _kNotifChat = 'notif_chat';
 
   // Lock screen mood
   bool _lockScreenMood = false;
@@ -133,6 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifMissYou = prefs.getBool(_kNotifMissYou) ?? true;
       _notifNewMemory = prefs.getBool(_kNotifNewMemory) ?? true;
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
+      _notifChat = prefs.getBool(_kNotifChat) ?? true;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
     });
     // Синхронизируем текущие настройки в Firestore при открытии профиля,
@@ -141,6 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       missYou: prefs.getBool(_kNotifMissYou) ?? true,
       newMemory: prefs.getBool(_kNotifNewMemory) ?? true,
       mood: prefs.getBool(_kNotifMood) ?? true,
+      chat: prefs.getBool(_kNotifChat) ?? true,
     );
   }
 
@@ -158,6 +162,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         break;
       case _kNotifMood:
         FirebaseService().updateNotifPrefs(mood: value);
+        break;
+      case _kNotifChat:
+        FirebaseService().updateNotifPrefs(chat: value);
         break;
     }
   }
@@ -2219,6 +2226,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onChanged: (v) {
                   setModal(() => _notifMood = v);
                   _saveNotifPref(_kNotifMood, v);
+                },
+              ),
+              const Divider(height: 1),
+              _notifToggle(
+                icon: Icons.chat_bubble_rounded,
+                color: const Color(0xFF10B981),
+                title: s.notifChat,
+                subtitle: s.notifChatSub,
+                value: _notifChat,
+                onChanged: (v) {
+                  setModal(() => _notifChat = v);
+                  _saveNotifPref(_kNotifChat, v);
                 },
               ),
               const SizedBox(height: 20),
