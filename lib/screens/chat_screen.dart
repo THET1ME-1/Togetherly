@@ -1,25 +1,36 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
+import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'memory_lane_screen.dart';
 
+/// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
+const int _kChatBgPrice = 20;
+const String _kChatBgAction = 'chat_background';
+
 /// Постоянный текстовый чат пары. История целиком в RTDB → ноль Firestore-чтений.
 class ChatScreen extends StatefulWidget {
   final PairData pairData;
   final AppTheme theme;
   final String myDisplayName;
+  final UserData? userData;
 
   const ChatScreen({
     super.key,
     required this.pairData,
     required this.theme,
     required this.myDisplayName,
+    this.userData,
   });
 
   @override
@@ -50,12 +61,27 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _mentionQuery;
   int _lastMessageTs = 0;
 
+  /// Путь к локальному фону чата (null — фон не задан).
+  String? _bgPath;
+
   @override
   void initState() {
     super.initState();
     _chat.ensureMember(_groupId);
     _loadPins();
+    _loadBackground();
     _controller.addListener(_onTextChanged);
+  }
+
+  Future<void> _loadBackground() async {
+    final path = await _chat.backgroundPath(_groupId);
+    if (!mounted) return;
+    if (path != null && File(path).existsSync()) {
+      setState(() => _bgPath = path);
+    } else if (path != null) {
+      // Файл пропал (очистка кэша/переустановка) — сбрасываем.
+      await _chat.clearBackground(_groupId);
+    }
   }
 
   @override
@@ -237,6 +263,174 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // ── Фон чата ────────────────────────────────────────────────────────────────
+
+  Future<void> _changeBackground() async {
+    final s = LocaleService.current;
+    final hasBg = _bgPath != null;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/images/logo/logo.jpg',
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    s.chatBgTitle,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(Icons.image_outlined, color: _t.primary),
+              title: Text(hasBg ? s.chatBgChange : s.chatBgSet),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('assets/images/icons/coin.webp',
+                      width: 18, height: 18),
+                  const SizedBox(width: 3),
+                  Text('$_kChatBgPrice',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+              onTap: () => Navigator.pop(ctx, 'change'),
+            ),
+            if (hasBg)
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded,
+                    color: Colors.red.shade400),
+                title: Text(s.chatBgRemove),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (action == 'remove') {
+      await _chat.clearBackground(_groupId);
+      if (mounted) setState(() => _bgPath = null);
+      return;
+    }
+    if (action != 'change') return;
+
+    final ud = widget.userData;
+    if (ud == null) return;
+
+    if (ud.coins < _kChatBgPrice) {
+      _toast(s.notEnoughCoins);
+      return;
+    }
+
+    // Подтверждение с предупреждением о цене каждой смены.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.chatBgTitle),
+        content: Text(s.chatBgConfirmBody(_kChatBgPrice)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: _t.primary),
+            child: Text(s.buyThemeConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Сначала выбираем фото — если пользователь отменит, списания не будет.
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (picked == null) return;
+
+    // Списываем монеты на сервере (каждый раз).
+    final ok = await ud.spendCoins(_kChatBgAction);
+    if (!ok) {
+      _toast(s.notEnoughCoins);
+      return;
+    }
+
+    // Копируем во внутреннюю папку приложения, чтобы фон пережил очистку кэша.
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final ext = picked.path.contains('.')
+          ? picked.path.substring(picked.path.lastIndexOf('.'))
+          : '.jpg';
+      final dest =
+          '${dir.path}/chat_bg_${_groupId}_${DateTime.now().millisecondsSinceEpoch}$ext';
+      await File(picked.path).copy(dest);
+      // Удаляем прежний фон-файл, чтобы не копить мусор.
+      final old = _bgPath;
+      await _chat.setBackgroundPath(_groupId, dest);
+      if (old != null && old != dest) {
+        try {
+          final f = File(old);
+          if (f.existsSync()) await f.delete();
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() => _bgPath = dest);
+        _toast(s.chatBgCharged);
+      }
+    } catch (e) {
+      _toast('Не удалось сохранить фон');
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _showMessageMenu(ChatMsg msg) {
     final s = LocaleService.current;
     showModalBottomSheet(
@@ -299,14 +493,44 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         foregroundColor: Colors.grey.shade900,
+        // Кнопка фона — слева сверху, рядом с «назад».
+        leadingWidth: 96,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BackButton(),
+            IconButton(
+              padding: EdgeInsets.zero,
+              tooltip: s.chatBgTitle,
+              icon: Icon(Icons.wallpaper_rounded, color: _t.primary),
+              onPressed: _changeBackground,
+            ),
+          ],
+        ),
         title: Text(
           s.chatTitle,
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
+          // Свой фон чата (локальный, у каждого свой).
+          if (_bgPath != null)
+            Positioned.fill(
+              child: Image.file(
+                File(_bgPath!),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          // Лёгкая вуаль для читаемости пузырей поверх любого фото.
+          if (_bgPath != null)
+            Positioned.fill(
+              child: Container(color: Colors.black.withOpacity(0.06)),
+            ),
+          Column(
+            children: [
+              Expanded(
             child: StreamBuilder<List<ChatMsg>>(
               stream: _chat.watchMessages(_groupId),
               builder: (context, snap) {
@@ -346,9 +570,11 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          if (_mentionQuery != null && _mentionResults.isNotEmpty)
-            _buildMentionList(),
-          _buildComposer(s),
+              if (_mentionQuery != null && _mentionResults.isNotEmpty)
+                _buildMentionList(),
+              _buildComposer(s),
+            ],
+          ),
         ],
       ),
     );

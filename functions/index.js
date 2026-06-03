@@ -491,6 +491,12 @@ const FEATURE_PRICES = {
   "days_widget_photos": 20, // свои фото пары на виджете «Дни вместе»
 };
 
+// Цены расходуемых действий — списываются КАЖДЫЙ раз, ничего не «покупается»
+// навсегда (в отличие от FEATURE_PRICES). Напр. смена фона чата.
+const CONSUMABLE_PRICES = {
+  "chat_background": 20, // установить/сменить своё фото на фон чата
+};
+
 const DEV_EMAIL = "badzoff@gmail.com";
 const DEV_GRANT_AMOUNT = 1000;
 
@@ -644,6 +650,44 @@ exports.purchaseFeature = onCall(async (request) => {
     }, { merge: true });
 
     return { ok: true, alreadyOwned: false, coins: newCoins, ownedFeatures: newOwned };
+  });
+});
+
+/**
+ * Списание коинов за расходуемое действие (напр. смена фона чата).
+ * В отличие от purchaseFeature ничего не записывает в ownedFeatures —
+ * списывает price КАЖДЫЙ раз. Транзакционно, защищено от обхода цены.
+ */
+exports.spendCoins = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const actionId = request.data && request.data.actionId;
+  if (typeof actionId !== "string" || !actionId) {
+    throw new HttpsError("invalid-argument", "actionId должен быть строкой");
+  }
+  const price = CONSUMABLE_PRICES[actionId];
+  if (!price) {
+    throw new HttpsError("invalid-argument", "Действие не существует");
+  }
+
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const coins = Number(data.coins || 0);
+
+    if (coins < price) {
+      throw new HttpsError("failed-precondition", "Недостаточно монет");
+    }
+
+    const newCoins = coins - price;
+    tx.set(userRef, {
+      coins: newCoins,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { ok: true, coins: newCoins, spent: price };
   });
 });
 

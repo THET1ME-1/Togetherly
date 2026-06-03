@@ -849,6 +849,12 @@ abstract class AppStrings {
   String get chatSave;
   String chatNotifTitle(String name);
   String chatDeleteConfirm(String text);
+  String get chatBgTitle;
+  String get chatBgSet;
+  String get chatBgChange;
+  String get chatBgRemove;
+  String chatBgConfirmBody(int price);
+  String get chatBgCharged;
 
   // ── Lock Screen Mood ──
   String get lockScreenMood;
@@ -2500,6 +2506,20 @@ class _RuStrings extends AppStrings {
   @override
   String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
   @override
+  String get chatBgTitle => 'Фон чата';
+  @override
+  String get chatBgSet => 'Поставить своё фото';
+  @override
+  String get chatBgChange => 'Сменить фото';
+  @override
+  String get chatBgRemove => 'Убрать фон';
+  @override
+  String chatBgConfirmBody(int price) =>
+      'Установить своё фото на фон чата за $price 🪙?\n\n'
+      'Каждая последующая смена фона тоже стоит $price 🪙.';
+  @override
+  String get chatBgCharged => 'Фон обновлён';
+  @override
   String get lockScreenMood => 'Настроение на экране блокировки';
   @override
   String get lockScreenMoodSubtitle => 'Моё и партнёра — на экране блокировки';
@@ -4147,6 +4167,20 @@ class _EnStrings extends AppStrings {
   String chatNotifTitle(String name) => '$name messages you 💬';
   @override
   String chatDeleteConfirm(String text) => 'Delete this message?';
+  @override
+  String get chatBgTitle => 'Chat background';
+  @override
+  String get chatBgSet => 'Set your photo';
+  @override
+  String get chatBgChange => 'Change photo';
+  @override
+  String get chatBgRemove => 'Remove background';
+  @override
+  String chatBgConfirmBody(int price) =>
+      'Set your photo as the chat background for $price 🪙?\n\n'
+      'Every future change also costs $price 🪙.';
+  @override
+  String get chatBgCharged => 'Background updated';
   @override
   String get lockScreenMood => 'Lock Screen Mood';
   @override

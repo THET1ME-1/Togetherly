@@ -318,6 +318,16 @@ class UserData extends ChangeNotifier {
     return _ownedFeatures.contains(featureId);
   }
 
+  /// Списывает коины за расходуемое действие (напр. смена фона чата).
+  /// Списывает КАЖДЫЙ раз. Цена и проверка баланса — на сервере.
+  /// Возвращает true при успешном списании.
+  Future<bool> spendCoins(String actionId) async {
+    final r = await _fb.callSpendCoins(actionId);
+    if (r == null) return false;
+    _applyServerResult(r);
+    return r['ok'] == true;
+  }
+
   /// Закрепляет иконку рядом с именем (или снимает, если [id] == null/'').
   /// badge не влияет на экономику — пишется напрямую (как и раньше).
   /// Закрепить можно только доступную (купленную/выданную) иконку.
