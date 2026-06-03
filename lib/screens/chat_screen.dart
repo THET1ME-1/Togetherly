@@ -126,6 +126,21 @@ class _ChatScreenState extends State<ChatScreen> {
     return matches.take(6).toList();
   }
 
+  /// Вставляет '@' в конец и открывает список пинов (кнопка-скрепка).
+  void _triggerPinPicker() {
+    final text = _controller.text;
+    final needsAt = !text.endsWith('@');
+    if (needsAt) {
+      _controller.text = text.isEmpty || text.endsWith(' ')
+          ? '$text@'
+          : '$text @';
+    }
+    _controller.selection =
+        TextSelection.collapsed(offset: _controller.text.length);
+    _focusNode.requestFocus();
+    setState(() => _mentionQuery = '');
+  }
+
   void _selectMention(Memory m) {
     // Убираем '@query' из поля и прикрепляем пин.
     final text = _controller.text;
@@ -532,6 +547,20 @@ class _ChatScreenState extends State<ChatScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // Прикрепить пин — вставляет '@' и открывает подсказки
+              GestureDetector(
+                onTap: _triggerPinPicker,
+                child: Container(
+                  width: 40,
+                  height: 44,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.push_pin_rounded,
+                    color: _t.primary,
+                    size: 22,
+                  ),
+                ),
+              ),
               Expanded(
                 child: TextField(
                   controller: _controller,
@@ -540,13 +569,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   maxLines: 5,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    hintText: _attachedPin != null
-                        ? s.chatHint
-                        : '${s.chatHint}  (@ — ${s.chatAttachPin})',
+                    hintText: s.chatHint,
+                    hintMaxLines: 1,
                     filled: true,
                     fillColor: Colors.grey.shade100,
+                    isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                        horizontal: 16, vertical: 11),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(22),
                       borderSide: BorderSide.none,
