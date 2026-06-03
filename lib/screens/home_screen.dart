@@ -662,6 +662,9 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: _t,
               onOpenGallery: _openMascotGallery,
             ),
+          // -- Theme preview banner (показывается только на главной вкладке) --
+          if (widget.userData.isPreviewingTheme && _selectedNavIndex == 0)
+            _buildThemePreviewBanner(),
           // -- Bottom Nav (hidden when timer card is expanded) --
           Positioned(
             bottom: 0,
@@ -898,7 +901,160 @@ class _HomeScreenState extends State<HomeScreen> {
       pairData: _pairData,
       timerService: _timerService,
       widgetService: _widgetService,
+      onSwitchToHome: () => setState(() => _selectedNavIndex = 0),
     );
+  }
+
+  // =============================================
+  // THEME PREVIEW BANNER
+  // =============================================
+  Widget _buildThemePreviewBanner() {
+    final previewId = widget.userData.previewThemeId!;
+    final t = AppThemes.byIndex(previewId);
+    final canAfford = widget.userData.coins >= t.price;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
+    return Positioned(
+      bottom: 76 + bottomInset,
+      left: 16,
+      right: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: t.primary.withOpacity(0.25),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+            ],
+            border: Border.all(color: t.primary.withOpacity(0.15), width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: t.heroGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Предпросмотр',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      t.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Кнопка "Купить"
+              GestureDetector(
+                onTap: canAfford ? () => _buyPreviewTheme(previewId, t) : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: canAfford
+                        ? LinearGradient(
+                            colors: t.heroGradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: canAfford ? null : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/icons/coin.webp',
+                        width: 16,
+                        height: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${t.price}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: canAfford ? Colors.white : Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Кнопка "Закрыть"
+              GestureDetector(
+                onTap: () {
+                  widget.userData.setPreviewTheme(null);
+                  setState(() {});
+                },
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _buyPreviewTheme(int themeId, AppTheme t) async {
+    final ok = await widget.userData.purchaseTheme(themeId);
+    if (!ok) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Недостаточно монет')),
+        );
+      }
+      return;
+    }
+    await widget.userData.setThemeId(themeId);
+    widget.userData.setPreviewTheme(null);
+    if (mounted) setState(() {});
   }
 
   // =============================================

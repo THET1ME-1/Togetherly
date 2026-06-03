@@ -67,6 +67,7 @@ class UserData extends ChangeNotifier {
 
   // ── Тема оформления ──────────────────────────────────────────────────────
   int _themeId = -1; // -1 → используется тема по умолчанию (pink)
+  int? _previewThemeId; // временный оверрайд без сохранения (предпросмотр)
   bool _blobAnimationEnabled = true;
 
   int get themeId {
@@ -75,7 +76,16 @@ class UserData extends ChangeNotifier {
   }
 
   /// Полный объект активной темы со всеми цветами
-  AppTheme get theme => AppThemes.byIndex(themeId);
+  AppTheme get theme => AppThemes.byIndex(_previewThemeId ?? themeId);
+
+  bool get isPreviewingTheme => _previewThemeId != null;
+  int? get previewThemeId => _previewThemeId;
+
+  /// Временно применить тему без сохранения. Передай null чтобы сбросить.
+  void setPreviewTheme(int? id) {
+    _previewThemeId = id;
+    notifyListeners();
+  }
 
   // Алиасы для удобства (используются в экранах)
   bool get isPurpleTheme => themeId == 1;
