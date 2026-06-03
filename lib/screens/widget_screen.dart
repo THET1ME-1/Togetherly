@@ -1271,11 +1271,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     final partner = _ws.firstPartnerData ?? WidgetData(uid: '');
 
     // Те же источники фото, что и в нативном виджете (_syncToNativeWidget):
-    // моя сторона — photoUrl, иначе photoForPartnerUrl; сторона партнёра —
-    // photoForPartnerUrl, иначе photoUrl.
-    final myPhoto = (my.photoUrl?.isNotEmpty ?? false)
-        ? my.photoUrl!
-        : (my.photoForPartnerUrl ?? '');
+    // моя сторона — ТОЛЬКО photoUrl (фото «для партнёра» сюда не протекает);
+    // сторона партнёра — photoForPartnerUrl, иначе photoUrl.
+    final myPhoto = my.photoUrl ?? '';
     final partnerPhoto = (partner.photoForPartnerUrl?.isNotEmpty ?? false)
         ? partner.photoForPartnerUrl!
         : (partner.photoUrl ?? '');
