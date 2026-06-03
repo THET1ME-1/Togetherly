@@ -3213,81 +3213,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Превью темы (hero gradient) ──
+              // ── Превью темы ──
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(28),
                 ),
                 child: Container(
-                  height: 130,
+                  height: 220,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: t.heroGradient,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                      colors: t.bgGradient,
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
                     ),
                   ),
-                  child: Stack(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // декоративные «пузырьки»
-                      Positioned(
-                        top: -20,
-                        right: -10,
+                      // Hero-карточка (таймер)
+                      Expanded(
                         child: Container(
-                          width: 90,
-                          height: 90,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.10),
-                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: t.heroGradient,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: t.heroShadowBase,
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '365',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: 4,
+                                width: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.4),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: Colors.white
+                                      .withOpacity(t.heroGlassOpacity * 0.8),
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Positioned(
-                        bottom: -30,
-                        left: 20,
-                        child: Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                      const SizedBox(height: 8),
+                      // Кнопки быстрых действий
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          t.iconDraw,
+                          t.iconMood,
+                          t.iconCalendar,
+                          t.iconPost,
+                        ]
+                            .map(
+                              (c) => Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.88),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: c.withOpacity(0.20),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.favorite_rounded,
+                                  color: c,
+                                  size: 18,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 8),
+                      // Нижняя навигация
+                      Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.88),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
+                                horizontal: 12,
+                                vertical: 5,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.22),
-                                borderRadius: BorderRadius.circular(10),
+                                color: t.navActiveBg,
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Text(
-                                _s.coinShopSubtitle,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.3,
-                                ),
+                              child: Icon(
+                                Icons.home_rounded,
+                                color: t.navActiveIcon,
+                                size: 16,
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            Text(
-                              themeName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                height: 1.0,
-                              ),
-                            ),
+                            Icon(Icons.photo_library_outlined,
+                                color: Colors.grey.shade400, size: 18),
+                            Icon(Icons.brush_outlined,
+                                color: Colors.grey.shade400, size: 18),
+                            Icon(Icons.person_outline_rounded,
+                                color: Colors.grey.shade400, size: 18),
                           ],
                         ),
                       ),
