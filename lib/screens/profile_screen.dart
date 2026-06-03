@@ -118,7 +118,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     _loadStats();
     _loadNotifPrefs();
-    _rewardedAd.load(); // предзагружаем rewarded для магазина Коинов
+    // НЕ грузим rewarded на открытии профиля — это фоновый запрос, который
+    // в 90%+ случаев впустую (юзер не открывает магазин). Предзагрузка
+    // происходит в _showCoinShop, когда юзер осознанно идёт за коинами.
     _initIap();
   }
 
@@ -2682,6 +2684,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showCoinShop(BuildContext context) {
+    // Юзер осознанно открыл магазин коинов — теперь имеет смысл
+    // предзагрузить rewarded, чтобы к тапу «Смотреть видео» он был готов.
+    _rewardedAd.load();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

@@ -29,6 +29,8 @@ class UserData extends ChangeNotifier {
   final Set<int> _ownedThemes = <int>{};
   // Купленные профильные иконки (КЭШ; источник правды — Firestore/сервер).
   final Set<String> _ownedIcons = <String>{};
+  // Разблокированные одноразовые фичи (КЭШ; источник правды — Firestore/сервер).
+  final Set<String> _ownedFeatures = <String>{};
   // Иконки-награды, выданные вручную (Sponsor/Helper).
   final Set<String> _grantedBadges = <String>{};
   bool _devCoinsGranted = false;
@@ -129,6 +131,16 @@ class UserData extends ChangeNotifier {
   /// Все доступные пользователю иконки (купленные + выданные), без дублей.
   Set<String> get availableIcons => {..._ownedIcons, ..._grantedBadges};
 
+  // ── Одноразовые фичи ─────────────────────────────────────────────────────
+  /// ID фичи: свои фото пары на виджете «Дни вместе» (зеркало FEATURE_PRICES).
+  static const String featureDaysWidgetPhotos = 'days_widget_photos';
+
+  /// Разблокированные одноразовые фичи.
+  Set<String> get ownedFeatures => Set.unmodifiable(_ownedFeatures);
+
+  /// Разблокирована ли фича пользователем.
+  bool ownsFeature(String id) => _ownedFeatures.contains(id);
+
   /// Применяет результат, пришедший с сервера (callable function).
   /// Используется как единственный путь обновления баланса/owned.
   void _applyServerResult(Map<String, dynamic> result) {
@@ -145,6 +157,12 @@ class UserData extends ChangeNotifier {
       _ownedIcons
         ..clear()
         ..addAll(ownedI.whereType<String>());
+    }
+    final ownedF = result['ownedFeatures'];
+    if (ownedF is List) {
+      _ownedFeatures
+        ..clear()
+        ..addAll(ownedF.whereType<String>());
     }
     unawaited(_saveLocal());
     notifyListeners();
@@ -191,6 +209,12 @@ class UserData extends ChangeNotifier {
         _ownedIcons
           ..clear()
           ..addAll(cloudOwnedIcons.whereType<String>());
+      }
+      final cloudOwnedFeatures = data['ownedFeatures'];
+      if (cloudOwnedFeatures is List) {
+        _ownedFeatures
+          ..clear()
+          ..addAll(cloudOwnedFeatures.whereType<String>());
       }
       await _saveLocal();
       notifyListeners();
@@ -271,6 +295,17 @@ class UserData extends ChangeNotifier {
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedIcons.contains(icon.id);
+  }
+
+  /// Покупает одноразовую разблокировку фичи за коины. Возвращает true при успехе.
+  /// Списание монет и запись в ownedFeatures делает Cloud Function `purchaseFeature`
+  /// (защищено от обхода цены/двойного списания).
+  Future<bool> purchaseFeature(String featureId) async {
+    if (_ownedFeatures.contains(featureId)) return true; // уже куплена
+    final r = await _fb.callPurchaseFeature(featureId);
+    if (r == null) return false;
+    _applyServerResult(r);
+    return _ownedFeatures.contains(featureId);
   }
 
   /// Закрепляет иконку рядом с именем (или снимает, если [id] == null/'').
@@ -385,6 +420,9 @@ class UserData extends ChangeNotifier {
       _ownedIcons
         ..clear()
         ..addAll(prefs.getStringList('ownedIcons') ?? const <String>[]);
+      _ownedFeatures
+        ..clear()
+        ..addAll(prefs.getStringList('ownedFeatures') ?? const <String>[]);
       _grantedBadges
         ..clear()
         ..addAll(prefs.getStringList('grantedBadges') ?? const <String>[]);
@@ -430,6 +468,12 @@ class UserData extends ChangeNotifier {
           _ownedIcons
             ..clear()
             ..addAll(cloudOwnedIcons.whereType<String>());
+        }
+        final cloudOwnedFeatures = data['ownedFeatures'];
+        if (cloudOwnedFeatures is List) {
+          _ownedFeatures
+            ..clear()
+            ..addAll(cloudOwnedFeatures.whereType<String>());
         }
         final cloudGrantedBadges = data['grantedBadges'];
         if (cloudGrantedBadges is List) {
@@ -507,6 +551,7 @@ class UserData extends ChangeNotifier {
         _ownedThemes.map((e) => e.toString()).toList(),
       );
       await prefs.setStringList('ownedIcons', _ownedIcons.toList());
+      await prefs.setStringList('ownedFeatures', _ownedFeatures.toList());
       await prefs.setStringList('grantedBadges', _grantedBadges.toList());
     } catch (e) {
       debugPrint('SharedPreferences save failed: $e');
@@ -649,6 +694,7 @@ class UserData extends ChangeNotifier {
     _devCoinsGranted = false;
     _ownedThemes.clear();
     _ownedIcons.clear();
+    _ownedFeatures.clear();
     _grantedBadges.clear();
     _badge = null;
     _adRewardsToday = 0;
@@ -657,6 +703,7 @@ class UserData extends ChangeNotifier {
     await prefs.remove('devCoinsGranted');
     await prefs.remove('ownedThemes');
     await prefs.remove('ownedIcons');
+    await prefs.remove('ownedFeatures');
     await prefs.remove('grantedBadges');
     await prefs.remove('badge');
     await prefs.remove('adRewardsToday');
