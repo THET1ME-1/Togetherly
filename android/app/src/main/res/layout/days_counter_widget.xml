@@ -17,6 +17,33 @@
         android:scaleType="fitCenter"
         android:adjustViewBounds="true" />
 
+    <!-- Couple Photos: shown instead of the drawing when the user enabled
+         "our photos" (feature days_widget_photos). Two circular avatars. -->
+    <LinearLayout
+        android:id="@+id/avatar_row"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="14dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/avatar_left"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:scaleType="fitXY" />
+
+        <ImageView
+            android:id="@+id/avatar_right"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="-10dp"
+            android:scaleType="fitXY" />
+    </LinearLayout>
+
 
     <!-- Top Text: Years already -->
     <TextView

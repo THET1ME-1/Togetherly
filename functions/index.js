@@ -360,6 +360,12 @@ const PROFILE_ICON_PRICES = {
   "Inseparable": 50,
 };
 
+// Цены одноразовых разблокировок фич (зеркало lib/models/user_data.dart).
+// Покупается один раз, навсегда; хранится в ownedFeatures.
+const FEATURE_PRICES = {
+  "days_widget_photos": 20, // свои фото пары на виджете «Дни вместе»
+};
+
 const DEV_EMAIL = "badzoff@gmail.com";
 const DEV_GRANT_AMOUNT = 1000;
 
@@ -469,6 +475,50 @@ exports.purchaseIcon = onCall(async (request) => {
     }, { merge: true });
 
     return { ok: true, alreadyOwned: false, coins: newCoins, ownedIcons: newOwned };
+  });
+});
+
+/**
+ * Покупка одноразовой разблокировки фичи за коины (напр. свои фото на виджете).
+ * Транзакционно: списывает price, добавляет featureId в ownedFeatures.
+ * Безопасно от race conditions, двойных списаний и обхода цены клиентом.
+ */
+exports.purchaseFeature = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const featureId = request.data && request.data.featureId;
+  if (typeof featureId !== "string" || !featureId) {
+    throw new HttpsError("invalid-argument", "featureId должен быть строкой");
+  }
+  const price = FEATURE_PRICES[featureId];
+  if (!price) {
+    throw new HttpsError("invalid-argument", "Фича не продаётся или не существует");
+  }
+
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const coins = Number(data.coins || 0);
+    const owned = Array.isArray(data.ownedFeatures) ? data.ownedFeatures : [];
+
+    if (owned.includes(featureId)) {
+      return { ok: true, alreadyOwned: true, coins, ownedFeatures: owned };
+    }
+    if (coins < price) {
+      throw new HttpsError("failed-precondition", "Недостаточно монет");
+    }
+
+    const newCoins = coins - price;
+    const newOwned = [...owned, featureId];
+    tx.set(userRef, {
+      coins: newCoins,
+      ownedFeatures: newOwned,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { ok: true, alreadyOwned: false, coins: newCoins, ownedFeatures: newOwned };
   });
 });
 

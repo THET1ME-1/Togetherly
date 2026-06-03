@@ -607,6 +607,63 @@ class HomeWidgetService {
     }
   }
 
+  static const _daysPhotosEnabledKey = 'days_widget_photos_enabled';
+
+  /// Включены ли свои фото пары на виджете «Дни вместе» (локальный кэш состояния).
+  Future<bool> isDaysCounterPhotosEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_daysPhotosEnabledKey) ?? false;
+  }
+
+  /// Включает/выключает показ фото пары на виджете «Дни вместе».
+  ///
+  /// При включении кэширует обе аватарки в локальные файлы и пишет их пути +
+  /// флаг `days_${g}_use_photos`. Нативный виджет читает их и рисует кружочки
+  /// вместо нарисованной пары. Если хотя бы одной аватарки нет — откатываемся
+  /// на рисунок (use_photos='0').
+  Future<void> setDaysCounterPhotos({
+    required String groupId,
+    required bool enabled,
+    required String myAvatarUrl,
+    required String partnerAvatarUrl,
+  }) async {
+    final g = groupId.isEmpty ? 'solo' : groupId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_daysPhotosEnabledKey, enabled);
+
+      String myPath = '';
+      String partnerPath = '';
+      if (enabled) {
+        myPath = await _cachePhotoFromUrl(myAvatarUrl, 'days_avatar_my_$g');
+        partnerPath =
+            await _cachePhotoFromUrl(partnerAvatarUrl, 'days_avatar_partner_$g');
+      }
+      // Включаем только когда обе аватарки реально закэшировались.
+      final usePhotos = enabled && myPath.isNotEmpty && partnerPath.isNotEmpty;
+
+      await HomeWidget.saveWidgetData<String>(
+        'days_${g}_use_photos',
+        usePhotos ? '1' : '0',
+      );
+      await HomeWidget.saveWidgetData<String>('days_${g}_my_avatar_path', myPath);
+      await HomeWidget.saveWidgetData<String>(
+        'days_${g}_partner_avatar_path',
+        partnerPath,
+      );
+      await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
+      await HomeWidget.updateWidget(
+        name: 'DaysCounterWidgetProvider',
+        androidName: 'DaysCounterWidgetProvider',
+      );
+      debugPrint(
+        'HomeWidgetService.setDaysCounterPhotos: enabled=$enabled usePhotos=$usePhotos group=$g',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.setDaysCounterPhotos failed: $e');
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  1b. ОГОНЁК ПАРЫ  (серия дней подряд)
   // ════════════════════════════════════════════════════════════════════════

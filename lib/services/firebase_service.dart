@@ -698,6 +698,9 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callPurchaseIcon(String iconId) =>
       _callCoinFn('purchaseIcon', {'iconId': iconId});
 
+  Future<Map<String, dynamic>?> callPurchaseFeature(String featureId) =>
+      _callCoinFn('purchaseFeature', {'featureId': featureId});
+
   Future<Map<String, dynamic>?> callGrantDailyBonus() =>
       _callCoinFn('grantDailyBonus');
 

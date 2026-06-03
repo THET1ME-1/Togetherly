@@ -70,6 +70,12 @@ class _WidgetScreenState extends State<WidgetScreen>
   bool _pairWidgetExpanded = false;
   bool _timerWidgetExpanded = false;
   bool _petalTimerWidgetExpanded = false;
+  // Счётчик дней: персонализация «наши фото» (фича за коины)
+  // Цена — зеркало FEATURE_PRICES['days_widget_photos'] на сервере.
+  static const int _daysPhotosPrice = 20;
+  bool _daysCounterExpanded = false;
+  bool _daysPhotosEnabled = false;
+  bool _daysPhotosBusy = false;
   String? _widgetTimerId;
 
   int? _memoriesCount;
@@ -157,6 +163,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final photoDaySaveFuture = hws.getPhotoDaySaveMemory(_pair.pairId);
     final photoDayWidgetsFuture = _loadPhotoDayWidgetsSilent();
     final statsFuture = _loadStatsSilent();
+    final daysPhotosFuture = hws.isDaysCounterPhotosEnabled();
 
     final results = await Future.wait([
       pinSupportedFuture,
@@ -165,6 +172,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       photoDaySaveFuture,
       photoDayWidgetsFuture,
       statsFuture,
+      daysPhotosFuture,
     ]);
 
     if (!mounted) return;
@@ -175,12 +183,14 @@ class _WidgetScreenState extends State<WidgetScreen>
     final photoDaySave = results[3] as bool;
     final photoDayState = results[4] as Map<String, dynamic>;
     final statsState = results[5] as Map<String, dynamic>;
+    final daysPhotos = results[6] as bool;
 
     setState(() {
       _canPinWidgets = canPin;
       _widgetTimerId = timerId;
       _lockScreenMoodEnabled = lockEnabled;
       _savePhotoAsMemory = photoDaySave;
+      _daysPhotosEnabled = daysPhotos;
       _photoGridCount = photoGridCount;
       _personalWidgetIds = List<int>.from(photoDayState['personalIds'] ?? []);
       _partnerWidgetIds = List<int>.from(photoDayState['partnerIds'] ?? []);
@@ -1518,7 +1528,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 16),
 
           // ── Баннер 1 ──
-          _buildAdBanner(),
+          _buildAdBanner('ad_banner_1'),
           const SizedBox(height: 16),
 
           // ── 2. Счётчик дней вместе ──
@@ -1529,6 +1539,10 @@ class _WidgetScreenState extends State<WidgetScreen>
             qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
             preview: _buildDaysCounterPreview(),
             widgetType: 'days_counter',
+            expandedContent: _buildDaysPhotosCard(),
+            isExpanded: _daysCounterExpanded,
+            onToggleExpand: () =>
+                setState(() => _daysCounterExpanded = !_daysCounterExpanded),
           ),
           const SizedBox(height: 16),
 
@@ -1640,7 +1654,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 16),
 
           // ── Баннер 2 ──
-          _buildAdBanner(),
+          _buildAdBanner('ad_banner_2'),
           const SizedBox(height: 16),
 
           // ── 6. Статистика отношений ──
@@ -1658,9 +1672,15 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  Widget _buildAdBanner() {
+  Widget _buildAdBanner(String slot) {
     const realId = 'ca-app-pub-1956369312643059/2560361524';
-    return AdBanner(adUnitId: kDebugMode ? '' : realId);
+    // Стабильный ключ: без него при каждом setState (раскрытие/сворачивание
+    // карточек выше) Flutter может пересоздать элемент баннера и дёрнуть
+    // новый loadAd — лишние запросы и риск спама в AdMob.
+    return AdBanner(
+      key: ValueKey(slot),
+      adUnitId: kDebugMode ? '' : realId,
+    );
   }
 
   Widget _buildGalleryItem({
@@ -1892,6 +1912,11 @@ class _WidgetScreenState extends State<WidgetScreen>
     final years = totalDays ~/ 365;
     final yearsText = s.yearsAlready(years);
 
+    final myAvatar = widget.userData.avatarUrl;
+    final partnerAvatar = _pair.partnerAvatarUrl;
+    final showPhotos =
+        _daysPhotosEnabled && myAvatar.isNotEmpty && partnerAvatar.isNotEmpty;
+
     return Container(
       width: double.infinity,
       height: 200,
@@ -1902,23 +1927,42 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
       child: Stack(
         children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(21),
+          if (showPhotos)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 14,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _daysPreviewAvatar(myAvatar),
+                    Transform.translate(
+                      offset: const Offset(-10, 0),
+                      child: _daysPreviewAvatar(partnerAvatar),
+                    ),
+                  ],
+                ),
               ),
-              child: Transform.scale(
-                scaleX: flipCouple ? -1.0 : 1.0,
-                child: Image.asset(
-                  'assets/images/widget/$imgName.png',
-                  fit: BoxFit.contain,
+            )
+          else
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(21),
+                ),
+                child: Transform.scale(
+                  scaleX: flipCouple ? -1.0 : 1.0,
+                  child: Image.asset(
+                    'assets/images/widget/$imgName.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
-          ),
           Positioned(
             top: 16,
             left: 0,
@@ -1968,6 +2012,161 @@ class _WidgetScreenState extends State<WidgetScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Кружок-аватарка для превью счётчика дней.
+  Widget _daysPreviewAvatar(String url) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: _t.primary.withOpacity(0.1),
+        border: Border.all(color: _t.cardSurface, width: 2),
+      ),
+      child: ClipOval(
+        child: StorageImage(
+          imageUrl: url,
+          width: 56,
+          height: 56,
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) =>
+              Icon(Icons.person_rounded, color: _t.primary.withOpacity(0.5)),
+        ),
+      ),
+    );
+  }
+
+  /// Карточка настройки «Наши фото на виджете Дни вместе» (за коины).
+  Widget _buildDaysPhotosCard() {
+    final ud = widget.userData;
+    final owned = ud.ownsFeature(UserData.featureDaysWidgetPhotos);
+    final hasMyPhoto = ud.avatarUrl.isNotEmpty;
+    final hasPartnerPhoto = _pair.partnerAvatarUrl.isNotEmpty;
+    final bothPhotos = hasMyPhoto && hasPartnerPhoto;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _t.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.face_retouching_natural_rounded, color: _t.primary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Наши фото вместо рисунка',
+                  style: GoogleFonts.rubik(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Замените нарисованную пару на ваши настоящие аватарки — '
+            'на превью и на виджете рабочего стола.',
+            style: GoogleFonts.rubik(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (!owned)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _daysPhotosBusy ? null : _buyDaysPhotos,
+                icon: _daysPhotosBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock_open_rounded, size: 18),
+                label: Text('Разблокировать — $_daysPhotosPrice 🪙'),
+              ),
+            )
+          else ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _daysPhotosEnabled,
+              onChanged:
+                  (_daysPhotosBusy || !bothPhotos) ? null : _setDaysPhotos,
+              title: Text(
+                'Показывать наши фото',
+                style: GoogleFonts.rubik(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ),
+            if (!bothPhotos)
+              Text(
+                hasMyPhoto
+                    ? 'У партнёра нет фото профиля — попросите добавить.'
+                    : 'Добавьте своё фото профиля, чтобы оно появилось на виджете.',
+                style: GoogleFonts.rubik(fontSize: 11, color: Colors.red.shade400),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _buyDaysPhotos() async {
+    final ud = widget.userData;
+    if (_daysPhotosBusy || ud.ownsFeature(UserData.featureDaysWidgetPhotos)) {
+      return;
+    }
+    if (ud.coins < _daysPhotosPrice) {
+      _showDaysPhotosSnack('Недостаточно монет — нужно $_daysPhotosPrice 🪙');
+      return;
+    }
+    setState(() => _daysPhotosBusy = true);
+    final ok = await ud.purchaseFeature(UserData.featureDaysWidgetPhotos);
+    if (!mounted) return;
+    setState(() => _daysPhotosBusy = false);
+    if (ok) {
+      await _setDaysPhotos(true); // сразу включаем после покупки
+      if (mounted) _showDaysPhotosSnack('Готово! Ваши фото на виджете 💞');
+    } else {
+      _showDaysPhotosSnack('Не удалось купить — попробуйте позже');
+    }
+  }
+
+  Future<void> _setDaysPhotos(bool enabled) async {
+    setState(() {
+      _daysPhotosEnabled = enabled;
+      _daysPhotosBusy = true;
+    });
+    await HomeWidgetService.instance.setDaysCounterPhotos(
+      groupId: _pair.pairId,
+      enabled: enabled,
+      myAvatarUrl: widget.userData.avatarUrl,
+      partnerAvatarUrl: _pair.partnerAvatarUrl,
+    );
+    if (!mounted) return;
+    setState(() => _daysPhotosBusy = false);
+  }
+
+  void _showDaysPhotosSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
