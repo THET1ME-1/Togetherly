@@ -10,6 +10,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,6 +77,15 @@ Future<void> _initConsentAndAds() async {
     }
   } catch (e) {
     debugPrint('AdMob init failed: $e');
+  }
+
+  // Яндекс — резервная сеть (водопад): если AdMob не отдаёт рекламу
+  // (onAdFailedToLoad), баннер/rewarded грузятся из Яндекса. Инициализируем
+  // рядом с AdMob; обе SDK живут параллельно и не конфликтуют.
+  try {
+    await yandex.MobileAds.initialize();
+  } catch (e) {
+    debugPrint('Yandex Ads init failed: $e');
   }
 }
 

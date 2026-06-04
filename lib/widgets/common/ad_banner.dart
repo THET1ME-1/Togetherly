@@ -3,13 +3,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 /// Test ad unit IDs from Google for development.
 /// Replace [adUnitId] with your real AdMob unit ID before release.
 const String _testBannerAdUnit = 'ca-app-pub-3940256099942544/6300978111';
 
+/// Yandex banner block id (waterfall fallback when AdMob has no fill).
+/// Debug uses Yandex's official demo unit; release uses our real block.
+const String _prodYandexBannerUnit = 'R-M-19386995-1';
+const String _demoYandexBannerUnit = 'demo-banner-yandex';
+
 /// A self-disposing banner ad that loads once and shows between content.
-/// Produces nothing on web, desktop, or when the ad fails to load.
+///
+/// Waterfall: tries AdMob first; if AdMob reports no ad
+/// ([BannerAdListener.onAdFailedToLoad]), falls back to a Yandex banner. Shows
+/// nothing on web/desktop or when both networks fail.
 class AdBanner extends StatefulWidget {
   final String adUnitId;
 
@@ -31,6 +40,10 @@ class _AdBannerState extends State<AdBanner> {
   bool _loaded = false;
   String? _errorText;
 
+  // Yandex fallback (used only after AdMob reports no fill).
+  yandex.BannerAd? _yandexAd;
+  bool _yandexFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +63,11 @@ class _AdBannerState extends State<AdBanner> {
         ? widget.adUnitId
         : (kDebugMode ? _testBannerAdUnit : '');
 
-    if (unitId.isEmpty) return;
+    if (unitId.isEmpty) {
+      // No AdMob unit configured for this build → go straight to Yandex.
+      _loadYandex();
+      return;
+    }
 
     BannerAd(
       adUnitId: unitId,
@@ -69,14 +86,35 @@ class _AdBannerState extends State<AdBanner> {
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          if (kDebugMode && mounted) {
-            setState(() {
-              _errorText = 'Ad error ${error.code}: ${error.message}';
-            });
-          }
+          // AdMob has no fill → fall back to Yandex.
+          debugPrint('AdMob banner failed (${error.code}), trying Yandex');
+          _loadYandex();
         },
       ),
     ).load();
+  }
+
+  /// Builds the Yandex banner; its platform view auto-loads on creation, so we
+  /// just render it and react to its load callbacks.
+  void _loadYandex() {
+    if (!mounted || _yandexAd != null || _yandexFailed) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
+    final unit = kDebugMode ? _demoYandexBannerUnit : _prodYandexBannerUnit;
+    final width = MediaQuery.of(context).size.width.truncate();
+
+    final banner = yandex.BannerAd(
+      adUnitId: unit,
+      adSize: yandex.BannerAdSize.inline(
+        width: width,
+        maxHeight: widget.height.truncate(),
+      ),
+      onAdFailedToLoad: (error) {
+        debugPrint('Yandex banner failed: ${error.code} ${error.description}');
+        if (mounted) setState(() => _yandexFailed = true);
+      },
+    );
+    setState(() => _yandexAd = banner);
   }
 
   @override
@@ -86,6 +124,13 @@ class _AdBannerState extends State<AdBanner> {
         height: widget.height,
         alignment: Alignment.center,
         child: AdWidget(ad: _ad!),
+      );
+    }
+    if (_yandexAd != null && !_yandexFailed) {
+      return Container(
+        height: widget.height,
+        alignment: Alignment.center,
+        child: yandex.AdWidget(bannerAd: _yandexAd!),
       );
     }
     if (kDebugMode && _errorText != null) {
