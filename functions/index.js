@@ -1027,6 +1027,41 @@ exports.grantMemoryReward = onCall(async (request) => {
 });
 
 /**
+ * Награда за rewarded-видео ЯНДЕКСА (резервная сеть водопада).
+ *
+ * AdMob начисляет коины через SSV-callback (adSsvCallback) — у Яндекса своего
+ * Google-SSV нет, поэтому клиент после досмотра Яндекс-рекламы зовёт этот
+ * callable. Начисление авторитетное (сервер), с тем же дневным лимитом и теми
+ * же полями (adRewardsDate/adRewardsToday), что и SSV — счётчик общий для обеих
+ * сетей. Защита от абьюза = дневной лимит AD_REWARDS_PER_DAY (макс 3/сутки,
+ * как у легального просмотра); произвольную сумму передать нельзя.
+ */
+exports.grantAdReward = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const db = getFirestore();
+  const today = new Date().toISOString().slice(0, 10);
+  const userRef = db.collection("users").doc(auth.uid);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const data = snap.exists ? snap.data() : {};
+    const lastDate = data.adRewardsDate;
+    const countToday = (lastDate === today) ? Number(data.adRewardsToday || 0) : 0;
+    if (countToday >= AD_REWARDS_PER_DAY) {
+      return { ok: false, rateLimited: true, coins: Number(data.coins || 0) };
+    }
+    const coins = Number(data.coins || 0) + AD_REWARD_AMOUNT;
+    tx.set(userRef, {
+      coins,
+      adRewardsDate: today,
+      adRewardsToday: countToday + 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true, coins, awarded: AD_REWARD_AMOUNT };
+  });
+});
+
+/**
  * Единоразовая награда за приглашение партнёра. 50 🪙.
  * Флаг partnerInviteRewardGranted гарантирует идемпотентность.
  */
