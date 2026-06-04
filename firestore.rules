@@ -122,6 +122,16 @@ service cloud.firestore {
         allow create: if isMember();
       }
 
+      // Триггер push-уведомления о новом сообщении чата. Без этого правила
+      // запись падала PERMISSION_DENIED (catch-all ниже), Cloud Function
+      // onChatMessageEvent не срабатывала и пуши не приходили. Документ
+      // эфемерный — функция удаляет его сразу после рассылки FCM.
+      match /chatEvents/{eventId} {
+        allow read: if isMember();
+        allow create: if isMember()
+                      && request.resource.data.senderUid == request.auth.uid;
+      }
+
       match /canvas/{canvasId} {
         allow read, write: if isMember();
       }

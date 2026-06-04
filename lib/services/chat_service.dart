@@ -31,6 +31,10 @@ class ChatService {
   DatabaseReference _messagesRef(String groupId) =>
       _db.ref('chats/$groupId/messages');
 
+  /// Узел статусов прочтения {uid: lastReadTs} — для галочек «прочитано».
+  DatabaseReference _readsRef(String groupId) =>
+      _db.ref('chats/$groupId/reads');
+
   String get _uid => _fb.uid ?? '';
 
   /// Регистрирует пользователя в members чата (нужно для security-rules:
@@ -133,16 +137,47 @@ class ChatService {
 
   String _lastReadKey(String groupId) => 'chat_last_read_$groupId';
 
-  /// Отметить чат прочитанным (локально — ts последнего открытия).
+  // Кэш последнего опубликованного в RTDB ts прочтения по группам — markRead
+  // зовётся на каждый кадр, поэтому пишем в сеть только при росте значения.
+  final Map<String, int> _syncedReadTs = {};
+
+  /// Отметить чат прочитанным: локально (ts последнего открытия) + публикуем
+  /// в RTDB `chats/{groupId}/reads/{uid}`, чтобы партнёр увидел галочку.
   Future<void> markRead(String groupId, int lastMessageTs) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_lastReadKey(groupId), lastMessageTs);
+
+    if (groupId.isEmpty || _uid.isEmpty || lastMessageTs <= 0) return;
+    if ((_syncedReadTs[groupId] ?? 0) >= lastMessageTs) return;
+    _syncedReadTs[groupId] = lastMessageTs;
+    try {
+      await _readsRef(groupId).child(_uid).set(lastMessageTs);
+    } catch (e) {
+      _syncedReadTs.remove(groupId); // не вышло — позволим повторить позже
+      debugPrint('ChatService.markRead publish failed: $e');
+    }
+  }
+
+  /// Поток статусов прочтения {uid: lastReadTs}. Для галочек «прочитано»:
+  /// своё сообщение прочитано, если его ts ≤ минимального ts среди остальных.
+  Stream<Map<String, int>> watchReads(String groupId) {
+    if (groupId.isEmpty) return const Stream.empty();
+    return _readsRef(groupId).onValue.map((event) {
+      final v = event.snapshot.value;
+      if (v is! Map) return <String, int>{};
+      final out = <String, int>{};
+      v.forEach((k, val) => out[k.toString()] = (val as num?)?.toInt() ?? 0);
+      return out;
+    });
   }
 
   Future<int> _lastRead(String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_lastReadKey(groupId)) ?? 0;
   }
+
+  /// ts последнего прочтения — публично, для разделителя «новые сообщения».
+  Future<int> lastReadTs(String groupId) => _lastRead(groupId);
 
   // ── Фон чата (локальный, у каждого свой) ────────────────────────────────────
 

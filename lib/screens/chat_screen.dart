@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -64,13 +65,69 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Путь к локальному фону чата (null — фон не задан).
   String? _bgPath;
 
+  /// Окно подгрузки истории. Не грузим всю переписку сразу — стартуем с
+  /// небольшого окна и расширяем его при прокрутке к началу (экономит трафик
+  /// RTDB: onValue иначе тянул бы весь срез на каждое новое сообщение).
+  static const int _kPageSize = 30;
+  int _limit = _kPageSize;
+  late Stream<List<ChatMsg>> _messagesStream;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  double? _retainFromBottom;
+  bool _didInitialScroll = false;
+  bool _lastIsMine = false;
+
+  /// ts последнего прочтения на момент ОТКРЫТИЯ чата — фиксируем до markRead,
+  /// чтобы отрисовать разделитель «Новые сообщения» над первым непрочитанным.
+  int _openLastRead = -1;
+
+  /// Последний полученный срез — фолбэк, пока пересоздаём поток при пагинации
+  /// (иначе StreamBuilder на миг показал бы спиннер вместо списка).
+  List<ChatMsg> _lastMessages = const [];
+
+  /// Минимальный ts прочтения среди остальных участников. Своё сообщение
+  /// «прочитано» (✓✓), если его ts ≤ этого значения, иначе «отправлено» (✓).
+  int _partnerReadTs = 0;
+  StreamSubscription<Map<String, int>>? _readsSub;
+
   @override
   void initState() {
     super.initState();
+    // Пока этот чат открыт — foreground-пуш о новом сообщении не дублируем.
+    FirebaseService.activeChatGroupId = _groupId;
+    _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
+    _captureUnreadAnchor();
+    _watchPartnerReads();
     _chat.ensureMember(_groupId);
     _loadPins();
     _loadBackground();
     _controller.addListener(_onTextChanged);
+    _scrollController.addListener(_onScroll);
+  }
+
+  /// Фиксируем ts последнего прочтения ДО того, как markRead его перезапишет —
+  /// нужно для разделителя «Новые сообщения».
+  Future<void> _captureUnreadAnchor() async {
+    final ts = await _chat.lastReadTs(_groupId);
+    if (mounted) setState(() => _openLastRead = ts);
+  }
+
+  /// Слушаем статусы прочтения партнёра(ов) для галочек ✓/✓✓ на своих
+  /// сообщениях. «Прочитано» = минимальный ts среди всех, кроме меня.
+  void _watchPartnerReads() {
+    _readsSub = _chat.watchReads(_groupId).listen(
+      (reads) {
+        if (!mounted) return;
+        int? minOthers;
+        reads.forEach((uid, ts) {
+          if (uid == _myUid) return;
+          minOthers = (minOthers == null || ts < minOthers!) ? ts : minOthers;
+        });
+        final next = minOthers ?? 0;
+        if (next != _partnerReadTs) setState(() => _partnerReadTs = next);
+      },
+      onError: (e) => debugPrint('watchReads error: $e'),
+    );
   }
 
   Future<void> _loadBackground() async {
@@ -86,11 +143,71 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    if (FirebaseService.activeChatGroupId == _groupId) {
+      FirebaseService.activeChatGroupId = null;
+    }
+    _readsSub?.cancel();
+    _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     if (_lastMessageTs > 0) _chat.markRead(_groupId, _lastMessageTs);
     super.dispose();
+  }
+
+  // ── Пагинация истории ───────────────────────────────────────────────────────
+
+  void _onScroll() {
+    if (!_scrollController.hasClients || _loadingMore || !_hasMore) return;
+    final pos = _scrollController.position;
+    // Прокрутили к началу списка — подгружаем более старые сообщения.
+    if (pos.pixels <= pos.minScrollExtent + 80) _loadMore();
+  }
+
+  void _loadMore() {
+    _loadingMore = true;
+    // Запоминаем расстояние от низа: контент добавится сверху, и так вьюпорт
+    // не «прыгнет» после расширения окна.
+    if (_scrollController.hasClients) {
+      final pos = _scrollController.position;
+      _retainFromBottom = pos.maxScrollExtent - pos.pixels;
+    }
+    setState(() {
+      _limit += _kPageSize;
+      _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
+    });
+  }
+
+  /// Управление прокруткой после отрисовки очередного среза сообщений.
+  void _afterMessagesLayout() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+
+    // Подгрузили старые — восстанавливаем позицию (держим расстояние от низа).
+    if (_loadingMore) {
+      if (_retainFromBottom != null) {
+        final target = (pos.maxScrollExtent - _retainFromBottom!)
+            .clamp(0.0, pos.maxScrollExtent);
+        _scrollController.jumpTo(target);
+      }
+      _loadingMore = false;
+      _retainFromBottom = null;
+      return;
+    }
+
+    // Первая отрисовка — встаём в самый низ.
+    if (!_didInitialScroll) {
+      _scrollController.jumpTo(pos.maxScrollExtent);
+      _didInitialScroll = true;
+      return;
+    }
+
+    // Новое сообщение: прокручиваем вниз, только если пользователь уже у низа
+    // или это его собственное сообщение (как в мессенджерах).
+    final nearBottom = pos.maxScrollExtent - pos.pixels < 160;
+    if (nearBottom || _lastIsMine) {
+      _scrollController.jumpTo(pos.maxScrollExtent);
+    }
   }
 
   Future<void> _loadPins() async {
@@ -532,15 +649,21 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Expanded(
             child: StreamBuilder<List<ChatMsg>>(
-              stream: _chat.watchMessages(_groupId),
+              stream: _messagesStream,
               builder: (context, snap) {
-                final messages = snap.data ?? const [];
+                // Во время пересоздания потока (пагинация) держим прошлый срез.
+                if (snap.data != null) _lastMessages = snap.data!;
+                final messages = snap.data ?? _lastMessages;
                 if (messages.isNotEmpty) {
                   _lastMessageTs = messages.last.ts;
+                  _lastIsMine = messages.last.uid == _myUid;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _chat.markRead(_groupId, _lastMessageTs);
                   });
                 }
+                // Меньше, чем просили → достигли начала истории.
+                _hasMore = messages.length >= _limit;
+
                 if (snap.connectionState == ConnectionState.waiting &&
                     messages.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
@@ -554,18 +677,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   );
                 }
+
+                final items = _buildItems(messages);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(
-                      _scrollController.position.maxScrollExtent,
-                    );
-                  }
+                  _afterMessagesLayout();
                 });
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, i) => _buildBubble(messages[i]),
+                  itemCount: items.length,
+                  itemBuilder: (context, i) => _buildItem(items[i]),
                 );
               },
             ),
@@ -576,6 +697,77 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Превращает плоский список сообщений в список элементов с разделителями:
+  /// заголовки дат (как в Telegram) и маркер «Новые сообщения».
+  List<Object> _buildItems(List<ChatMsg> messages) {
+    final items = <Object>[];
+    DateTime? lastDay;
+    bool unreadShown = false;
+    for (final m in messages) {
+      final d = DateTime.fromMillisecondsSinceEpoch(m.ts);
+      final day = DateTime(d.year, d.month, d.day);
+      if (lastDay == null || day != lastDay) {
+        items.add(_DateHeader(day));
+        lastDay = day;
+      }
+      // Разделитель — над первым непрочитанным сообщением партнёра.
+      if (!unreadShown &&
+          _openLastRead > 0 &&
+          m.ts > _openLastRead &&
+          m.uid != _myUid) {
+        items.add(const _UnreadMarker());
+        unreadShown = true;
+      }
+      items.add(m);
+    }
+    return items;
+  }
+
+  Widget _buildItem(Object item) {
+    if (item is _DateHeader) return _buildDateHeader(item.day);
+    if (item is _UnreadMarker) return _buildUnreadMarker();
+    return _buildBubble(item as ChatMsg);
+  }
+
+  Widget _buildDateHeader(DateTime day) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          LocaleService.current.chatDateHeader(day),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnreadMarker() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      color: _t.primary.withOpacity(0.12),
+      child: Center(
+        child: Text(
+          LocaleService.current.chatNewMessages,
+          style: TextStyle(
+            color: _t.primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
@@ -700,6 +892,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     _formatTime(msg.editedTs ?? msg.ts),
                     style: TextStyle(fontSize: 10, color: metaColor),
                   ),
+                  // Галочки прочтения только на своих неудалённых сообщениях.
+                  if (isMine && !msg.deleted) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      msg.ts <= _partnerReadTs
+                          ? Icons.done_all_rounded
+                          : Icons.done_rounded,
+                      size: 14,
+                      color: msg.ts <= _partnerReadTs
+                          ? const Color(0xFF8FD3FF) // прочитано — голубые ✓✓
+                          : metaColor, // отправлено — приглушённая ✓
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -875,4 +1080,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+}
+
+/// Элемент-разделитель: заголовок даты в ленте чата.
+class _DateHeader {
+  final DateTime day;
+  const _DateHeader(this.day);
+}
+
+/// Элемент-разделитель: маркер «Новые сообщения».
+class _UnreadMarker {
+  const _UnreadMarker();
 }

@@ -849,6 +849,10 @@ abstract class AppStrings {
   String get chatSave;
   String chatNotifTitle(String name);
   String chatDeleteConfirm(String text);
+  /// Разделитель непрочитанных в чате (как в Telegram).
+  String get chatNewMessages;
+  /// Заголовок-разделитель по дате в чате: «Сегодня»/«Вчера»/«5 июня».
+  String chatDateHeader(DateTime day);
   String get chatBgTitle;
   String get chatBgSet;
   String get chatBgChange;
@@ -2503,6 +2507,23 @@ class _RuStrings extends AppStrings {
   String get chatSave => 'Сохранить';
   @override
   String chatNotifTitle(String name) => '$name пишет вам 💬';
+  @override
+  String get chatNewMessages => 'Новые сообщения';
+  @override
+  String chatDateHeader(DateTime day) {
+    final now = DateTime.now();
+    final d0 = DateTime(day.year, day.month, day.day);
+    final diff = DateTime(now.year, now.month, now.day).difference(d0).inDays;
+    if (diff == 0) return 'Сегодня';
+    if (diff == 1) return 'Вчера';
+    const months = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+    ];
+    final base = '${day.day} ${months[day.month - 1]}';
+    return day.year == now.year ? base : '$base ${day.year}';
+  }
+
   @override
   String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
   @override
@@ -4165,6 +4186,23 @@ class _EnStrings extends AppStrings {
   String get chatSave => 'Save';
   @override
   String chatNotifTitle(String name) => '$name messages you 💬';
+  @override
+  String get chatNewMessages => 'New messages';
+  @override
+  String chatDateHeader(DateTime day) {
+    final now = DateTime.now();
+    final d0 = DateTime(day.year, day.month, day.day);
+    final diff = DateTime(now.year, now.month, now.day).difference(d0).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final base = '${months[day.month - 1]} ${day.day}';
+    return day.year == now.year ? base : '$base, ${day.year}';
+  }
+
   @override
   String chatDeleteConfirm(String text) => 'Delete this message?';
   @override
