@@ -1771,13 +1771,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── User location ───────────────────────────────────────────────────────────
 
-  /// Fetch user location for distance calculation on photo cards
+  /// Fetch user location for distance calculation on photo cards.
+  /// На входе в приложение разрешение НЕ запрашиваем — только используем уже
+  /// выданное. Иначе пользователю, который отказал, диалог геолокации всплывал
+  /// бы на каждом запуске. Сам запрос остаётся в контекстных экранах (добавление
+  /// воспоминания с локацией, выбор точки на карте), где он уместен.
   Future<void> _fetchUserLocation() async {
     try {
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
+      final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.always ||
           perm == LocationPermission.whileInUse) {
         final pos = await Geolocator.getCurrentPosition(

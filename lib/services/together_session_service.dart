@@ -144,9 +144,24 @@ class TogetherSessionService {
     presence.onDisconnect().remove();
   }
 
+  /// Регистрирует текущего пользователя в members сеанса — нужно для
+  /// security-rules RTDB (читать/писать может только участник, как в чате пары).
+  /// Каждый клиент пишет СВОЁ членство сам, а не полагается на хоста: иначе при
+  /// правиле «$uid === auth.uid» на members запись партнёра хостом отклоняется,
+  /// и у гостя молча не проходят ни презенс, ни сообщения. Идемпотентно.
+  Future<void> ensureMember(String pairId) async {
+    if (pairId.isEmpty || _uid.isEmpty) return;
+    try {
+      await _sessionRef(pairId).child('members').child(_uid).set(true);
+    } catch (e) {
+      debugPrint('TogetherSessionService.ensureMember failed: $e');
+    }
+  }
+
   /// Присоединиться (вызывает приглашённый партнёр) — отмечает презенс.
   Future<void> joinPresence(String pairId) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
+    await ensureMember(pairId);
     final presence = _sessionRef(pairId).child('presence').child(_uid);
     await presence.set(true);
     presence.onDisconnect().remove();
@@ -209,6 +224,7 @@ class TogetherSessionService {
     final t = text.trim();
     if (t.isEmpty || pairId.isEmpty || _uid.isEmpty) return;
     try {
+      await ensureMember(pairId);
       await _chatRef(pairId).push().set({
         'uid': _uid,
         'name': _fb.displayName,
