@@ -761,6 +761,11 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callGrantMemoryReward() =>
       _callCoinFn('grantMemoryReward');
 
+  /// Начисляет награду за rewarded-видео Яндекса (у которого нет Google-SSV).
+  /// Сервер enforce'ит дневной лимит; счётчик общий с AdMob-SSV.
+  Future<Map<String, dynamic>?> callGrantAdReward() =>
+      _callCoinFn('grantAdReward');
+
   Future<Map<String, dynamic>?> callGrantPartnerInviteReward() =>
       _callCoinFn('grantPartnerInviteReward');
 

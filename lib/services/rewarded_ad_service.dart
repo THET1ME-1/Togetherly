@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
+import 'firebase_service.dart';
+
 /// Загрузка и показ rewarded-видео по схеме «водопад»: сначала AdMob, и если
 /// у Google нет рекламы ([onAdFailedToLoad]) — резерв из Яндекса.
 ///
@@ -156,7 +158,18 @@ class RewardedAdService {
     );
     await ad.show();
     final reward = await ad.waitForDismiss();
-    return earned || reward != null;
+    final didEarn = earned || reward != null;
+    // У Яндекса нет Google-SSV, поэтому начисляем награду серверным callable
+    // (авторитетно, с дневным лимитом). Делаем это здесь, чтобы оба вызывающих
+    // экрана получили коины без изменений в их коде.
+    if (didEarn) {
+      try {
+        await FirebaseService().callGrantAdReward();
+      } catch (e) {
+        debugPrint('grantAdReward (Yandex) failed: $e');
+      }
+    }
+    return didEarn;
   }
 
   void dispose() {
