@@ -77,7 +77,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/emoji/
     - assets/images/new emodji/
     - assets/images/widget/
     - assets/images/mascots/

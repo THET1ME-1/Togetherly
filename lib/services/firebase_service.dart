@@ -232,6 +232,12 @@ class FirebaseService {
   static bool _localNotificationsInitialized = false;
   static const String _kChannelId = 'miss_you';
   static const String _kChannelName = 'Скучаю';
+
+  /// groupId чата, открытого прямо сейчас на экране (или null). Пока пользователь
+  /// смотрит этот чат, foreground-уведомление о новом сообщении не показываем —
+  /// он его и так видит. В фоновом изолите это поле всегда null, поэтому
+  /// фоновые пуши не подавляются.
+  static String? activeChatGroupId;
   // ─────────────────────────────────────────────
 
   /// Инициализация FCM: запрашиваем разрешение и сохраняем токен.
@@ -401,11 +407,19 @@ class FirebaseService {
         );
         return false;
       }
-      if (type == 'chat' && !(prefs.getBool(_kNotifChat) ?? true)) {
-        debugPrint(
-          'FCM foreground: chat notification suppressed by user prefs',
-        );
-        return false;
+      if (type == 'chat') {
+        // Пользователь уже открыл именно этот чат — не дублируем уведомление.
+        if (activeChatGroupId != null &&
+            message.data['groupId'] == activeChatGroupId) {
+          debugPrint('FCM foreground: chat open, notification suppressed');
+          return false;
+        }
+        if (!(prefs.getBool(_kNotifChat) ?? true)) {
+          debugPrint(
+            'FCM foreground: chat notification suppressed by user prefs',
+          );
+          return false;
+        }
       }
     } catch (e) {
       debugPrint('FCM foreground pref check failed: \$e');

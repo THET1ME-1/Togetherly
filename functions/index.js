@@ -1472,7 +1472,15 @@ exports.modBrowseMemories = onRequest(
       return;
     }
 
-    const prefix = groupId ? `memories/${groupId}/` : "memories/";
+    // Область просмотра: memories (по умолчанию), widget (фото для домашних
+    // виджетов, лежат в Storage под widget/{groupId}/) или all (обе сразу).
+    const area = String((req.query && req.query.area) || "memories").trim();
+    const bases =
+      area === "widget" ? ["widget/"] :
+      area === "all" ? ["memories/", "widget/"] :
+      ["memories/"];
+    const sub = groupId ? `${groupId}/` : "";
+
     const max = Math.min(Number(req.query && req.query.max) || 60, 200);
     const offset = Math.max(Number(req.query && req.query.offset) || 0, 0);
     const sort = String((req.query && req.query.sort) || "newest");
@@ -1480,7 +1488,12 @@ exports.modBrowseMemories = onRequest(
     try {
       const bucket = getStorage().bucket();
       // autoPaginate: true (по умолчанию) проходит все страницы списка сам.
-      const [files] = await bucket.getFiles({ prefix });
+      // Для area=all объединяем файлы из нескольких префиксов.
+      let files = [];
+      for (const base of bases) {
+        const [chunk] = await bucket.getFiles({ prefix: base + sub });
+        files = files.concat(chunk);
+      }
 
       // Оставляем только фото/видео и собираем лёгкие метаданные (без подписи).
       const all = [];
@@ -1521,6 +1534,7 @@ exports.modBrowseMemories = onRequest(
         });
         items.push({
           path: e.name,
+          area: parts[0] || "",
           groupId: parts[1] || "",
           name: parts[parts.length - 1],
           kind: e.kind,
