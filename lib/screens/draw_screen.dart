@@ -1085,41 +1085,87 @@ class _DrawScreenState extends State<DrawScreen>
       _selectedImageId = id;
       _activeTool = DrawTool.image;
     });
-    _submitStroke(stroke);
 
-    if (_hasSharedCanvas) {
-      unawaited(_uploadImageAsync(id, xFile.path));
+    if (!_hasSharedCanvas) {
+      // Соло-холст: локальный file:// путь рисует только это устройство — ок.
+      _submitStroke(stroke);
+      return;
     }
+
+    // Общий холст: показываем картинку себе сразу (file://), но в Firestore
+    // локальный путь НЕ пишем — партнёр его не откроет. Сначала грузим файл в
+    // Storage и только с готовым сетевым URL коммитим штрих, чтобы партнёр тоже
+    // увидел картинку, а не «битый файл».
+    setState(() {
+      _pendingLocalStrokes[id] = stroke;
+      _visibleStrokes = _composeVisibleStrokes();
+    });
+    _myStrokeIds.add(id);
+    unawaited(_uploadImageAsync(id, xFile.path));
   }
 
   Future<void> _uploadImageAsync(String localStrokeId, String localPath) async {
     final ext = localPath.split('.').last.toLowerCase();
-    final dest = 'canvas/${_groupId}/$_canvasId/$localStrokeId.$ext';
+    final dest = 'canvas/$_groupId/$_canvasId/$localStrokeId.$ext';
     final url = await _fb.uploadFile(localPath, dest);
-    if (url == null || !mounted) return;
+    if (!mounted) return;
 
-    // Find stroke by local ID or by local URL (in case ID was replaced by remote)
-    final localUrl = 'file://$localPath';
-    DrawStroke? current = _findImageById(localStrokeId);
-    current ??= _visibleStrokes
-        .where((s) => s.isImageStroke && s.imageUrl == localUrl)
-        .firstOrNull;
-    if (current == null) return;
+    // Штрих могли отменить/удалить, пока шла загрузка — тогда ничего не коммитим.
+    final pending = _pendingLocalStrokes[localStrokeId];
+    if (pending == null) return;
 
-    _applyImageUpdate(_copyImageStroke(current, url: url));
-
-    // Sync URL to Firestore if already confirmed as a remote stroke
-    final updated = _findImageById(current.id);
-    if (updated != null && _remoteStrokes.any((s) => s.id == current!.id)) {
-      unawaited(
-        _fb.updateDrawingStroke(
-          groupId: _groupId,
-          strokeId: current.id,
-          updates: {'imageUrl': url},
-          canvasId: _canvasId,
-        ),
-      );
+    if (url == null) {
+      // Загрузка не удалась — убираем оптимистичный штрих и историю undo.
+      debugPrint('[Draw] image upload failed, dropping stroke $localStrokeId');
+      _cancelledPendingStrokeIds.remove(localStrokeId);
+      _myStrokeIds.remove(localStrokeId);
+      setState(() {
+        _pendingLocalStrokes.remove(localStrokeId);
+        if (_selectedImageId == localStrokeId) _selectedImageId = null;
+        _visibleStrokes = _composeVisibleStrokes();
+      });
+      return;
     }
+
+    // Подменяем file:// на сетевой URL (берём актуальный pending — вдруг штрих
+    // двигали во время загрузки) и коммитим штрих в Firestore уже с ним.
+    final networked = _copyImageStroke(pending, url: url);
+    setState(() {
+      _pendingLocalStrokes[localStrokeId] = networked;
+      _visibleStrokes = _composeVisibleStrokes();
+    });
+    _commitImageStroke(localStrokeId, networked);
+  }
+
+  /// Записать картинку-штрих в Firestore (с уже сетевым URL). Повторяет логику
+  /// сверки optimistic-штриха из [_submitStroke]: при ошибке откатывает локально,
+  /// при отмене во время записи — удаляет уже созданный документ.
+  void _commitImageStroke(String localId, DrawStroke stroke) {
+    _fb
+        .addDrawingStroke(
+          groupId: _groupId,
+          strokeData: stroke.toFirestore(),
+          canvasId: _canvasId,
+        )
+        .then((remoteId) async {
+          if (remoteId.isEmpty) throw Exception('Empty stroke id');
+          if (_cancelledPendingStrokeIds.remove(localId)) {
+            await _fb.deleteDrawingStroke(
+              groupId: _groupId,
+              strokeId: remoteId,
+              canvasId: _canvasId,
+            );
+          }
+        })
+        .catchError((e) {
+          debugPrint('[Draw] image commit error: $e');
+          if (!mounted) return;
+          _myStrokeIds.remove(localId);
+          setState(() {
+            _pendingLocalStrokes.remove(localId);
+            _visibleStrokes = _composeVisibleStrokes();
+          });
+        });
   }
 
   //  Commit stroke

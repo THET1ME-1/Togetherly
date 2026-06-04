@@ -66,6 +66,14 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   int _lastPosMs = 0;
   bool _ended = false;
 
+  // Последнее ПРИМЕНЁННОЕ действие партнёра (seq + кто его сделал). pushAction
+  // всегда инкрементит seq, а правки presence/chat — нет. Поэтому если seq и
+  // контроллер не изменились, пришедший onValue — это всего лишь обновление
+  // презенса/чата в том же узле, и трогать плеер не нужно (иначе сообщения в
+  // чате вызывают микро-перемотки видео).
+  int _lastRemoteSeq = -1;
+  String _lastRemoteController = '';
+
   /// YouTube вернул ошибку встраивания (101/150 — владелец запретил
   /// воспроизведение вне youtube.com). Такое видео не проиграть нигде, кроме
   /// сайта/приложения YouTube — показываем понятное сообщение.
@@ -144,6 +152,15 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       return;
     }
 
+    // Тот же seq и контроллер, что уже применяли → это правка presence/chat в
+    // том же узле, а не новое действие плеера. Не пере-якорим и не дёргаем плеер.
+    if (state.seq == _lastRemoteSeq &&
+        state.controllerUid == _lastRemoteController) {
+      return;
+    }
+    _lastRemoteSeq = state.seq;
+    _lastRemoteController = state.controllerUid;
+
     // Удалённое состояние пришло от партнёра → ведущий теперь он.
     _iAmController = false;
 
@@ -202,6 +219,14 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     if (embedBlocked != _embedError && mounted) {
       setState(() => _embedError = embedBlocked);
     }
+
+    // Во время буферизации/догрузки YouTube кратко отдаёт isPlaying=false и
+    // прыгающую позицию — это НЕ действие пользователя. Реагируем только на
+    // устойчивые playing/paused, иначе у партнёра видео дёргается (стоп-старт
+    // «играет секунду — встало»). Базовые значения тоже не сдвигаем, чтобы
+    // реальный seek, случившийся вокруг буфера, не потерялся.
+    final st = v.playerState;
+    if (st != PlayerState.playing && st != PlayerState.paused) return;
 
     final posMs = v.position.inMilliseconds;
     final playing = v.isPlaying;
@@ -307,8 +332,10 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     super.dispose();
   }
 
-  bool get _partnerHere =>
-      widget.partnerUid.isNotEmpty && _present.contains(widget.partnerUid);
+  // Сеанс всегда 1-на-1, поэтому «партнёр на месте» = в презенсе есть любой
+  // uid, кроме моего. Не завязываемся на конкретный widget.partnerUid: он может
+  // прийти пустым/неверным, и тогда висело бы «ожидаем партнёра», хотя оба тут.
+  bool get _partnerHere => _present.any((u) => u.isNotEmpty && u != _uid);
 
   void _setVolume(int v) {
     setState(() {
