@@ -11,14 +11,32 @@ import 'widget_service.dart';
 class MoodService extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService();
 
-  /// Окно live-слушателя mood-истории. Покрывает все горячие пути
-  /// (home, mini-calendar, mood-виджет, year-view текущего года и streak до
-  /// 365 дней), но обрезает бесконечный рост чтений у долгосрочных пар.
-  /// Записи старше окна догружаются по требованию в mood_calendar_screen.
+  /// Окно истории/миграции. Покрывает горячие пути (home, mini-calendar,
+  /// mood-виджет, year-view текущего/прошлого года и streak до 365 дней).
+  /// Ограничивает объём разовых чтений (история + legacy-fallback + миграция).
   static const Duration _listenWindow = Duration(days: 400);
+
+  /// Сколько month-документов истории грузим разово (≈ окно в месяцах + запас).
+  static const int _historyMonths = 14;
+
+  /// Префикс ключа SharedPreferences «свои данные мигрированы в month-доки».
+  static const String _migratedPrefix = 'mood_migrated_v2_';
 
   DateTime get _listenSince =>
       DateTime.now().subtract(_listenWindow);
+
+  String _monthKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}';
+
+  Map<String, MoodEntry> _toById(List<Map<String, dynamic>> raw) {
+    final m = <String, MoodEntry>{};
+    for (final r in raw) {
+      final e = MoodEntry.fromFirestore(r);
+      if (e.id.isNotEmpty) m[e.id] = e;
+    }
+    return m;
+  }
 
   String _groupId = '';
   String get groupId => _groupId;
@@ -68,17 +86,54 @@ class MoodService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Мои записи настроений
+  /// Мои записи настроений (плоский отсортированный список — публичный API).
   List<MoodEntry> _myEntries = [];
   List<MoodEntry> get myEntries => List.unmodifiable(_myEntries);
 
-  /// Записи партнёров: uid → entries
+  /// Записи партнёров: uid → entries (плоский список).
   final Map<String, List<MoodEntry>> _partnerEntries = {};
   List<MoodEntry> partnerEntries(String uid) =>
       List.unmodifiable(_partnerEntries[uid] ?? []);
 
-  StreamSubscription? _myMoodSub;
-  final Map<String, StreamSubscription?> _partnerMoodSubs = {};
+  // ── Источники моих записей (склеиваются с дедупом по id в _rebuildMine) ──
+  // _myHistory — старые месяцы (разовая cache-first загрузка month-доков),
+  // _myLiveMonth — текущий месяц (live-подписка на 1 документ → real-time).
+  Map<String, MoodEntry> _myLegacy = {};
+  Map<String, MoodEntry> _myHistory = {};
+  Map<String, MoodEntry> _myLiveMonth = {};
+  StreamSubscription? _myMonthSub;
+
+  // ── Источники записей партнёра (по uid) ──
+  // _partnerLegacy — fallback для НЕ мигрированного партнёра (v1-записи),
+  // _partnerHistory — month-доки истории, _partnerLiveMonth — текущий месяц live.
+  final Map<String, Map<String, MoodEntry>> _partnerLegacy = {};
+  final Map<String, Map<String, MoodEntry>> _partnerHistory = {};
+  final Map<String, Map<String, MoodEntry>> _partnerLiveMonth = {};
+  final Map<String, StreamSubscription?> _partnerMonthSubs = {};
+
+  Timer? _rolloverTimer;
+
+  /// Пересобрать мой плоский список из источников (дедуп по id, live > history).
+  void _rebuildMine() {
+    final m = <String, MoodEntry>{}
+      ..addAll(_myLegacy)
+      ..addAll(_myHistory)
+      ..addAll(_myLiveMonth);
+    _myEntries = m.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    notifyListeners();
+  }
+
+  /// Пересобрать список партнёра (дедуп по id, live > history > legacy).
+  void _rebuildPartner(String uid) {
+    final m = <String, MoodEntry>{}
+      ..addAll(_partnerLegacy[uid] ?? const {})
+      ..addAll(_partnerHistory[uid] ?? const {})
+      ..addAll(_partnerLiveMonth[uid] ?? const {});
+    _partnerEntries[uid] = m.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    notifyListeners();
+  }
 
   // ── Единый источник правды для «сегодняшнего» настроения ─────────────────
   // Все UI (home_header, mini_mood_calendar, mood_calendar_screen, widget_screen)
@@ -109,55 +164,148 @@ class MoodService extends ChangeNotifier {
     _startListening();
   }
 
-  /// Начать слушать мои записи.
-  void _startListening() {
-    _myMoodSub?.cancel();
+  /// Однократно мигрировать СВОИ legacy-записи в month-доки (под prefs-флагом,
+  /// идемпотентно). Партнёрские мигрировать нельзя (правила: пишем только своё).
+  Future<void> _ensureMigrated(String uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = '$_migratedPrefix${_groupId}_$uid';
+      if (prefs.getBool(key) == true) return;
+      final ok = await _fb.migrateMoodToMonthly(
+        groupId: _groupId,
+        uid: uid,
+        since: _listenSince,
+      );
+      if (ok) await prefs.setBool(key, true);
+    } catch (_) {}
+  }
+
+  /// Начать слушать мои записи: миграция → история (cache-first) → live текущий
+  /// месяц (1 документ). Без always-on слушателя всей коллекции.
+  Future<void> _startListening() async {
+    _myMonthSub?.cancel();
+    _myMonthSub = null;
     final uid = _fb.uid;
     if (_groupId.isEmpty || uid == null) return;
+    final boundGroup = _groupId;
 
-    _myMoodSub = _fb.listenToMoodEntries(
+    // Legacy свои (cache-first, ≈0 серверных чтений) — страховка, пока миграция
+    // не прошла (напр. первый запуск после апдейта в оффлайне). После миграции
+    // дублируется с month-доками, дедуп по id в _rebuildMine убирает дубли.
+    final myLegacy = await _fb.loadLegacyMoodEntries(
       groupId: _groupId,
       uid: uid,
       since: _listenSince,
-      onData: (entries) {
-        _myEntries = entries.map((e) => MoodEntry.fromFirestore(e)).toList();
-        _myEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        notifyListeners();
+    );
+    if (_groupId != boundGroup) return;
+    _myLegacy = _toById(myLegacy);
+    _rebuildMine();
+
+    await _ensureMigrated(uid);
+    if (_groupId != boundGroup) return;
+
+    final hist = await _fb.loadMoodMonths(
+      groupId: _groupId,
+      uid: uid,
+      months: _historyMonths,
+    );
+    if (_groupId != boundGroup) return;
+    _myHistory = _toById(hist);
+    _rebuildMine();
+
+    _myMonthSub = _fb.listenMoodMonth(
+      groupId: _groupId,
+      uid: uid,
+      monthKey: _monthKey(DateTime.now()),
+      onData: (raw) {
+        _myLiveMonth = _toById(raw);
+        _rebuildMine();
       },
     );
+    _scheduleRollover();
   }
 
-  /// Подписаться на записи конкретного партнёра.
-  void listenToPartner(String partnerUid) {
+  /// Подписаться на записи конкретного партнёра: история (cache-first) +
+  /// legacy-fallback (если партнёр ещё не мигрировал) + live текущий месяц.
+  Future<void> listenToPartner(String partnerUid) async {
     if (_groupId.isEmpty) return;
-    _partnerMoodSubs[partnerUid]?.cancel();
-    _partnerEntries.remove(partnerUid);
-    _partnerMoodSubs[partnerUid] = _fb.listenToMoodEntries(
+    _partnerMonthSubs[partnerUid]?.cancel();
+    _partnerMonthSubs[partnerUid] = null;
+    final boundGroup = _groupId;
+
+    final hist = await _fb.loadMoodMonths(
+      groupId: _groupId,
+      uid: partnerUid,
+      months: _historyMonths,
+    );
+    if (_groupId != boundGroup) return;
+    _partnerHistory[partnerUid] = _toById(hist);
+
+    // Fallback: партнёр на старой версии пишет в v1 — подхватываем его историю
+    // окна разово (cache-first). После миграции партнёра данные продублируются
+    // в month-доках, но дедуп по id в _rebuildPartner убирает дубли.
+    final legacy = await _fb.loadLegacyMoodEntries(
       groupId: _groupId,
       uid: partnerUid,
       since: _listenSince,
-      onData: (entries) {
-        _partnerEntries[partnerUid] = entries
-            .map((e) => MoodEntry.fromFirestore(e))
-            .toList();
-        _partnerEntries[partnerUid]!.sort(
-          (a, b) => b.timestamp.compareTo(a.timestamp),
-        );
-        notifyListeners();
+    );
+    if (_groupId != boundGroup) return;
+    _partnerLegacy[partnerUid] = _toById(legacy);
+    _rebuildPartner(partnerUid);
+
+    _partnerMonthSubs[partnerUid] = _fb.listenMoodMonth(
+      groupId: _groupId,
+      uid: partnerUid,
+      monthKey: _monthKey(DateTime.now()),
+      onData: (raw) {
+        _partnerLiveMonth[partnerUid] = _toById(raw);
+        _rebuildPartner(partnerUid);
       },
     );
   }
 
+  /// В полночь 1-го числа текущий месяц «застывает» в историю, а live-подписка
+  /// переезжает на новый месяц — иначе после смены месяца настроения дня
+  /// перестали бы обновляться.
+  void _scheduleRollover() {
+    _rolloverTimer?.cancel();
+    final now = DateTime.now();
+    final nextMonth = now.month == 12
+        ? DateTime(now.year + 1, 1, 1)
+        : DateTime(now.year, now.month + 1, 1);
+    final dur = nextMonth.difference(now) + const Duration(seconds: 5);
+    _rolloverTimer = Timer(dur, () {
+      if (_groupId.isEmpty) return;
+      // Перенести «живой» месяц в историю и переподписаться на новый.
+      _myHistory.addAll(_myLiveMonth);
+      _myLiveMonth = {};
+      _startListening();
+      for (final p in _partnerMonthSubs.keys.toList()) {
+        _partnerHistory.putIfAbsent(p, () => {}).addAll(_partnerLiveMonth[p] ?? const {});
+        _partnerLiveMonth[p] = {};
+        listenToPartner(p);
+      }
+    });
+  }
+
   void unbindFromGroup({bool notify = true}) {
-    _myMoodSub?.cancel();
-    _myMoodSub = null;
-    for (final sub in _partnerMoodSubs.values) {
+    _myMonthSub?.cancel();
+    _myMonthSub = null;
+    _rolloverTimer?.cancel();
+    _rolloverTimer = null;
+    for (final sub in _partnerMonthSubs.values) {
       sub?.cancel();
     }
-    _partnerMoodSubs.clear();
+    _partnerMonthSubs.clear();
     _groupId = '';
     _myEntries = [];
+    _myLegacy = {};
+    _myHistory = {};
+    _myLiveMonth = {};
     _partnerEntries.clear();
+    _partnerLegacy.clear();
+    _partnerHistory.clear();
+    _partnerLiveMonth.clear();
     if (notify) {
       notifyListeners();
     }
@@ -216,7 +364,8 @@ class MoodService extends ChangeNotifier {
       final existing = myEntriesForDay(today);
       await Future.wait(
         existing
-            .map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+            .map((e) => _fb.deleteMoodEntry(
+                groupId: _groupId, entryId: e.id, timestamp: e.timestamp)),
       );
     }
 
@@ -255,7 +404,8 @@ class MoodService extends ChangeNotifier {
       final existing = myEntriesForDay(date);
       await Future.wait(
         existing
-            .map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
+            .map((e) => _fb.deleteMoodEntry(
+                groupId: _groupId, entryId: e.id, timestamp: e.timestamp)),
       );
     }
     await addMood(
@@ -300,7 +450,15 @@ class MoodService extends ChangeNotifier {
   /// Удалить запись настроения.
   Future<void> deleteMoodEntry(String entryId) async {
     if (_groupId.isEmpty) return;
-    await _fb.deleteMoodEntry(groupId: _groupId, entryId: entryId);
+    DateTime? ts;
+    for (final e in _myEntries) {
+      if (e.id == entryId) {
+        ts = e.timestamp;
+        break;
+      }
+    }
+    await _fb.deleteMoodEntry(
+        groupId: _groupId, entryId: entryId, timestamp: ts);
   }
 
   /// Получить записи за конкретный день (мои).

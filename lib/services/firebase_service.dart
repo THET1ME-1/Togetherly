@@ -3292,83 +3292,214 @@ class FirebaseService {
 
   // ══════════════════════════════════════════════
   //  MOOD CALENDAR
-  //  Firestore: groups/{groupId}/moodCalendar/{uid}/entries/{entryId}
+  //  Firestore (v2): groups/{groupId}/moodCalendar/{uid}/months/{YYYY-MM}
+  //    { entries: { <entryId>: {...entry...}, ... }, updatedAt }
+  //  Все записи месяца лежат в ОДНОМ документе (map по entryId) — чтение
+  //  истории = N документов-месяцев вместо сотен/тысяч отдельных записей.
+  //  Legacy (v1): .../moodCalendar/{uid}/entries/{entryId} — по одной записи
+  //  на документ. Остаётся для чтения у не-мигрированных пользователей
+  //  (партнёр на старой версии) и как источник для миграции своих данных.
   // ══════════════════════════════════════════════
 
-  /// Add a mood entry for the current user
+  String _moodMonthKey(DateTime ts) =>
+      '${ts.year.toString().padLeft(4, '0')}-'
+      '${ts.month.toString().padLeft(2, '0')}';
+
+  CollectionReference<Map<String, dynamic>> _moodMonthsCol(
+          String groupId, String uid) =>
+      _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('moodCalendar')
+          .doc(uid)
+          .collection('months');
+
+  CollectionReference<Map<String, dynamic>> _moodEntriesCol(
+          String groupId, String uid) =>
+      _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('moodCalendar')
+          .doc(uid)
+          .collection('entries');
+
+  List<Map<String, dynamic>> _entriesFromMonthDoc(
+      Map<String, dynamic>? data) {
+    final map = data?['entries'];
+    if (map is! Map) return const [];
+    return map.values
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// Add a mood entry for the current user (пишет в month-документ).
   Future<void> addMoodEntry({
     required String groupId,
     required Map<String, dynamic> entry,
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
+    final id = entry['id'] as String?;
+    final ts = (entry['timestamp'] as Timestamp?)?.toDate();
+    if (id == null || ts == null) return;
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('moodCalendar')
-          .doc(u.uid)
-          .collection('entries')
-          .doc(entry['id'] as String)
-          .set(entry);
+      // merge:true сохраняет остальные записи месяца — дописываем только свою.
+      await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).set({
+        'entries': {id: entry},
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('addMoodEntry failed: $e');
     }
   }
 
-  /// Delete a mood entry
+  /// Delete a mood entry. [timestamp] нужен для адресации month-документа;
+  /// если не передан — выводим месяц из id (`<uid>_<millis>`).
   Future<void> deleteMoodEntry({
     required String groupId,
     required String entryId,
+    DateTime? timestamp,
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
+    var ts = timestamp;
+    if (ts == null) {
+      final ms = int.tryParse(entryId.split('_').last);
+      if (ms != null) ts = DateTime.fromMillisecondsSinceEpoch(ms);
+    }
+    if (ts == null) {
+      debugPrint('deleteMoodEntry: cannot resolve month for $entryId');
+      return;
+    }
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('moodCalendar')
-          .doc(u.uid)
-          .collection('entries')
-          .doc(entryId)
-          .delete();
+      // entryId = `<uid>_<millis>` — без точек/слэшей, безопасно как field-path.
+      await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).update({
+        'entries.$entryId': FieldValue.delete(),
+      });
     } catch (e) {
       debugPrint('deleteMoodEntry failed: $e');
     }
   }
 
-  /// Listen to mood entries for a specific user in real-time
-  StreamSubscription? listenToMoodEntries({
+  /// Live-слушатель ОДНОГО месяца (обычно текущего) — 1 документ.
+  /// Срабатывает на каждое изменение настроений месяца → real-time для партнёра.
+  StreamSubscription? listenMoodMonth({
     required String groupId,
     required String uid,
+    required String monthKey,
     required void Function(List<Map<String, dynamic>> entries) onData,
-    DateTime? since,
   }) {
-    // Раньше слушатель тянул ВСЮ историю настроений (без лимита), причём дважды
-    // на каждого пользователя — свои + записи партнёра. На каждом холодном старте
-    // новый listener-объект не имеет resume-token → Firestore перечитывает всю
-    // историю с сервера. У долгосрочных пар это сотни чтений за один запуск.
-    // Окно [since] ограничивает live-слушатель недавним диапазоном; старые записи
-    // вне окна догружаются одноразовым get() по требованию (см. loadMoodEntries).
-    Query<Map<String, dynamic>> query = _db
-        .collection('groups')
-        .doc(groupId)
-        .collection('moodCalendar')
-        .doc(uid)
-        .collection('entries')
-        .orderBy('timestamp', descending: true);
-    if (since != null) {
-      query = query.where(
-        'timestamp',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(since),
-      );
+    return _moodMonthsCol(groupId, uid).doc(monthKey).snapshots().listen(
+      (snap) => onData(_entriesFromMonthDoc(snap.data())),
+      onError: (e) => debugPrint('listenMoodMonth error: $e'),
+    );
+  }
+
+  /// Разовая загрузка истории: последние [months] month-документов.
+  /// cacheFirst → сначала из локального кэша persistence (0 серверных чтений);
+  /// при пустом кэше падаем на сервер.
+  Future<List<Map<String, dynamic>>> loadMoodMonths({
+    required String groupId,
+    required String uid,
+    int months = 14,
+    bool cacheFirst = true,
+  }) async {
+    // Диапазон по documentId вместо orderBy(__name__, desc)+limit: убывающая
+    // сортировка по имени документа требует составного индекса, а инеравенство
+    // по __name__ индексируется автоматически. Ключи YYYY-MM лексикографически
+    // совпадают с хронологией, поэтому `>= cutoff` = последние [months] месяцев.
+    final now = DateTime.now();
+    final cutoff = _moodMonthKey(DateTime(now.year, now.month - (months - 1), 1));
+    final q = _moodMonthsCol(groupId, uid)
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: cutoff);
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      if (cacheFirst) {
+        snap = await q.get(const GetOptions(source: Source.cache));
+        if (snap.docs.isEmpty) snap = await q.get();
+      } else {
+        snap = await q.get();
+      }
+    } catch (_) {
+      try {
+        snap = await q.get();
+      } catch (e) {
+        debugPrint('loadMoodMonths failed: $e');
+        return const [];
+      }
     }
-    return query
-        .snapshots()
-        .listen((snap) {
-          final entries = snap.docs.map((d) => d.data()).toList();
-          onData(entries);
-        }, onError: (e) => debugPrint('listenToMoodEntries error: $e'));
+    final out = <Map<String, dynamic>>[];
+    for (final d in snap.docs) {
+      out.addAll(_entriesFromMonthDoc(d.data()));
+    }
+    return out;
+  }
+
+  /// Разовая загрузка LEGACY-записей в окне [since] (cache-first). Нужна как
+  /// fallback для партнёра, который ещё не мигрировал (его записи в v1).
+  Future<List<Map<String, dynamic>>> loadLegacyMoodEntries({
+    required String groupId,
+    required String uid,
+    required DateTime since,
+    bool cacheFirst = true,
+  }) async {
+    final q = _moodEntriesCol(groupId, uid)
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since));
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      if (cacheFirst) {
+        snap = await q.get(const GetOptions(source: Source.cache));
+        if (snap.docs.isEmpty) snap = await q.get();
+      } else {
+        snap = await q.get();
+      }
+    } catch (_) {
+      try {
+        snap = await q.get();
+      } catch (e) {
+        debugPrint('loadLegacyMoodEntries failed: $e');
+        return const [];
+      }
+    }
+    return snap.docs.map((d) => d.data()).toList();
+  }
+
+  /// Однократная миграция СВОИХ legacy-записей (v1 → month-документы).
+  /// Идемпотентна (entryId как ключ map). Окно [since] ограничивает объём
+  /// разового чтения. Возвращает true при успехе (в т.ч. если мигрировать
+  /// нечего). Партнёрские данные мигрировать нельзя (правила: пишем только своё).
+  Future<bool> migrateMoodToMonthly({
+    required String groupId,
+    required String uid,
+    required DateTime since,
+  }) async {
+    try {
+      final snap = await _moodEntriesCol(groupId, uid)
+          .where('timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+          .get();
+      if (snap.docs.isEmpty) return true;
+      final byMonth = <String, Map<String, dynamic>>{};
+      for (final d in snap.docs) {
+        final data = d.data();
+        final ts = (data['timestamp'] as Timestamp?)?.toDate();
+        if (ts == null) continue;
+        (byMonth[_moodMonthKey(ts)] ??= {})[d.id] = data;
+      }
+      final batch = _db.batch();
+      byMonth.forEach((monthKey, entries) {
+        batch.set(_moodMonthsCol(groupId, uid).doc(monthKey), {
+          'entries': entries,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('migrateMoodToMonthly failed: $e');
+      return false;
+    }
   }
 
   // ══════════════════════════════════════════════
