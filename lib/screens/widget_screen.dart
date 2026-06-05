@@ -2605,7 +2605,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 child: Text(
                   partnerSharedCount > 0
                       ? 'Этот виджет показывает фото, которыми делится $partnerName ($partnerSharedCount ${_pluralPhotos(partnerSharedCount)}). Менять их может только $partnerName.'
-                      : '$partnerName ещё не выбрал(а) фото для своего «Фото-виджета». Когда фото появятся — они отобразятся автоматически.',
+                      : '$partnerName ещё не поделился(ась) фото. Чтобы они здесь появились, $partnerName нужно открыть «Фото партнёра» и нажать «Выбрать фото для партнёра» — обычный «Фото-виджет» виден только владельцу.',
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade700,
