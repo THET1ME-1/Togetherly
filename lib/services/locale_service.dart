@@ -2098,9 +2098,11 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Добавили в виджете «Дни вместе» возможность заменить системные рисунки на свои аватарки. Цена: 20 монет. В будущем улучшим.\n'
-      '— Исправили работу реал тайм кнопки «Я скучаю».\n'
-      '— Улучшение UI/UX.';
+      '— Улучшили чат: видно даты, статусы отправлено/прочитано.\n'
+      '— Исправили отображение статистики настроения.\n'
+      '— Добавили 13 стилей иконок приложения по цвету тем.\n'
+      '— Исправили несколько багов.\n'
+      '— Добавлен предпросмотр пинов в чате.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3792,9 +3794,11 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Added the option to replace the default drawings with your own avatars in the "Days Together" widget. Price: 20 coins. More improvements to come.\n'
-      '— Fixed the real-time behavior of the "I miss you" button.\n'
-      '— UI/UX improvements.';
+      '— Improved the chat: dates and sent/read statuses are now visible.\n'
+      '— Fixed mood statistics display.\n'
+      '— Added 13 app icon styles matching the theme colors.\n'
+      '— Fixed several bugs.\n'
+      '— Added pin previews in the chat.';
   @override
   String get updateButton => 'Update';
   @override

@@ -15,8 +15,10 @@ class ChatMsg {
   final bool deleted;
 
   /// Прикреплённый пин (воспоминание): id для перехода + заголовок для отрисовки.
+  /// [pinThumb] — URL миниатюры (обложка/кадр/фото), опционально, для предпросмотра.
   final String? pinId;
   final String? pinTitle;
+  final String? pinThumb;
 
   const ChatMsg({
     required this.id,
@@ -28,6 +30,7 @@ class ChatMsg {
     this.deleted = false,
     this.pinId,
     this.pinTitle,
+    this.pinThumb,
   });
 
   bool get isEdited => editedTs != null && !deleted;
@@ -44,6 +47,7 @@ class ChatMsg {
       deleted: (m['deleted'] as bool?) ?? false,
       pinId: m['pinId'] as String?,
       pinTitle: m['pinTitle'] as String?,
+      pinThumb: m['pinThumb'] as String?,
     );
   }
 }

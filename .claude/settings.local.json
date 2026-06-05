@@ -53,7 +53,8 @@
       "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show b6106f9 --stat)",
       "Bash(git -C \"c:/Users/Alex/Documents/GitHub/love_app\" show 508a80b --stat)",
       "PowerShell(Write-Output '--- a34465c in feature/p2p-sync? ---'; git merge-base --is-ancestor a34465c feature/p2p-sync; if \\($?\\) { Write-Output 'YES present' } else { Write-Output 'NO — chat improvements MISSING on p2p branch' }; Write-Output '--- where did p2p fork from main ---'; git merge-base main feature/p2p-sync | ForEach-Object { git log --oneline -1 $_ }; Write-Output '--- p2p branch chat markers present? ---'; git grep -l '_buildItems\\\\|watchReads\\\\|done_all_rounded' feature/p2p-sync -- lib/screens/chat_screen.dart lib/services/chat_service.dart 2>&1)",
-      "PowerShell(Write-Output '--- main ahead of fork \\(commits p2p lacks\\) ---'; \\(git rev-list --count 2b4a25a..main\\); Write-Output '--- p2p ahead of fork ---'; \\(git rev-list --count 2b4a25a..feature/p2p-sync\\); Write-Output '--- key main commits missing from p2p \\(chat/feature\\) ---'; git log --oneline 2b4a25a..main | Select-String -Pattern 'chat|чат|widget|виджет|feat|fix' | Select-Object -First 25)"
+      "PowerShell(Write-Output '--- main ahead of fork \\(commits p2p lacks\\) ---'; \\(git rev-list --count 2b4a25a..main\\); Write-Output '--- p2p ahead of fork ---'; \\(git rev-list --count 2b4a25a..feature/p2p-sync\\); Write-Output '--- key main commits missing from p2p \\(chat/feature\\) ---'; git log --oneline 2b4a25a..main | Select-String -Pattern 'chat|чат|widget|виджет|feat|fix' | Select-Object -First 25)",
+      "PowerShell($out = flutter analyze lib/screens/chat_screen.dart 2>&1; \\($out | Select-String -Pattern \"error -\"\\).Count; $out | Select-Object -Last 1)"
     ]
   }
 }
