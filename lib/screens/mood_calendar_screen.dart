@@ -885,6 +885,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       spots.add(FlSpot(i.toDouble(), dayAvg));
     }
 
+    // Чтобы подписи дат на оси X не наезжали друг на друга, показываем
+    // не больше ~6 равномерно распределённых меток.
+    final labelInterval = (sortedDays.length / 6).ceil().toDouble();
+
     // Determine the text equivalent for the average score
     String avgText = '';
     final numAvg = totalScore / entries.length;
@@ -995,11 +999,16 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 22,
-                            interval: 1,
+                            interval: labelInterval,
                             getTitlesWidget: (value, meta) {
-                              if (value.toInt() >= 0 &&
-                                  value.toInt() < sortedDays.length) {
-                                final date = sortedDays[value.toInt()];
+                              final idx = value.round();
+                              // Рисуем только целочисленные значения, кратные
+                              // интервалу, иначе подписи накладываются.
+                              if (idx >= 0 &&
+                                  idx < sortedDays.length &&
+                                  (value - idx).abs() < 0.01 &&
+                                  idx % labelInterval.toInt() == 0) {
+                                final date = sortedDays[idx];
                                 return Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
                                   child: Text(
