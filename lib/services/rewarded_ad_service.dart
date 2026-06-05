@@ -29,6 +29,21 @@ class RewardedAdService {
   yandex.RewardedAdLoader? _yandexLoader;
   bool _isLoading = false;
 
+  // Фоновый авто-ретрай предзагрузки. Когда обе сети не дали рекламу (частый
+  // транзиентный no-fill), без ретрая реклама остаётся «не готова» до тех пор,
+  // пока юзер не тапнет кнопку — и только этот тап перезапускал загрузку.
+  // Отсюда симптом «первый тап — не готово, второй — работает». Сами
+  // перезапрашиваем каскад с backoff, чтобы ролик дозагрузился, пока юзер ещё
+  // на экране, и тап был мгновенным.
+  static const List<Duration> _retryBackoff = [
+    Duration(seconds: 3),
+    Duration(seconds: 6),
+    Duration(seconds: 12),
+  ];
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  bool _disposed = false;
+
   String get _adUnitId =>
       kDebugMode ? _testRewardedAdUnit : _prodRewardedAdUnit;
 
@@ -46,8 +61,10 @@ class RewardedAdService {
   /// Предзагружает рекламу: сначала AdMob, при неудаче — Яндекс.
   /// Безопасно дёргать несколько раз.
   Future<void> load() async {
+    if (_disposed) return;
     if (_isLoading || isReady) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
+    _retryTimer?.cancel();
     _isLoading = true;
     try {
       await RewardedAd.load(
@@ -57,6 +74,7 @@ class RewardedAdService {
           onAdLoaded: (ad) {
             _ad = ad;
             _isLoading = false;
+            _retryCount = 0; // успех — сбрасываем backoff
           },
           onAdFailedToLoad: (error) {
             debugPrint('AdMob rewarded failed ($error) → Yandex fallback');
@@ -71,18 +89,35 @@ class RewardedAdService {
     }
   }
 
+  /// Планирует фоновую перезагрузку каскада после полного провала обеих сетей.
+  /// Backoff и лимит попыток — чтобы не молотить запросами при оффлайне.
+  void _scheduleRetry() {
+    _isLoading = false;
+    if (_disposed || isReady) return;
+    if (_retryCount >= _retryBackoff.length) return; // лимит исчерпан
+    final delay = _retryBackoff[_retryCount];
+    _retryCount++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (_disposed || isReady) return;
+      load();
+    });
+  }
+
   Future<void> _loadYandex() async {
     try {
       _yandexLoader ??= await yandex.RewardedAdLoader.create(
         onAdLoaded: (ad) {
           _yandexAd = ad;
           _isLoading = false;
+          _retryCount = 0; // успех — сбрасываем backoff
         },
         onAdFailedToLoad: (error) {
           debugPrint(
               'Yandex rewarded failed: ${error.code} ${error.description}');
           _yandexAd = null;
-          _isLoading = false;
+          // Обе сети не дали рекламу → планируем фоновый ретрай каскада.
+          _scheduleRetry();
         },
       );
       await _yandexLoader!.loadAd(
@@ -91,7 +126,7 @@ class RewardedAdService {
       );
     } catch (e) {
       debugPrint('Yandex rewarded load exception: $e');
-      _isLoading = false;
+      _scheduleRetry();
     }
   }
 
@@ -173,6 +208,9 @@ class RewardedAdService {
   }
 
   void dispose() {
+    _disposed = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _ad?.dispose();
     _ad = null;
     _yandexAd = null;
