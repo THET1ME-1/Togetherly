@@ -3405,9 +3405,14 @@ class FirebaseService {
     int months = 14,
     bool cacheFirst = true,
   }) async {
+    // Диапазон по documentId вместо orderBy(__name__, desc)+limit: убывающая
+    // сортировка по имени документа требует составного индекса, а инеравенство
+    // по __name__ индексируется автоматически. Ключи YYYY-MM лексикографически
+    // совпадают с хронологией, поэтому `>= cutoff` = последние [months] месяцев.
+    final now = DateTime.now();
+    final cutoff = _moodMonthKey(DateTime(now.year, now.month - (months - 1), 1));
     final q = _moodMonthsCol(groupId, uid)
-        .orderBy(FieldPath.documentId, descending: true)
-        .limit(months);
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: cutoff);
     QuerySnapshot<Map<String, dynamic>> snap;
     try {
       if (cacheFirst) {
