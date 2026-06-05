@@ -248,32 +248,41 @@ class HomeWidgetService {
     final cached = _partnerDataCache[cacheKey];
     if (cached != null && cached.isFresh) return cached.data;
 
-    // 1. Определяем UID партнёра из массива members группы
-    String partnerUid = '';
+    // 1. UID партнёра: сначала из native-хранилища (его пишет WidgetService при
+    //    bind и читает фоновый isolate) — чтобы НЕ читать group-doc на каждый
+    //    refresh. Это был дублирующий /groups read на каждый рефреш фото-виджета,
+    //    в т.ч. в фоновом isolate с холодным кэшем (топ чтений в Firebase).
+    String partnerUid =
+        (await HomeWidget.getWidgetData<String>('love_widget_partner_uid')) ??
+            '';
     String partnerName = '';
-    try {
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (!groupDoc.exists) {
-        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+    if (partnerUid.isEmpty || partnerUid == currentUserUid) {
+      // Fallback: вывести партнёра из участников группы (старый путь, +1 чтение).
+      partnerUid = '';
+      try {
+        final groupDoc = await _db.collection('groups').doc(groupId).get();
+        if (!groupDoc.exists) {
+          _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+          return null;
+        }
+        final groupData = groupDoc.data()!;
+        final members = List<String>.from(groupData['members'] ?? []);
+        partnerUid = members.firstWhere(
+          (uid) => uid != currentUserUid,
+          orElse: () => '',
+        );
+        if (partnerUid.isEmpty) {
+          _partnerDataCache[cacheKey] = _CachedWidgetData(null);
+          return null;
+        }
+        final memberNames = Map<String, dynamic>.from(
+          groupData['memberNames'] ?? {},
+        );
+        partnerName = memberNames[partnerUid] as String? ?? '';
+      } catch (e) {
+        debugPrint('_getPartnerWidgetData group read failed: $e');
         return null;
       }
-      final groupData = groupDoc.data()!;
-      final members = List<String>.from(groupData['members'] ?? []);
-      partnerUid = members.firstWhere(
-        (uid) => uid != currentUserUid,
-        orElse: () => '',
-      );
-      if (partnerUid.isEmpty) {
-        _partnerDataCache[cacheKey] = _CachedWidgetData(null);
-        return null;
-      }
-      final memberNames = Map<String, dynamic>.from(
-        groupData['memberNames'] ?? {},
-      );
-      partnerName = memberNames[partnerUid] as String? ?? '';
-    } catch (e) {
-      debugPrint('_getPartnerWidgetData group read failed: $e');
-      return null;
     }
 
     // 2. Читаем документ партнёра напрямую, а не всю коллекцию
