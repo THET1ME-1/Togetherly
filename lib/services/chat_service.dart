@@ -72,6 +72,7 @@ class ChatService {
     required String text,
     String? pinId,
     String? pinTitle,
+    String? pinThumb,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
@@ -84,6 +85,7 @@ class ChatService {
         'ts': ServerValue.timestamp,
         if (pinId != null) 'pinId': pinId,
         if (pinTitle != null) 'pinTitle': pinTitle,
+        if (pinThumb != null) 'pinThumb': pinThumb,
       });
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
       unawaited(_fb.sendChatPush(

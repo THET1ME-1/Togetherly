@@ -13,6 +13,7 @@ import '../services/chat_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
@@ -76,6 +77,13 @@ class _ChatScreenState extends State<ChatScreen> {
   double? _retainFromBottom;
   bool _didInitialScroll = false;
   bool _lastIsMine = false;
+
+  /// Идёт отправка — блокирует повторный тап, чтобы не уехал дубликат при плохой сети.
+  bool _sending = false;
+
+  /// Ключ маркера «Новые сообщения» — чтобы открыть чат на месте остановки чтения.
+  final GlobalKey _unreadKey = GlobalKey();
+  bool _hasUnreadMarker = false;
 
   /// ts последнего прочтения на момент ОТКРЫТИЯ чата — фиксируем до markRead,
   /// чтобы отрисовать разделитель «Новые сообщения» над первым непрочитанным.
@@ -195,10 +203,14 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Первая отрисовка — встаём в самый низ.
+    // Первая отрисовка — встаём в самый низ, затем (если есть непрочитанные)
+    // подскролливаем к маркеру «Новые сообщения» — туда, где остановилось чтение.
     if (!_didInitialScroll) {
-      _scrollController.jumpTo(pos.maxScrollExtent);
       _didInitialScroll = true;
+      _scrollController.jumpTo(pos.maxScrollExtent);
+      if (_hasUnreadMarker) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToUnread());
+      }
       return;
     }
 
@@ -208,6 +220,19 @@ class _ChatScreenState extends State<ChatScreen> {
     if (nearBottom || _lastIsMine) {
       _scrollController.jumpTo(pos.maxScrollExtent);
     }
+  }
+
+  /// Плавно показывает маркер «Новые сообщения» у верхнего края, если он
+  /// уже построен (находится близко к низу — обычный случай при паре непрочитанных).
+  void _scrollToUnread() {
+    final ctx = _unreadKey.currentContext;
+    if (ctx == null || !_scrollController.hasClients) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.12, // маркер чуть ниже верхнего края вьюпорта
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _loadPins() async {
@@ -304,30 +329,45 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Отправка / редактирование ───────────────────────────────────────────────
 
   Future<void> _send() async {
+    // Защита от повторной отправки: при плохой сети await может «висеть»,
+    // и повторный тап по кнопке отправил бы дубликат.
+    if (_sending) return;
     final text = _controller.text.trim();
-    if (text.isEmpty && _attachedPin == null) return;
+    final editing = _editing;
+    final pin = _attachedPin;
+    if (text.isEmpty && pin == null) return;
 
-    if (_editing != null) {
-      await _chat.edit(
-        groupId: _groupId,
-        messageId: _editing!.id,
-        newText: text,
-      );
-    } else {
-      await _chat.send(
-        groupId: _groupId,
-        senderName: widget.myDisplayName,
-        text: text.isEmpty ? '📌' : text,
-        pinId: _attachedPin?.id,
-        pinTitle: _attachedPin != null ? _memoryLabel(_attachedPin!) : null,
-      );
-    }
+    // Оптимистично очищаем ввод СРАЗУ (до сети). RTDB с offline-persistence
+    // ставит одну запись в очередь и доставит её ровно один раз при реконнекте,
+    // поэтому очистка до await безопасна и исключает дубликаты.
+    _sending = true;
     _controller.clear();
     setState(() {
       _editing = null;
       _attachedPin = null;
       _mentionQuery = null;
     });
+
+    try {
+      if (editing != null) {
+        await _chat.edit(
+          groupId: _groupId,
+          messageId: editing.id,
+          newText: text,
+        );
+      } else {
+        await _chat.send(
+          groupId: _groupId,
+          senderName: widget.myDisplayName,
+          text: text.isEmpty ? '📌' : text,
+          pinId: pin?.id,
+          pinTitle: pin != null ? _memoryLabel(pin) : null,
+          pinThumb: pin != null ? _memoryThumb(pin) : null,
+        );
+      }
+    } finally {
+      _sending = false;
+    }
   }
 
   void _startEdit(ChatMsg msg) {
@@ -724,6 +764,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       items.add(m);
     }
+    _hasUnreadMarker = unreadShown;
     return items;
   }
 
@@ -756,6 +797,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildUnreadMarker() {
     return Container(
+      key: _unreadKey,
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(vertical: 4),
       color: _t.primary.withOpacity(0.12),
@@ -797,41 +839,7 @@ class _ChatScreenState extends State<ChatScreen> {
         crossAxisAlignment:
             isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (msg.pinId != null)
-            GestureDetector(
-              onTap: () => _openPin(msg.pinId!),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isMine
-                      ? Colors.white.withOpacity(0.20)
-                      : _t.primaryLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.push_pin_rounded,
-                        size: 14,
-                        color: isMine ? Colors.white : _t.primary),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        msg.pinTitle ?? 'Pin',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: isMine ? Colors.white : _t.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          if (msg.pinId != null) _buildPinChip(msg, isMine),
           if (msg.text.isNotEmpty)
             Text(
               msg.text,
@@ -914,6 +922,93 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// URL миниатюры пина: обложка для музыки, кадр/фото для остального.
+  String? _memoryThumb(Memory m) {
+    if (m.type == MemoryType.music) return m.musicCoverUrl;
+    return m.imageUrl ??
+        (m.imageUrls?.isNotEmpty == true ? m.imageUrls!.first : null);
+  }
+
+  /// Квадратная миниатюра пина: картинка по [thumb], иначе [emoji].
+  Widget _pinThumbView({
+    required String? thumb,
+    required String emoji,
+    required double size,
+    double radius = 6,
+    double emojiSize = 20,
+  }) {
+    final fallback = Center(
+      child: Text(emoji, style: TextStyle(fontSize: emojiSize)),
+    );
+    if (thumb == null || thumb.isEmpty) {
+      return SizedBox(width: size, height: size, child: fallback);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: StorageImage(
+          imageUrl: thumb,
+          fit: BoxFit.cover,
+          memCacheWidth: 120,
+          memCacheHeight: 120,
+          errorWidget: (_, _, _) => fallback,
+        ),
+      ),
+    );
+  }
+
+  /// Чип прикреплённого пина внутри сообщения — с миниатюрой предпросмотра.
+  Widget _buildPinChip(ChatMsg msg, bool isMine) {
+    // Миниатюра: из самого сообщения, иначе ищем пин в загруженном списке.
+    Memory? mem;
+    for (final p in _pins) {
+      if (p.id == msg.pinId) {
+        mem = p;
+        break;
+      }
+    }
+    final thumb = msg.pinThumb ?? (mem != null ? _memoryThumb(mem) : null);
+    final emoji = mem?.typeEmoji ?? '📌';
+    return GestureDetector(
+      onTap: () => _openPin(msg.pinId!),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: isMine ? Colors.white.withOpacity(0.20) : _t.primaryLight,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _pinThumbView(
+              thumb: thumb,
+              emoji: emoji,
+              size: 36,
+              radius: 8,
+              emojiSize: 18,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                msg.pinTitle ?? 'Pin',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: isMine ? Colors.white : _t.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMentionList() {
     return Container(
       constraints: const BoxConstraints(maxHeight: 220),
@@ -924,7 +1019,11 @@ class _ChatScreenState extends State<ChatScreen> {
         children: _mentionResults.map((m) {
           return ListTile(
             dense: true,
-            leading: Text(m.typeEmoji, style: const TextStyle(fontSize: 20)),
+            leading: _pinThumbView(
+              thumb: _memoryThumb(m),
+              emoji: m.typeEmoji,
+              size: 40,
+            ),
             title: Text(
               _memoryLabel(m),
               maxLines: 1,
