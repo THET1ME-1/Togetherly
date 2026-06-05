@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
@@ -132,5 +133,60 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // ── Кастомизация launcher-иконки через activity-alias ──
+        // Включает выбранный alias и гасит остальные. DONT_KILL_APP — чтобы по
+        // возможности не убивать процесс при смене (поведение зависит от лаунчера).
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "app_icon"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setIcon" -> {
+                    val id = call.argument<String>("id")
+                    if (id == null || !ICON_ALIASES.containsKey(id)) {
+                        result.error("INVALID_ARGS", "Unknown icon id: $id", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val pm = packageManager
+                        for ((aliasId, suffix) in ICON_ALIASES) {
+                            val component = ComponentName(packageName, "$packageName$suffix")
+                            val state = if (aliasId == id)
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                            else
+                                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                            pm.setComponentEnabledSetting(
+                                component, state, PackageManager.DONT_KILL_APP
+                            )
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SET_ICON_FAILED", e.message, null)
+                    }
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    companion object {
+        // id (тема) -> суффикс android:name alias в манифесте.
+        private val ICON_ALIASES = linkedMapOf(
+            "pink" to ".IconPink",
+            "purple" to ".IconPurple",
+            "blue" to ".IconBlue",
+            "green" to ".IconGreen",
+            "midnight" to ".IconMidnight",
+            "orange" to ".IconOrange",
+            "lavender" to ".IconLavender",
+            "cherry" to ".IconCherry",
+            "mint" to ".IconMint",
+            "sunset" to ".IconSunset",
+            "monochrome" to ".IconMonochrome",
+            "forest" to ".IconForest",
+            "ocean" to ".IconOcean",
+        )
     }
 }

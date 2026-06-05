@@ -25,6 +25,7 @@ import '../services/timer_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
 import '../services/rewarded_ad_service.dart';
+import '../services/app_icon_service.dart';
 import '../services/iap_service.dart';
 import '../services/celebration_notification_service.dart';
 
@@ -56,6 +57,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
+  String _appIconId = AppIconService.defaultId;
   final IapService _iap = IapService();
   bool _iapLoading = false;
 
@@ -122,6 +124,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     _loadStats();
     _loadNotifPrefs();
+    if (AppIconService.instance.isSupported) {
+      AppIconService.instance.currentIconId().then((id) {
+        if (mounted) setState(() => _appIconId = id);
+      });
+    }
     // НЕ грузим rewarded на открытии профиля — это фоновый запрос, который
     // в 90%+ случаев впустую (юзер не открывает магазин). Предзагрузка
     // происходит в _showCoinShop, когда юзер осознанно идёт за коинами.
@@ -860,9 +867,183 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
+          if (AppIconService.instance.isSupported) ...[
+            _divider(),
+            GestureDetector(
+              onTap: () => _showAppIconPicker(context),
+              behavior: HitTestBehavior.opaque,
+              child: _infoRow(
+                icon: Icons.apps_rounded,
+                label: LocaleService.instance.isRussian
+                    ? 'Иконка приложения'
+                    : 'App icon',
+                value: _appIconName(_appIconId),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _appIconPreview(_appIconOption(_appIconId), size: 24),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  AppIconOption _appIconOption(String id) =>
+      AppIconService.options.firstWhere((o) => o.id == id,
+          orElse: () => AppIconService.options.first);
+
+  String _appIconName(String id) {
+    final o = _appIconOption(id);
+    return LocaleService.instance.isRussian ? o.nameRu : o.nameEn;
+  }
+
+  /// Мини-превью launcher-иконки: «TY» буквами темы на её фоне (как на столе).
+  Widget _appIconPreview(AppIconOption o, {required double size}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: o.background,
+        borderRadius: BorderRadius.circular(size * 0.22),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'TY',
+        style: TextStyle(
+          fontSize: size * 0.42,
+          height: 1.0,
+          fontWeight: FontWeight.w600,
+          color: o.letters,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  void _showAppIconPicker(BuildContext context) {
+    final isRu = LocaleService.instance.isRussian;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isRu ? 'Иконка приложения' : 'App icon',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isRu
+                    ? 'Иконка на рабочем столе может обновиться через пару секунд.'
+                    : 'The home-screen icon may take a couple of seconds to refresh.',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final o in AppIconService.options)
+                    _appIconChoice(o, isRu),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _appIconChoice(AppIconOption o, bool isRu) {
+    final selected = o.id == _appIconId;
+    return GestureDetector(
+      onTap: () => _applyAppIcon(o.id),
+      child: SizedBox(
+        width: 84,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                // Индикатор повторяет форму иконки (скруглённый квадрат),
+                // а не круг: внешний радиус = радиус иконки + паддинг.
+                borderRadius: BorderRadius.circular(60 * 0.22 + 3),
+                border: Border.all(
+                  color: selected ? _accent : Colors.transparent,
+                  width: 2.5,
+                ),
+              ),
+              child: _appIconPreview(o, size: 60),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isRu ? o.nameRu : o.nameEn,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? _accent : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyAppIcon(String id) async {
+    if (id == _appIconId) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    final ok = await AppIconService.instance.setIcon(id);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _appIconId = id);
+    }
+    Navigator.of(context).maybePop();
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.instance.isRussian
+              ? 'Не удалось сменить иконку'
+              : 'Could not change the icon'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _infoRow({
