@@ -2098,11 +2098,11 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Улучшили чат: видно даты, статусы отправлено/прочитано.\n'
-      '— Исправили отображение статистики настроения.\n'
-      '— Добавили 13 стилей иконок приложения по цвету тем.\n'
-      '— Исправили несколько багов.\n'
-      '— Добавлен предпросмотр пинов в чате.';
+      '— Чуть изменена система нажатий на кнопку «Я скучаю». '
+      'Во избежание багов рекомендуется обновиться каждому в паре.\n'
+      '— Починили пролистывание списка иконок.\n'
+      '— Добавили базовые реакции на сообщения в чате (двойной тап): '
+      '❤️ 😂 👍 😮 😢 🔥. Тап по уже выбранному — снимает.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3794,11 +3794,11 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Improved the chat: dates and sent/read statuses are now visible.\n'
-      '— Fixed mood statistics display.\n'
-      '— Added 13 app icon styles matching the theme colors.\n'
-      '— Fixed several bugs.\n'
-      '— Added pin previews in the chat.';
+      '— Tweaked how the “Miss you” button works. '
+      'To avoid glitches, both partners should update.\n'
+      '— Fixed scrolling in the app icon list.\n'
+      '— Added basic message reactions in the chat (double-tap): '
+      '❤️ 😂 👍 😮 😢 🔥. Tap the selected one again to remove it.';
   @override
   String get updateButton => 'Update';
   @override
