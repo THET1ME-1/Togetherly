@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/memory_date_field.dart';
 
 /// Получает метаданные трека по ссылке: {title, artist, cover}.
 typedef MusicMetaFetcher = Future<Map<String, String?>> Function(String url);
@@ -18,6 +19,7 @@ typedef MemoryMusicSaveCallback = Future<void> Function({
   String? musicCoverUrl,
   String? musicPath,
   String caption,
+  DateTime? customDate,
 });
 
 /// Описание стримингового сервиса для бейджа платформы.
@@ -94,6 +96,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
   bool _isSaving = false;
   String? _lastFetchedUrl;
   Timer? _debounce;
+  DateTime? _customDate;
 
   late final AnimationController _spin;
 
@@ -200,6 +203,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
       musicCoverUrl: _coverUrl,
       musicPath: _musicPath,
       caption: _captionCtrl.text.trim(),
+      customDate: _customDate,
     );
   }
 
@@ -233,6 +237,12 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
                   _buildDetailsCard(s),
                   const SizedBox(height: 16),
                   _buildCaptionField(s),
+                  const SizedBox(height: 16),
+                  MemoryDateField(
+                    value: _customDate,
+                    onChanged: (d) => setState(() => _customDate = d),
+                    accent: _primary,
+                  ),
                 ],
               ),
             ),

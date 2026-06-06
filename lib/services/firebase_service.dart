@@ -2751,6 +2751,7 @@ class FirebaseService {
     String? bookPublisher,
     String? bookInfoUrl,
     bool isAdult = false,
+    DateTime? customDate,
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return null;
@@ -2766,6 +2767,10 @@ class FirebaseService {
           .doc(groupId)
           .collection('memories')
           .doc();
+      // Если пользователь выбрал «дату воспоминания» в прошлом —
+      // записываем её как createdAt, чтобы пин оказался на ленте
+      // в нужной временной точке. По умолчанию — текущий момент.
+      final createdAt = customDate ?? DateTime.now();
       final memory = Memory(
         id: ref.id,
         groupId: groupId,
@@ -2773,7 +2778,7 @@ class FirebaseService {
         authorName: name,
         authorAvatar: avatar,
         type: type,
-        createdAt: DateTime.now(),
+        createdAt: createdAt,
         imageUrl: imageUrl,
         imageUrls: imageUrls,
         videoUrl: videoUrl,

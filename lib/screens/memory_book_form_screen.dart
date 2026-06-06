@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/memory_date_field.dart';
 
 /// Сохранение книжного воспоминания.
 typedef MemoryBookSaveCallback = Future<void> Function({
@@ -16,6 +17,7 @@ typedef MemoryBookSaveCallback = Future<void> Function({
   String? bookPublisher,
   String? bookInfoUrl,
   required String caption,
+  DateTime? customDate,
 });
 
 /// Одна книга из результатов поиска.
@@ -114,6 +116,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
   String? _year;
   String? _publisher;
   String? _infoUrl;
+  DateTime? _customDate;
 
   List<_BookResult> _results = const [];
   bool _isSearching = false;
@@ -294,6 +297,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
       bookPublisher: _publisher,
       bookInfoUrl: _infoUrl,
       caption: _captionCtrl.text.trim(),
+      customDate: _customDate,
     );
   }
 
@@ -332,6 +336,12 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                     _buildDetailsCard(s),
                     const SizedBox(height: 16),
                     _buildCaptionField(s),
+                    const SizedBox(height: 16),
+                    MemoryDateField(
+                      value: _customDate,
+                      onChanged: (d) => setState(() => _customDate = d),
+                      accent: _primary,
+                    ),
                   ],
                 ],
               ),

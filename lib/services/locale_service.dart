@@ -653,6 +653,13 @@ abstract class AppStrings {
   String get bookDetails;
   String get bookReadMore;
   String get bookSearchAgain;
+
+  // ── Memory date picker ──
+  String get memoryDateLabel;
+  String get memoryDateNow;
+  String get memoryDatePickDate;
+  String get memoryDatePickTime;
+  String get memoryDateClear;
   String get fetchData;
   String get supportedPlatformsHint;
   String get supportedPlatforms;
@@ -2087,6 +2094,16 @@ class _RuStrings extends AppStrings {
   String get bookReadMore => 'Подробнее';
   @override
   String get bookSearchAgain => 'Искать';
+  @override
+  String get memoryDateLabel => 'Когда это было';
+  @override
+  String get memoryDateNow => 'Сейчас (момент создания)';
+  @override
+  String get memoryDatePickDate => 'Дата';
+  @override
+  String get memoryDatePickTime => 'Время';
+  @override
+  String get memoryDateClear => 'Сбросить';
   @override
   String get fetchData => 'Получить данные';
   @override
@@ -3816,6 +3833,16 @@ class _EnStrings extends AppStrings {
   String get bookReadMore => 'Read more';
   @override
   String get bookSearchAgain => 'Search';
+  @override
+  String get memoryDateLabel => 'When was it';
+  @override
+  String get memoryDateNow => 'Now (at creation)';
+  @override
+  String get memoryDatePickDate => 'Date';
+  @override
+  String get memoryDatePickTime => 'Time';
+  @override
+  String get memoryDateClear => 'Reset';
   @override
   String get fetchData => 'Fetch data';
   @override
