@@ -3668,6 +3668,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             iconColor: _t.iconPost,
             label: _s.photo,
             value: data.hasPhoto ? _s.photoUploaded : null,
+            subtitle: _s.widgetPhotoOwnerOnlyHint,
             trailing: data.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -4003,6 +4004,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     String? value,
     Color? valueColor,
     Widget? trailing,
+    String? subtitle,
     required VoidCallback onTap,
     VoidCallback? onClear,
   }) {
@@ -4049,6 +4051,18 @@ class _WidgetScreenState extends State<WidgetScreen>
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.rubik(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade400,
+                        height: 1.25,
+                      ),
                     ),
                   ],
                 ],

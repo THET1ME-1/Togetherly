@@ -59,7 +59,8 @@
       "Bash(node -e \"const {getDatabaseWithUrl}=require\\('firebase-admin/database'\\); console.log\\('export type:', typeof getDatabaseWithUrl\\)\")",
       "Bash(node -e \"console.log\\('firebase-admin', require\\('firebase-admin/package.json'\\).version\\)\")",
       "Bash(findstr /I \"timer\")",
-      "Bash(findstr /I /C:\"error\" /C:\"warning\" /C:\"timer_service\" /C:\"firebase_service\" /C:\"No issues\" /C:\"issues found\")"
+      "Bash(findstr /I /C:\"error\" /C:\"warning\" /C:\"timer_service\" /C:\"firebase_service\" /C:\"No issues\" /C:\"issues found\")",
+      "Bash(grep -iE \"functions/.*\\\\.\\(js|ts\\)$|database\\\\.rules|\\\\.rules\\\\.json|firebase\\\\.json\")"
     ]
   }
 }

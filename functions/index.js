@@ -323,15 +323,17 @@ exports.onWidgetDataEvent = onDocumentCreated(
     }
 
     if (tokens.length > 0) {
-      // Data-only сообщение — не показывает уведомление, только обновляет виджет
-      const messageData = {
-        type: "widget_update",
-        status: data.status || "",
-        moodLabel: data.moodLabel || "",
-        message: data.message || "",
-        musicTitle: data.musicTitle || "",
-        musicArtist: data.musicArtist || "",
-      };
+      // Data-only сообщение — не показывает уведомление, только обновляет виджет.
+      // Кладём ТОЛЬКО реально изменившиеся поля (они и есть в событии). Раньше
+      // отсутствующие уходили как "" и затирали статус/сообщение/музыку партнёра
+      // на виджете до следующего полного синка (напр. смена настроения обнуляла
+      // статус). Клиент тоже сохраняет только присутствующие ключи.
+      const messageData = { type: "widget_update" };
+      for (const key of ["status", "moodLabel", "message", "musicTitle", "musicArtist"]) {
+        if (data[key] !== undefined && data[key] !== null) {
+          messageData[key] = String(data[key]);
+        }
+      }
 
       const messaging = getMessaging();
       await Promise.allSettled(
@@ -351,6 +353,44 @@ exports.onWidgetDataEvent = onDocumentCreated(
       console.log(
         `WidgetDataEvent [${groupId}]: sent widget_update to ${tokens.length} token(s)`
       );
+
+      // Видимое уведомление о смене настроения. widget_update выше — тихий
+      // (только обновляет виджет), поэтому отдельно шлём data-only пуш type=mood,
+      // который клиент покажет как уведомление (с учётом тоггла notifMood).
+      // moodLabel есть в событии только когда менялось именно настроение
+      // (см. widgetFields в _updateField); пустая строка = сброс — не шумим.
+      const moodLabel = (data.moodLabel || "").trim();
+      if (moodLabel) {
+        const senderName =
+          (groupDoc.data().memberNames || {})[senderUid] || "Партнёр";
+        const moodData = {
+          type: "mood",
+          groupId,
+          senderUid,
+          senderName,
+          moodLabel,
+          // title/body — фолбэк для клиентов без локализованной ветки mood:
+          // их generic-путь в _buildLocalNotificationContent покажет это как есть.
+          title: senderName,
+          body: `Настроение: ${moodLabel}`,
+        };
+        await Promise.allSettled(
+          tokens.map((token) =>
+            messaging.send({
+              token,
+              data: moodData,
+              android: { priority: "high" },
+              apns: {
+                headers: { "apns-priority": "10" },
+                payload: { aps: { sound: "default", contentAvailable: true } },
+              },
+            })
+          )
+        );
+        console.log(
+          `WidgetDataEvent [${groupId}]: sent mood notification to ${tokens.length} token(s)`
+        );
+      }
     }
 
     // Удаляем триггерный документ — он больше не нужен
