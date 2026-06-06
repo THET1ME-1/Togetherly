@@ -12,12 +12,18 @@ class MemoryDateField extends StatelessWidget {
   final DateTime? value;
   final ValueChanged<DateTime?> onChanged;
   final Color accent;
+  /// Прятать ли кнопку сброса (×). По умолчанию `true` — нужна при создании
+  /// пина, чтобы вернуться к «сейчас». В режиме редактирования её лучше
+  /// прятать (`false`), так как семантика «очистить до дефолта» там неясна:
+  /// дефолтом является уже существующая дата воспоминания.
+  final bool showReset;
 
   const MemoryDateField({
     super.key,
     required this.value,
     required this.onChanged,
     this.accent = const Color(0xFF8B5CF6),
+    this.showReset = true,
   });
 
   Future<void> _pickDate(BuildContext context) async {
@@ -134,7 +140,7 @@ class MemoryDateField extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (hasValue)
+                if (hasValue && showReset)
                   IconButton(
                     onPressed: () => onChanged(null),
                     icon: Icon(
