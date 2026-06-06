@@ -2168,16 +2168,10 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Чуть измена система нажатий на кнопку «Я скучаю». '
-      'Во избежании багов, рекомендуется в паре обновиться каждому. '
-      '(Возможно обнуление нажатий).\n'
-      '— Починили пролистывание списка иконок.\n'
-      '— Добавили базовые реакции на сообщения в чате (двойной тап): '
-      '❤️ 😂 👍 😮 😢 🔥. Тап по уже выбранному — снимает.\n'
-      '— Добавили возможность установить дату создания пинам.\n'
-      '— Теперь можно поделиться с партнером прочитанными книгами. '
-      'Добавлен новый тип пинов: «Книги».\n\n'
-      'Двоим надо обновиться, чтобы не потерять количество нажатий на Я скучаю.';
+      '— Исправили баг с отсувствием таймеров у новых пар.\n'
+      '— Исправили баг с фото на виджетах.\n'
+      '— Исправили баг с синхрониацией счетчика «Я скучаю».\n'
+      '— Должны были исправить уведомления о настроении партнера.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -3916,17 +3910,10 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Tweaked how the “I miss you” button works. '
-      'To avoid glitches, both partners should update. '
-      '(Press counts may be reset).\n'
-      '— Fixed scrolling in the app icon list.\n'
-      '— Added basic message reactions in the chat (double-tap): '
-      '❤️ 😂 👍 😮 😢 🔥. Tap the selected one again to remove it.\n'
-      '— You can now set a custom creation date for memory pins.\n'
-      '— You can now share books with your partner — a new pin type, '
-      '“Books”, is available.\n\n'
-      'Both partners need to update, otherwise press counts on '
-      '“I miss you” may be lost.';
+      '— Fixed a bug where new couples had no timers.\n'
+      '— Fixed a bug with photos on widgets.\n'
+      '— Fixed a bug with syncing the “I miss you” counter.\n'
+      '— We should have fixed partner mood notifications.';
   @override
   String get updateButton => 'Update';
   @override
