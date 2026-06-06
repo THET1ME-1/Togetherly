@@ -73,6 +73,30 @@ class FirebaseService {
     return members.where((m) => m.isNotEmpty && m != senderUid).toList();
   }
 
+  /// Группы, для которых уже выполнен (или запущен) разовый перенос счётчиков
+  /// «Я скучаю» из Firestore в RTDB в этой сессии.
+  final Set<String> _missYouSeeded = {};
+
+  /// Переносит старые Firestore-счётчики «Я скучаю» в RTDB, НО только если узел
+  /// в RTDB ещё пуст — чтобы не затереть новые тапы. Идемпотентно.
+  Future<void> _seedMissYouCountsIfEmpty(String groupId, Map raw) async {
+    try {
+      final ref = _missYouCountsRef(groupId);
+      final snap = await ref.get();
+      final existing = snap.value;
+      if (existing is Map && existing.isNotEmpty) return; // уже есть данные
+      final seed = <String, Object>{};
+      raw.forEach((k, v) {
+        final n = (v as num?)?.toInt() ?? 0;
+        if (n > 0) seed[k.toString()] = n;
+      });
+      if (seed.isEmpty) return;
+      await ref.set(seed);
+    } catch (e) {
+      debugPrint('_seedMissYouCountsIfEmpty failed: $e');
+    }
+  }
+
   // In-memory cache — eliminates repeated users/{uid} reads on hot paths.
   String? _cachedDisplayName;
   String? _cachedAvatarUrl;
@@ -1945,6 +1969,17 @@ class FirebaseService {
     // Кешируем участников — sendMissYou/sendVibe кладут recipientUids в event,
     // чтобы функция пуша не читала group-doc.
     _groupMembersCache[groupId] = members;
+    // Миграция: переносим старые Firestore-счётчики «Я скучаю» в RTDB при первом
+    // разборе группы после обновления, чтобы у обновившегося не показывало 0/0,
+    // пока партнёр на старой версии (которая пишет в group-doc). Только если
+    // RTDB ещё пуст — новые тапы не затираем.
+    final rawMissYouCounts = data['missYouCounts'];
+    if (rawMissYouCounts is Map &&
+        rawMissYouCounts.isNotEmpty &&
+        !_missYouSeeded.contains(groupId)) {
+      _missYouSeeded.add(groupId);
+      unawaited(_seedMissYouCountsIfEmpty(groupId, rawMissYouCounts));
+    }
     // If duplicates found — silently repair the Firestore document
     if (members.length < rawMembers.length) {
       debugPrint(
