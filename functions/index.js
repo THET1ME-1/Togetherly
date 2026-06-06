@@ -16,6 +16,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
+const { getDatabaseWithUrl } = require("firebase-admin/database");
 const crypto = require("crypto");
 const https = require("https");
 const { google } = require("googleapis");
@@ -95,6 +96,49 @@ function buildVibePayload(vibeType, customText) {
   }
 }
 
+// RTDB europe-west1 (не дефолтный регион) — зеркало FCM-токенов и настроек
+// уведомлений. Читая отсюда, функция пуша не тратит Firestore-чтения.
+const RTDB_URL =
+  "https://togetherly-d4856-default-rtdb.europe-west1.firebasedatabase.app";
+
+let _rtdb = null;
+function rtdb() {
+  if (!_rtdb) _rtdb = getDatabaseWithUrl(RTDB_URL);
+  return _rtdb;
+}
+
+/**
+ * Возвращает { tokens: string[], notifMissYou: bool, source } для uid.
+ * Сначала пробует RTDB push/{uid} (даром), при отсутствии — фолбэк на
+ * Firestore users/{uid} (1 read), чтобы пуши не пропали у тех, чьи токены
+ * ещё не зазеркалились после деплоя.
+ */
+async function getPushInfo(db, uid) {
+  try {
+    const snap = await rtdb().ref(`push/${uid}`).get();
+    if (snap.exists()) {
+      const v = snap.val() || {};
+      const tokens = Object.keys(v.tokens || {});
+      if (tokens.length > 0) {
+        return { tokens, notifMissYou: v.notifMissYou !== false, source: "rtdb" };
+      }
+    }
+  } catch (e) {
+    console.warn(`getPushInfo RTDB read failed for uid=${uid}: ${e}`);
+  }
+  // Фолбэк: Firestore.
+  const userDoc = await db.collection("users").doc(uid).get();
+  if (!userDoc.exists) return { tokens: [], notifMissYou: true, source: "none" };
+  const ud = userDoc.data();
+  const tokens =
+    Array.isArray(ud.fcmTokens) && ud.fcmTokens.length > 0
+      ? ud.fcmTokens.filter(Boolean)
+      : ud.fcmToken
+        ? [ud.fcmToken]
+        : [];
+  return { tokens, notifMissYou: ud.notifMissYou !== false, source: "firestore" };
+}
+
 exports.onMissYouEvent = onDocumentCreated(
   "groups/{groupId}/missYouEvents/{eventId}",
   async (event) => {
@@ -110,44 +154,38 @@ exports.onMissYouEvent = onDocumentCreated(
 
     const db = getFirestore();
 
-    // Получаем участников группы
-    const groupDoc = await db.collection("groups").doc(groupId).get();
-    if (!groupDoc.exists) return;
-
-    const members = groupDoc.data().members || [];
-    // Отправляем всем, кроме отправителя
-    const recipients = members.filter((uid) => uid !== senderUid);
+    // Получатели: из самого event-документа (приходит в триггер бесплатно),
+    // иначе — фолбэк на чтение group-doc. recipientUids кладёт клиент из кеша
+    // участников, чтобы на каждый тап не платить за чтение группы.
+    let recipients = Array.isArray(data.recipientUids)
+      ? data.recipientUids.filter((uid) => uid && uid !== senderUid)
+      : null;
+    if (!recipients || recipients.length === 0) {
+      const groupDoc = await db.collection("groups").doc(groupId).get();
+      if (!groupDoc.exists) return;
+      const members = groupDoc.data().members || [];
+      recipients = members.filter((uid) => uid !== senderUid);
+    }
 
     if (recipients.length === 0) return;
 
-    // Собираем FCM-токены всех получателей (поддержка массива и одиночного поля)
+    // Собираем FCM-токены получателей (RTDB-зеркало, фолбэк на Firestore).
     const tokenToUid = {}; // token → uid (для очистки устаревших)
     for (const uid of recipients) {
-      const userDoc = await db.collection("users").doc(uid).get();
-      if (!userDoc.exists) continue;
-
-      const userData = userDoc.data();
-
-      // Приоритет: массив fcmTokens, затем одиночный fcmToken
-      const tokensList = userData.fcmTokens;
+      const info = await getPushInfo(db, uid);
 
       // Проверяем настройку уведомлений.
       // Кастомные сообщения (custom) всегда доставляются — пользователь
       // специально написал текст, блокировать его настройкой "Я скучаю" неправильно.
       // Для остальных типов уважаем настройку notifMissYou.
-      const notifEnabled =
-        vibeType === "custom" || userData.notifMissYou !== false;
+      const notifEnabled = vibeType === "custom" || info.notifMissYou;
       if (!notifEnabled) {
-        console.log(`VibeEvent [${groupId}] type=${type}: notifications disabled for uid=${uid}, skipping`);
+        console.log(`VibeEvent [${groupId}] type=${vibeType}: notifications disabled for uid=${uid}, skipping`);
         continue;
       }
 
-      if (Array.isArray(tokensList) && tokensList.length > 0) {
-        for (const t of tokensList) {
-          if (t) tokenToUid[t] = uid;
-        }
-      } else if (userData.fcmToken) {
-        tokenToUid[userData.fcmToken] = uid;
+      for (const t of info.tokens) {
+        if (t) tokenToUid[t] = uid;
       }
     }
 
@@ -208,23 +246,22 @@ exports.onMissYouEvent = onDocumentCreated(
       }
     });
 
-    // Удаляем устаревшие токены из Firestore (и из массива, и из одиночного поля)
+    // Удаляем устаревшие токены из RTDB-зеркала и из Firestore-массива.
+    // Без чтения user-doc: arrayRemove идемпотентен, а одиночное legacy-поле
+    // fcmToken чистить не обязательно (массив fcmTokens — основной источник).
     for (const staleToken of staleTokens) {
       const uid = tokenToUid[staleToken];
       if (!uid) continue;
       try {
-        const userRef = db.collection("users").doc(uid);
-        const userSnap = await userRef.get();
-        if (!userSnap.exists) continue;
-
-        const updates = {
-          fcmTokens: FieldValue.arrayRemove(staleToken),
-        };
-        // Если одиночный fcmToken совпадает — тоже очищаем
-        if (userSnap.data().fcmToken === staleToken) {
-          updates.fcmToken = "";
-        }
-        await userRef.update(updates);
+        await rtdb().ref(`push/${uid}/tokens`).child(staleToken).remove();
+      } catch (e) {
+        console.warn(`Failed to remove stale RTDB token for uid=${uid}: ${e}`);
+      }
+      try {
+        await db
+          .collection("users")
+          .doc(uid)
+          .update({ fcmTokens: FieldValue.arrayRemove(staleToken) });
       } catch (e) {
         console.warn(`Failed to remove stale token for uid=${uid}: ${e}`);
       }

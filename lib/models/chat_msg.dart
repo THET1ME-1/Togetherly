@@ -20,6 +20,11 @@ class ChatMsg {
   final String? pinTitle;
   final String? pinThumb;
 
+  /// Реакции на сообщение: uid → эмодзи (один эмодзи на пользователя).
+  /// Лежат в самом узле сообщения (reactions/{uid}), поэтому приходят вместе
+  /// с сообщением — без отдельного listener'а.
+  final Map<String, String> reactions;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -31,12 +36,20 @@ class ChatMsg {
     this.pinId,
     this.pinTitle,
     this.pinThumb,
+    this.reactions = const {},
   });
 
   bool get isEdited => editedTs != null && !deleted;
 
   factory ChatMsg.fromSnapshot(DataSnapshot snap) {
     final m = (snap.value as Map?) ?? const {};
+    final rawReactions = m['reactions'];
+    final reactions = <String, String>{};
+    if (rawReactions is Map) {
+      rawReactions.forEach((k, v) {
+        if (v is String && v.isNotEmpty) reactions[k.toString()] = v;
+      });
+    }
     return ChatMsg(
       id: snap.key ?? '',
       uid: (m['uid'] as String?) ?? '',
@@ -48,6 +61,7 @@ class ChatMsg {
       pinId: m['pinId'] as String?,
       pinTitle: m['pinTitle'] as String?,
       pinThumb: m['pinThumb'] as String?,
+      reactions: reactions,
     );
   }
 }

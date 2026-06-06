@@ -3663,7 +3663,9 @@ class FirebaseService {
       // дёргает Firestore-листенеры. total считается как сумма counts.
       await _missYouCountsRef(groupId).child(myUid).set(ServerValue.increment(1));
 
-      // 2. Добавить запись в subcollection для push-триггера
+      // 2. Добавить запись в subcollection для push-триггера.
+      // recipientUids кладём из кеша, чтобы функция не читала group-doc.
+      final recipients = _cachedRecipients(groupId, myUid);
       await _db
           .collection('groups')
           .doc(groupId)
@@ -3671,6 +3673,7 @@ class FirebaseService {
           .add({
             'senderUid': myUid,
             'senderName': senderName,
+            if (recipients.isNotEmpty) 'recipientUids': recipients,
             'timestamp': FieldValue.serverTimestamp(),
           });
       unawaited(RateLimiterService().recordVibe());
@@ -3693,6 +3696,7 @@ class FirebaseService {
     if (myUid == null || groupId.isEmpty) return;
     await RateLimiterService().checkVibe();
     try {
+      final recipients = _cachedRecipients(groupId, myUid);
       await _db
           .collection('groups')
           .doc(groupId)
@@ -3703,6 +3707,7 @@ class FirebaseService {
             'vibeType': vibeType,
             if (customText != null && customText.isNotEmpty)
               'customText': customText,
+            if (recipients.isNotEmpty) 'recipientUids': recipients,
             'timestamp': FieldValue.serverTimestamp(),
           });
       unawaited(RateLimiterService().recordVibe());
