@@ -633,6 +633,138 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Базовый набор системных эмодзи-реакций.
+  static const List<String> _reactionEmojis = [
+    '❤️', '😂', '👍', '😮', '😢', '🔥',
+  ];
+
+  /// Пикер реакций (по двойному тапу). Тап по уже выбранному эмодзи — снимает.
+  void _showReactionPicker(ChatMsg msg) {
+    final mine = msg.reactions[_myUid];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  for (final e in _reactionEmojis)
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _chat.setReaction(
+                          groupId: _groupId,
+                          messageId: msg.id,
+                          emoji: mine == e ? null : e,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: mine == e
+                              ? _t.primary.withOpacity(0.18)
+                              : Colors.transparent,
+                        ),
+                        child: Text(e, style: const TextStyle(fontSize: 30)),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Чипы-реакции под баблом: агрегируем эмодзи по количеству. Тап по чипу
+  /// со своей реакцией снимает её, по чужой — ставит такую же себе.
+  Widget _buildReactionChips(ChatMsg msg, bool isMine) {
+    final counts = <String, int>{};
+    for (final e in msg.reactions.values) {
+      counts[e] = (counts[e] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return const SizedBox.shrink();
+    final mine = msg.reactions[_myUid];
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 2,
+        bottom: 2,
+        left: isMine ? 0 : 6,
+        right: isMine ? 6 : 0,
+      ),
+      child: Wrap(
+        spacing: 4,
+        children: [
+          for (final entry in counts.entries)
+            GestureDetector(
+              onTap: () => _chat.setReaction(
+                groupId: _groupId,
+                messageId: msg.id,
+                emoji: mine == entry.key ? null : entry.key,
+              ),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: mine == entry.key
+                        ? _t.primary
+                        : Colors.grey.shade300,
+                    width: mine == entry.key ? 1.5 : 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(entry.key, style: const TextStyle(fontSize: 13)),
+                    if (entry.value > 1) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        '${entry.value}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   String _formatTime(int ts) {
     if (ts <= 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(ts);
@@ -851,13 +983,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress:
-            (isMine && !msg.deleted) ? () => _showMessageMenu(msg) : null,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75,
-          ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            // Двойной тап — реакции (на любое сообщение, кроме удалённого).
+            onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
+            onLongPress:
+                (isMine && !msg.deleted) ? () => _showMessageMenu(msg) : null,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
+              ),
           margin: const EdgeInsets.symmetric(vertical: 3),
           padding: const EdgeInsets.fromLTRB(12, 9, 12, 7),
           decoration: BoxDecoration(
@@ -917,7 +1056,10 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
-        ),
+            ),
+          ),
+          if (msg.reactions.isNotEmpty) _buildReactionChips(msg, isMine),
+        ],
       ),
     );
   }

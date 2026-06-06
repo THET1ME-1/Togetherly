@@ -135,6 +135,29 @@ class ChatService {
     }
   }
 
+  /// Поставить/снять свою реакцию на сообщение. [emoji] == null убирает её.
+  /// Один эмодзи на пользователя: новый перезаписывает прежний.
+  /// Пишется в messages/{id}/reactions/{uid} — каскадно покрыто write-правилом
+  /// чата (писать может только участник группы).
+  Future<void> setReaction({
+    required String groupId,
+    required String messageId,
+    required String? emoji,
+  }) async {
+    if (groupId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
+    try {
+      final ref =
+          _messagesRef(groupId).child(messageId).child('reactions').child(_uid);
+      if (emoji == null || emoji.isEmpty) {
+        await ref.remove();
+      } else {
+        await ref.set(emoji);
+      }
+    } catch (e) {
+      debugPrint('ChatService.setReaction failed: $e');
+    }
+  }
+
   // ── Непрочитанные ──────────────────────────────────────────────────────────
 
   String _lastReadKey(String groupId) => 'chat_last_read_$groupId';
