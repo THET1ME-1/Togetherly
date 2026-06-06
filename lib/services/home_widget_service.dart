@@ -1576,7 +1576,8 @@ class HomeWidgetService {
 
         memoriesCount = await fb.getGroupMemoriesCount(groupId, groupData: groupData);
         drawingsCount = await fb.getGroupDrawingsCount(groupId, groupData: groupData);
-        missYouCount = groupData['missYouCount'] ?? 0;
+        // missYouCount живёт в RTDB (не в group-doc) — см. sendMissYou.
+        missYouCount = await fb.getMissYouTotal(groupId);
 
         final fresh = _CachedRelStats(
           memoriesCount: memoriesCount,
