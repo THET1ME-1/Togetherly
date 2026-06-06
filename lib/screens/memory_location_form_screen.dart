@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/memory_date_field.dart';
 import 'map_picker_screen.dart';
 
 /// Сохранение воспоминания-локации.
@@ -14,6 +15,7 @@ typedef MemoryLocationSaveCallback = Future<void> Function({
   double? latitude,
   double? longitude,
   String caption,
+  DateTime? customDate,
 });
 
 /// Полноэкранная форма создания локации.
@@ -45,6 +47,7 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
   double? _lng;
   bool _isLoadingLocation = false;
   bool _isSaving = false;
+  DateTime? _customDate;
 
   Color get _primary => widget.theme.primary;
 
@@ -135,6 +138,7 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
       latitude: _lat,
       longitude: _lng,
       caption: _captionCtrl.text.trim(),
+      customDate: _customDate,
     );
   }
 
@@ -168,6 +172,12 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
                   _buildActionsRow(s),
                   const SizedBox(height: 16),
                   _buildCaptionField(s),
+                  const SizedBox(height: 16),
+                  MemoryDateField(
+                    value: _customDate,
+                    onChanged: (d) => setState(() => _customDate = d),
+                    accent: _accent,
+                  ),
                 ],
               ),
             ),

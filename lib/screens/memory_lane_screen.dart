@@ -41,6 +41,7 @@ import 'memory_photo_form_screen.dart';
 import 'memory_music_form_screen.dart';
 import 'memory_location_form_screen.dart';
 import 'memory_book_form_screen.dart';
+import '../widgets/memory_date_field.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -3464,6 +3465,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   latitude,
                   longitude,
                   required isAdult,
+                  customDate,
                 }) =>
                     _saveNewMemory(
                   type: type,
@@ -3475,6 +3477,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   mediaPaths: mediaPaths,
                   mediaPath: mediaPath,
                   isAdult: isAdult,
+                  customDate: customDate,
                 ),
               ),
               settings: const RouteSettings(name: '/memory_photo_form'),
@@ -3494,6 +3497,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   musicCoverUrl,
                   musicPath,
                   caption = '',
+                  customDate,
                 }) =>
                     _saveNewMemory(
                   type: MemoryType.music,
@@ -3503,6 +3507,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   musicUrl: musicUrl,
                   musicCoverUrl: musicCoverUrl,
                   musicPath: musicPath,
+                  customDate: customDate,
                 ),
               ),
               settings: const RouteSettings(name: '/memory_music_form'),
@@ -3519,6 +3524,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   latitude,
                   longitude,
                   caption = '',
+                  customDate,
                 }) =>
                     _saveNewMemory(
                   type: MemoryType.location,
@@ -3526,6 +3532,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   locationName: locationName,
                   latitude: latitude,
                   longitude: longitude,
+                  customDate: customDate,
                 ),
               ),
               settings: const RouteSettings(name: '/memory_location_form'),
@@ -3545,6 +3552,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   bookPublisher,
                   bookInfoUrl,
                   required caption,
+                  customDate,
                 }) =>
                     _saveNewMemory(
                   type: MemoryType.book,
@@ -3555,6 +3563,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   bookYear: bookYear,
                   bookPublisher: bookPublisher,
                   bookInfoUrl: bookInfoUrl,
+                  customDate: customDate,
                 ),
               ),
               settings: const RouteSettings(name: '/memory_book_form'),
@@ -4340,6 +4349,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? fetchedVideoAuthor;
     bool useVideoUrl = startWithUrl;
     bool isAdultPhoto = false;
+    // Дата воспоминания: если задана — пин уезжает в прошлое на ленте.
+    DateTime? customDate;
 
     showModalBottomSheet(
       context: context,
@@ -6046,6 +6057,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ],
 
+                const SizedBox(height: 16),
+                MemoryDateField(
+                  value: customDate,
+                  onChanged: (d) => setState(() => customDate = d),
+                  accent: primary,
+                ),
+
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -6081,6 +6099,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         videoLinkThumb: fetchedVideoThumb,
                         videoLinkAuthor: musicArtistCtrl.text.trim(),
                         isAdult: isAdultPhoto,
+                        customDate: customDate,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -6154,6 +6173,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? bookPublisher,
     String? bookInfoUrl,
     bool isAdult = false,
+    // Если задано — момент «в памяти» будет именно этой даты, а не «сейчас».
+    DateTime? customDate,
   }) async {
     final user = _fb.currentUser;
     if (user == null || _groupId.isEmpty) return;
@@ -6323,6 +6344,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         bookPublisher: bookPublisher,
         bookInfoUrl: bookInfoUrl,
         isAdult: isAdult,
+        customDate: customDate,
       );
 
       if (mounted) {

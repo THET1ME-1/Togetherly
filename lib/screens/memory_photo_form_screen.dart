@@ -10,6 +10,7 @@ import 'package:video_compress/video_compress.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/memory_date_field.dart';
 
 import 'map_picker_screen.dart';
 
@@ -24,6 +25,7 @@ typedef MemoryPhotoSaveCallback = Future<void> Function({
   double? latitude,
   double? longitude,
   required bool isAdult,
+  DateTime? customDate,
 });
 
 /// Full-page photo memory creation form.
@@ -56,6 +58,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   bool _isAdult = false;
   bool _isSaving = false;
   bool _isLoadingLocation = false;
+  DateTime? _customDate;
 
   static bool _isVideo(XFile f) {
     final ext = f.path.split('.').last.toLowerCase();
@@ -208,6 +211,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       latitude: _lat,
       longitude: _lng,
       isAdult: _isAdult,
+      customDate: _customDate,
     );
   }
 
@@ -249,6 +253,12 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                   _buildLocationSection(primary, s),
                   const SizedBox(height: 10),
                   _buildAdultToggle(s),
+                  const SizedBox(height: 16),
+                  MemoryDateField(
+                    value: _customDate,
+                    onChanged: (d) => setState(() => _customDate = d),
+                    accent: primary,
+                  ),
                   const SizedBox(height: 24),
                 ],
               ),
