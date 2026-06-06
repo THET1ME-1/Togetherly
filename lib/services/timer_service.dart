@@ -11,6 +11,12 @@ import 'home_widget_service.dart';
 /// когда пользователь состоит в группе.
 class TimerService extends ChangeNotifier {
   static const _localStorageKey = 'user_timers_local';
+
+  /// Детерминированный id системного таймера. Благодаря фиксированному id
+  /// upsert обоих партнёров пишет в одну и ту же запись массива (transaction
+  /// удаляет по id перед добавлением), поэтому одновременное создание пары не
+  /// порождает два системных таймера.
+  static const systemTimerId = 'system';
   final FirebaseService _fb = FirebaseService();
   List<TimerItem> _timers = [];
   String _groupId = '';
@@ -238,6 +244,7 @@ class TimerService extends ChangeNotifier {
       _pendingSystemTimer = null;
       debugPrint('TimerService: создаю отложенный системный таймер');
       addTimer(
+        id: systemTimerId,
         title: p['title'] as String,
         startDate: p['startDate'] as DateTime,
         emoji: p['emoji'] as String,
@@ -296,6 +303,9 @@ class TimerService extends ChangeNotifier {
   // ── CRUD ──
 
   /// Создать новый таймер.
+  /// [id] позволяет задать детерминированный идентификатор (используется для
+  /// системного таймера, чтобы upsert обоих партнёров схлопывался в одну запись
+  /// и не плодил дубликаты при одновременном создании пары).
   Future<void> addTimer({
     required String title,
     required DateTime startDate,
@@ -303,8 +313,12 @@ class TimerService extends ChangeNotifier {
     bool isDefault = false,
     bool isSystem = false,
     bool isCountdown = false,
+    String? id,
   }) async {
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    // Если таймер с таким id уже есть (детерминированный системный id) —
+    // не дублируем локально.
+    if (id != null && _timers.any((t) => t.id == id)) return;
+    id ??= DateTime.now().millisecondsSinceEpoch.toString();
     if (isDefault) {
       for (final t in _timers) {
         t.isDefault = false;
@@ -435,6 +449,7 @@ class TimerService extends ChangeNotifier {
     }
 
     await addTimer(
+      id: systemTimerId,
       title: title,
       startDate: startDate,
       emoji: relationshipEmoji,
