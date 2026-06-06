@@ -40,6 +40,7 @@ import 'memories_map_screen.dart';
 import 'memory_photo_form_screen.dart';
 import 'memory_music_form_screen.dart';
 import 'memory_location_form_screen.dart';
+import 'memory_book_form_screen.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -56,6 +57,8 @@ String _svgAssetForType(MemoryType type) {
       return 'assets/icons/ic_music_note.svg';
     case MemoryType.text:
       return 'assets/icons/ic_edit.svg';
+    case MemoryType.book:
+      return 'assets/icons/ic_book.svg';
   }
 }
 
@@ -710,6 +713,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return _musicTile(memory);
       case MemoryType.text:
         return _textTile(memory);
+      case MemoryType.book:
+        return _bookTile(memory);
     }
   }
 
@@ -1515,6 +1520,156 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
           const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  BOOK TILE — card with 3D book cover
+  // ═══════════════════════════════════════════════════
+  Widget _bookTile(Memory memory) {
+    final s = LocaleService.current;
+    final title = memory.title?.isNotEmpty == true
+        ? memory.title!
+        : LocaleService.current.books;
+    final author = memory.bookAuthor ?? '';
+    final hasAuthor = author.isNotEmpty;
+    final hasYear =
+        memory.bookYear != null && memory.bookYear!.isNotEmpty;
+    final hasPublisher =
+        memory.bookPublisher != null && memory.bookPublisher!.isNotEmpty;
+
+    return _baseTile(
+      memory: memory,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(memory, subtitle: s.sharedABook, badgeColor: primary),
+          const SizedBox(height: 10),
+          // ── Book sub-card (3D cover + meta) ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Mini 3D book cover (no tap — outer tile handles it) ──
+                  _MiniBookCover(
+                    accent: primary,
+                    coverUrl: memory.bookCoverUrl,
+                    title: title,
+                    author: author,
+                  ),
+                  const SizedBox(width: 12),
+                  // ── Text content ──
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade900,
+                            height: 1.25,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (hasAuthor)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              author,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        // ── Meta chips ──
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (hasYear)
+                              _bookChip(
+                                Icons.calendar_today_rounded,
+                                memory.bookYear!,
+                                primary,
+                              ),
+                            if (hasPublisher)
+                              _bookChip(
+                                Icons.business_rounded,
+                                memory.bookPublisher!,
+                                primary,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (memory.caption?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: _SpoilerRichText(
+                text: memory.caption!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  height: 1.45,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          _locationDistancePill(memory),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _bookChip(IconData icon, String label, Color accent) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: accent),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -3255,6 +3410,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 color: const Color(0xFF8B5CF6),
                 type: MemoryType.music,
               ),
+              _addMemoryOption(
+                icon: Icons.menu_book_rounded,
+                label: LocaleService.current.books,
+                color: const Color(0xFFA855F7),
+                type: MemoryType.book,
+              ),
             ],
           ),
         ),
@@ -3368,6 +3529,35 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ),
               ),
               settings: const RouteSettings(name: '/memory_location_form'),
+            ),
+          );
+        } else if (type == MemoryType.book) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoryBookFormScreen(
+                theme: widget.theme,
+                onSave: ({
+                  required bookTitle,
+                  required bookAuthor,
+                  bookCoverUrl,
+                  bookYear,
+                  bookPublisher,
+                  bookInfoUrl,
+                  required caption,
+                }) =>
+                    _saveNewMemory(
+                  type: MemoryType.book,
+                  title: bookTitle,
+                  caption: caption,
+                  bookAuthor: bookAuthor,
+                  bookCoverUrl: bookCoverUrl,
+                  bookYear: bookYear,
+                  bookPublisher: bookPublisher,
+                  bookInfoUrl: bookInfoUrl,
+                ),
+              ),
+              settings: const RouteSettings(name: '/memory_book_form'),
             ),
           );
         } else {
@@ -5934,6 +6124,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return s.music;
       case MemoryType.text:
         return s.note;
+      case MemoryType.book:
+        return s.books;
     }
   }
 
@@ -5955,6 +6147,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? videoLinkUrl,
     String? videoLinkThumb,
     String? videoLinkAuthor,
+    // book
+    String? bookAuthor,
+    String? bookCoverUrl,
+    String? bookYear,
+    String? bookPublisher,
+    String? bookInfoUrl,
     bool isAdult = false,
   }) async {
     final user = _fb.currentUser;
@@ -6119,6 +6317,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         imageUrl: finalImageUrl,
         imageUrls: uploadedImageUrls.isNotEmpty ? uploadedImageUrls : null,
         videoUrl: finalVideoUrl,
+        bookAuthor: bookAuthor,
+        bookCoverUrl: bookCoverUrl,
+        bookYear: bookYear,
+        bookPublisher: bookPublisher,
+        bookInfoUrl: bookInfoUrl,
         isAdult: isAdult,
       );
 
@@ -7004,6 +7207,179 @@ class _MiniVinylPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MiniVinylPainter old) => old.labelColor != labelColor;
+}
+
+// ── Mini 3D book cover — компактная обложка для карточки в ленте ─────────────
+class _MiniBookCover extends StatelessWidget {
+  final Color accent;
+  final String? coverUrl;
+  final String title;
+  final String author;
+
+  const _MiniBookCover({
+    required this.accent,
+    this.coverUrl,
+    required this.title,
+    required this.author,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Соотношение сторон как у настоящей книги — ~0.7 (высота > ширины).
+    const w = 48.0;
+    const h = 68.0;
+    return SizedBox(
+      width: w + 4,
+      height: h + 4,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Тень справа-снизу для имитации глубины
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              height: h,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.20),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(2),
+                  bottomRight: Radius.circular(2),
+                ),
+              ),
+            ),
+          ),
+          // Сама обложка
+          Container(
+            width: w,
+            height: h,
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(3),
+                bottomRight: Radius.circular(3),
+                topLeft: Radius.circular(1.5),
+                bottomLeft: Radius.circular(1.5),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(3),
+                bottomRight: Radius.circular(3),
+                topLeft: Radius.circular(1.5),
+                bottomLeft: Radius.circular(1.5),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (coverUrl != null && coverUrl!.isNotEmpty)
+                    Image.network(
+                      coverUrl!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (ctx, child, progress) =>
+                          progress == null ? child : _placeholder(),
+                      errorBuilder: (_, __, ___) => _placeholder(),
+                    )
+                  else
+                    _placeholder(),
+                  // Корешок слева — тёмная полоска
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withValues(alpha: 0.30),
+                            Colors.black.withValues(alpha: 0.05),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Глянцевый блик в верхнем-левом углу
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.18),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.45],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.9),
+            accent.withValues(alpha: 0.55),
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(7, 8, 5, 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.menu_book_rounded, color: Colors.white, size: 12),
+            const Spacer(),
+            if (title.isNotEmpty)
+              Text(
+                title,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 7,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                ),
+              ),
+            if (author.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 6,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -7929,6 +8305,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         return _buildTextMedia(memory, p);
       case MemoryType.videoLink:
         return _buildVideoLinkMedia(memory, p);
+      case MemoryType.book:
+        return _buildBookMedia(memory, p);
     }
   }
 
@@ -8584,6 +8962,205 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               fontSize: 16,
               color: Colors.grey.shade800,
               height: 1.65,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── BOOK MEDIA (full detail card with 3D cover) ──────────────────────────────
+  Widget _buildBookMedia(Memory memory, Color p) {
+    final title = memory.title?.isNotEmpty == true
+        ? memory.title!
+        : LocaleService.current.books;
+    final author = memory.bookAuthor ?? '';
+    final hasYear = memory.bookYear?.isNotEmpty == true;
+    final hasPublisher = memory.bookPublisher?.isNotEmpty == true;
+    final hasInfo = memory.bookInfoUrl?.isNotEmpty == true;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.withOpacity(0.07), p.withOpacity(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.withOpacity(0.15), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Badge ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: p.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.menu_book_rounded, color: p, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                LocaleService.current.books.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: p,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── 3D cover + meta side by side ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MiniBookCover(
+                accent: p,
+                coverUrl: memory.bookCoverUrl,
+                title: title,
+                author: author,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade900,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (author.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        author,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: p,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    if (hasYear || hasPublisher)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (hasYear)
+                            _detailChip(
+                              Icons.calendar_today_rounded,
+                              memory.bookYear!,
+                              p,
+                            ),
+                          if (hasPublisher)
+                            _detailChip(
+                              Icons.business_rounded,
+                              memory.bookPublisher!,
+                              p,
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // ── Caption ──
+          if (memory.caption?.isNotEmpty == true) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.withOpacity(0.10)),
+              ),
+              child: _SpoilerRichText(
+                text: memory.caption!,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  color: Colors.grey.shade800,
+                  height: 1.55,
+                ),
+              ),
+            ),
+          ],
+          // ── "Read more" link ──
+          if (hasInfo) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(memory.bookInfoUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  LocaleService.current.bookReadMore,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _detailChip(IconData icon, String label, Color accent) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: accent),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
             ),
           ),
         ],

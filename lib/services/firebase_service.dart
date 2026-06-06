@@ -2745,6 +2745,11 @@ class FirebaseService {
     String? musicArtist,
     String? musicUrl,
     String? musicCoverUrl,
+    String? bookAuthor,
+    String? bookCoverUrl,
+    String? bookYear,
+    String? bookPublisher,
+    String? bookInfoUrl,
     bool isAdult = false,
   }) async {
     final u = currentUser;
@@ -2781,6 +2786,11 @@ class FirebaseService {
         musicArtist: musicArtist,
         musicUrl: musicUrl,
         musicCoverUrl: musicCoverUrl,
+        bookAuthor: bookAuthor,
+        bookCoverUrl: bookCoverUrl,
+        bookYear: bookYear,
+        bookPublisher: bookPublisher,
+        bookInfoUrl: bookInfoUrl,
         isAdult: isAdult,
       );
 
@@ -2810,6 +2820,7 @@ class FirebaseService {
     double? longitude,
     String? musicTitle,
     String? musicArtist,
+    String? bookAuthor,
     String? imageUrl,
     bool? isPinned,
     bool? isAdult,
@@ -2823,6 +2834,7 @@ class FirebaseService {
       if (longitude != null) updates['longitude'] = longitude;
       if (musicTitle != null) updates['musicTitle'] = musicTitle;
       if (musicArtist != null) updates['musicArtist'] = musicArtist;
+      if (bookAuthor != null) updates['bookAuthor'] = bookAuthor;
       if (imageUrl != null) updates['imageUrl'] = imageUrl;
       if (isPinned != null) updates['isPinned'] = isPinned;
       if (isAdult != null) updates['isAdult'] = isAdult;

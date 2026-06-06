@@ -637,6 +637,22 @@ abstract class AppStrings {
   String get fromGallery;
   String get byLink;
   String get videoLink;
+  // ── Books ──
+  String get books;
+  String get bookSearchHint;
+  String get searchBooksPrompt;
+  String get noBooksFound;
+  String get bookSearchFailed;
+  String get bookSearchFailedHint;
+  String get bookEnterManually;
+  String get bookManualEntryHint;
+  String get sharedABook;
+  String get bookAuthorLabel;
+  String get bookAuthorHint;
+  String get bookTitleHint;
+  String get bookDetails;
+  String get bookReadMore;
+  String get bookSearchAgain;
   String get fetchData;
   String get supportedPlatformsHint;
   String get supportedPlatforms;
@@ -2039,6 +2055,38 @@ class _RuStrings extends AppStrings {
   String get byLink => 'По ссылке';
   @override
   String get videoLink => 'Ссылка на видео';
+  @override
+  String get books => 'Книги';
+  @override
+  String get bookSearchHint => 'Название книги или автор';
+  @override
+  String get searchBooksPrompt => 'Найдите книгу по названию или автору';
+  @override
+  String get noBooksFound => 'Книги не найдены';
+  @override
+  String get bookSearchFailed => 'Не удалось найти. Введите вручную';
+  @override
+  String get bookSearchFailedHint =>
+      'Поиск не ответил или книга отсутствует в базе.';
+  @override
+  String get bookEnterManually => 'Ввести вручную';
+  @override
+  String get bookManualEntryHint =>
+      'Заполните название и автора самостоятельно';
+  @override
+  String get sharedABook => 'Поделился(-ась) книгой';
+  @override
+  String get bookAuthorLabel => 'Автор';
+  @override
+  String get bookAuthorHint => 'Автор';
+  @override
+  String get bookTitleHint => 'Название книги';
+  @override
+  String get bookDetails => 'О книге';
+  @override
+  String get bookReadMore => 'Подробнее';
+  @override
+  String get bookSearchAgain => 'Искать';
   @override
   String get fetchData => 'Получить данные';
   @override
@@ -3736,6 +3784,38 @@ class _EnStrings extends AppStrings {
   String get byLink => 'By link';
   @override
   String get videoLink => 'Video link';
+  @override
+  String get books => 'Books';
+  @override
+  String get bookSearchHint => 'Book title or author';
+  @override
+  String get searchBooksPrompt => 'Search a book by title or author';
+  @override
+  String get noBooksFound => 'No books found';
+  @override
+  String get bookSearchFailed => 'Search failed. Enter manually';
+  @override
+  String get bookSearchFailedHint =>
+      'The search did not respond or the book is not in the database.';
+  @override
+  String get bookEnterManually => 'Enter manually';
+  @override
+  String get bookManualEntryHint =>
+      'Fill in the title and author yourself';
+  @override
+  String get sharedABook => 'Shared a book';
+  @override
+  String get bookAuthorLabel => 'Author';
+  @override
+  String get bookAuthorHint => 'Author';
+  @override
+  String get bookTitleHint => 'Book title';
+  @override
+  String get bookDetails => 'About the book';
+  @override
+  String get bookReadMore => 'Read more';
+  @override
+  String get bookSearchAgain => 'Search';
   @override
   String get fetchData => 'Fetch data';
   @override

@@ -1064,9 +1064,10 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// URL миниатюры пина: обложка для музыки, кадр/фото для остального.
+  /// URL миниатюры пина: обложка для музыки/книги, кадр/фото для остального.
   String? _memoryThumb(Memory m) {
     if (m.type == MemoryType.music) return m.musicCoverUrl;
+    if (m.type == MemoryType.book) return m.bookCoverUrl;
     return m.imageUrl ??
         (m.imageUrls?.isNotEmpty == true ? m.imageUrls!.first : null);
   }
