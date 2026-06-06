@@ -3386,7 +3386,12 @@ class FirebaseService {
     required String groupId,
     required void Function(List<TimerItem> timers) onData,
   }) {
-    String prevHash = '';
+    // null = ещё не доставили ни одного снимка. Важно отличать «не доставляли»
+    // от «доставили пустой список»: у только что созданной группы поля timers
+    // нет, поэтому hash первого снимка == '' и при старте с prevHash='' колбэк
+    // проглатывался — _mergeRemoteTimers([]) не вызывался, _hasReceivedRemoteSync
+    // оставался false и отложенный системный таймер не создавался.
+    String? prevHash;
     return _groupDocStream(groupId).listen((snap) {
       if (!snap.exists) return;
       final data = snap.data()!;

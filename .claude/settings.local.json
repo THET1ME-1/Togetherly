@@ -57,7 +57,9 @@
       "PowerShell($out = flutter analyze lib/screens/chat_screen.dart 2>&1; \\($out | Select-String -Pattern \"error -\"\\).Count; $out | Select-Object -Last 1)",
       "Bash(node --check functions/index.js)",
       "Bash(node -e \"const {getDatabaseWithUrl}=require\\('firebase-admin/database'\\); console.log\\('export type:', typeof getDatabaseWithUrl\\)\")",
-      "Bash(node -e \"console.log\\('firebase-admin', require\\('firebase-admin/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\('firebase-admin', require\\('firebase-admin/package.json'\\).version\\)\")",
+      "Bash(findstr /I \"timer\")",
+      "Bash(findstr /I /C:\"error\" /C:\"warning\" /C:\"timer_service\" /C:\"firebase_service\" /C:\"No issues\" /C:\"issues found\")"
     ]
   }
 }
