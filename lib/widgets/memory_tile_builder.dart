@@ -21,6 +21,8 @@ String svgAssetForMemoryType(MemoryType type) {
       return 'assets/icons/ic_edit.svg';
     case MemoryType.videoLink:
       return 'assets/icons/ic_photo.svg';
+    case MemoryType.book:
+      return 'assets/icons/ic_book.svg';
   }
 }
 
@@ -102,6 +104,9 @@ class MemoryTileBuilder {
         break;
       case MemoryType.videoLink:
         content = _videoLinkContent(memory);
+        break;
+      case MemoryType.book:
+        content = _bookContent(memory);
         break;
     }
 
@@ -194,6 +199,11 @@ class MemoryTileBuilder {
         subtitle = memory.title?.isNotEmpty == true
             ? memory.title!
             : s.sharedAVideoLink;
+        break;
+      case MemoryType.book:
+        subtitle = memory.title?.isNotEmpty == true
+            ? memory.title!
+            : s.sharedABook;
         break;
     }
 
@@ -1007,6 +1017,251 @@ class MemoryTileBuilder {
             ),
           ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  BOOK CONTENT (simple — used on home preview tile)
+  // ═══════════════════════════════════════════════════
+  Widget _bookContent(Memory memory) {
+    final s = LocaleService.current;
+    final hasCover =
+        memory.bookCoverUrl != null && memory.bookCoverUrl!.isNotEmpty;
+    final title = memory.title?.isNotEmpty == true
+        ? memory.title!
+        : s.books;
+    final author = memory.bookAuthor ?? '';
+    final hasAuthor = author.isNotEmpty;
+    final hasYear = memory.bookYear?.isNotEmpty == true;
+    final hasPublisher = memory.bookPublisher?.isNotEmpty == true;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200, width: 1),
+            ),
+            child: Row(
+              children: [
+                // Compact book cover (CSS-style 3D via shadows)
+                Container(
+                  width: 42,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(4),
+                      bottomRight: Radius.circular(4),
+                      topLeft: Radius.circular(1.5),
+                      bottomLeft: Radius.circular(1.5),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(4),
+                      bottomRight: Radius.circular(4),
+                      topLeft: Radius.circular(1.5),
+                      bottomLeft: Radius.circular(1.5),
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (hasCover)
+                          Image.network(
+                            memory.bookCoverUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _bookPlaceholder(
+                                primary, title, author),
+                            loadingBuilder: (_, child, p) =>
+                                p == null ? child : _bookPlaceholder(
+                                    primary, title, author),
+                          )
+                        else
+                          _bookPlaceholder(primary, title, author),
+                        // Корешок
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 4,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.30),
+                                  Colors.black.withValues(alpha: 0.05),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade900,
+                          height: 1.25,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (hasAuthor)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            author,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (hasYear || hasPublisher) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 5,
+                          runSpacing: 4,
+                          children: [
+                            if (hasYear)
+                              _bookChip(
+                                Icons.calendar_today_rounded,
+                                memory.bookYear!,
+                                primary,
+                              ),
+                            if (hasPublisher)
+                              _bookChip(
+                                Icons.business_rounded,
+                                memory.bookPublisher!,
+                                primary,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (memory.caption?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: _SpoilerText(
+              text: memory.caption!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _bookChip(IconData icon, String label, Color accent) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: accent),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bookPlaceholder(Color accent, String title, String author) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.9),
+            accent.withValues(alpha: 0.55),
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(7, 8, 4, 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.menu_book_rounded, color: Colors.white, size: 11),
+            const Spacer(),
+            if (title.isNotEmpty)
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 6.5,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                ),
+              ),
+            if (author.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                author,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 5.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

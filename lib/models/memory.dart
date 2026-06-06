@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Types of memory content
-enum MemoryType { photo, video, location, music, text, videoLink }
+enum MemoryType { photo, video, location, music, text, videoLink, book }
 
 /// A single memory entry in the shared Memory Lane
 class Memory {
@@ -28,6 +28,13 @@ class Memory {
   String? musicUrl; // external link (Spotify, YouTube, etc.) or local file path
   String? musicCoverUrl; // album art
 
+  // Book fields (used for MemoryType.book). Title reuses [title].
+  String? bookAuthor; // author(s)
+  String? bookCoverUrl; // cover image URL from the books API
+  String? bookYear; // publication year
+  String? bookPublisher; // publisher name
+  String? bookInfoUrl; // link to the book page (Google Books / Open Library)
+
   bool isPinned;
   bool isAdult;
 
@@ -52,6 +59,11 @@ class Memory {
     this.musicArtist,
     this.musicUrl,
     this.musicCoverUrl,
+    this.bookAuthor,
+    this.bookCoverUrl,
+    this.bookYear,
+    this.bookPublisher,
+    this.bookInfoUrl,
     this.isPinned = false,
     this.isAdult = false,
   });
@@ -71,6 +83,8 @@ class Memory {
         return 'Note';
       case MemoryType.videoLink:
         return 'Video Link';
+      case MemoryType.book:
+        return 'Book';
     }
   }
 
@@ -88,6 +102,8 @@ class Memory {
         return '📝';
       case MemoryType.videoLink:
         return '🎬';
+      case MemoryType.book:
+        return '📚';
     }
   }
 
@@ -113,6 +129,11 @@ class Memory {
       if (musicArtist != null) 'musicArtist': musicArtist,
       if (musicUrl != null) 'musicUrl': musicUrl,
       if (musicCoverUrl != null) 'musicCoverUrl': musicCoverUrl,
+      if (bookAuthor != null) 'bookAuthor': bookAuthor,
+      if (bookCoverUrl != null) 'bookCoverUrl': bookCoverUrl,
+      if (bookYear != null) 'bookYear': bookYear,
+      if (bookPublisher != null) 'bookPublisher': bookPublisher,
+      if (bookInfoUrl != null) 'bookInfoUrl': bookInfoUrl,
       'isPinned': isPinned,
       if (isAdult) 'isAdult': isAdult,
     };
@@ -146,6 +167,11 @@ class Memory {
       musicArtist: data['musicArtist'],
       musicUrl: data['musicUrl'],
       musicCoverUrl: data['musicCoverUrl'],
+      bookAuthor: data['bookAuthor'],
+      bookCoverUrl: data['bookCoverUrl'],
+      bookYear: data['bookYear'],
+      bookPublisher: data['bookPublisher'],
+      bookInfoUrl: data['bookInfoUrl'],
       isPinned: data['isPinned'] ?? false,
       isAdult: data['isAdult'] ?? false,
     );
@@ -174,6 +200,11 @@ class Memory {
       'musicArtist': musicArtist,
       'musicUrl': musicUrl,
       'musicCoverUrl': musicCoverUrl,
+      'bookAuthor': bookAuthor,
+      'bookCoverUrl': bookCoverUrl,
+      'bookYear': bookYear,
+      'bookPublisher': bookPublisher,
+      'bookInfoUrl': bookInfoUrl,
       'isPinned': isPinned,
       'isAdult': isAdult,
     };
@@ -208,6 +239,11 @@ class Memory {
       musicArtist: json['musicArtist'],
       musicUrl: json['musicUrl'],
       musicCoverUrl: json['musicCoverUrl'],
+      bookAuthor: json['bookAuthor'],
+      bookCoverUrl: json['bookCoverUrl'],
+      bookYear: json['bookYear'],
+      bookPublisher: json['bookPublisher'],
+      bookInfoUrl: json['bookInfoUrl'],
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
     );
