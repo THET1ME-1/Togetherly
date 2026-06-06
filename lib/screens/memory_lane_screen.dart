@@ -3021,6 +3021,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     double? editLat = memory.latitude;
     double? editLng = memory.longitude;
     bool isAdultEdit = memory.isAdult;
+    // Дата воспоминания: инициализируем текущей createdAt — пользователь
+    // может изменить её, и тогда пин переедет в нужную точку ленты.
+    DateTime editDate = memory.createdAt;
 
     showModalBottomSheet(
       context: context,
@@ -3301,6 +3304,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                MemoryDateField(
+                  value: editDate,
+                  onChanged: (d) => setState(() => editDate = d ?? memory.createdAt),
+                  accent: primary,
+                  showReset: false,
+                ),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -3322,6 +3332,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         isAdult: memory.type == MemoryType.photo
                             ? isAdultEdit
                             : null,
+                        customDate: editDate,
                       );
                     },
                     style: ElevatedButton.styleFrom(

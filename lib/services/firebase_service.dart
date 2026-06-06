@@ -2829,6 +2829,9 @@ class FirebaseService {
     String? imageUrl,
     bool? isPinned,
     bool? isAdult,
+    // Если задано — перезаписываем createdAt (используется при редактировании
+    // даты воспоминания). null = оставить createdAt как есть.
+    DateTime? customDate,
   }) async {
     try {
       final updates = <String, dynamic>{'editedAt': Timestamp.now()};
@@ -2843,6 +2846,9 @@ class FirebaseService {
       if (imageUrl != null) updates['imageUrl'] = imageUrl;
       if (isPinned != null) updates['isPinned'] = isPinned;
       if (isAdult != null) updates['isAdult'] = isAdult;
+      if (customDate != null) {
+        updates['createdAt'] = Timestamp.fromDate(customDate);
+      }
 
       // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
       // This prevents data loss if both partners edit the caption offline simultaneously.
