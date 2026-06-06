@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Transaction скрыт: коллизия имён с firebase_database (RTDB-транзакция в
+// _seedMissYouCountsIfEmpty). Firestore-транзакции используют выводимый тип
+// колбэка `(tx)`, поэтому имя Transaction из cloud_firestore тут не нужно.
+import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -77,21 +80,29 @@ class FirebaseService {
   /// «Я скучаю» из Firestore в RTDB в этой сессии.
   final Set<String> _missYouSeeded = {};
 
-  /// Переносит старые Firestore-счётчики «Я скучаю» в RTDB, НО только если узел
-  /// в RTDB ещё пуст — чтобы не затереть новые тапы. Идемпотентно.
+  /// Переносит старый Firestore-счётчик «Я скучаю» текущего пользователя в RTDB.
+  /// Idempotent и reset-безопасно.
+  ///
+  /// Мигрируем ТОЛЬКО свой uid (`counts/{myUid}`) — тем же путём/правом, что и
+  /// боевой инкремент в [sendMissYou]. Свой legacy-счёт переносит каждое
+  /// устройство само, поэтому не нужна запись в чужие узлы (её запретят
+  /// security-правила RTDB). Транзакция ставит значение лишь когда узел ещё
+  /// пуст: живой счётчик никогда не затирается.
+  ///
+  /// Раньше тут был check-then-`set()` ЦЕЛОГО узла counts: между чтением
+  /// «пусто» и записью мог пройти тап (или сид со второго устройства), и `set`
+  /// откатывал счётчик к замороженному legacy-значению.
   Future<void> _seedMissYouCountsIfEmpty(String groupId, Map raw) async {
+    final myUid = uid;
+    if (myUid == null) return;
+    final mine = (raw[myUid] as num?)?.toInt() ?? 0;
+    if (mine <= 0) return;
     try {
-      final ref = _missYouCountsRef(groupId);
-      final snap = await ref.get();
-      final existing = snap.value;
-      if (existing is Map && existing.isNotEmpty) return; // уже есть данные
-      final seed = <String, Object>{};
-      raw.forEach((k, v) {
-        final n = (v as num?)?.toInt() ?? 0;
-        if (n > 0) seed[k.toString()] = n;
+      await _missYouCountsRef(groupId).child(myUid).runTransaction((current) {
+        // Уже есть живое значение — не трогаем (никаких откатов).
+        if (current != null) return Transaction.abort();
+        return Transaction.success(mine);
       });
-      if (seed.isEmpty) return;
-      await ref.set(seed);
     } catch (e) {
       debugPrint('_seedMissYouCountsIfEmpty failed: $e');
     }
@@ -439,13 +450,30 @@ class FirebaseService {
   static Future<void> _handleWidgetUpdateMessage(RemoteMessage message) async {
     try {
       final d = message.data;
-      await Future.wait([
-        HomeWidget.saveWidgetData<String>('partner_status', d['status'] ?? ''),
-        HomeWidget.saveWidgetData<String>('partner_mood', d['moodLabel'] ?? ''),
-        HomeWidget.saveWidgetData<String>('partner_message', d['message'] ?? ''),
-        HomeWidget.saveWidgetData<String>('partner_music_title', d['musicTitle'] ?? ''),
-        HomeWidget.saveWidgetData<String>('partner_music_artist', d['musicArtist'] ?? ''),
-      ]);
+      // Обновляем ТОЛЬКО присутствующие в сообщении поля. Отсутствующий ключ
+      // означает «это поле не менялось» — его нельзя затирать пустой строкой,
+      // иначе, например, смена настроения обнуляла статус/сообщение/музыку
+      // партнёра на виджете (сервер шлёт лишь изменившиеся поля).
+      const keyMap = {
+        'status': 'partner_status',
+        'moodLabel': 'partner_mood',
+        'message': 'partner_message',
+        'musicTitle': 'partner_music_title',
+        'musicArtist': 'partner_music_artist',
+      };
+      final updates = <Future<void>>[];
+      keyMap.forEach((dataKey, widgetKey) {
+        if (d.containsKey(dataKey)) {
+          updates.add(
+            HomeWidget.saveWidgetData<String>(
+              widgetKey,
+              (d[dataKey] ?? '').toString(),
+            ),
+          );
+        }
+      });
+      if (updates.isEmpty) return;
+      await Future.wait(updates);
       await HomeWidget.updateWidget(
         name: 'LoveWidgetProvider',
         androidName: 'LoveWidgetProvider',
@@ -554,6 +582,25 @@ class FirebaseService {
       return _LocalNotificationContent(
         title: LocaleService.current.chatNotifTitle(senderName),
         body: body.isNotEmpty ? body : '✉️',
+      );
+    }
+
+    if (type == 'mood') {
+      await NicknameService.instance.init();
+      await LocaleService.instance.init();
+      final senderUid = message.data['senderUid'] ?? '';
+      final fallbackSenderName = message.data['senderName'] ?? 'Partner';
+      final senderName = NicknameService.instance.resolve(
+        senderUid,
+        fallbackSenderName,
+      );
+      final moodLabel = (message.data['moodLabel'] ?? '').toString().trim();
+      // moodLabel хранится на языке отправителя; локализуем только заголовок.
+      return _LocalNotificationContent(
+        title: LocaleService.current.moodNotifTitle(senderName),
+        body: moodLabel.isNotEmpty
+            ? moodLabel
+            : (message.data['body'] ?? '').toString().trim(),
       );
     }
 

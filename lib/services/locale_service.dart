@@ -239,6 +239,7 @@ abstract class AppStrings {
   String get message;
   String get photo;
   String get photoUploaded;
+  String get widgetPhotoOwnerOnlyHint;
   String get music;
   String get addBtn;
   String get widgetSettings;
@@ -871,6 +872,7 @@ abstract class AppStrings {
   String get chatAttachPin;
   String get chatSave;
   String chatNotifTitle(String name);
+  String moodNotifTitle(String name);
   String chatDeleteConfirm(String text);
   /// Разделитель непрочитанных в чате (как в Telegram).
   String get chatNewMessages;
@@ -1240,6 +1242,9 @@ class _RuStrings extends AppStrings {
   String get photo => 'Фото';
   @override
   String get photoUploaded => 'Фото загружено';
+  @override
+  String get widgetPhotoOwnerOnlyHint =>
+      'Видно только тебе. Чтобы показать партнёру — «Фото партнёра»';
   @override
   String get music => 'Музыка';
   @override
@@ -2580,6 +2585,8 @@ class _RuStrings extends AppStrings {
   @override
   String chatNotifTitle(String name) => '$name пишет вам 💬';
   @override
+  String moodNotifTitle(String name) => '$name сменил(а) настроение';
+  @override
   String get chatNewMessages => 'Новые сообщения';
   @override
   String chatDateHeader(DateTime day) {
@@ -2979,6 +2986,9 @@ class _EnStrings extends AppStrings {
   String get photo => 'Photo';
   @override
   String get photoUploaded => 'Photo uploaded';
+  @override
+  String get widgetPhotoOwnerOnlyHint =>
+      'Only you can see this. To show your partner — “Partner Photo”';
   @override
   String get music => 'Music';
   @override
@@ -4308,6 +4318,8 @@ class _EnStrings extends AppStrings {
   String get chatSave => 'Save';
   @override
   String chatNotifTitle(String name) => '$name messages you 💬';
+  @override
+  String moodNotifTitle(String name) => '$name changed their mood';
   @override
   String get chatNewMessages => 'New messages';
   @override

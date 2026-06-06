@@ -1,0 +1,54 @@
+{
+  "rules": {
+    "liveSessions": {
+      "$pairId": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        ".write": "auth != null && (!data.child('members').exists() || data.child('members').child(auth.uid).exists() || newData.child('members').child(auth.uid).exists())"
+      }
+    },
+
+    "chats": {
+      "$groupId": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        ".write": "auth != null && (!data.child('members').exists() || data.child('members').child(auth.uid).exists() || newData.child('members').child(auth.uid).exists())",
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "messages": {
+          ".indexOn": ["ts"]
+        }
+      }
+    },
+
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['online', 'lastSeen'])",
+        "online": { ".validate": "newData.isBoolean()" },
+        "lastSeen": { ".validate": "newData.isNumber()" }
+      }
+    },
+
+    "missYou": {
+      "$groupId": {
+        ".read": "auth != null",
+        "counts": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+
+    "push": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
