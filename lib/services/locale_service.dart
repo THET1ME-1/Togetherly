@@ -283,6 +283,7 @@ abstract class AppStrings {
   String daysTogetherLabel(String days);
   String get invitePartnerToCount;
   String get anniversaryDate;
+  String get anniversaryWheelHint;
   String get firstKissDate;
   String get myBirthday;
   String get partnerBirthday;
@@ -1334,6 +1335,9 @@ class _RuStrings extends AppStrings {
       'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️';
   @override
   String get anniversaryDate => 'Годовщина';
+  @override
+  String get anniversaryWheelHint =>
+      'Для напоминаний. Счётчик «Дни вместе» меняется отдельно — карандашом ✏️ на главном экране';
   @override
   String get firstKissDate => 'Первый поцелуй';
   @override
@@ -3070,6 +3074,9 @@ class _EnStrings extends AppStrings {
       'Invite a partner to start\ncounting days together ❤️';
   @override
   String get anniversaryDate => 'Anniversary';
+  @override
+  String get anniversaryWheelHint =>
+      'For reminders. The “Days together” counter is set separately — tap the ✏️ on the home screen';
   @override
   String get firstKissDate => 'First Kiss';
   @override

@@ -100,6 +100,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _lockScreenMood = false;
   static const _kLockScreenMood = 'lock_screen_mood_enabled';
 
+  // Подсказка про колесо «Дни вместе» под полем «Годовщина».
+  // Скрывается навсегда по крестику.
+  bool _anniversaryHintDismissed = false;
+  static const _kAnniversaryHintDismissed = 'anniversary_wheel_hint_dismissed';
+
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
@@ -144,6 +149,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
+      _anniversaryHintDismissed =
+          prefs.getBool(_kAnniversaryHintDismissed) ?? false;
     });
     // Синхронизируем текущие настройки в Firestore при открытии профиля,
     // чтобы Cloud Functions всегда имели актуальные данные
@@ -1064,6 +1071,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required String value,
     Widget? trailing,
+    String? hint,
+    VoidCallback? onHintDismiss,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1099,6 +1108,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Colors.grey.shade800,
                   ),
                 ),
+                if (hint != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          hint,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.3,
+                            color: Colors.grey.shade400,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      if (onHintDismiss != null)
+                        GestureDetector(
+                          onTap: onHintDismiss,
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6, top: 1),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 14,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -1538,6 +1579,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: _s.anniversaryDate,
                 value: _formatAnniversaryDate(
                     selectedPartner?.connection.anniversaryDate),
+                hint: _anniversaryHintDismissed
+                    ? null
+                    : _s.anniversaryWheelHint,
+                onHintDismiss: _dismissAnniversaryHint,
                 trailing: Icon(
                   Icons.chevron_right_rounded,
                   color: Colors.grey.shade400,
@@ -1679,6 +1724,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _dismissAnniversaryHint() async {
+    setState(() => _anniversaryHintDismissed = true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAnniversaryHintDismissed, true);
   }
 
   Future<void> _showAnniversaryDatePicker(
