@@ -1136,14 +1136,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        _t.bgImageAsset != null
-            ? Image.asset(
-                _t.bgImageAsset!,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-              )
-            : _t.bgImageUrl != null
+        _t.bgImageUrl != null
             ? StorageImage(
                 imageUrl: _t.bgImageUrl!,
                 fit: BoxFit.cover,

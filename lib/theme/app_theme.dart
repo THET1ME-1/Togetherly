@@ -27,10 +27,6 @@ class AppTheme {
   /// URL изображения фона из Firebase Storage (если задан — используется вместо градиента)
   final String? bgImageUrl;
 
-  /// Локальный asset-фон (текстура). Приоритет выше [bgImageUrl] и градиента.
-  /// Используется для тем с фактурой (напр. пергамент/бумага).
-  final String? bgImageAsset;
-
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
   /// Цвета градиента карточки [начало, конец]
@@ -93,7 +89,6 @@ class AppTheme {
     required this.primaryLight,
     required this.bgGradient,
     this.bgImageUrl,
-    this.bgImageAsset,
     required this.heroGradient,
     required this.heroShadowBase,
     required this.heroShadowExpanded,
@@ -669,34 +664,6 @@ abstract final class AppThemes {
     price: 30,
   );
 
-  // ── 20: Пергамент (Parchment) — старая бумага, самая дорогая ──────────────
-  static const parchment = AppTheme(
-    index: 20,
-    name: 'Пергамент',
-    primary: Color(0xFFA07C4B), // сепия-чернила
-    primaryLight: Color(0xFFF3E9D6),
-    bgGradient: [Color(0xFFF4E8D0), Color(0xFFFBF4E4)], // выцветшая бумага
-    heroGradient: [Color(0xFFD8B98A), Color(0xFF8A6A3D)], // пергамент → сепия
-    heroShadowBase: Color(0x26A07C4B),
-    heroShadowExpanded: Color(0x40A07C4B),
-    heroGlassOpacity: 0.20,
-    heroToggleBorder: true,
-    heroToggleSelectedColor: Color(0xFF6E5230),
-    cardSurface: Color(0xFFFCF6EA), // тёплый кремовый «лист», не чисто-белый
-    cardBorder: Color(0xFFE6D5B8),
-    iconDraw: Color(0xFFA07C4B),
-    iconMood: Color(0xFFA07C4B),
-    iconCalendar: Color(0xFFA07C4B),
-    iconPost: Color(0xFFA07C4B),
-    navActiveBg: Color(0xFFEFE2C9),
-    navActiveIcon: Color(0xFFA07C4B),
-    promptButtonColor: Color(0xFFA07C4B),
-    timerDialBackground: Color(0xFFDCC59B),
-    bgImageAsset: 'assets/images/wallpapers/parchment.webp', // фактура бумаги
-    isPremium: true,
-    price: 60,
-  );
-
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -719,7 +686,6 @@ abstract final class AppThemes {
     bordeaux,
     teal,
     nord,
-    parchment,
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
