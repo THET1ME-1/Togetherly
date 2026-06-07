@@ -27,6 +27,10 @@ class AppTheme {
   /// URL изображения фона из Firebase Storage (если задан — используется вместо градиента)
   final String? bgImageUrl;
 
+  /// Локальный asset-фон (текстура). Приоритет выше [bgImageUrl] и градиента.
+  /// Используется для тем с фактурой (напр. пергамент/бумага).
+  final String? bgImageAsset;
+
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
   /// Цвета градиента карточки [начало, конец]
@@ -89,6 +93,7 @@ class AppTheme {
     required this.primaryLight,
     required this.bgGradient,
     this.bgImageUrl,
+    this.bgImageAsset,
     required this.heroGradient,
     required this.heroShadowBase,
     required this.heroShadowExpanded,
@@ -555,28 +560,30 @@ abstract final class AppThemes {
   );
 
   // ── 16: Северное сияние (Aurora) ─────────────────────────────────────────
+  // Акцент — электрик-фиолетовый (полярное небо), hero — фиолетово-зелёная
+  // лента сияния. Намеренно отличается от Бирюзовой (чистый cyan).
   static const aurora = AppTheme(
     index: 16,
     name: 'Северное сияние',
-    primary: Color(0xFF2BB5A3), // полярная бирюза
-    primaryLight: Color(0xFFE3F7F2),
-    bgGradient: [Color(0xFFEAF7F5), Color(0xFFF4FBFA)],
-    heroGradient: [Color(0xFF5E5BE6), Color(0xFF38D9A9)], // индиго → зелёное сияние
-    heroShadowBase: Color(0x262BB5A3),
-    heroShadowExpanded: Color(0x402BB5A3),
+    primary: Color(0xFF7C5CFF), // электрик-фиолетовый
+    primaryLight: Color(0xFFECE7FF),
+    bgGradient: [Color(0xFFF0ECFF), Color(0xFFF5FBFF)], // ночь → рассвет
+    heroGradient: [Color(0xFF6A4DE0), Color(0xFF2BE0A0)], // фиолет → неон-зелёное сияние
+    heroShadowBase: Color(0x267C5CFF),
+    heroShadowExpanded: Color(0x407C5CFF),
     heroGlassOpacity: 0.22,
     heroToggleBorder: true,
-    heroToggleSelectedColor: Color(0xFF1F8C7E),
+    heroToggleSelectedColor: Color(0xFF5B3FD6),
     cardSurface: Color(0xFFFFFFFF),
-    cardBorder: Color(0xFFCFEDE7),
-    iconDraw: Color(0xFF2BB5A3),
-    iconMood: Color(0xFF2BB5A3),
-    iconCalendar: Color(0xFF2BB5A3),
-    iconPost: Color(0xFF2BB5A3),
-    navActiveBg: Color(0xFFDEF5F0),
-    navActiveIcon: Color(0xFF2BB5A3),
-    promptButtonColor: Color(0xFF2BB5A3),
-    timerDialBackground: Color(0xFFA6E6DA),
+    cardBorder: Color(0xFFE1DAF7),
+    iconDraw: Color(0xFF7C5CFF),
+    iconMood: Color(0xFF7C5CFF),
+    iconCalendar: Color(0xFF7C5CFF),
+    iconPost: Color(0xFF7C5CFF),
+    navActiveBg: Color(0xFFEBE5FF),
+    navActiveIcon: Color(0xFF7C5CFF),
+    promptButtonColor: Color(0xFF7C5CFF),
+    timerDialBackground: Color(0xFFC9BCFF),
     isPremium: true,
     price: 40,
   );
@@ -608,29 +615,29 @@ abstract final class AppThemes {
     price: 30,
   );
 
-  // ── 18: Бирюзовая (Teal) — насыщеннее ocean, зеленее mint ─────────────────
+  // ── 18: Бирюзовая (Teal) — чистый cyan, отличается от ocean/mint/aurora ────
   static const teal = AppTheme(
     index: 18,
     name: 'Бирюзовая',
-    primary: Color(0xFF149B8E),
-    primaryLight: Color(0xFFDEF5F1),
-    bgGradient: [Color(0xFFE7F6F3), Color(0xFFF3FBF9)],
-    heroGradient: [Color(0xFF4FCDBC), Color(0xFF0E7B72)], // яркая → глубокая бирюза
-    heroShadowBase: Color(0x26149B8E),
-    heroShadowExpanded: Color(0x40149B8E),
+    primary: Color(0xFF0EA5A5), // равновесная cyan-бирюза
+    primaryLight: Color(0xFFDCF5F4),
+    bgGradient: [Color(0xFFE6F6F5), Color(0xFFF2FBFA)],
+    heroGradient: [Color(0xFF46D6D0), Color(0xFF0B7E7E)], // яркий cyan → глубокий teal
+    heroShadowBase: Color(0x260EA5A5),
+    heroShadowExpanded: Color(0x400EA5A5),
     heroGlassOpacity: 0.20,
     heroToggleBorder: true,
-    heroToggleSelectedColor: Color(0xFF0B6B63),
+    heroToggleSelectedColor: Color(0xFF0A6E6E),
     cardSurface: Color(0xFFFFFFFF),
-    cardBorder: Color(0xFFCDE9E4),
-    iconDraw: Color(0xFF149B8E),
-    iconMood: Color(0xFF149B8E),
-    iconCalendar: Color(0xFF149B8E),
-    iconPost: Color(0xFF149B8E),
-    navActiveBg: Color(0xFFDAF2EE),
-    navActiveIcon: Color(0xFF149B8E),
-    promptButtonColor: Color(0xFF149B8E),
-    timerDialBackground: Color(0xFF9FDDD4),
+    cardBorder: Color(0xFFCBE9E7),
+    iconDraw: Color(0xFF0EA5A5),
+    iconMood: Color(0xFF0EA5A5),
+    iconCalendar: Color(0xFF0EA5A5),
+    iconPost: Color(0xFF0EA5A5),
+    navActiveBg: Color(0xFFD8F2F0),
+    navActiveIcon: Color(0xFF0EA5A5),
+    promptButtonColor: Color(0xFF0EA5A5),
+    timerDialBackground: Color(0xFF9BDDD9),
     isPremium: true,
     price: 30,
   );
@@ -685,10 +692,9 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFFA07C4B),
     promptButtonColor: Color(0xFFA07C4B),
     timerDialBackground: Color(0xFFDCC59B),
+    bgImageAsset: 'assets/images/wallpapers/parchment.webp', // фактура бумаги
     isPremium: true,
     price: 60,
-    // Текстуру бумаги можно добавить позже через bgImageUrl (залить webp в
-    // Firebase Storage wallpapers/parchment-background.webp).
   );
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
