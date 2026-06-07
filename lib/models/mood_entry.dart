@@ -44,6 +44,7 @@ class MoodOption {
       // Пак-специфичные настроения (пока только pink pack).
       case 'bliss':        return 'Bliss';
       case 'sleepy':       return 'Sleepy';
+      case 'tired':        return 'Tired';
       case 'disappointed': return 'Disappointed';
       case 'upset':        return 'Upset';
       default:          return label;
@@ -68,6 +69,7 @@ class MoodOption {
       case 'surprise':
       case 'liar':
       case 'sleepy':
+      case 'tired':
         return 3;
       case 'sad':
       case 'sick':
@@ -134,12 +136,21 @@ class MoodOption {
     MoodOption(id: 'laugh',        imagePath: '$_pinkDir/laugh.webp',        label: 'Смешно',        color: _yellow),
     MoodOption(id: 'bliss',        imagePath: '$_pinkDir/bliss.webp',        label: 'Наслаждение',   color: _yellow),
     MoodOption(id: 'cool',         imagePath: '$_pinkDir/cool.webp',         label: 'Крутая',        color: _yellow),
+    MoodOption(id: 'winking',      imagePath: '$_pinkDir/winking.webp',      label: 'Подмигиваю',    color: _yellow),
+    MoodOption(id: 'drooling',     imagePath: '$_pinkDir/drooling.webp',     label: 'Слюни текут',   color: _skyBlue),
     MoodOption(id: 'embarrassed',  imagePath: '$_pinkDir/embarrassed.webp',  label: 'Смущение',      color: _pink),
+    MoodOption(id: 'no_emotion',   imagePath: '$_pinkDir/no_emotion.webp',   label: 'Нет эмоций',    color: _slate),
+    MoodOption(id: 'surprise',     imagePath: '$_pinkDir/surprise.webp',     label: 'Удивление',     color: _purple),
     MoodOption(id: 'sleepy',       imagePath: '$_pinkDir/sleepy.webp',       label: 'Сплю',          color: _slate),
+    MoodOption(id: 'tired',        imagePath: '$_pinkDir/tired.webp',        label: 'Устала',        color: _slate),
+    MoodOption(id: 'missing',      imagePath: '$_pinkDir/missing.webp',      label: 'Скучаю',        color: _slate),
     MoodOption(id: 'sad',          imagePath: '$_pinkDir/sad.webp',          label: 'Грусть',        color: _blue),
+    MoodOption(id: 'sick',         imagePath: '$_pinkDir/sick.webp',         label: 'Болен',         color: _slate),
+    MoodOption(id: 'anxiety',      imagePath: '$_pinkDir/anxiety.webp',      label: 'Тревожность',   color: _purple),
     MoodOption(id: 'disappointed', imagePath: '$_pinkDir/disappointed.webp', label: 'Разочарование', color: _blue),
     MoodOption(id: 'upset',        imagePath: '$_pinkDir/upset.webp',        label: 'Расстроена',    color: _blue),
     MoodOption(id: 'very_sad',     imagePath: '$_pinkDir/very_sad.webp',     label: 'Плачу',         color: _blue),
+    MoodOption(id: 'fear',         imagePath: '$_pinkDir/fear.webp',         label: 'Страх',         color: _purple),
     MoodOption(id: 'anger',        imagePath: '$_pinkDir/anger.webp',        label: 'Злость',        color: _red),
   ];
 
