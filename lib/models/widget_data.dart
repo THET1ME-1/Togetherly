@@ -63,11 +63,7 @@ class WidgetData {
   /// Метка настроения на текущем языке (берётся по imagePath из MoodOption).
   String get localizedMoodLabel {
     if (moodEmoji.isEmpty) return moodLabel;
-    final option = MoodOption.all.cast<MoodOption?>().firstWhere(
-      (m) => m?.imagePath == moodEmoji,
-      orElse: () => null,
-    );
-    return option?.localizedLabel ?? moodLabel;
+    return MoodOption.byImagePath(moodEmoji)?.localizedLabel ?? moodLabel;
   }
 
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;

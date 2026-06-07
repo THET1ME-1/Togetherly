@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import '../../../models/mood_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
+import '../../../services/mood_pack_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/widget_service.dart';
+import '../../../widgets/mood_pack_selector.dart';
 
 /// Shows mood picker bottom sheet for today's mood.
 ///
@@ -125,7 +127,7 @@ void showMoodPickerForDate({
 //  Shared bottom-sheet widget
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MoodPickerSheet extends StatelessWidget {
+class _MoodPickerSheet extends StatefulWidget {
   final ScrollController scrollController;
   final String currentEmoji;
   final Color primary;
@@ -143,6 +145,19 @@ class _MoodPickerSheet extends StatelessWidget {
     required this.onSelect,
     required this.onClear,
   });
+
+  @override
+  State<_MoodPickerSheet> createState() => _MoodPickerSheetState();
+}
+
+class _MoodPickerSheetState extends State<_MoodPickerSheet> {
+  @override
+  void initState() {
+    super.initState();
+    // Загрузить сохранённый выбор пака (идемпотентно); AnimatedBuilder ниже
+    // перестроит сетку, когда значение подгрузится/изменится.
+    MoodPackService.instance.load();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +180,7 @@ class _MoodPickerSheet extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            title,
+            widget.title,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -174,45 +189,59 @@ class _MoodPickerSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            subtitle,
+            widget.subtitle,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
-          const SizedBox(height: 20),
-          // Grid
+          const SizedBox(height: 14),
+          // Pack selector
+          MoodPackSelector(
+            primary: widget.primary,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          // Grid (перестраивается при смене пака)
           Expanded(
-            child: GridView.builder(
-              controller: scrollController,
-              padding: const EdgeInsets.only(bottom: 16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 0.68,
-              ),
-              itemCount: MoodOption.all.length,
-              itemBuilder: (_, i) {
-                final mood = MoodOption.all[i];
-                final isSelected = currentEmoji == mood.imagePath;
-                return _MoodTile(
-                  mood: mood,
-                  isSelected: isSelected,
-                  primary: primary,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    onSelect(mood);
+            child: AnimatedBuilder(
+              animation: MoodPackService.instance,
+              builder: (context, _) {
+                final pack = MoodPackService.instance.selectedPack;
+                return GridView.builder(
+                  controller: widget.scrollController,
+                  padding: const EdgeInsets.only(bottom: 16),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 0.68,
+                  ),
+                  itemCount: pack.moods.length,
+                  itemBuilder: (_, i) {
+                    final mood = pack.moods[i];
+                    final isSelected = widget.currentEmoji == mood.imagePath;
+                    return _MoodTile(
+                      mood: mood,
+                      isSelected: isSelected,
+                      primary: widget.primary,
+                      tileGradient: pack.tileGradient,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        widget.onSelect(mood);
+                      },
+                    );
                   },
                 );
               },
             ),
           ),
           // Clear button
-          if (onClear != null) ...[
+          if (widget.onClear != null) ...[
             SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: TextButton(
-                  onPressed: onClear,
+                  onPressed: widget.onClear,
                   child: Text(
                     LocaleService.current.clearMood,
                     style: TextStyle(
@@ -240,6 +269,10 @@ class _MoodTile extends StatelessWidget {
   final MoodOption mood;
   final bool isSelected;
   final Color primary;
+
+  /// Подложка для паков с прозрачными стикерами (напр. розовый). null —
+  /// картинка непрозрачная и заполняет плитку сама (классический пак).
+  final List<Color>? tileGradient;
   final VoidCallback onTap;
 
   static const double _radius = 16;
@@ -249,10 +282,12 @@ class _MoodTile extends StatelessWidget {
     required this.isSelected,
     required this.primary,
     required this.onTap,
+    this.tileGradient,
   });
 
   @override
   Widget build(BuildContext context) {
+    final gradient = tileGradient;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -276,17 +311,31 @@ class _MoodTile extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(_radius),
-                child: mood.imagePath.isNotEmpty
-                    ? Image.asset(
-                        mood.imagePath,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (_, __, _) => Container(
-                          color: mood.color,
-                        ),
-                      )
-                    : Container(color: mood.color),
+                child: Container(
+                  // Мягкий фон под прозрачными стикерами; для классики gradient
+                  // == null и непрозрачная картинка перекрывает белый фон.
+                  decoration: BoxDecoration(
+                    color: gradient == null ? null : Colors.white,
+                    gradient: gradient != null
+                        ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: gradient,
+                          )
+                        : null,
+                  ),
+                  child: mood.imagePath.isNotEmpty
+                      ? Image.asset(
+                          mood.imagePath,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (_, _, _) => Container(
+                            color: mood.color,
+                          ),
+                        )
+                      : Container(color: mood.color),
+                ),
               ),
             ),
           ),

@@ -282,11 +282,8 @@ class WidgetService extends ChangeNotifier {
         final uid = _fb.currentUser?.uid ?? '';
         final now = DateTime.now();
         final id = '${uid}_${now.millisecondsSinceEpoch}';
-        // Ищем корректный moodId по imagePath
-        final option = MoodOption.all.cast<MoodOption?>().firstWhere(
-          (m) => m!.imagePath == emojiPath,
-          orElse: () => null,
-        );
+        // Ищем корректный moodId по imagePath (во всех паках)
+        final option = MoodOption.byImagePath(emojiPath);
         final entry = MoodEntry(
           id: id,
           moodId: option?.id ?? label.toLowerCase().replaceAll(' ', '_'),
