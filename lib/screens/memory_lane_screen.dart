@@ -10800,7 +10800,18 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
     final memory = widget.memory;
     final platformColor = widget.platformColor;
     final platformName = widget.platformName;
-    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    // Превью: сохранённая обложка, иначе — стандартная миниатюра YouTube,
+    // выведенная прямо из videoId. oEmbed на шеринге мог не отдать обложку
+    // (регион/сеть) → imageUrl пуст, и раньше показывался только красный
+    // градиент. i.ytimg.com/vi/<id>/hqdefault.jpg доступен без API-ключа;
+    // BoxFit.cover аккуратно обрезает 4:3 до 16:9. Чинит и старые воспоминания.
+    final videoId = YoutubePlayer.convertUrlToId(memory.videoUrl ?? '');
+    final thumbUrl = memory.imageUrl?.isNotEmpty == true
+        ? memory.imageUrl!
+        : (videoId != null
+            ? 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg'
+            : null);
+    final hasThumb = thumbUrl != null;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -10838,7 +10849,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
                     children: [
                       if (hasThumb)
                         StorageImage(
-                          imageUrl: memory.imageUrl!,
+                          imageUrl: thumbUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Container(
                             decoration: BoxDecoration(
