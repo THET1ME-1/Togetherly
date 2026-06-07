@@ -297,36 +297,12 @@ class _LoveAppState extends State<LoveApp> {
   bool _loading = true;
   AppLifecycleListener? _lifecycleListener;
 
-  // Cache themes to avoid recreating on every build. Светлый — дефолт для всех
-  // обычных тем; тёмный включается, когда активная AppTheme.isDark (Кофейная).
-  static final ThemeData _lightTheme = ThemeData(
+  // Cache theme to avoid recreating on every build
+  static final ThemeData _cachedTheme = ThemeData(
     textTheme: GoogleFonts.rubikTextTheme(),
     scaffoldBackgroundColor: const Color(0xFFF7F3F0),
     useMaterial3: true,
   );
-
-  static final ThemeData _darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    useMaterial3: true,
-    scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-    textTheme: GoogleFonts.rubikTextTheme(ThemeData.dark().textTheme),
-    colorScheme: const ColorScheme.dark(
-      primary: Color(0xFFC8946A),
-      secondary: Color(0xFFD9A87E),
-      surface: Color(0xFF1A1410),
-      onPrimary: Color(0xFF1A1209),
-      onSurface: Color(0xFFF2EAE0),
-    ),
-    canvasColor: const Color(0xFF15100A),
-    dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF1A1410)),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Color(0xFF15100A),
-    ),
-    dividerColor: const Color(0xFF2E251D),
-  );
-
-  ThemeData get _activeTheme =>
-      _userData.theme.isDark ? _darkTheme : _lightTheme;
 
   @override
   void initState() {
@@ -424,30 +400,19 @@ class _LoveAppState extends State<LoveApp> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([LocaleService.instance, _userData]),
-      builder: (context, _) {
-        final dark = !_loading && _userData.theme.isDark;
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-            statusBarBrightness: dark ? Brightness.dark : Brightness.light,
-            systemNavigationBarColor: Colors.transparent,
-            systemNavigationBarIconBrightness:
-                dark ? Brightness.light : Brightness.dark,
-            systemNavigationBarContrastEnforced: false,
-          ),
-          child: MaterialApp(
-            title: 'Togetherly',
-            debugShowCheckedModeBanner: false,
-            theme: _activeTheme,
-            navigatorObservers: [AnalyticsService.instance.observer],
-            home: _loading
-                ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
-                : _buildInitialScreen(),
-          ),
-        );
-      },
+      listenable: LocaleService.instance,
+      builder: (context, _) => MaterialApp(
+        title: 'Togetherly',
+        debugShowCheckedModeBanner: false,
+        theme: _cachedTheme,
+        navigatorObservers: [AnalyticsService.instance.observer],
+        home: _loading
+            ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
+            : ListenableBuilder(
+                listenable: _userData,
+                builder: (context, _) => _buildInitialScreen(),
+              ),
+      ),
     );
   }
 

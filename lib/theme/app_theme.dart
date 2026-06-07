@@ -82,17 +82,6 @@ class AppTheme {
   /// Стоимость в Коинах (актуально только если [isPremium])
   final int price;
 
-  /// Тёмная тема: фон приложения тёмный, текст светлый. Управляет глобальным
-  /// [ThemeData] (brightness.dark, светлый textTheme, тёмные диалоги/шторки) в
-  /// main.dart. Для светлых тем (по умолчанию) ничего не меняется.
-  final bool isDark;
-
-  /// Основной цвет текста (заголовки/тело). Для тёмной темы — светлый.
-  final Color textPrimary;
-
-  /// Вторичный цвет текста (подписи/хинты).
-  final Color textSecondary;
-
   const AppTheme({
     required this.index,
     required this.name,
@@ -118,9 +107,6 @@ class AppTheme {
     required this.timerDialBackground,
     this.isPremium = false,
     this.price = 0,
-    this.isDark = false,
-    this.textPrimary = const Color(0xFF1A1A1A),
-    this.textSecondary = const Color(0xFF6B6B6B),
   });
 }
 
@@ -678,38 +664,6 @@ abstract final class AppThemes {
     price: 30,
   );
 
-  // ── 20: Кофейная (Coffee) — ТЁМНАЯ тема ──────────────────────────────────
-  // Фон приложения тёмный (#0A0A0A), текст кремово-белый, акцент — латте.
-  // isDark включает тёмный глобальный ThemeData (см. main.dart).
-  static const coffee = AppTheme(
-    index: 20,
-    name: 'Кофейная',
-    primary: Color(0xFFC8946A), // латте / молочный кофе
-    primaryLight: Color(0xFF241A12), // тёмная подложка (для плитки в пикере)
-    bgGradient: [Color(0xFF0A0A0A), Color(0xFF15100A)], // почти чёрный → тёплый
-    heroGradient: [Color(0xFF4A3525), Color(0xFF1C130C)], // эспрессо
-    heroShadowBase: Color(0x40000000),
-    heroShadowExpanded: Color(0x66000000),
-    heroGlassOpacity: 0.12,
-    heroToggleBorder: false,
-    heroToggleSelectedColor: Color(0xFFEAD9C6), // кремовый
-    cardSurface: Color(0xFF1A1410), // тёмный обжаренный
-    cardBorder: Color(0xFF2E251D),
-    iconDraw: Color(0xFFC8946A),
-    iconMood: Color(0xFFC8946A),
-    iconCalendar: Color(0xFFC8946A),
-    iconPost: Color(0xFFC8946A),
-    navActiveBg: Color(0xFF2A2018),
-    navActiveIcon: Color(0xFFD9A87E),
-    promptButtonColor: Color(0xFFC8946A),
-    timerDialBackground: Color(0xFF3A2C20),
-    isPremium: true,
-    price: 50,
-    isDark: true,
-    textPrimary: Color(0xFFF2EAE0), // кремово-белый
-    textSecondary: Color(0xFFB5A593), // приглушённый кофе-с-молоком
-  );
-
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -732,7 +686,6 @@ abstract final class AppThemes {
     bordeaux,
     teal,
     nord,
-    coffee,
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]

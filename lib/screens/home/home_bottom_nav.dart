@@ -49,7 +49,7 @@ class HomeBottomNav extends StatelessWidget {
           Expanded(
             child: Container(
         decoration: BoxDecoration(
-          color: theme.cardSurface,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(100),
           boxShadow: [
             BoxShadow(
