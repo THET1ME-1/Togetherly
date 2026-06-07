@@ -407,7 +407,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // -- Background --
           Positioned.fill(
             child: RepaintBoundary(
-              child: widget.theme.bgImageUrl != null
+              child: widget.theme.bgImageAsset != null
+                  ? Image.asset(
+                      widget.theme.bgImageAsset!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    )
+                  : widget.theme.bgImageUrl != null
                   ? StorageImage(
                       imageUrl: widget.theme.bgImageUrl!,
                       fit: BoxFit.cover,
