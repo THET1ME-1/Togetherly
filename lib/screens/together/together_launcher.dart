@@ -8,41 +8,53 @@ import 'watch_together_screen.dart';
 /// Точки входа в совместный просмотр: запуск хостом и баннер-приглашение гостю.
 class TogetherLauncher {
   // Rewarded на старте показываем ТОЛЬКО хосту и один раз за запуск сеанса.
-  // Гость заходит без рекламы (иначе старт рассинхронится). Если реклама не
-  // загружена — не блокируем фичу, просто пускаем и грузим на следующий раз.
+  // Гость заходит без рекламы (иначе старт рассинхронится). Просмотр ролика
+  // ОБЯЗАТЕЛЕН (без «Позже»); единственное исключение — если рекламы нет вообще
+  // (оффлайн / no-fill после ожидания), тогда не запираем фичу и пускаем без неё.
   static final RewardedAdService _ads = RewardedAdService();
 
   /// Предзагрузка rewarded — звать заранее (напр. при открытии карточки видео),
   /// чтобы к тапу «Смотреть вместе» ролик уже был готов. Идемпотентно.
   static void preloadStartAd() => _ads.load();
 
-  /// Opt-in перед стартом: предлагаем хосту посмотреть rewarded ради коинов.
-  /// Политика AdMob требует явного согласия и упоминания награды — авто-показ
-  /// rewarded недопустим. Отказ НЕ блокирует совместный просмотр.
-  static Future<void> _offerStartAd(BuildContext context) async {
+  /// ОБЯЗАТЕЛЬНЫЙ rewarded перед стартом (только хост): чтобы открыть совместный
+  /// просмотр, нужно досмотреть ролик. Кнопки «Позже» нет — диалог нельзя
+  /// закрыть ни тапом мимо, ни «назад». Сам показ ролик инициирует юзер тапом
+  /// «Смотреть» (явное согласие, требование политик). Водопад показа — Яндекс
+  /// (основная сеть) → AdMob (резерв). Единственное исключение: если рекламы нет
+  /// вообще (оффлайн / no-fill даже после ожидания) — фичу НЕ запираем намертво.
+  static Future<void> _requireStartAd(BuildContext context) async {
+    // Обычно ролик предзагружен (preloadStartAd при открытии экрана). Если ещё
+    // не готов — ждём загрузку под спиннером (Яндекс → AdMob).
     if (!_ads.isReady) {
-      _ads.load(); // не готово — не навязываем, грузим на следующий раз
+      await _waitForAd(context);
+      if (!context.mounted) return;
+    }
+    // Рекламы так и нет (оффлайн / no-fill) — не блокируем совместный просмотр.
+    if (!_ads.isReady) {
+      _ads.load(); // на следующий раз
       return;
     }
+
     final watch = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Смотреть вместе'),
-        content: const Text(
-          'Посмотри короткую рекламу — поддержишь приложение '
-          'и получишь коины 🪙',
+      barrierDismissible: false, // нельзя закрыть тапом мимо
+      builder: (ctx) => PopScope(
+        canPop: false, // и системной кнопкой «назад» тоже
+        child: AlertDialog(
+          title: const Text('Смотреть вместе'),
+          content: const Text(
+            'Чтобы открыть совместный просмотр, посмотри короткую рекламу — '
+            'поддержишь приложение и получишь коины 🪙',
+          ),
+          actions: [
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.play_circle_outline_rounded),
+              label: const Text('Смотреть'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Позже'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.play_circle_outline_rounded),
-            label: const Text('Смотреть'),
-          ),
-        ],
       ),
     );
     if (watch == true) {
@@ -50,6 +62,30 @@ class TogetherLauncher {
       await _ads.show(uid: uid);
       unawaited(_ads.load()); // грузим следующий
     }
+  }
+
+  /// Ждёт готовности rewarded под неотменяемым спиннером (макс ~8с),
+  /// перезапуская каскад загрузки (Яндекс → AdMob) при необходимости.
+  static Future<void> _waitForAd(BuildContext context) async {
+    _ads.load();
+    BuildContext? dialogCtx;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        dialogCtx = ctx;
+        return const PopScope(
+          canPop: false,
+          child: Center(child: CircularProgressIndicator()),
+        );
+      },
+    );
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while (!_ads.isReady && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    final dctx = dialogCtx;
+    if (dctx != null && dctx.mounted) Navigator.of(dctx).pop(); // закрыть спиннер
   }
 
   /// Показать диалог вставки YouTube-ссылки и запустить совместный просмотр
@@ -94,8 +130,8 @@ class TogetherLauncher {
       return;
     }
 
-    // Rewarded на старте (только хост). Фичу не блокируем, если не готово.
-    await _offerStartAd(context);
+    // Rewarded на старте ОБЯЗАТЕЛЕН (только хост); фейл-опен лишь при no-fill.
+    await _requireStartAd(context);
     if (!context.mounted) return;
 
     Navigator.of(context).push(
@@ -126,8 +162,8 @@ class TogetherLauncher {
       return;
     }
 
-    // Rewarded на старте (только хост). Фичу не блокируем, если не готово.
-    await _offerStartAd(context);
+    // Rewarded на старте ОБЯЗАТЕЛЕН (только хост); фейл-опен лишь при no-fill.
+    await _requireStartAd(context);
     if (!context.mounted) return;
 
     Navigator.of(context).push(
