@@ -28,8 +28,8 @@ void main() {
   });
 
   group('Pink pack moods', () {
-    test('all 13 point to existing mood_packs/pink webp assets', () {
-      expect(MoodOption.pinkPack.length, 13);
+    test('all point to existing mood_packs/pink webp assets', () {
+      expect(MoodOption.pinkPack.length, 22);
       for (final m in MoodOption.pinkPack) {
         expect(m.imagePath, 'assets/images/mood_packs/pink/${m.id}.webp',
             reason: 'unexpected path for ${m.id}');
@@ -41,6 +41,7 @@ void main() {
     test('pack-only moods have proper score tiers', () {
       expect(MoodOption.byId('bliss')?.score, 4);
       expect(MoodOption.byId('sleepy')?.score, 3);
+      expect(MoodOption.byId('tired')?.score, 3);
       expect(MoodOption.byId('disappointed')?.score, 2);
       expect(MoodOption.byId('upset')?.score, 2);
     });
