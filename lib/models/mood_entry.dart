@@ -41,6 +41,11 @@ class MoodOption {
       case 'fear':      return 'Scared';
       case 'anger':     return 'Angry';
       case 'devil':     return 'Devil';
+      // Пак-специфичные настроения (пока только pink pack).
+      case 'bliss':        return 'Bliss';
+      case 'sleepy':       return 'Sleepy';
+      case 'disappointed': return 'Disappointed';
+      case 'upset':        return 'Upset';
       default:          return label;
     }
   }
@@ -56,17 +61,21 @@ class MoodOption {
       case 'pride':
       case 'cool':
       case 'drooling':
+      case 'bliss':
         return 4;
       case 'no_emotion':
       case 'embarrassed':
       case 'surprise':
       case 'liar':
+      case 'sleepy':
         return 3;
       case 'sad':
       case 'sick':
       case 'hurt':
       case 'missing':
       case 'anxiety':
+      case 'disappointed':
+      case 'upset':
         return 2;
       case 'very_sad':
       case 'anger':
@@ -111,12 +120,49 @@ class MoodOption {
     MoodOption(id: 'devil',      imagePath: 'assets/images/new emodji/Дьявол.webp',        label: 'Дьявол',        color: _red),
   ];
 
+  // ── Pink pack (бесплатный) — каваи-стикеры с прозрачным фоном ──────────────
+  // id переиспользуют классические, где эмоция совпадает (тогда score, цвет
+  // в календаре и слияние в статистике работают «из коробки»). Уникальные для
+  // пака настроения (bliss/sleepy/disappointed/upset) добавлены в switch'и
+  // score/localizedLabel выше. color = цвет «тира» эмоции — для подсветки в
+  // пикере и точек календаря, чтобы шкала настроения оставалась единой.
+  static const String _pinkDir = 'assets/images/mood_packs/pink';
+  static const List<MoodOption> pinkPack = [
+    MoodOption(id: 'happy',        imagePath: '$_pinkDir/happy.webp',        label: 'Радость',       color: _yellow),
+    MoodOption(id: 'love',         imagePath: '$_pinkDir/love.webp',         label: 'Влюблён',       color: _pink),
+    MoodOption(id: 'kiss',         imagePath: '$_pinkDir/kiss.webp',         label: 'Целую',         color: _pink),
+    MoodOption(id: 'laugh',        imagePath: '$_pinkDir/laugh.webp',        label: 'Смешно',        color: _yellow),
+    MoodOption(id: 'bliss',        imagePath: '$_pinkDir/bliss.webp',        label: 'Наслаждение',   color: _yellow),
+    MoodOption(id: 'cool',         imagePath: '$_pinkDir/cool.webp',         label: 'Крутая',        color: _yellow),
+    MoodOption(id: 'embarrassed',  imagePath: '$_pinkDir/embarrassed.webp',  label: 'Смущение',      color: _pink),
+    MoodOption(id: 'sleepy',       imagePath: '$_pinkDir/sleepy.webp',       label: 'Сплю',          color: _slate),
+    MoodOption(id: 'sad',          imagePath: '$_pinkDir/sad.webp',          label: 'Грусть',        color: _blue),
+    MoodOption(id: 'disappointed', imagePath: '$_pinkDir/disappointed.webp', label: 'Разочарование', color: _blue),
+    MoodOption(id: 'upset',        imagePath: '$_pinkDir/upset.webp',        label: 'Расстроена',    color: _blue),
+    MoodOption(id: 'very_sad',     imagePath: '$_pinkDir/very_sad.webp',     label: 'Плачу',         color: _blue),
+    MoodOption(id: 'anger',        imagePath: '$_pinkDir/anger.webp',        label: 'Злость',        color: _red),
+  ];
+
+  /// Все настроения всех паков — для поиска по id/пути. Классические идут
+  /// первыми, поэтому для общих id [byId] возвращает каноничный (классический)
+  /// вариант (его метку/цвет видно в статистике и календаре).
+  static const List<MoodOption> registry = [...all, ...pinkPack];
+
   static MoodOption? byId(String id) {
-    try {
-      return all.firstWhere((m) => m.id == id);
-    } catch (_) {
-      return null;
+    for (final m in registry) {
+      if (m.id == id) return m;
     }
+    return null;
+  }
+
+  /// Найти настроение по пути к картинке (нужно, когда сохранён только
+  /// imagePath — напр. при авто-отправке настроения из виджета в календарь).
+  static MoodOption? byImagePath(String path) {
+    if (path.isEmpty) return null;
+    for (final m in registry) {
+      if (m.imagePath == path) return m;
+    }
+    return null;
   }
 }
 

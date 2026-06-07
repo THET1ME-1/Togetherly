@@ -60,7 +60,19 @@
       "Bash(node -e \"console.log\\('firebase-admin', require\\('firebase-admin/package.json'\\).version\\)\")",
       "Bash(findstr /I \"timer\")",
       "Bash(findstr /I /C:\"error\" /C:\"warning\" /C:\"timer_service\" /C:\"firebase_service\" /C:\"No issues\" /C:\"issues found\")",
-      "Bash(grep -iE \"functions/.*\\\\.\\(js|ts\\)$|database\\\\.rules|\\\\.rules\\\\.json|firebase\\\\.json\")"
+      "Bash(grep -iE \"functions/.*\\\\.\\(js|ts\\)$|database\\\\.rules|\\\\.rules\\\\.json|firebase\\\\.json\")",
+      "Bash(convert --version)",
+      "Bash(python -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
+      "Bash(python -c \"from PIL import Image; import glob,os; [print\\(os.path.basename\\(f\\), Image.open\\(f\\).size, Image.open\\(f\\).mode\\) for f in glob.glob\\(r'assets/images/new emodji/emoji pack/pink emoji pack/*.png'\\)]\")",
+      "Bash(python -c \"from PIL import Image; print\\('happy', Image.open\\(r'assets/images/new emodji/Счастье.webp'\\).size, Image.open\\(r'assets/images/new emodji/Счастье.webp'\\).mode\\); print\\('love', Image.open\\(r'assets/images/new emodji/Люблю.webp'\\).size, Image.open\\(r'assets/images/new emodji/Люблю.webp'\\).mode\\)\")",
+      "Bash(python -c \"from PIL import Image; im=Image.open\\(r'assets/images/new emodji/emoji pack/pink emoji pack/радость кавай.png'\\).convert\\('RGBA'\\); print\\('corner', im.getpixel\\(\\(0,0\\)\\)\\); print\\('center', im.getpixel\\(\\(im.width//2, im.height//2\\)\\)\\)\")",
+      "Bash(cd \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" && mkdir -p \"assets/images/mood_packs/pink\" && echo \"dir created\")",
+      "Bash(PYTHONIOENCODING=utf-8 python tools/convert_pink_pack.py)",
+      "Bash(flutter test *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"
     ]
   }
 }

@@ -20,6 +20,7 @@ import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
+import 'services/mood_pack_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'widgets/common/m3_loading.dart';
@@ -259,6 +260,10 @@ void main() async {
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
+
+  // Выбранный пак настроений (локальный выбор, как язык) — грузим заранее,
+  // чтобы пикер сразу открывался на нужном наборе без мигания.
+  await MoodPackService.instance.load();
 
   // Synchronise Flutter's window with MainActivity's setDecorFitsSystemWindows(false).
   // Without this call Flutter and Android disagree about where gesture exclusion
