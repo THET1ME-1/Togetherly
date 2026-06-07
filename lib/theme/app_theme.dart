@@ -473,6 +473,224 @@ abstract final class AppThemes {
     price: 30,
   );
 
+  // ── 13: Медовая (Honey / Sunny) ──────────────────────────────────────────
+  static const honey = AppTheme(
+    index: 13,
+    name: 'Медовая',
+    primary: Color(0xFFE3A11C), // тёплое золото-мёд
+    primaryLight: Color(0xFFFDF3DC),
+    bgGradient: [Color(0xFFFFF6E0), Color(0xFFFFFDF5)],
+    heroGradient: [Color(0xFFFFD56B), Color(0xFFE3A11C)], // солнце → мёд
+    heroShadowBase: Color(0x26E3A11C),
+    heroShadowExpanded: Color(0x40E3A11C),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFB57E0E),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFF0E2C2),
+    iconDraw: Color(0xFFE3A11C),
+    iconMood: Color(0xFFE3A11C),
+    iconCalendar: Color(0xFFE3A11C),
+    iconPost: Color(0xFFE3A11C),
+    navActiveBg: Color(0xFFFCEFCF),
+    navActiveIcon: Color(0xFFE3A11C),
+    promptButtonColor: Color(0xFFE3A11C),
+    timerDialBackground: Color(0xFFFBDD93),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 14: Лимонная (Toxic Lemon) ───────────────────────────────────────────
+  static const lemon = AppTheme(
+    index: 14,
+    name: 'Лимонная',
+    primary: Color(0xFF7FB800), // сочный токсичный лайм
+    primaryLight: Color(0xFFF2FAD9),
+    bgGradient: [Color(0xFFF4FBDD), Color(0xFFFCFEF3)],
+    heroGradient: [Color(0xFFC2E64B), Color(0xFF7FB800)], // неон-лайм → лайм
+    heroShadowBase: Color(0x267FB800),
+    heroShadowExpanded: Color(0x407FB800),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF5E8A00),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFE2EFC0),
+    iconDraw: Color(0xFF7FB800),
+    iconMood: Color(0xFF7FB800),
+    iconCalendar: Color(0xFF7FB800),
+    iconPost: Color(0xFF7FB800),
+    navActiveBg: Color(0xFFECF7CE),
+    navActiveIcon: Color(0xFF7FB800),
+    promptButtonColor: Color(0xFF7FB800),
+    timerDialBackground: Color(0xFFCBE88C),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 15: Песочная (Sand / Beige) ──────────────────────────────────────────
+  static const sand = AppTheme(
+    index: 15,
+    name: 'Песочная',
+    primary: Color(0xFFBFA06B), // тёплый песочный
+    primaryLight: Color(0xFFF6EFE2),
+    bgGradient: [Color(0xFFF7F1E6), Color(0xFFFDFBF6)],
+    heroGradient: [Color(0xFFDCC9A4), Color(0xFFBFA06B)],
+    heroShadowBase: Color(0x26BFA06B),
+    heroShadowExpanded: Color(0x40BFA06B),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF8F7647),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFEBE0CC),
+    iconDraw: Color(0xFFBFA06B),
+    iconMood: Color(0xFFBFA06B),
+    iconCalendar: Color(0xFFBFA06B),
+    iconPost: Color(0xFFBFA06B),
+    navActiveBg: Color(0xFFF1E7D4),
+    navActiveIcon: Color(0xFFBFA06B),
+    promptButtonColor: Color(0xFFBFA06B),
+    timerDialBackground: Color(0xFFE0CEA8),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 16: Северное сияние (Aurora) ─────────────────────────────────────────
+  static const aurora = AppTheme(
+    index: 16,
+    name: 'Северное сияние',
+    primary: Color(0xFF2BB5A3), // полярная бирюза
+    primaryLight: Color(0xFFE3F7F2),
+    bgGradient: [Color(0xFFEAF7F5), Color(0xFFF4FBFA)],
+    heroGradient: [Color(0xFF5E5BE6), Color(0xFF38D9A9)], // индиго → зелёное сияние
+    heroShadowBase: Color(0x262BB5A3),
+    heroShadowExpanded: Color(0x402BB5A3),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF1F8C7E),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFCFEDE7),
+    iconDraw: Color(0xFF2BB5A3),
+    iconMood: Color(0xFF2BB5A3),
+    iconCalendar: Color(0xFF2BB5A3),
+    iconPost: Color(0xFF2BB5A3),
+    navActiveBg: Color(0xFFDEF5F0),
+    navActiveIcon: Color(0xFF2BB5A3),
+    promptButtonColor: Color(0xFF2BB5A3),
+    timerDialBackground: Color(0xFFA6E6DA),
+    isPremium: true,
+    price: 40,
+  );
+
+  // ── 17: Бордовая (Bordeaux, шёлк #893439) ────────────────────────────────
+  static const bordeaux = AppTheme(
+    index: 17,
+    name: 'Бордовая',
+    primary: Color(0xFF893439), // шелковистый бордо
+    primaryLight: Color(0xFFF7E7E8),
+    bgGradient: [Color(0xFFFBF0F1), Color(0xFFFFF9FA)],
+    heroGradient: [Color(0xFFA8484F), Color(0xFF6E262B)], // шёлк → глубокий бордо
+    heroShadowBase: Color(0x26893439),
+    heroShadowExpanded: Color(0x40893439),
+    heroGlassOpacity: 0.22,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF6E262B),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFEBD6D8),
+    iconDraw: Color(0xFF893439),
+    iconMood: Color(0xFF893439),
+    iconCalendar: Color(0xFF893439),
+    iconPost: Color(0xFF893439),
+    navActiveBg: Color(0xFFF4E1E3),
+    navActiveIcon: Color(0xFF893439),
+    promptButtonColor: Color(0xFF893439),
+    timerDialBackground: Color(0xFFD9A9AD),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 18: Бирюзовая (Teal) — насыщеннее ocean, зеленее mint ─────────────────
+  static const teal = AppTheme(
+    index: 18,
+    name: 'Бирюзовая',
+    primary: Color(0xFF149B8E),
+    primaryLight: Color(0xFFDEF5F1),
+    bgGradient: [Color(0xFFE7F6F3), Color(0xFFF3FBF9)],
+    heroGradient: [Color(0xFF4FCDBC), Color(0xFF0E7B72)], // яркая → глубокая бирюза
+    heroShadowBase: Color(0x26149B8E),
+    heroShadowExpanded: Color(0x40149B8E),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF0B6B63),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFCDE9E4),
+    iconDraw: Color(0xFF149B8E),
+    iconMood: Color(0xFF149B8E),
+    iconCalendar: Color(0xFF149B8E),
+    iconPost: Color(0xFF149B8E),
+    navActiveBg: Color(0xFFDAF2EE),
+    navActiveIcon: Color(0xFF149B8E),
+    promptButtonColor: Color(0xFF149B8E),
+    timerDialBackground: Color(0xFF9FDDD4),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 19: Нордик (Nord) — скандинавские интерфейсы ─────────────────────────
+  static const nord = AppTheme(
+    index: 19,
+    name: 'Нордик',
+    primary: Color(0xFF5E81AC), // Nord frost blue
+    primaryLight: Color(0xFFE5EBF2),
+    bgGradient: [Color(0xFFECEFF4), Color(0xFFF5F7FA)], // Snow Storm
+    heroGradient: [Color(0xFF81A1C1), Color(0xFF3B4252)], // frost → polar night
+    heroShadowBase: Color(0x265E81AC),
+    heroShadowExpanded: Color(0x405E81AC),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF3B4252),
+    cardSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0xFFD8DEE9),
+    iconDraw: Color(0xFF5E81AC),
+    iconMood: Color(0xFF5E81AC),
+    iconCalendar: Color(0xFF5E81AC),
+    iconPost: Color(0xFF5E81AC),
+    navActiveBg: Color(0xFFE3EAF3),
+    navActiveIcon: Color(0xFF5E81AC),
+    promptButtonColor: Color(0xFF5E81AC),
+    timerDialBackground: Color(0xFFAEC2DA),
+    isPremium: true,
+    price: 30,
+  );
+
+  // ── 20: Пергамент (Parchment) — старая бумага, самая дорогая ──────────────
+  static const parchment = AppTheme(
+    index: 20,
+    name: 'Пергамент',
+    primary: Color(0xFFA07C4B), // сепия-чернила
+    primaryLight: Color(0xFFF3E9D6),
+    bgGradient: [Color(0xFFF4E8D0), Color(0xFFFBF4E4)], // выцветшая бумага
+    heroGradient: [Color(0xFFD8B98A), Color(0xFF8A6A3D)], // пергамент → сепия
+    heroShadowBase: Color(0x26A07C4B),
+    heroShadowExpanded: Color(0x40A07C4B),
+    heroGlassOpacity: 0.20,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF6E5230),
+    cardSurface: Color(0xFFFCF6EA), // тёплый кремовый «лист», не чисто-белый
+    cardBorder: Color(0xFFE6D5B8),
+    iconDraw: Color(0xFFA07C4B),
+    iconMood: Color(0xFFA07C4B),
+    iconCalendar: Color(0xFFA07C4B),
+    iconPost: Color(0xFFA07C4B),
+    navActiveBg: Color(0xFFEFE2C9),
+    navActiveIcon: Color(0xFFA07C4B),
+    promptButtonColor: Color(0xFFA07C4B),
+    timerDialBackground: Color(0xFFDCC59B),
+    isPremium: true,
+    price: 60,
+    // Текстуру бумаги можно добавить позже через bgImageUrl (залить webp в
+    // Firebase Storage wallpapers/parchment-background.webp).
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -488,6 +706,14 @@ abstract final class AppThemes {
     monochrome,
     forest,
     ocean,
+    honey,
+    lemon,
+    sand,
+    aurora,
+    bordeaux,
+    teal,
+    nord,
+    parchment,
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]

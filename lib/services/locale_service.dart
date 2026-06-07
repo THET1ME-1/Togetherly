@@ -333,6 +333,14 @@ abstract class AppStrings {
   String get themeNameMonochrome;
   String get themeNameForest;
   String get themeNameOcean;
+  String get themeNameHoney;
+  String get themeNameLemon;
+  String get themeNameSand;
+  String get themeNameAurora;
+  String get themeNameBordeaux;
+  String get themeNameTeal;
+  String get themeNameNord;
+  String get themeNameParchment;
   String premiumThemeLocked(int price);
   String get coinBalance;
   String get coinShopTitle;
@@ -1441,6 +1449,22 @@ class _RuStrings extends AppStrings {
   String get themeNameForest => 'Лесная';
   @override
   String get themeNameOcean => 'Океан';
+  @override
+  String get themeNameHoney => 'Медовая';
+  @override
+  String get themeNameLemon => 'Лимонная';
+  @override
+  String get themeNameSand => 'Песочная';
+  @override
+  String get themeNameAurora => 'Северное сияние';
+  @override
+  String get themeNameBordeaux => 'Бордовая';
+  @override
+  String get themeNameTeal => 'Бирюзовая';
+  @override
+  String get themeNameNord => 'Нордик';
+  @override
+  String get themeNameParchment => 'Пергамент';
   @override
   String premiumThemeLocked(int price) =>
       'Премиум-тема за $price монет — открой в магазине';
@@ -3180,6 +3204,22 @@ class _EnStrings extends AppStrings {
   String get themeNameForest => 'Forest';
   @override
   String get themeNameOcean => 'Ocean';
+  @override
+  String get themeNameHoney => 'Honey';
+  @override
+  String get themeNameLemon => 'Lemon';
+  @override
+  String get themeNameSand => 'Sand';
+  @override
+  String get themeNameAurora => 'Aurora';
+  @override
+  String get themeNameBordeaux => 'Bordeaux';
+  @override
+  String get themeNameTeal => 'Teal';
+  @override
+  String get themeNameNord => 'Nord';
+  @override
+  String get themeNameParchment => 'Parchment';
   @override
   String premiumThemeLocked(int price) =>
       'Premium theme — $price coins, unlock it in the Coin shop';

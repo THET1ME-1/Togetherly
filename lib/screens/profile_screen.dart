@@ -3469,6 +3469,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _s.themeNameMonochrome,
       _s.themeNameForest,
       _s.themeNameOcean,
+      _s.themeNameHoney,
+      _s.themeNameLemon,
+      _s.themeNameSand,
+      _s.themeNameAurora,
+      _s.themeNameBordeaux,
+      _s.themeNameTeal,
+      _s.themeNameNord,
+      _s.themeNameParchment,
     ];
     if (index < 0 || index >= names.length) return names[0];
     return names[index];
