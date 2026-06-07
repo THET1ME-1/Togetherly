@@ -592,14 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // -- Background --
           Positioned.fill(
             child: RepaintBoundary(
-              child: _t.bgImageAsset != null
-                  ? Image.asset(
-                      _t.bgImageAsset!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
-                    )
-                  : _t.bgImageUrl != null
+              child: _t.bgImageUrl != null
                   ? StorageImage(
                       imageUrl: _t.bgImageUrl!,
                       fit: BoxFit.cover,
