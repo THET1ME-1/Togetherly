@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../widgets/storage_image.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -27,6 +28,7 @@ import '../models/comment.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
+import '../widgets/common/ad_banner.dart';
 import '../services/firebase_service.dart';
 import 'together/together_launcher.dart';
 import '../services/home_widget_service.dart';
@@ -307,6 +309,75 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
+  // ── In-feed реклама ────────────────────────────────────────────────────────
+  // Баннер вставляется после каждого N-го воспоминания в основной ленте
+  // (нормальный режим, без фильтра и без закреплённых). N — баланс
+  // «доход / не раздражает»: на первой странице (20) выходит ~3 баннера.
+  // Меньше ставить рискованно — AdMob/Яндекс штрафуют за слишком плотную
+  // рекламу (invalid traffic), да и ленту пары не хочется превращать в спам.
+  static const int _adEveryNMemories = 6;
+
+  // Боевой баннерный блок (тот же, что в widget_screen). В debug AdBanner сам
+  // подставляет тестовый юнит при пустом adUnitId.
+  static const String _bannerAdUnit = 'ca-app-pub-1956369312643059/2560361524';
+
+  /// Секции ленты (заголовок даты + тайлы) с full-width баннером после каждого
+  /// N-го воспоминания. Счётчик ГЛОБАЛЬНЫЙ — не сбрасывается между днями.
+  /// Если N-е воспоминание попадает в середину дня, день режется на чанки,
+  /// чтобы баннер встал ровно между тайлами, а не ломал тайл.
+  List<Widget> _buildDateGroupedSlivers() {
+    final slivers = <Widget>[];
+    var sinceAd = 0; // воспоминаний с момента последнего баннера
+    var adIndex = 0; // порядковый номер баннера (для стабильного ключа)
+    for (final entry in _groupedByDate.entries) {
+      slivers.add(_sectionHeader(entry.key));
+      final mems = entry.value;
+      var chunkStart = 0;
+      for (var i = 0; i < mems.length; i++) {
+        sinceAd++;
+        final adHere = sinceAd >= _adEveryNMemories;
+        if (adHere || i == mems.length - 1) {
+          // Сбрасываем накопленный чанк тайлов (он остаётся внутри своей даты).
+          slivers.add(_memoryTilesSliver(mems.sublist(chunkStart, i + 1)));
+          chunkStart = i + 1;
+          if (adHere) {
+            slivers.add(_inFeedBannerSliver(adIndex++));
+            sinceAd = 0;
+          }
+        }
+      }
+    }
+    return slivers;
+  }
+
+  Widget _memoryTilesSliver(List<Memory> mems) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (_, i) => _memoryTile(mems[i]),
+          childCount: mems.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _inFeedBannerSliver(int adIndex) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        // Стабильный ключ по порядковому номеру баннера: лента пересоздаётся на
+        // setState (refresh / «загрузить ещё» / лайки), и без ключа баннер
+        // дёргал бы новый loadAd при каждом ребилде — лишние запросы и спам в
+        // сеть. С ключом инстанс баннера переживает ребилды.
+        child: AdBanner(
+          key: ValueKey('memlane_ad_$adIndex'),
+          adUnitId: kDebugMode ? '' : _bannerAdUnit,
+        ),
+      ),
+    );
+  }
+
   String _fmtToday() {
     final n = DateTime.now();
     final m = LocaleService.current.shortMonths;
@@ -420,21 +491,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ];
                       }),
                   ],
-                  // Date-grouped sections (normal mode)
-                  ..._groupedByDate.entries.expand((entry) {
-                    return [
-                      _sectionHeader(entry.key),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) => _memoryTile(entry.value[i]),
-                            childCount: entry.value.length,
-                          ),
-                        ),
-                      ),
-                    ];
-                  }),
+                  // Date-grouped sections (normal mode) с in-feed баннерами
+                  // «1 на N воспоминаний» (см. _buildDateGroupedSlivers).
+                  ..._buildDateGroupedSlivers(),
                   // Кнопка "Загрузить ещё"
                   if (!_loadedAll)
                     SliverToBoxAdapter(

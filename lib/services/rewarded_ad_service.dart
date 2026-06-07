@@ -56,9 +56,21 @@ class RewardedAdService {
   bool get isReady => _ad != null || _yandexAd != null;
 
   /// True, если показанная реклама была из Яндекса (нет Google-SSV → награду
-  /// нужно начислить клиентски по результату [show]).
+  /// начисляет серверный callable `grantAdReward`, авторитетно).
   bool _lastShowWasYandex = false;
   bool get lastShowWasYandex => _lastShowWasYandex;
+
+  /// Авторитетный баланс коинов после Яндекс-показа (из ответа `grantAdReward`).
+  /// null — для AdMob-пути (там баланс приходит позже через SSV) или если
+  /// callable не ответил (не задеплоен/оффлайн) — тогда баланс надо подтянуть
+  /// с сервера отдельно.
+  int? _lastServerCoins;
+  int? get lastServerCoins => _lastServerCoins;
+
+  /// True, если сервер РЕАЛЬНО начислил награду за Яндекс-показ (false при
+  /// дневном лимите/ошибке). Нужно, чтобы не показывать фейковую награду.
+  bool _lastRewardGranted = false;
+  bool get lastRewardGranted => _lastRewardGranted;
 
   /// Предзагружает рекламу: сначала Яндекс, при неудаче — AdMob.
   /// Безопасно дёргать несколько раз.
@@ -146,6 +158,9 @@ class RewardedAdService {
   /// награда начисляется внутри [_showYandex] (callable), для AdMob — на сервере
   /// через SSV.
   Future<bool> show({required String uid}) async {
+    // Сбрасываем авторитетный результат прошлого показа.
+    _lastServerCoins = null;
+    _lastRewardGranted = false;
     if (_yandexAd != null) {
       _lastShowWasYandex = true;
       return _showYandex(_yandexAd!);
@@ -191,23 +206,56 @@ class RewardedAdService {
 
   Future<bool> _showYandex(yandex.RewardedAd ad) async {
     _yandexAd = null; // одноразовая
+    // Награду ловим СВОИМ onRewarded и ждём закрытие СВОИМ onAdDismissed.
+    // Раньше использовался ad.waitForDismiss(): он возвращается по dismiss, а
+    // reward внутри плагина ставится незавершённым .then() на onRewarded — если
+    // Яндекс шлёт onAdDismissed вплотную к onRewarded (или раньше), награда
+    // терялась (didEarn=false) и коины/счётчик не менялись через раз.
     bool earned = false;
+    final dismissed = Completer<void>();
+    void finish() {
+      if (!dismissed.isCompleted) dismissed.complete();
+    }
+
     await ad.setAdEventListener(
       eventListener: yandex.RewardedAdEventListener(
         onRewarded: (reward) => earned = true,
-        onAdFailedToShow: (error) =>
-            debugPrint('Yandex rewarded show failed: ${error.description}'),
+        onAdDismissed: finish,
+        onAdFailedToShow: (error) {
+          debugPrint('Yandex rewarded show failed: ${error.description}');
+          finish();
+        },
       ),
     );
     await ad.show();
-    final reward = await ad.waitForDismiss();
-    final didEarn = earned || reward != null;
+    await dismissed.future;
+    // onRewarded иногда приходит вплотную к закрытию (или сразу после) — даём
+    // ему долететь, прежде чем решить, что награды не было.
+    if (!earned) {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    }
+    final didEarn = earned;
     // У Яндекса нет Google-SSV, поэтому начисляем награду серверным callable
     // (авторитетно, с дневным лимитом). Делаем это здесь, чтобы оба вызывающих
-    // экрана получили коины без изменений в их коде.
+    // экрана получили коины без изменений в их коде. Результат сохраняем в
+    // [lastServerCoins]/[lastRewardGranted] — вызывающий применяет точный
+    // баланс (а не оптимистично угаданный) и не рисует фейк при лимите.
     if (didEarn) {
       try {
-        await FirebaseService().callGrantAdReward();
+        final res = await FirebaseService().callGrantAdReward();
+        if (res != null) {
+          _lastRewardGranted = res['ok'] == true;
+          final c = res['coins'];
+          if (c is num) _lastServerCoins = c.toInt();
+          if (res['rateLimited'] == true) {
+            debugPrint('Yandex reward: daily limit reached, not granted');
+          }
+        } else {
+          // null = функция не ответила. Самая частая причина — grantAdReward
+          // не задеплоена: `firebase deploy --only functions:grantAdReward`.
+          debugPrint('grantAdReward returned null '
+              '(not deployed / offline?) — coins not credited');
+        }
       } catch (e) {
         debugPrint('grantAdReward (Yandex) failed: $e');
       }
