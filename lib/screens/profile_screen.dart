@@ -737,6 +737,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Update profile
       await widget.userData.updateProfile(avatarUrl: downloadUrl);
+      // Профиль кэшируется в WidgetService на сессию — без явного рефреша
+      // виджет (и партнёр) показывали бы старый аватар до перезахода.
+      await widget.widgetService.refreshProfileOnWidget();
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
@@ -759,6 +762,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _changeName(String newName) async {
     try {
       await widget.userData.updateProfile(displayName: newName);
+      // Имя на виджете кэшируется в WidgetService — рефрешим, иначе оно
+      // обновится только после перезахода (как и аватар).
+      await widget.widgetService.refreshProfileOnWidget();
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
