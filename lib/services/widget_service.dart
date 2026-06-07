@@ -436,6 +436,7 @@ class WidgetService extends ChangeNotifier {
   Future<void> _updateField(
     Map<String, dynamic> fields, {
     String? groupId,
+    bool emitEvent = true,
   }) async {
     final uid = _fb.currentUser?.uid;
     final targetGroupId = groupId ?? _groupId;
@@ -497,6 +498,9 @@ class WidgetService extends ChangeNotifier {
       // Пишем лёгкий триггер для Cloud Function, которая отправит FCM-сообщение
       // партнёру с type=widget_update — это обеспечивает мгновенное обновление
       // даже когда процесс Flutter партнёра полностью убит OEM-оптимизатором.
+      // Чистый рефреш профиля (аватар/имя) этого не требует — партнёр получит
+      // обновление через свой live-листенер widgetData, FCM-шум не нужен.
+      if (!emitEvent) return;
       final triggerFields = <String, dynamic>{
         'senderUid': uid,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -925,6 +929,21 @@ class WidgetService extends ChangeNotifier {
     _cachedProfileName = null;
     _cachedProfileAvatar = null;
     _cachedProfileGender = null;
+  }
+
+  /// Проталкивает свежий профиль (имя/аватар/пол) в widgetData текущей группы
+  /// и нативный виджет. Звать ПОСЛЕ смены аватара/имени.
+  ///
+  /// Без этого виджет показывает старый аватар до перезахода: профиль кэшируется
+  /// на сессию ([_cachedProfileAvatar]), а единственный писатель аватара в
+  /// widgetData — [_updateField] — берёт из кэша. Здесь сбрасываем кэш и пустым
+  /// [_updateField] перечитываем профиль из users/{uid} → пишем свежий avatarUrl
+  /// в widgetData (партнёр увидит через свой live-листенер) и сразу синхронизируем
+  /// нативный виджет (он перекачает новую картинку — у аватара меняется URL).
+  Future<void> refreshProfileOnWidget() async {
+    invalidateProfileCache();
+    if (_groupId.isEmpty) return;
+    await _updateField(const {}, emitEvent: false);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
