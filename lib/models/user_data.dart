@@ -188,7 +188,7 @@ class UserData extends ChangeNotifier {
   }
 
   /// Оптимистичное начисление награды за рекламу — до подтверждения сервером.
-  /// Даёт мгновенный отклик UI; сервер потом подтвердит через SSV.
+  /// Даёт мгновенный отклик UI; сервер потом подтвердит через SSV (AdMob-путь).
   void applyOptimisticAdReward(int amount) {
     _coins += amount;
     final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
@@ -197,6 +197,25 @@ class UserData extends ChangeNotifier {
       _adRewardsToday = 0;
     }
     _adRewardsToday += 1;
+    _saveLocal();
+    notifyListeners();
+  }
+
+  /// Применяет АВТОРИТЕТНЫЙ результат начисления за рекламу (Яндекс-callable
+  /// `grantAdReward` синхронно возвращает реальный баланс). В отличие от
+  /// [applyOptimisticAdReward] не угадывает сумму — ставит точный серверный
+  /// баланс. Счётчик увеличивается только если сервер РЕАЛЬНО начислил
+  /// ([granted]); при дневном лимите счётчик выставляется в максимум, чтобы
+  /// кнопка корректно заблокировалась.
+  void applyServerAdReward({required int coins, required bool granted}) {
+    _coins = coins;
+    final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    if (_adRewardsDate != today) {
+      _adRewardsDate = today;
+      _adRewardsToday = 0;
+    }
+    _adRewardsToday =
+        granted ? _adRewardsToday + 1 : adRewardsDailyLimit;
     _saveLocal();
     notifyListeners();
   }

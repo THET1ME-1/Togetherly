@@ -3263,7 +3263,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     unawaited(_rewardedAd.load());
     if (!earned || !mounted) return;
 
-    // Мгновенное начисление — не ждём SSV-коллбэка.
+    // Яндекс (основная сеть): начисление авторитетное и синхронное —
+    // grantAdReward уже вернул реальный баланс. Применяем его точно, без
+    // оптимистичного угадывания. Если сервер не начислил (дневной лимит) —
+    // не рисуем фейковую награду; если callable не ответил (null) — тянем
+    // правду с сервера.
+    if (_rewardedAd.lastShowWasYandex) {
+      final serverCoins = _rewardedAd.lastServerCoins;
+      if (serverCoins != null) {
+        widget.userData.applyServerAdReward(
+          coins: serverCoins,
+          granted: _rewardedAd.lastRewardGranted,
+        );
+      } else {
+        await widget.userData.refreshCoinsFromServer();
+      }
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // AdMob (резерв): награда приходит асинхронно через SSV-коллбэк, поэтому
+    // показываем мгновенно и подтягиваем реальное значение позже.
     widget.userData.applyOptimisticAdReward(UserData.adRewardAmount);
     setState(() {});
     // Запомним оптимистичный баланс — он нижняя граница при синхронизации.

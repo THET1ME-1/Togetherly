@@ -69,7 +69,10 @@
       "Bash(cd \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" && mkdir -p \"assets/images/mood_packs/pink\" && echo \"dir created\")",
       "Bash(PYTHONIOENCODING=utf-8 python tools/convert_pink_pack.py)",
       "Bash(flutter test *)",
-      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)"
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(timeout 60 firebase functions:list)",
+      "Bash(echo \"\\(exit: $?\\)\")",
+      "Bash(xargs -n1 basename)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"
