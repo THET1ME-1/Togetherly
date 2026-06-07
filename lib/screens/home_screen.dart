@@ -102,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastPairId = '';
   int _pairChangedGeneration = 0;
 
-
   // Debounce для _syncHomeWidgets: PairData notifyListeners срабатывает на
   // КАЖДОЕ изменение group doc (mood, status, timer, memories, missYouCount),
   // и каждый syncAllBoundWidgets внутри делает refreshRelationshipStats →
@@ -253,7 +252,11 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => MemoryLaneScreen(pairData: _pairData, theme: _t, userData: widget.userData),
+            builder: (_) => MemoryLaneScreen(
+              pairData: _pairData,
+              theme: _t,
+              userData: widget.userData,
+            ),
             settings: const RouteSettings(name: '/memory_lane'),
           ),
         );
@@ -566,7 +569,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _moodStreakRewardDebounce?.cancel();
       _moodStreakRewardDebounce = Timer(const Duration(seconds: 2), () {
         if (!mounted) return;
-        if (_moodService.bothPartnersStreakDays >= 7) _tryClaimMoodStreakReward();
+        if (_moodService.bothPartnersStreakDays >= 7)
+          _tryClaimMoodStreakReward();
       });
     }
   }
@@ -634,23 +638,23 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 HomeHeader(
-                    theme: _t,
-                    isPaired: _pairData.isPaired,
-                    partnerCount: _pairData.partnerCount,
-                    myAvatarUrl: widget.userData.avatarUrl,
-                    myDisplayName: widget.userData.displayName,
-                    partners: _pairData.partners,
-                    // Читаем из MoodService — единый источник правды для сегодня.
-                    // Раньше шапка читала из pairData.myMood (group memberMoods),
-                    // календарь — из moodService entries, и они расходились.
-                    myMood: _memberMoodFromEntry(_moodService.myMoodToday),
-                    moodOf: (uid) =>
-                        _memberMoodFromEntry(_moodService.partnerMoodToday(uid)),
-                    statusBadgeText: _statusBadgeText,
-                    statusBadgeEmoji: _statusBadgeEmoji,
-                    onRelationshipTap: _showRelationshipTypeDialog,
-                    pairId: _pairData.pairId,
-                  ),
+                  theme: _t,
+                  isPaired: _pairData.isPaired,
+                  partnerCount: _pairData.partnerCount,
+                  myAvatarUrl: widget.userData.avatarUrl,
+                  myDisplayName: widget.userData.displayName,
+                  partners: _pairData.partners,
+                  // Читаем из MoodService — единый источник правды для сегодня.
+                  // Раньше шапка читала из pairData.myMood (group memberMoods),
+                  // календарь — из moodService entries, и они расходились.
+                  myMood: _memberMoodFromEntry(_moodService.myMoodToday),
+                  moodOf: (uid) =>
+                      _memberMoodFromEntry(_moodService.partnerMoodToday(uid)),
+                  statusBadgeText: _statusBadgeText,
+                  statusBadgeEmoji: _statusBadgeEmoji,
+                  onRelationshipTap: _showRelationshipTypeDialog,
+                  pairId: _pairData.pairId,
+                ),
                 Expanded(child: _buildBody()),
               ],
             ),
@@ -726,9 +730,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final conn = _pairData.manager.activeConnection;
     final anniversaryDate = conn?.anniversaryDate;
     final myBirthDate = widget.userData.birthDate;
-    final isAnniversaryToday = anniversaryDate != null &&
+    final isAnniversaryToday =
+        anniversaryDate != null &&
         CelebrationNotificationService.isToday(anniversaryDate);
-    final isBirthdayToday = myBirthDate != null &&
+    final isBirthdayToday =
+        myBirthDate != null &&
         CelebrationNotificationService.isToday(myBirthDate);
 
     return SingleChildScrollView(
@@ -1011,7 +1017,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: canAfford ? Colors.white : Colors.grey.shade500,
+                          color: canAfford
+                              ? Colors.white
+                              : Colors.grey.shade500,
                         ),
                       ),
                     ],
@@ -1050,9 +1058,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await widget.userData.purchaseTheme(themeId);
     if (!ok) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Недостаточно монет')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Недостаточно монет')));
       }
       return;
     }
@@ -1149,8 +1157,12 @@ class _HomeScreenState extends State<HomeScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
         reverseTransitionDuration: const Duration(milliseconds: 350),
-        pageBuilder: (_, __, ___) =>
-            MemoryLaneScreen(pairData: _pairData, theme: _t, filterMode: mode, userData: widget.userData),
+        pageBuilder: (_, __, ___) => MemoryLaneScreen(
+          pairData: _pairData,
+          theme: _t,
+          filterMode: mode,
+          userData: widget.userData,
+        ),
         transitionsBuilder: (_, anim, __, child) {
           final curved = CurvedAnimation(
             parent: anim,
@@ -1713,14 +1725,22 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final awarded = await widget.userData.claimDailyBonus();
     if (!awarded || !mounted) return;
-    CoinRewardToast.show(context, amount: 1, label: LocaleService.current.dailyBonusTitle);
+    CoinRewardToast.show(
+      context,
+      amount: 1,
+      label: LocaleService.current.dailyBonusTitle,
+    );
   }
 
   Future<void> _tryClaimMemoryReward() async {
     if (!mounted) return;
     final amount = await widget.userData.claimMemoryReward();
     if (amount <= 0 || !mounted) return;
-    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.memoryRewardTitle);
+    CoinRewardToast.show(
+      context,
+      amount: amount,
+      label: LocaleService.current.memoryRewardTitle,
+    );
   }
 
   Future<void> _tryClaimPartnerInviteReward() async {
@@ -1734,14 +1754,24 @@ class _HomeScreenState extends State<HomeScreen> {
       await prefs.setBool('partnerInviteRewardGranted_local', true);
     }
     if (amount <= 0 || !mounted) return;
-    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.partnerInviteRewardTitle);
+    CoinRewardToast.show(
+      context,
+      amount: amount,
+      label: LocaleService.current.partnerInviteRewardTitle,
+    );
   }
 
   Future<void> _tryClaimMoodStreakReward() async {
     if (!mounted || _pairData.pairId.isEmpty) return;
-    final amount = await widget.userData.claimMoodStreakReward(_pairData.pairId);
+    final amount = await widget.userData.claimMoodStreakReward(
+      _pairData.pairId,
+    );
     if (amount <= 0 || !mounted) return;
-    CoinRewardToast.show(context, amount: amount, label: LocaleService.current.moodStreakRewardTitle);
+    CoinRewardToast.show(
+      context,
+      amount: amount,
+      label: LocaleService.current.moodStreakRewardTitle,
+    );
   }
 
   // ── In-app update ──────────────────────────────────────────────────────────
@@ -2269,7 +2299,10 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      LocaleService.current.updateWhatsNew,
+                      '''— Исправил отображение текущего месяца в календаре.
+— Добавили подсказки.
+— Добавили бесплатный пак с новыми розовыми эмоциями.
+— Добавили 7 новых тем.''',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,
