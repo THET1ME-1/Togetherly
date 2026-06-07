@@ -403,7 +403,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           },
         ),
         Text(
-          '${months[_currentMonth.month - 1]} ${_currentMonth.year}',
+          // fullMonths — список с 1-based индексом (нулевой элемент пустой),
+          // поэтому берём month напрямую, без -1. Иначе июнь показывался как май.
+          '${months[_currentMonth.month]} ${_currentMonth.year}',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
