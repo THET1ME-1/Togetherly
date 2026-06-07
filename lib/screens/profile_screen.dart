@@ -2957,8 +2957,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheet) => DraggableScrollableSheet(
+      // Лист подписан на userData: начисления (реклама/ежедневный бонус/
+      // воспоминание) идут через notifyListeners, поэтому баланс и счётчик
+      // «X/3» в открытом магазине обновляются сразу, без переоткрытия/рестарта.
+      builder: (_) => ListenableBuilder(
+        listenable: widget.userData,
+        builder: (ctx, _) => DraggableScrollableSheet(
           initialChildSize: 0.75,
           minChildSize: 0.4,
           maxChildSize: 0.95,
@@ -3104,7 +3108,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: widget.userData.adRewardsRemaining == 0
                             ? null
                             : () async {
-                                Navigator.pop(ctx);
+                                // Лист НЕ закрываем: он подписан на userData,
+                                // поэтому после начисления баланс и счётчик
+                                // «X/3» обновятся прямо в открытом магазине.
                                 await _watchRewardedAd();
                               },
                       ),
