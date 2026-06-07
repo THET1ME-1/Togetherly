@@ -4715,18 +4715,34 @@ class RemoteCanvasMeta {
 /// ONE underlying subscription: the first listener opens it, the last cancel
 /// closes it, and new listeners immediately receive the most recent snapshot
 /// so they don't have to wait for the next server event.
+///
+/// Re-establishing a `.snapshots()` listener costs a fresh server read (the
+/// initial document load is billed). Screen navigation and `StreamBuilder`
+/// rebuilds briefly drop the listener count to zero, so an immediate teardown
+/// would bill a new read the instant the next consumer subscribes. To avoid
+/// that, the underlying subscription is kept warm for [_idleGrace] after the
+/// last listener leaves: rapid re-subscription reuses the live listener and the
+/// replayed [_latest] snapshot at zero extra read cost. The document changes
+/// rarely, so the idle warm window is effectively free.
 class _DocSnapshotHub {
   _DocSnapshotHub(this._ref);
+
+  static const Duration _idleGrace = Duration(seconds: 90);
 
   final DocumentReference<Map<String, dynamic>> _ref;
   final StreamController<DocumentSnapshot<Map<String, dynamic>>> _controller =
       StreamController.broadcast();
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
   DocumentSnapshot<Map<String, dynamic>>? _latest;
+  Timer? _idleTimer;
 
   bool get _isActive => _sub != null;
 
   void _start() {
+    // A new consumer arrived — cancel any pending idle teardown so we keep
+    // reusing the warm subscription instead of paying for a fresh read.
+    _idleTimer?.cancel();
+    _idleTimer = null;
     if (_isActive) return;
     _sub = _ref.snapshots().listen(
       (snap) {
@@ -4741,8 +4757,16 @@ class _DocSnapshotHub {
 
   void _stopIfIdle() {
     if (_controller.hasListener) return;
-    _sub?.cancel();
-    _sub = null;
+    // Defer the actual teardown: if a consumer re-subscribes within the grace
+    // window (navigation transition, StreamBuilder rebuild), _start() cancels
+    // this timer and the live subscription is reused — no new read.
+    _idleTimer?.cancel();
+    _idleTimer = Timer(_idleGrace, () {
+      _idleTimer = null;
+      if (_controller.hasListener) return;
+      _sub?.cancel();
+      _sub = null;
+    });
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> get stream {
