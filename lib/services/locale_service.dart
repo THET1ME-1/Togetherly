@@ -340,7 +340,6 @@ abstract class AppStrings {
   String get themeNameBordeaux;
   String get themeNameTeal;
   String get themeNameNord;
-  String get themeNameCoffee;
   String premiumThemeLocked(int price);
   String get coinBalance;
   String get coinShopTitle;
@@ -1463,8 +1462,6 @@ class _RuStrings extends AppStrings {
   String get themeNameTeal => 'Бирюзовая';
   @override
   String get themeNameNord => 'Нордик';
-  @override
-  String get themeNameCoffee => 'Кофейная';
   @override
   String premiumThemeLocked(int price) =>
       'Премиум-тема за $price монет — открой в магазине';
@@ -3218,8 +3215,6 @@ class _EnStrings extends AppStrings {
   String get themeNameTeal => 'Teal';
   @override
   String get themeNameNord => 'Nord';
-  @override
-  String get themeNameCoffee => 'Coffee';
   @override
   String premiumThemeLocked(int price) =>
       'Premium theme — $price coins, unlock it in the Coin shop';
