@@ -2299,10 +2299,8 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      '''— Исправил отображение текущего месяца в календаре.
-— Добавили подсказки.
-— Добавили бесплатный пак с новыми розовыми эмоциями.
-— Добавили 7 новых тем.''',
+                      '''— Поправили награду за рекламу.
+— Добавили новый тип пинов "Фильм/Сериал" (не совместный просмотр).''',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,
