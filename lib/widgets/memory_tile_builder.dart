@@ -5,6 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
+import '../services/movie_search_service.dart';
+import 'rating_widgets.dart';
 
 /// Returns SVG asset path for a given memory type
 String svgAssetForMemoryType(MemoryType type) {
@@ -23,6 +25,8 @@ String svgAssetForMemoryType(MemoryType type) {
       return 'assets/icons/ic_photo.svg';
     case MemoryType.book:
       return 'assets/icons/ic_book.svg';
+    case MemoryType.movie:
+      return 'assets/icons/ic_movie.svg';
   }
 }
 
@@ -107,6 +111,9 @@ class MemoryTileBuilder {
         break;
       case MemoryType.book:
         content = _bookContent(memory);
+        break;
+      case MemoryType.movie:
+        content = _movieContent(memory);
         break;
     }
 
@@ -204,6 +211,11 @@ class MemoryTileBuilder {
         subtitle = memory.title?.isNotEmpty == true
             ? memory.title!
             : s.sharedABook;
+        break;
+      case MemoryType.movie:
+        subtitle = memory.title?.isNotEmpty == true
+            ? memory.title!
+            : s.sharedAMovie;
         break;
     }
 
@@ -1182,6 +1194,171 @@ class MemoryTileBuilder {
             ),
           ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  MOVIE CONTENT (home preview tile)
+  // ═══════════════════════════════════════════════════
+  Widget _movieContent(Memory memory) {
+    final s = LocaleService.current;
+    final isRu = s.movies == 'Фильмы и сериалы';
+    final hasPoster =
+        memory.moviePosterUrl != null && memory.moviePosterUrl!.isNotEmpty;
+    final title = memory.title?.isNotEmpty == true ? memory.title! : s.movies;
+    final original = memory.movieOriginalTitle ?? '';
+    final hasOriginal = original.isNotEmpty && original != title;
+    final hasYear = memory.movieYear?.isNotEmpty == true;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200, width: 1),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Compact poster
+                Container(
+                  width: 42,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primary.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: hasPoster
+                      ? Image.network(
+                          memory.moviePosterUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _moviePlaceholder(),
+                          loadingBuilder: (_, child, p) =>
+                              p == null ? child : _moviePlaceholder(),
+                        )
+                      : _moviePlaceholder(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade900,
+                                height: 1.25,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (memory.rating != null) ...[
+                            const SizedBox(width: 8),
+                            RatingBadge(rating: memory.rating!, fontSize: 11),
+                          ],
+                        ],
+                      ),
+                      if (hasOriginal)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            original,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: primary.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              movieKindLabel(memory.movieKind, isRu: isRu),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: primary,
+                              ),
+                            ),
+                          ),
+                          if (hasYear)
+                            _bookChip(
+                              Icons.calendar_today_rounded,
+                              memory.movieYear!,
+                              primary,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (memory.caption?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: _SpoilerText(
+              text: memory.caption!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _moviePlaceholder() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primary.withValues(alpha: 0.9),
+            primary.withValues(alpha: 0.55),
+          ],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.movie_rounded, color: Colors.white, size: 18),
+      ),
     );
   }
 

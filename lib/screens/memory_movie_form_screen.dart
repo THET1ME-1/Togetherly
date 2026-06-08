@@ -1,131 +1,70 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../services/locale_service.dart';
+import '../services/movie_search_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/rating_widgets.dart';
 
-/// Сохранение книжного воспоминания.
-typedef MemoryBookSaveCallback = Future<void> Function({
-  required String bookTitle,
-  required String bookAuthor,
-  String? bookCoverUrl,
-  String? bookYear,
-  String? bookPublisher,
-  String? bookInfoUrl,
+/// Сохранение воспоминания-фильма/сериала.
+typedef MemoryMovieSaveCallback = Future<void> Function({
+  required String movieTitle,
+  String? movieOriginalTitle,
+  String? moviePosterUrl,
+  String? movieYear,
+  String? movieKind,
+  String? movieGenres,
+  String? movieCountry,
+  String? movieRatingKp,
+  String? movieInfoUrl,
   int? rating,
   required String caption,
   DateTime? customDate,
 });
 
-/// Одна книга из результатов поиска.
-class _BookResult {
-  final String title;
-  final String author;
-  final String? coverUrl;
-  final String? year;
-  final String? publisher;
-  final String? infoUrl;
-  /// `true`, если в заголовке есть кириллица — то есть название
-  /// уже на русском. Open Library хранит `title` в исходном языке
-  /// произведения, поэтому для переводных книг (Harry Potter и т.п.)
-  /// поле будет `false`, даже если искали на русском.
-  final bool isRussianTitle;
-
-  const _BookResult({
-    required this.title,
-    required this.author,
-    this.coverUrl,
-    this.year,
-    this.publisher,
-    this.infoUrl,
-    this.isRussianTitle = false,
-  });
-
-  /// Парсит документ Open Library (https://openlibrary.org/dev/docs/api/search).
-  factory _BookResult.fromOpenLibraryDoc(Map<String, dynamic> doc) {
-    final title = doc['title']?.toString().trim() ?? '';
-    final authors =
-        (doc['author_name'] as List?)?.cast<String>().where((a) => a.isNotEmpty) ??
-            const [];
-    // publisher — список издательств; берём самое релевантное.
-    final publishers =
-        (doc['publisher'] as List?)?.cast<String>().where((p) => p.isNotEmpty) ??
-            const [];
-    // first_publish_year — int; в title может быть year у конкретного издания.
-    final firstYear = doc['first_publish_year'];
-    final year = (firstYear is num) ? firstYear.toInt().toString() : null;
-    // cover_i — числовой id обложки. Формируем прямую ссылку размера L.
-    final coverId = doc['cover_i'];
-    String? coverUrl;
-    if (coverId is num) {
-      coverUrl = 'https://covers.openlibrary.org/b/id/${coverId.toInt()}-L.jpg';
-    } else if (coverId is String && coverId.isNotEmpty) {
-      coverUrl = 'https://covers.openlibrary.org/b/id/$coverId-L.jpg';
-    }
-    // key — путь вроде "/works/OL468431W" — ссылка на карточку книги.
-    final key = doc['key']?.toString();
-    final infoUrl = (key != null && key.isNotEmpty)
-        ? 'https://openlibrary.org$key'
-        : null;
-    return _BookResult(
-      title: title,
-      author: authors.join(', '),
-      coverUrl: coverUrl,
-      year: year,
-      publisher: publishers.isNotEmpty ? publishers.first : null,
-      infoUrl: infoUrl,
-      // Open Library не отдаёт локализованные названия в `search.json`,
-      // поэтому проверяем наличие кириллицы в самом title.
-      isRussianTitle: _cyr.hasMatch(title),
-    );
-  }
-
-  static final RegExp _cyr = RegExp(r'[\u0400-\u04FF]');
-}
-
-/// Полноэкранная форма создания книжного воспоминания.
+/// Полноэкранная форма «Фильмы и сериалы».
 ///
-/// Поиск по бесплатному Open Library API (название или автор, без ключа
-/// и квот, отлично индексирует русскоязычные книги), выбор из списка,
-/// подтверждение и редактирование, а также живое 3D-превью обложки
-/// в теме приложения.
-class MemoryBookFormScreen extends StatefulWidget {
+/// По аналогии с книжной формой: поиск по бесплатному API kinopoisk.dev
+/// (русские и английские названия), выбор из списка, стильное превью постера,
+/// личная оценка 1–10 и отзыв.
+class MemoryMovieFormScreen extends StatefulWidget {
   final AppTheme theme;
-  final MemoryBookSaveCallback onSave;
+  final MemoryMovieSaveCallback onSave;
 
-  const MemoryBookFormScreen({
+  const MemoryMovieFormScreen({
     super.key,
     required this.theme,
     required this.onSave,
   });
 
   @override
-  State<MemoryBookFormScreen> createState() => _MemoryBookFormScreenState();
+  State<MemoryMovieFormScreen> createState() => _MemoryMovieFormScreenState();
 }
 
-class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
+class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
   final _searchCtrl = TextEditingController();
   final _titleCtrl = TextEditingController();
-  final _authorCtrl = TextEditingController();
-  final _captionCtrl = TextEditingController();
+  final _originalCtrl = TextEditingController();
+  final _reviewCtrl = TextEditingController();
 
-  String? _coverUrl;
+  String? _posterUrl;
   String? _year;
-  String? _publisher;
+  String _kind = 'movie';
+  String? _genres;
+  String? _country;
+  String? _ratingKp;
   String? _infoUrl;
   int? _rating; // личная оценка 1–10
   DateTime? _customDate;
 
-  List<_BookResult> _results = const [];
+  List<MovieResult> _results = const [];
   bool _isSearching = false;
-  bool _searchFailed = false; // последний запрос упал — покажем «ввести вручную»
-  bool _picked = false; // выбрана конкретная книга → показываем превью/детали
-  bool _manualMode = false; // пользователь выбрал «ввести вручную» (минуя API)
+  bool _searchFailed = false;
+  bool _noToken = false; // токен не задан → сразу ручной ввод
+  bool _picked = false;
+  bool _manualMode = false;
   Timer? _debounce;
   String _lastQuery = '';
 
@@ -133,17 +72,19 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
 
   bool get _canSave => _titleCtrl.text.trim().isNotEmpty;
 
+  bool get _isRu => LocaleService.current.movies == 'Фильмы и сериалы';
+
   @override
   void dispose() {
     _debounce?.cancel();
     _searchCtrl.dispose();
     _titleCtrl.dispose();
-    _authorCtrl.dispose();
-    _captionCtrl.dispose();
+    _originalCtrl.dispose();
+    _reviewCtrl.dispose();
     super.dispose();
   }
 
-  // ── Поиск ─────────────────────────────────────────────────────────────────
+  // ── Поиск ───────────────────────────────────────────────────────────────────
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
@@ -169,70 +110,29 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     setState(() {
       _isSearching = true;
       _searchFailed = false;
+      _noToken = false;
     });
-    // Open Library: дефолтная сортировка — релевантность,
-    // параметр sort=relevance ломает ответ (500), поэтому не передаём.
-    final uri = Uri.https('openlibrary.org', '/search.json', {
-      'q': query,
-      'limit': '20',
-    });
-    debugPrint('[BookForm] GET $uri');
     try {
-      final resp = await http
-          .get(
-            uri,
-            headers: {
-              'Accept': 'application/json',
-              // UA обязателен — без него Open Library отбивает некоторые запросы.
-              'User-Agent':
-                  'Mozilla/5.0 (compatible; TogetherlyApp/1.0; +https://togetherly.app)',
-            },
-          )
-          // Жёсткий таймаут: на мобильной сети ответ может висеть вечно,
-          // и пользователь не понимает, что поиск не сработал.
-          .timeout(const Duration(seconds: 10));
+      final results = await MovieSearchService.search(query);
       if (!mounted || query != _lastQuery) return;
-      debugPrint(
-        '[BookForm] ← ${resp.statusCode}, ${resp.body.length} bytes, '
-        'q="$query"',
-      );
-      if (resp.statusCode == 200) {
-        final data = json.decode(resp.body) as Map<String, dynamic>;
-        final docs = (data['docs'] as List?) ?? const [];
-        final parsed = docs
-            .map((e) =>
-                _BookResult.fromOpenLibraryDoc(e as Map<String, dynamic>))
-            .where((b) => b.title.isNotEmpty)
-            .toList();
-        // Поднимаем книги с русским названием — Open Library отдаёт
-        // оригинальные (часто английские) тайтлы, поэтому для русских
-        // запросов важно показать локализованные варианты сверху списка.
-        parsed.sort((a, b) {
-          if (a.isRussianTitle == b.isRussianTitle) return 0;
-          return a.isRussianTitle ? -1 : 1;
-        });
-        debugPrint('[BookForm] parsed ${parsed.length} books '
-            '(${parsed.where((b) => b.isRussianTitle).length} RU-titled)');
-        setState(() {
-          _results = parsed;
-          _searchFailed = parsed.isEmpty;
-        });
-      } else {
-        debugPrint('[BookForm] non-200: ${resp.statusCode}');
-        setState(() {
-          _results = const [];
-          _searchFailed = true;
-        });
-      }
-    } on TimeoutException {
-      debugPrint('[BookForm] timeout for "$query"');
+      // Поднимаем результаты с русским названием — для русских запросов важно
+      // показать локализованные варианты выше.
+      results.sort((a, b) {
+        if (a.isRussianTitle == b.isRussianTitle) return 0;
+        return a.isRussianTitle ? -1 : 1;
+      });
+      setState(() {
+        _results = results;
+        _searchFailed = results.isEmpty;
+      });
+    } on MovieSearchException catch (e) {
       if (!mounted || query != _lastQuery) return;
       setState(() {
         _results = const [];
         _searchFailed = true;
+        _noToken = e.notConfigured || e.unauthorized;
       });
-    } catch (e, st) {
-      debugPrint('[BookForm] error: $e\n$st');
+    } catch (_) {
       if (!mounted || query != _lastQuery) return;
       setState(() {
         _results = const [];
@@ -256,19 +156,18 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     });
   }
 
-  void _pick(_BookResult book) {
+  void _pick(MovieResult m) {
     FocusScope.of(context).unfocus();
     setState(() {
-      // Подставляем то, что нашли. Если title не на русском —
-      // оставляем в нём подсказку для пользователя, чтобы было удобно
-      // отредактировать вручную (кнопка "Edit" в детальной карточке
-      // уже разлочивает поле title).
-      _titleCtrl.text = book.title;
-      _authorCtrl.text = book.author;
-      _coverUrl = book.coverUrl;
-      _year = book.year;
-      _publisher = book.publisher;
-      _infoUrl = book.infoUrl;
+      _titleCtrl.text = m.title;
+      _originalCtrl.text = m.originalTitle ?? '';
+      _posterUrl = m.posterUrl;
+      _year = m.year;
+      _kind = m.kind;
+      _genres = m.genres;
+      _country = m.country;
+      _ratingKp = m.ratingKp;
+      _infoUrl = m.infoUrl;
       _picked = true;
       _manualMode = false;
       _searchFailed = false;
@@ -280,12 +179,15 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
   void _clearSelection() {
     setState(() {
       _picked = false;
-      _coverUrl = null;
+      _posterUrl = null;
       _year = null;
-      _publisher = null;
+      _kind = 'movie';
+      _genres = null;
+      _country = null;
+      _ratingKp = null;
       _infoUrl = null;
       _titleCtrl.clear();
-      _authorCtrl.clear();
+      _originalCtrl.clear();
     });
   }
 
@@ -293,19 +195,24 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     if (!_canSave) return;
     Navigator.pop(context);
     await widget.onSave(
-      bookTitle: _titleCtrl.text.trim(),
-      bookAuthor: _authorCtrl.text.trim(),
-      bookCoverUrl: _coverUrl,
-      bookYear: _year,
-      bookPublisher: _publisher,
-      bookInfoUrl: _infoUrl,
+      movieTitle: _titleCtrl.text.trim(),
+      movieOriginalTitle: _originalCtrl.text.trim().isNotEmpty
+          ? _originalCtrl.text.trim()
+          : null,
+      moviePosterUrl: _posterUrl,
+      movieYear: _year,
+      movieKind: _kind,
+      movieGenres: _genres,
+      movieCountry: _country,
+      movieRatingKp: _ratingKp,
+      movieInfoUrl: _infoUrl,
       rating: _rating,
-      caption: _captionCtrl.text.trim(),
+      caption: _reviewCtrl.text.trim(),
       customDate: _customDate,
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -330,9 +237,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 children: [
                   if (!_manualMode) _buildSearchCard(s),
                   if (!_manualMode &&
-                      (_isSearching ||
-                          _results.isNotEmpty ||
-                          _searchFailed)) ...[
+                      (_isSearching || _results.isNotEmpty || _searchFailed)) ...[
                     const SizedBox(height: 12),
                     _buildResults(s),
                   ],
@@ -346,7 +251,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                     const SizedBox(height: 16),
                     _buildRatingCard(s),
                     const SizedBox(height: 16),
-                    _buildCaptionField(s),
+                    _buildReviewField(s),
                     const SizedBox(height: 16),
                     MemoryDateField(
                       value: _customDate,
@@ -374,7 +279,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
         style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
       ),
       title: Text(
-        s.books,
+        s.movies,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
@@ -407,11 +312,11 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     );
   }
 
-  // ── Hero: 3D book preview ───────────────────────────────────────────────────
+  // ── Hero: poster preview ────────────────────────────────────────────────────
 
   Widget _buildHero(AppStrings s) {
     final accent = _primary;
-    final hasBook = _picked && _titleCtrl.text.trim().isNotEmpty;
+    final hasMovie = _picked && _titleCtrl.text.trim().isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -430,13 +335,15 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
       child: Column(
         children: [
           SizedBox(
-            height: 210,
+            height: 220,
             child: Center(
-              child: _Book3D(
+              child: _MoviePoster(
                 accent: accent,
-                coverUrl: _coverUrl,
+                posterUrl: _posterUrl,
                 title: _titleCtrl.text.trim(),
-                author: _authorCtrl.text.trim(),
+                kind: _kind,
+                ratingKp: _ratingKp,
+                isRu: _isRu,
               ),
             ),
           ),
@@ -444,8 +351,8 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
             child: Text(
-              hasBook ? _titleCtrl.text.trim() : s.books,
-              key: ValueKey(hasBook ? _titleCtrl.text.trim() : '_'),
+              hasMovie ? _titleCtrl.text.trim() : s.movies,
+              key: ValueKey(hasMovie ? _titleCtrl.text.trim() : '_'),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -453,14 +360,14 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
                 height: 1.15,
-                color: hasBook ? Colors.grey.shade900 : Colors.grey.shade300,
+                color: hasMovie ? Colors.grey.shade900 : Colors.grey.shade300,
               ),
             ),
           ),
           const SizedBox(height: 4),
-          if (hasBook && _authorCtrl.text.trim().isNotEmpty)
+          if (hasMovie && _originalCtrl.text.trim().isNotEmpty)
             Text(
-              _authorCtrl.text.trim(),
+              _originalCtrl.text.trim(),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -470,13 +377,13 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 color: accent,
               ),
             )
-          else if (!hasBook)
+          else if (!hasMovie)
             Text(
-              s.searchBooksPrompt,
+              s.searchMoviesPrompt,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
             ),
-          if (hasBook && (_year != null || _publisher != null)) ...[
+          if (hasMovie && (_year != null || _genres != null)) ...[
             const SizedBox(height: 10),
             _metaChips(accent),
           ],
@@ -490,8 +397,11 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     if (_year != null && _year!.isNotEmpty) {
       chips.add(_chip(Icons.calendar_today_rounded, _year!, accent));
     }
-    if (_publisher != null && _publisher!.isNotEmpty) {
-      chips.add(_chip(Icons.business_rounded, _publisher!, accent));
+    if (_genres != null && _genres!.isNotEmpty) {
+      chips.add(_chip(Icons.theaters_rounded, _genres!, accent));
+    }
+    if (_country != null && _country!.isNotEmpty) {
+      chips.add(_chip(Icons.public_rounded, _country!, accent));
     }
     return Wrap(
       alignment: WrapAlignment.center,
@@ -514,7 +424,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
           Icon(icon, size: 13, color: accent),
           const SizedBox(width: 5),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
+            constraints: const BoxConstraints(maxWidth: 180),
             child: Text(
               label,
               maxLines: 1,
@@ -552,12 +462,12 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   color: _primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.menu_book_rounded, size: 16, color: _primary),
+                child: Icon(Icons.movie_filter_rounded, size: 16, color: _primary),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _picked ? s.bookDetails : s.searchBooksPrompt,
+                  _picked ? s.movieDetails : s.searchMoviesPrompt,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -575,7 +485,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Text(
-                    s.bookSearchAgain,
+                    s.movieSearchAgain,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -592,7 +502,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             onChanged: _onQueryChanged,
             onSubmitted: (v) => _search(v.trim()),
             decoration: InputDecoration(
-              hintText: s.bookSearchHint,
+              hintText: s.movieSearchHint,
               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
               prefixIcon: Icon(Icons.search_rounded, color: _primary, size: 20),
               suffixIcon: _isSearching
@@ -649,74 +559,60 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
       );
     }
     if (_results.isEmpty) {
-      // Не нашлось — даём пользователю путь выхода: ввести вручную.
       final failed = _searchFailed;
       return Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         decoration: BoxDecoration(
-          color: failed
-              ? Colors.orange.shade50
-              : Colors.grey.shade50,
+          color: failed ? Colors.orange.shade50 : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: failed
-                ? Colors.orange.shade200
-                : Colors.grey.shade200,
+            color: failed ? Colors.orange.shade200 : Colors.grey.shade200,
           ),
         ),
         child: Column(
           children: [
             Icon(
-              failed
-                  ? Icons.cloud_off_rounded
-                  : Icons.search_off_rounded,
-              color: failed
-                  ? Colors.orange.shade400
-                  : Colors.grey.shade300,
+              _noToken
+                  ? Icons.vpn_key_off_rounded
+                  : (failed ? Icons.cloud_off_rounded : Icons.search_off_rounded),
+              color: failed ? Colors.orange.shade400 : Colors.grey.shade300,
               size: 32,
             ),
             const SizedBox(height: 8),
             Text(
-              failed ? s.bookSearchFailed : s.noBooksFound,
+              _noToken
+                  ? s.movieNoToken
+                  : (failed ? s.movieSearchFailed : s.noMoviesFound),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: failed
-                    ? Colors.orange.shade700
-                    : Colors.grey.shade500,
+                color: failed ? Colors.orange.shade700 : Colors.grey.shade500,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            if (failed) ...[
+            if (failed && !_noToken) ...[
               const SizedBox(height: 4),
               Text(
-                s.bookSearchFailedHint,
+                s.movieSearchFailedHint,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5),
               ),
             ],
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: _enterManualMode,
               icon: const Icon(Icons.edit_rounded, size: 16),
-              label: Text(s.bookEnterManually),
+              label: Text(s.movieEnterManually),
               style: TextButton.styleFrom(
                 foregroundColor: _primary,
                 backgroundColor: _primary.withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                textStyle: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -740,14 +636,12 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 Divider(height: 1, color: Colors.grey.shade100),
             itemBuilder: (_, i) => _resultTile(_results[i]),
           ),
-          // Внизу списка — запасной вариант «ввести вручную»,
-          // чтобы не заставлять пользователя стирать запрос.
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: TextButton.icon(
               onPressed: _enterManualMode,
               icon: const Icon(Icons.edit_rounded, size: 15),
-              label: Text(s.bookEnterManually),
+              label: Text(s.movieEnterManually),
               style: TextButton.styleFrom(
                 foregroundColor: _primary,
                 textStyle: const TextStyle(
@@ -762,7 +656,6 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     );
   }
 
-  // ── Manual entry card — запасной режим, если API не ответил ────────────────
   Widget _buildManualEntryCard(AppStrings s) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -771,69 +664,55 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _primary.withValues(alpha: 0.20)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: _primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.edit_rounded, size: 16, color: _primary),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.edit_rounded, size: 16, color: _primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              s.movieManualEntryHint,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  s.bookManualEntryHint,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _manualMode = false;
-                  });
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: _primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  s.bookSearchAgain,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() => _manualMode = false),
+            style: TextButton.styleFrom(
+              foregroundColor: _primary,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              s.movieSearchAgain,
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _resultTile(_BookResult book) {
-    // Подсказка про язык: Open Library отдаёт название в исходном языке,
-    // поэтому для переводных книг показываем, что title не на русском —
-    // пользователь сможет поправить его в ручном режиме.
-    final hasRussian = book.isRussianTitle;
+  Widget _resultTile(MovieResult m) {
+    final hasRussian = m.isRussianTitle;
     return InkWell(
-      onTap: () => _pick(book),
+      onTap: () => _pick(m),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            _miniCover(book.coverUrl),
+            _miniPoster(m.posterUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -844,7 +723,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          book.title,
+                          m.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -859,32 +738,72 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                       _langTag(hasRussian ? 'RU' : 'EN'),
                     ],
                   ),
-                  if (book.author.isNotEmpty)
+                  if (m.originalTitle != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        book.author,
+                        m.originalTitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
+                        style:
+                            TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       ),
                     ),
-                  if (book.year != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        book.year!,
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade400),
-                      ),
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _kindTag(m.kind),
+                      if (m.year != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          m.year!,
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade400),
+                        ),
+                      ],
+                      if (m.ratingKp != null) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.star_rounded,
+                            size: 12, color: Colors.amber.shade600),
+                        const SizedBox(width: 2),
+                        Text(
+                          m.ratingKp!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.amber.shade700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.add_circle_outline_rounded,
-                color: _primary, size: 22),
+            Icon(Icons.add_circle_outline_rounded, color: _primary, size: 22),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kindTag(String kind) {
+    final label = movieKindLabel(kind, isRu: _isRu);
+    final isSeries = kind != 'movie' && kind != 'cartoon';
+    final color = isSeries ? const Color(0xFF8B5CF6) : _primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+          color: color,
         ),
       ),
     );
@@ -913,10 +832,10 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     );
   }
 
-  Widget _miniCover(String? url) {
+  Widget _miniPoster(String? url) {
     return Container(
-      width: 42,
-      height: 60,
+      width: 44,
+      height: 62,
       decoration: BoxDecoration(
         color: _primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
@@ -933,14 +852,14 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
           ? Image.network(
               url,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _coverIcon(),
+              errorBuilder: (_, __, ___) => _posterIcon(),
             )
-          : _coverIcon(),
+          : _posterIcon(),
     );
   }
 
-  Widget _coverIcon() => Center(
-        child: Icon(Icons.menu_book_rounded,
+  Widget _posterIcon() => Center(
+        child: Icon(Icons.movie_rounded,
             color: _primary.withValues(alpha: 0.5), size: 20),
       );
 
@@ -972,12 +891,12 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   color: _primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.auto_stories_rounded,
-                    size: 16, color: _primary),
+                child:
+                    Icon(Icons.local_movies_rounded, size: 16, color: _primary),
               ),
               const SizedBox(width: 10),
               Text(
-                s.bookDetails,
+                s.movieDetails,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -987,53 +906,18 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          // Подсказка, что название в Open Library хранится в исходном
-          // языке произведения — можно переписать на русский.
-          if (_titleCtrl.text.isNotEmpty &&
-              !_BookResult._cyr.hasMatch(_titleCtrl.text))
-            _nonRussianTitleHint(),
           _field(
             controller: _titleCtrl,
-            hint: s.bookTitleHint,
+            hint: s.movieTitleHint,
             icon: Icons.title_rounded,
           ),
           const SizedBox(height: 10),
           _field(
-            controller: _authorCtrl,
-            hint: s.bookAuthorHint,
-            icon: Icons.person_rounded,
+            controller: _originalCtrl,
+            hint: s.movieOriginalTitleHint,
+            icon: Icons.translate_rounded,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _nonRussianTitleHint() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.amber.shade200),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.translate_rounded, size: 14, color: Colors.amber.shade800),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Название на английском — можно переписать на русский',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: Colors.amber.shade900,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1083,18 +967,18 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     );
   }
 
-  Widget _buildCaptionField(AppStrings s) {
+  Widget _buildReviewField(AppStrings s) {
     return TextField(
-      controller: _captionCtrl,
+      controller: _reviewCtrl,
       maxLines: 4,
       minLines: 2,
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
         labelText: s.yourReview,
         labelStyle: TextStyle(color: _primary, fontWeight: FontWeight.w600),
-        alignLabelWithHint: true,
         hintText: s.reviewHint,
         hintStyle: TextStyle(color: Colors.grey.shade400),
+        alignLabelWithHint: true,
         filled: true,
         fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.all(16),
@@ -1115,31 +999,34 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
   }
 }
 
-/// Стилизованная 3D-обложка книги с корешком и тенью.
-class _Book3D extends StatelessWidget {
+/// Стильное превью постера фильма с тенью, бейджем типа и рейтингом КП.
+class _MoviePoster extends StatelessWidget {
   final Color accent;
-  final String? coverUrl;
+  final String? posterUrl;
   final String title;
-  final String author;
+  final String kind;
+  final String? ratingKp;
+  final bool isRu;
 
-  const _Book3D({
+  const _MoviePoster({
     required this.accent,
-    this.coverUrl,
+    this.posterUrl,
     required this.title,
-    required this.author,
+    required this.kind,
+    this.ratingKp,
+    required this.isRu,
   });
 
   @override
   Widget build(BuildContext context) {
-    const w = 138.0;
-    const h = 196.0;
+    const w = 150.0;
+    const h = 210.0; // постер ~2:3
     return SizedBox(
       width: w + 16,
       height: h + 12,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Тень-«подставка» под книгой
           Positioned(
             bottom: 0,
             child: Container(
@@ -1157,17 +1044,11 @@ class _Book3D extends StatelessWidget {
               ),
             ),
           ),
-          // Сама книга
           Container(
             width: w,
             height: h,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-                topLeft: Radius.circular(3),
-                bottomLeft: Radius.circular(3),
-              ),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
                   color: accent.withValues(alpha: 0.28),
@@ -1177,18 +1058,13 @@ class _Book3D extends StatelessWidget {
               ],
             ),
             child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-                topLeft: Radius.circular(3),
-                bottomLeft: Radius.circular(3),
-              ),
+              borderRadius: BorderRadius.circular(12),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (coverUrl != null && coverUrl!.isNotEmpty)
+                  if (posterUrl != null && posterUrl!.isNotEmpty)
                     Image.network(
-                      coverUrl!,
+                      posterUrl!,
                       fit: BoxFit.cover,
                       loadingBuilder: (ctx, child, progress) =>
                           progress == null ? child : _placeholder(),
@@ -1196,23 +1072,76 @@ class _Book3D extends StatelessWidget {
                     )
                   else
                     _placeholder(),
-                  // Корешок слева — тёмная полоса
+                  // Затемнение снизу под бейджи
                   Positioned(
                     left: 0,
-                    top: 0,
+                    right: 0,
                     bottom: 0,
-                    child: Container(
-                      width: 10,
+                    height: 56,
+                    child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
                           colors: [
-                            Colors.black.withValues(alpha: 0.28),
-                            Colors.black.withValues(alpha: 0.04),
+                            Colors.black.withValues(alpha: 0.55),
+                            Colors.transparent,
                           ],
                         ),
                       ),
                     ),
                   ),
+                  // Бейдж типа (Фильм/Сериал)
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        movieKindLabel(kind, isRu: isRu),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Рейтинг КП
+                  if (ratingKp != null)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star_rounded,
+                                size: 12, color: Colors.amber.shade400),
+                            const SizedBox(width: 3),
+                            Text(
+                              ratingKp!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   // Глянцевый блик
                   Positioned.fill(
                     child: DecoratedBox(
@@ -1221,7 +1150,7 @@ class _Book3D extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.white.withValues(alpha: 0.18),
+                            Colors.white.withValues(alpha: 0.16),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.4],
@@ -1251,11 +1180,11 @@ class _Book3D extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 22, 12, 18),
+        padding: const EdgeInsets.fromLTRB(16, 18, 14, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.menu_book_rounded, color: Colors.white, size: 30),
+            const Icon(Icons.movie_rounded, color: Colors.white, size: 30),
             const Spacer(),
             if (title.isNotEmpty)
               Text(
@@ -1269,19 +1198,6 @@ class _Book3D extends StatelessWidget {
                   height: 1.2,
                 ),
               ),
-            if (author.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                author,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
           ],
         ),
       ),

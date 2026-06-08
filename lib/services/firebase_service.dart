@@ -2797,6 +2797,15 @@ class FirebaseService {
     String? bookYear,
     String? bookPublisher,
     String? bookInfoUrl,
+    String? movieOriginalTitle,
+    String? moviePosterUrl,
+    String? movieYear,
+    String? movieKind,
+    String? movieGenres,
+    String? movieCountry,
+    String? movieRatingKp,
+    String? movieInfoUrl,
+    int? rating,
     bool isAdult = false,
     DateTime? customDate,
   }) async {
@@ -2843,6 +2852,15 @@ class FirebaseService {
         bookYear: bookYear,
         bookPublisher: bookPublisher,
         bookInfoUrl: bookInfoUrl,
+        movieOriginalTitle: movieOriginalTitle,
+        moviePosterUrl: moviePosterUrl,
+        movieYear: movieYear,
+        movieKind: movieKind,
+        movieGenres: movieGenres,
+        movieCountry: movieCountry,
+        movieRatingKp: movieRatingKp,
+        movieInfoUrl: movieInfoUrl,
+        rating: rating,
         isAdult: isAdult,
       );
 
@@ -2873,6 +2891,7 @@ class FirebaseService {
     String? musicTitle,
     String? musicArtist,
     String? bookAuthor,
+    int? rating,
     String? imageUrl,
     bool? isPinned,
     bool? isAdult,
@@ -2890,6 +2909,7 @@ class FirebaseService {
       if (musicTitle != null) updates['musicTitle'] = musicTitle;
       if (musicArtist != null) updates['musicArtist'] = musicArtist;
       if (bookAuthor != null) updates['bookAuthor'] = bookAuthor;
+      if (rating != null) updates['rating'] = rating == 0 ? null : rating;
       if (imageUrl != null) updates['imageUrl'] = imageUrl;
       if (isPinned != null) updates['isPinned'] = isPinned;
       if (isAdult != null) updates['isAdult'] = isAdult;

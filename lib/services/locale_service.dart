@@ -664,6 +664,36 @@ abstract class AppStrings {
   String get bookReadMore;
   String get bookSearchAgain;
 
+  // ── Movies & series ──
+  String get movies;
+  String get movieSearchHint;
+  String get searchMoviesPrompt;
+  String get noMoviesFound;
+  String get movieSearchFailed;
+  String get movieSearchFailedHint;
+  String get movieEnterManually;
+  String get movieManualEntryHint;
+  String get movieNoToken;
+  String get sharedAMovie;
+  String get movieTitleHint;
+  String get movieOriginalTitleHint;
+  String get movieDetails;
+  String get movieReadMore;
+  String get movieSearchAgain;
+
+  // ── Rating & review (books / movies) ──
+  String get yourRating;
+  String get ratingNotRated;
+  String get ratingHint;
+  String get ratingMasterpiece;
+  String get ratingExcellent;
+  String get ratingGood;
+  String get ratingMixed;
+  String get ratingBad;
+  String get ratingAwful;
+  String get yourReview;
+  String get reviewHint;
+
   // ── Memory date picker ──
   String get memoryDateLabel;
   String get memoryDateNow;
@@ -2127,6 +2157,61 @@ class _RuStrings extends AppStrings {
   String get bookReadMore => 'Подробнее';
   @override
   String get bookSearchAgain => 'Искать';
+  @override
+  String get movies => 'Фильмы и сериалы';
+  @override
+  String get movieSearchHint => 'Название фильма или сериала';
+  @override
+  String get searchMoviesPrompt => 'Найдите фильм или сериал по названию';
+  @override
+  String get noMoviesFound => 'Ничего не найдено';
+  @override
+  String get movieSearchFailed => 'Не удалось найти. Введите вручную';
+  @override
+  String get movieSearchFailedHint =>
+      'Поиск не ответил или фильм отсутствует в базе.';
+  @override
+  String get movieEnterManually => 'Ввести вручную';
+  @override
+  String get movieManualEntryHint =>
+      'Заполните название самостоятельно';
+  @override
+  String get movieNoToken =>
+      'Поиск недоступен — впишите название вручную';
+  @override
+  String get sharedAMovie => 'Поделился(-ась) фильмом';
+  @override
+  String get movieTitleHint => 'Название';
+  @override
+  String get movieOriginalTitleHint => 'Оригинальное название';
+  @override
+  String get movieDetails => 'О фильме';
+  @override
+  String get movieReadMore => 'Открыть на Кинопоиске';
+  @override
+  String get movieSearchAgain => 'Искать';
+  @override
+  String get yourRating => 'Ваша оценка';
+  @override
+  String get ratingNotRated => 'Без оценки';
+  @override
+  String get ratingHint => 'Нажмите на цифру, чтобы оценить';
+  @override
+  String get ratingMasterpiece => 'Шедевр 🔥';
+  @override
+  String get ratingExcellent => 'Отлично';
+  @override
+  String get ratingGood => 'Хорошо';
+  @override
+  String get ratingMixed => 'Так себе';
+  @override
+  String get ratingBad => 'Плохо';
+  @override
+  String get ratingAwful => 'Ужасно';
+  @override
+  String get yourReview => 'Ваш отзыв';
+  @override
+  String get reviewHint => 'Что вы думаете? Поделитесь впечатлением…';
   @override
   String get memoryDateLabel => 'Когда это было';
   @override
@@ -3889,6 +3974,59 @@ class _EnStrings extends AppStrings {
   String get bookReadMore => 'Read more';
   @override
   String get bookSearchAgain => 'Search';
+  @override
+  String get movies => 'Movies & series';
+  @override
+  String get movieSearchHint => 'Movie or series title';
+  @override
+  String get searchMoviesPrompt => 'Search a movie or series by title';
+  @override
+  String get noMoviesFound => 'Nothing found';
+  @override
+  String get movieSearchFailed => 'Search failed. Enter manually';
+  @override
+  String get movieSearchFailedHint =>
+      'The search did not respond or the title is not in the database.';
+  @override
+  String get movieEnterManually => 'Enter manually';
+  @override
+  String get movieManualEntryHint => 'Fill in the title yourself';
+  @override
+  String get movieNoToken => 'Search unavailable — enter the title manually';
+  @override
+  String get sharedAMovie => 'Shared a movie';
+  @override
+  String get movieTitleHint => 'Title';
+  @override
+  String get movieOriginalTitleHint => 'Original title';
+  @override
+  String get movieDetails => 'About';
+  @override
+  String get movieReadMore => 'Open on Kinopoisk';
+  @override
+  String get movieSearchAgain => 'Search';
+  @override
+  String get yourRating => 'Your rating';
+  @override
+  String get ratingNotRated => 'Not rated';
+  @override
+  String get ratingHint => 'Tap a number to rate';
+  @override
+  String get ratingMasterpiece => 'Masterpiece 🔥';
+  @override
+  String get ratingExcellent => 'Excellent';
+  @override
+  String get ratingGood => 'Good';
+  @override
+  String get ratingMixed => 'So-so';
+  @override
+  String get ratingBad => 'Bad';
+  @override
+  String get ratingAwful => 'Awful';
+  @override
+  String get yourReview => 'Your review';
+  @override
+  String get reviewHint => 'What did you think? Share your impression…';
   @override
   String get memoryDateLabel => 'When was it';
   @override
