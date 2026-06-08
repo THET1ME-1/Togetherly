@@ -382,42 +382,47 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         SizedBox(
           width: double.infinity,
           height: 260,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Превью
-              if (isFirstVideo)
-                _videoPreviewWidget(first.path, fit: BoxFit.cover)
-              else
-                Image.file(File(first.path), fit: BoxFit.cover),
-              // Иконка Play для видео
-              if (isFirstVideo)
-                const Center(
-                  child: Icon(Icons.play_circle_filled_rounded,
-                      color: Colors.white, size: 52),
-                ),
-              // Счётчик
-              if (_media.length > 1)
-                Positioned(
-                  bottom: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_media.length} элем.',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
+          child: ClipRect(
+            child: Stack(
+              children: [
+                // Превью — Positioned.fill гарантирует обрезку, а не сжатие
+                if (isFirstVideo)
+                  Positioned.fill(
+                    child: _videoPreviewWidget(first.path, fit: BoxFit.cover),
+                  )
+                else
+                  Positioned.fill(
+                    child: Image.file(File(first.path), fit: BoxFit.cover),
+                  ),
+                // Иконка Play для видео
+                if (isFirstVideo)
+                  const Center(
+                    child: Icon(Icons.play_circle_filled_rounded,
+                        color: Colors.white, size: 52),
+                  ),
+                // Счётчик
+                if (_media.length > 1)
+                  Positioned(
+                    bottom: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_media.length} элем.',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         // Лента миниатюр

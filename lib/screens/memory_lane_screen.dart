@@ -8910,7 +8910,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     } else if (n == 3) {
       body = Column(
         children: [
-          cell(0, aspect: 16 / 9),
+          cell(0, aspect: 1.0),
           const SizedBox(height: gap),
           photoRow([1, 2]),
         ],
