@@ -72,7 +72,14 @@
       "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
       "Bash(timeout 60 firebase functions:list)",
       "Bash(echo \"\\(exit: $?\\)\")",
-      "Bash(xargs -n1 basename)"
+      "Bash(xargs -n1 basename)",
+      "Bash(find ~/AppData/Local/Pub/Cache/hosted -maxdepth 1 -iname \"yandex_mobileads*\" 2>/dev/null | cat; find / -path \"*yandex_mobileads*/lib/src/*rewarded*\" 2>/dev/null | head -20 | cat)",
+      "Read(//c//**)",
+      "Bash(firebase functions:list --project togetherly-d4856)",
+      "Bash(firebase functions:log --only grantAdReward --project togetherly-d4856)",
+      "Bash(node -e \"const c=require\\('/c/Users/Alex/.config/configstore/firebase-tools.json'\\); const t=c.tokens||{}; console.log\\('has_refresh', !!t.refresh_token\\); console.log\\('scopes', \\(t.scopes||c.tokens&&c.tokens.scopes||''\\)+''\\); console.log\\('expires', t.expires_at\\); console.log\\('user', \\(c.user&&c.user.email\\)||'?'\\);\")",
+      "Bash(node _diag.js)",
+      "Bash(node \"c:/Users/Alex/Documents/GitHub/love_app/functions/_diag.js\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"
