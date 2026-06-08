@@ -797,6 +797,7 @@ abstract class AppStrings {
   String get dateFormatHint;
   String get symbolLabel;
   String get countdownMode;
+  String get countdownPastDateWarning;
   String get setAsMain;
   String get saveSettings;
   String get deleteTimerQuestion;
@@ -2448,6 +2449,8 @@ class _RuStrings extends AppStrings {
   String get symbolLabel => 'СИМВОЛ';
   @override
   String get countdownMode => 'Режим отсчёта';
+  @override
+  String get countdownPastDateWarning => 'Целевая дата уже прошла — таймер покажет нули. Выберите будущую дату.';
   @override
   String get setAsMain => 'Сделать основным';
   @override
@@ -4262,6 +4265,8 @@ class _EnStrings extends AppStrings {
   String get symbolLabel => 'SYMBOL';
   @override
   String get countdownMode => 'Countdown Mode';
+  @override
+  String get countdownPastDateWarning => 'Target date has already passed — the timer will show zeros. Please pick a future date.';
   @override
   String get setAsMain => 'Set as Main';
   @override

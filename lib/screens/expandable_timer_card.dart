@@ -436,6 +436,22 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                       ),
                     ],
                   ),
+                  if (isCountdown && pickedDate.isBefore(DateTime.now()))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              LocaleService.current.countdownPastDateWarning,
+                              style: const TextStyle(fontSize: 12, color: Colors.orange),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 20),
                   _dialogLabel(LocaleService.current.symbolLabel),
                   Wrap(
