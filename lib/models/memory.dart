@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Types of memory content
-enum MemoryType { photo, video, location, music, text, videoLink, book }
+enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
 
 /// A single memory entry in the shared Memory Lane
 class Memory {
@@ -35,6 +35,21 @@ class Memory {
   String? bookPublisher; // publisher name
   String? bookInfoUrl; // link to the book page (Google Books / Open Library)
 
+  // Movie / series fields (used for MemoryType.movie). Title reuses [title]
+  // for the localized (Russian) name.
+  String? movieOriginalTitle; // original / English name (alternativeName)
+  String? moviePosterUrl; // poster image URL from the movies API (TMDB/Kinopoisk)
+  String? movieYear; // release year (or "2020–2024" for series)
+  String? movieKind; // raw kind: movie / tv-series / cartoon / anime / animated-series
+  String? movieGenres; // comma-joined genres ("драма, мелодрама")
+  String? movieCountry; // primary country
+  String? movieRatingKp; // external rating (e.g. Kinopoisk "7.5")
+  String? movieInfoUrl; // link to the movie page (kinopoisk.ru)
+
+  /// User's personal 1–10 rating for this memory. Shared between books and
+  /// movies (the "оценка"). The accompanying review text reuses [caption].
+  int? rating;
+
   bool isPinned;
   bool isAdult;
 
@@ -64,6 +79,15 @@ class Memory {
     this.bookYear,
     this.bookPublisher,
     this.bookInfoUrl,
+    this.movieOriginalTitle,
+    this.moviePosterUrl,
+    this.movieYear,
+    this.movieKind,
+    this.movieGenres,
+    this.movieCountry,
+    this.movieRatingKp,
+    this.movieInfoUrl,
+    this.rating,
     this.isPinned = false,
     this.isAdult = false,
   });
@@ -85,6 +109,8 @@ class Memory {
         return 'Video Link';
       case MemoryType.book:
         return 'Book';
+      case MemoryType.movie:
+        return 'Movie';
     }
   }
 
@@ -104,6 +130,8 @@ class Memory {
         return '🎬';
       case MemoryType.book:
         return '📚';
+      case MemoryType.movie:
+        return '🎬';
     }
   }
 
@@ -134,6 +162,15 @@ class Memory {
       if (bookYear != null) 'bookYear': bookYear,
       if (bookPublisher != null) 'bookPublisher': bookPublisher,
       if (bookInfoUrl != null) 'bookInfoUrl': bookInfoUrl,
+      if (movieOriginalTitle != null) 'movieOriginalTitle': movieOriginalTitle,
+      if (moviePosterUrl != null) 'moviePosterUrl': moviePosterUrl,
+      if (movieYear != null) 'movieYear': movieYear,
+      if (movieKind != null) 'movieKind': movieKind,
+      if (movieGenres != null) 'movieGenres': movieGenres,
+      if (movieCountry != null) 'movieCountry': movieCountry,
+      if (movieRatingKp != null) 'movieRatingKp': movieRatingKp,
+      if (movieInfoUrl != null) 'movieInfoUrl': movieInfoUrl,
+      if (rating != null) 'rating': rating,
       'isPinned': isPinned,
       if (isAdult) 'isAdult': isAdult,
     };
@@ -172,6 +209,15 @@ class Memory {
       bookYear: data['bookYear'],
       bookPublisher: data['bookPublisher'],
       bookInfoUrl: data['bookInfoUrl'],
+      movieOriginalTitle: data['movieOriginalTitle'],
+      moviePosterUrl: data['moviePosterUrl'],
+      movieYear: data['movieYear'],
+      movieKind: data['movieKind'],
+      movieGenres: data['movieGenres'],
+      movieCountry: data['movieCountry'],
+      movieRatingKp: data['movieRatingKp'],
+      movieInfoUrl: data['movieInfoUrl'],
+      rating: (data['rating'] as num?)?.toInt(),
       isPinned: data['isPinned'] ?? false,
       isAdult: data['isAdult'] ?? false,
     );
@@ -205,6 +251,15 @@ class Memory {
       'bookYear': bookYear,
       'bookPublisher': bookPublisher,
       'bookInfoUrl': bookInfoUrl,
+      'movieOriginalTitle': movieOriginalTitle,
+      'moviePosterUrl': moviePosterUrl,
+      'movieYear': movieYear,
+      'movieKind': movieKind,
+      'movieGenres': movieGenres,
+      'movieCountry': movieCountry,
+      'movieRatingKp': movieRatingKp,
+      'movieInfoUrl': movieInfoUrl,
+      'rating': rating,
       'isPinned': isPinned,
       'isAdult': isAdult,
     };
@@ -244,6 +299,15 @@ class Memory {
       bookYear: json['bookYear'],
       bookPublisher: json['bookPublisher'],
       bookInfoUrl: json['bookInfoUrl'],
+      movieOriginalTitle: json['movieOriginalTitle'],
+      moviePosterUrl: json['moviePosterUrl'],
+      movieYear: json['movieYear'],
+      movieKind: json['movieKind'],
+      movieGenres: json['movieGenres'],
+      movieCountry: json['movieCountry'],
+      movieRatingKp: json['movieRatingKp'],
+      movieInfoUrl: json['movieInfoUrl'],
+      rating: (json['rating'] as num?)?.toInt(),
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
     );

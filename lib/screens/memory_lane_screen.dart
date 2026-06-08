@@ -43,7 +43,10 @@ import 'memory_photo_form_screen.dart';
 import 'memory_music_form_screen.dart';
 import 'memory_location_form_screen.dart';
 import 'memory_book_form_screen.dart';
+import 'memory_movie_form_screen.dart';
 import '../widgets/memory_date_field.dart';
+import '../widgets/rating_widgets.dart';
+import '../services/movie_search_service.dart';
 
 /// Returns SVG asset path for a given memory type
 String _svgAssetForType(MemoryType type) {
@@ -62,6 +65,8 @@ String _svgAssetForType(MemoryType type) {
       return 'assets/icons/ic_edit.svg';
     case MemoryType.book:
       return 'assets/icons/ic_book.svg';
+    case MemoryType.movie:
+      return 'assets/icons/ic_movie.svg';
   }
 }
 
@@ -775,6 +780,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return _textTile(memory);
       case MemoryType.book:
         return _bookTile(memory);
+      case MemoryType.movie:
+        return _movieTile(memory);
     }
   }
 
@@ -1633,16 +1640,27 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade900,
-                            height: 1.25,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade900,
+                                  height: 1.25,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (memory.rating != null) ...[
+                              const SizedBox(width: 8),
+                              RatingBadge(rating: memory.rating!, fontSize: 11),
+                            ],
+                          ],
                         ),
                         if (hasAuthor)
                           Padding(
@@ -1728,6 +1746,181 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 fontWeight: FontWeight.w700,
                 color: accent,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  MOVIE TILE — card with poster + rating
+  // ═══════════════════════════════════════════════════
+  Widget _movieTile(Memory memory) {
+    final s = LocaleService.current;
+    final isRu = s.movies == 'Фильмы и сериалы';
+    final title = memory.title?.isNotEmpty == true
+        ? memory.title!
+        : s.movies;
+    final original = memory.movieOriginalTitle ?? '';
+    final hasOriginal = original.isNotEmpty && original != title;
+    final hasYear = memory.movieYear?.isNotEmpty == true;
+    final hasGenres = memory.movieGenres?.isNotEmpty == true;
+    final hasKp = memory.movieRatingKp?.isNotEmpty == true;
+
+    return _baseTile(
+      memory: memory,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(memory, subtitle: s.sharedAMovie, badgeColor: primary),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200, width: 1),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _MiniMoviePoster(
+                    accent: primary,
+                    posterUrl: memory.moviePosterUrl,
+                    title: title,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade900,
+                                  height: 1.25,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (memory.rating != null) ...[
+                              const SizedBox(width: 8),
+                              RatingBadge(rating: memory.rating!, fontSize: 11),
+                            ],
+                          ],
+                        ),
+                        if (hasOriginal)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              original,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _movieKindChip(memory.movieKind, isRu),
+                            if (hasYear)
+                              _bookChip(
+                                Icons.calendar_today_rounded,
+                                memory.movieYear!,
+                                primary,
+                              ),
+                            if (hasKp) _kpChip(memory.movieRatingKp!),
+                            if (hasGenres)
+                              _bookChip(
+                                Icons.theaters_rounded,
+                                memory.movieGenres!,
+                                primary,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (memory.caption?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: _SpoilerRichText(
+                text: memory.caption!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  height: 1.45,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          _locationDistancePill(memory),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _movieKindChip(String? kind, bool isRu) {
+    final label = movieKindLabel(kind, isRu: isRu);
+    final isSeries = kind != null && kind != 'movie' && kind != 'cartoon';
+    final color = isSeries ? const Color(0xFF8B5CF6) : primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _kpChip(String rating) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 11, color: Colors.amber.shade700),
+          const SizedBox(width: 4),
+          Text(
+            'КП $rating',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.amber.shade800,
             ),
           ),
         ],
@@ -3080,6 +3273,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     double? editLat = memory.latitude;
     double? editLng = memory.longitude;
     bool isAdultEdit = memory.isAdult;
+    // Оценка 1–10 (для книг и фильмов) — можно изменить при редактировании.
+    int? editRating = memory.rating;
+    final bool isRatable =
+        memory.type == MemoryType.book || memory.type == MemoryType.movie;
     // Дата воспоминания: инициализируем текущей createdAt — пользователь
     // может изменить её, и тогда пин переедет в нужную точку ленты.
     DateTime editDate = memory.createdAt;
@@ -3093,12 +3290,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       backgroundColor: Colors.white,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
-          return Padding(
+          return SingleChildScrollView(
+            child: Padding(
             padding: EdgeInsets.fromLTRB(
               24,
               24,
               24,
-              MediaQuery.of(context).viewInsets.bottom + 24,
+              // Клавиатура + системная навигация снизу, чтобы кнопка
+              // сохранения и оценка не уходили под кнопки телефона.
+              MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.of(context).padding.bottom +
+                  24,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -3147,7 +3349,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   controller: captionCtrl,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: LocaleService.current.description,
+                    hintText: isRatable
+                        ? LocaleService.current.reviewHint
+                        : LocaleService.current.description,
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     border: OutlineInputBorder(
@@ -3160,6 +3364,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ),
                 ),
+                // Оценка 1–10 для книг/фильмов
+                if (isRatable) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: RatingPicker(
+                      value: editRating,
+                      accent: primary,
+                      onChanged: (v) => setState(() => editRating = v),
+                    ),
+                  ),
+                ],
                 // Spoiler toolbar for text pins in edit form
                 if (memory.type == MemoryType.text) ...[
                   const SizedBox(height: 6),
@@ -3388,6 +3609,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             : null,
                         latitude: editLat,
                         longitude: editLng,
+                        rating: isRatable ? (editRating ?? 0) : null,
                         isAdult: memory.type == MemoryType.photo
                             ? isAdultEdit
                             : null,
@@ -3412,6 +3634,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ),
               ],
             ),
+          ),
           );
         },
       ),
@@ -3424,16 +3647,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   void _showAddMemorySheet() {
     showModalBottomSheet(
       context: context,
+      // Без этого лист ограничен ~половиной экрана и нижние пункты
+      // (Фильмы/Сериалы) обрезаются под системными кнопками.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: Colors.white,
       builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               Container(
                 width: 40,
                 height: 4,
@@ -3487,7 +3714,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 color: const Color(0xFFA855F7),
                 type: MemoryType.book,
               ),
+              _addMemoryOption(
+                icon: Icons.movie_rounded,
+                label: LocaleService.current.movies,
+                color: const Color(0xFFEF4444),
+                type: MemoryType.movie,
+              ),
             ],
+          ),
           ),
         ),
       ),
@@ -3621,6 +3855,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   bookYear,
                   bookPublisher,
                   bookInfoUrl,
+                  rating,
                   required caption,
                   customDate,
                 }) =>
@@ -3633,10 +3868,50 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   bookYear: bookYear,
                   bookPublisher: bookPublisher,
                   bookInfoUrl: bookInfoUrl,
+                  rating: rating,
                   customDate: customDate,
                 ),
               ),
               settings: const RouteSettings(name: '/memory_book_form'),
+            ),
+          );
+        } else if (type == MemoryType.movie) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MemoryMovieFormScreen(
+                theme: widget.theme,
+                onSave: ({
+                  required movieTitle,
+                  movieOriginalTitle,
+                  moviePosterUrl,
+                  movieYear,
+                  movieKind,
+                  movieGenres,
+                  movieCountry,
+                  movieRatingKp,
+                  movieInfoUrl,
+                  rating,
+                  required caption,
+                  customDate,
+                }) =>
+                    _saveNewMemory(
+                  type: MemoryType.movie,
+                  title: movieTitle,
+                  caption: caption,
+                  movieOriginalTitle: movieOriginalTitle,
+                  moviePosterUrl: moviePosterUrl,
+                  movieYear: movieYear,
+                  movieKind: movieKind,
+                  movieGenres: movieGenres,
+                  movieCountry: movieCountry,
+                  movieRatingKp: movieRatingKp,
+                  movieInfoUrl: movieInfoUrl,
+                  rating: rating,
+                  customDate: customDate,
+                ),
+              ),
+              settings: const RouteSettings(name: '/memory_movie_form'),
             ),
           );
         } else {
@@ -6215,6 +6490,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         return s.note;
       case MemoryType.book:
         return s.books;
+      case MemoryType.movie:
+        return s.movies;
     }
   }
 
@@ -6242,6 +6519,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? bookYear,
     String? bookPublisher,
     String? bookInfoUrl,
+    // movie / series
+    String? movieOriginalTitle,
+    String? moviePosterUrl,
+    String? movieYear,
+    String? movieKind,
+    String? movieGenres,
+    String? movieCountry,
+    String? movieRatingKp,
+    String? movieInfoUrl,
+    // личная оценка 1–10 (книги/фильмы)
+    int? rating,
     bool isAdult = false,
     // Если задано — момент «в памяти» будет именно этой даты, а не «сейчас».
     DateTime? customDate,
@@ -6413,6 +6701,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         bookYear: bookYear,
         bookPublisher: bookPublisher,
         bookInfoUrl: bookInfoUrl,
+        movieOriginalTitle: movieOriginalTitle,
+        moviePosterUrl: moviePosterUrl,
+        movieYear: movieYear,
+        movieKind: movieKind,
+        movieGenres: movieGenres,
+        movieCountry: movieCountry,
+        movieRatingKp: movieRatingKp,
+        movieInfoUrl: movieInfoUrl,
+        rating: rating,
         isAdult: isAdult,
         customDate: customDate,
       );
@@ -7302,6 +7599,88 @@ class _MiniVinylPainter extends CustomPainter {
 }
 
 // ── Mini 3D book cover — компактная обложка для карточки в ленте ─────────────
+/// Компактный постер фильма (соотношение ~2:3) с тенью и бликом — для карточек.
+class _MiniMoviePoster extends StatelessWidget {
+  final Color accent;
+  final String? posterUrl;
+  final String title;
+
+  const _MiniMoviePoster({
+    required this.accent,
+    this.posterUrl,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const w = 48.0;
+    const h = 68.0;
+    return Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (posterUrl != null && posterUrl!.isNotEmpty)
+            Image.network(
+              posterUrl!,
+              fit: BoxFit.cover,
+              loadingBuilder: (ctx, child, progress) =>
+                  progress == null ? child : _placeholder(),
+              errorBuilder: (_, __, ___) => _placeholder(),
+            )
+          else
+            _placeholder(),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.16),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.45],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.9),
+            accent.withValues(alpha: 0.55),
+          ],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.movie_rounded, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
 class _MiniBookCover extends StatelessWidget {
   final Color accent;
   final String? coverUrl;
@@ -8399,6 +8778,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         return _buildVideoLinkMedia(memory, p);
       case MemoryType.book:
         return _buildBookMedia(memory, p);
+      case MemoryType.movie:
+        return _buildMovieMedia(memory, p);
     }
   }
 
@@ -9170,9 +9551,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ),
             ],
           ),
-          // ── Caption ──
+          // ── Rating ──
+          if (memory.rating != null) ...[
+            const SizedBox(height: 16),
+            _ratingRow(memory.rating!),
+          ],
+          // ── Review (caption) ──
           if (memory.caption?.isNotEmpty == true) ...[
             const SizedBox(height: 16),
+            _reviewHeader(p),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -9207,6 +9595,238 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 ),
                 label: Text(
                   LocaleService.current.bookReadMore,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _ratingRow(int rating) {
+    return Row(
+      children: [
+        Text(
+          LocaleService.current.yourRating,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(width: 10),
+        RatingBadge(rating: rating, fontSize: 14),
+      ],
+    );
+  }
+
+  Widget _reviewHeader(Color p) {
+    return Row(
+      children: [
+        Icon(Icons.rate_review_rounded, size: 14, color: p),
+        const SizedBox(width: 6),
+        Text(
+          LocaleService.current.yourReview.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: p,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── MOVIE / SERIES DETAIL ──
+  Widget _buildMovieMedia(Memory memory, Color p) {
+    final s = LocaleService.current;
+    final isRu = s.movies == 'Фильмы и сериалы';
+    final title = memory.title?.isNotEmpty == true ? memory.title! : s.movies;
+    final original = memory.movieOriginalTitle ?? '';
+    final hasOriginal = original.isNotEmpty && original != title;
+    final hasYear = memory.movieYear?.isNotEmpty == true;
+    final hasGenres = memory.movieGenres?.isNotEmpty == true;
+    final hasCountry = memory.movieCountry?.isNotEmpty == true;
+    final hasKp = memory.movieRatingKp?.isNotEmpty == true;
+    final hasInfo = memory.movieInfoUrl?.isNotEmpty == true;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.withOpacity(0.07), p.withOpacity(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.withOpacity(0.15), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Badge ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: p.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.local_movies_rounded, color: p, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                movieKindLabel(memory.movieKind, isRu: isRu).toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: p,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              if (hasKp) ...[
+                const Spacer(),
+                Icon(Icons.star_rounded, size: 15, color: Colors.amber.shade600),
+                const SizedBox(width: 3),
+                Text(
+                  'КП ${memory.movieRatingKp!}',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.amber.shade800,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          // ── Poster + meta ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MiniMoviePoster(
+                accent: p,
+                posterUrl: memory.moviePosterUrl,
+                title: title,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade900,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (hasOriginal) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        original,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: p,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    if (hasYear || hasGenres || hasCountry)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (hasYear)
+                            _detailChip(
+                              Icons.calendar_today_rounded,
+                              memory.movieYear!,
+                              p,
+                            ),
+                          if (hasGenres)
+                            _detailChip(
+                              Icons.theaters_rounded,
+                              memory.movieGenres!,
+                              p,
+                            ),
+                          if (hasCountry)
+                            _detailChip(
+                              Icons.public_rounded,
+                              memory.movieCountry!,
+                              p,
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // ── Rating ──
+          if (memory.rating != null) ...[
+            const SizedBox(height: 16),
+            _ratingRow(memory.rating!),
+          ],
+          // ── Review (caption) ──
+          if (memory.caption?.isNotEmpty == true) ...[
+            const SizedBox(height: 16),
+            _reviewHeader(p),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.withOpacity(0.10)),
+              ),
+              child: _SpoilerRichText(
+                text: memory.caption!,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  color: Colors.grey.shade800,
+                  height: 1.55,
+                ),
+              ),
+            ),
+          ],
+          // ── Open on Kinopoisk ──
+          if (hasInfo) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(memory.movieInfoUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  s.movieReadMore,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

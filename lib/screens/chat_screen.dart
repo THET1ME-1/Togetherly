@@ -1068,6 +1068,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _memoryThumb(Memory m) {
     if (m.type == MemoryType.music) return m.musicCoverUrl;
     if (m.type == MemoryType.book) return m.bookCoverUrl;
+    if (m.type == MemoryType.movie) return m.moviePosterUrl;
     return m.imageUrl ??
         (m.imageUrls?.isNotEmpty == true ? m.imageUrls!.first : null);
   }
