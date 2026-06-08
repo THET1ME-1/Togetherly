@@ -359,6 +359,7 @@ abstract class AppStrings {
   String get watchAdTitle;
   String get watchAdSubtitle;
   String get adNotReady;
+  String get adRewardLimitReached;
   String get rewardPending;
   String get changesApplyImmediately;
 
@@ -1500,6 +1501,8 @@ class _RuStrings extends AppStrings {
   String get watchAdSubtitle => 'За просмотр, до 3 раз в день';
   @override
   String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
+  @override
+  String get adRewardLimitReached => 'Лимит на сегодня исчерпан — заходи завтра';
   @override
   String get rewardPending => 'Награда зачисляется…';
   @override
@@ -3253,6 +3256,8 @@ class _EnStrings extends AppStrings {
   String get watchAdSubtitle => 'Per view, up to 3 a day';
   @override
   String get adNotReady => 'Ad still loading — try again in a second';
+  @override
+  String get adRewardLimitReached => 'Daily limit reached — come back tomorrow';
   @override
   String get rewardPending => 'Crediting your reward…';
   @override

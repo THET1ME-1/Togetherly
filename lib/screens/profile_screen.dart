@@ -3287,6 +3287,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           coins: serverCoins,
           granted: _rewardedAd.lastRewardGranted,
         );
+        if (mounted) {
+          if (_rewardedAd.lastRewardGranted) {
+            CoinRewardToast.show(context,
+                amount: UserData.adRewardAmount, label: _s.watchAdTitle);
+          } else if (_rewardedAd.lastRateLimited) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_s.adRewardLimitReached),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
       } else {
         await widget.userData.refreshCoinsFromServer();
       }
@@ -3297,6 +3311,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // AdMob (резерв): награда приходит асинхронно через SSV-коллбэк, поэтому
     // показываем мгновенно и подтягиваем реальное значение позже.
     widget.userData.applyOptimisticAdReward(UserData.adRewardAmount);
+    CoinRewardToast.show(context,
+        amount: UserData.adRewardAmount, label: _s.watchAdTitle);
     setState(() {});
     // Запомним оптимистичный баланс — он нижняя граница при синхронизации.
     final rewardedCoins = widget.userData.coins;

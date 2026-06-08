@@ -72,6 +72,11 @@ class RewardedAdService {
   bool _lastRewardGranted = false;
   bool get lastRewardGranted => _lastRewardGranted;
 
+  /// True, если сервер отказал из-за дневного лимита (а не из-за ошибки).
+  /// Используется, чтобы показать пользователю «лимит исчерпан».
+  bool _lastRateLimited = false;
+  bool get lastRateLimited => _lastRateLimited;
+
   /// Предзагружает рекламу: сначала Яндекс, при неудаче — AdMob.
   /// Безопасно дёргать несколько раз.
   Future<void> load() async {
@@ -161,6 +166,7 @@ class RewardedAdService {
     // Сбрасываем авторитетный результат прошлого показа.
     _lastServerCoins = null;
     _lastRewardGranted = false;
+    _lastRateLimited = false;
     if (_yandexAd != null) {
       _lastShowWasYandex = true;
       return _showYandex(_yandexAd!);
@@ -206,12 +212,14 @@ class RewardedAdService {
 
   Future<bool> _showYandex(yandex.RewardedAd ad) async {
     _yandexAd = null; // одноразовая
-    // Награду ловим СВОИМ onRewarded и ждём закрытие СВОИМ onAdDismissed.
-    // Раньше использовался ad.waitForDismiss(): он возвращается по dismiss, а
-    // reward внутри плагина ставится незавершённым .then() на onRewarded — если
-    // Яндекс шлёт onAdDismissed вплотную к onRewarded (или раньше), награда
-    // терялась (didEarn=false) и коины/счётчик не менялись через раз.
+    // Награду начисляем ПРЯМО В onRewarded, а не после закрытия. Раньше код
+    // ждал onAdDismissed и лишь потом смотрел флаг earned (с окном 400мс на
+    // запоздавший reward). На медленных устройствах Яндекс присылает onRewarded
+    // уже ПОСЛЕ dismiss+окна → earned читался как false, grantAdReward не
+    // вызывался, коины/счётчик не менялись (баг «посмотрел — монет нет»). Грант
+    // внутри колбэка снимает гонку с таймингом закрытия полностью.
     bool earned = false;
+    Future<void>? grantFuture;
     final dismissed = Completer<void>();
     void finish() {
       if (!dismissed.isCompleted) dismissed.complete();
@@ -219,7 +227,11 @@ class RewardedAdService {
 
     await ad.setAdEventListener(
       eventListener: yandex.RewardedAdEventListener(
-        onRewarded: (reward) => earned = true,
+        onRewarded: (reward) {
+          if (earned) return; // защита от повторного события
+          earned = true;
+          grantFuture = _grantYandexReward();
+        },
         onAdDismissed: finish,
         onAdFailedToShow: (error) {
           debugPrint('Yandex rewarded show failed: ${error.description}');
@@ -229,38 +241,44 @@ class RewardedAdService {
     );
     await ad.show();
     await dismissed.future;
-    // onRewarded иногда приходит вплотную к закрытию (или сразу после) — даём
-    // ему долететь, прежде чем решить, что награды не было.
+    // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
+    // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё
+    // равно идёт внутри колбэка, лишнего ожидания на успешном пути нет.
     if (!earned) {
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await Future<void>.delayed(const Duration(milliseconds: 800));
     }
-    final didEarn = earned;
-    // У Яндекса нет Google-SSV, поэтому начисляем награду серверным callable
-    // (авторитетно, с дневным лимитом). Делаем это здесь, чтобы оба вызывающих
-    // экрана получили коины без изменений в их коде. Результат сохраняем в
-    // [lastServerCoins]/[lastRewardGranted] — вызывающий применяет точный
-    // баланс (а не оптимистично угаданный) и не рисует фейк при лимите.
-    if (didEarn) {
-      try {
-        final res = await FirebaseService().callGrantAdReward();
-        if (res != null) {
-          _lastRewardGranted = res['ok'] == true;
-          final c = res['coins'];
-          if (c is num) _lastServerCoins = c.toInt();
-          if (res['rateLimited'] == true) {
-            debugPrint('Yandex reward: daily limit reached, not granted');
-          }
-        } else {
-          // null = функция не ответила. Самая частая причина — grantAdReward
-          // не задеплоена: `firebase deploy --only functions:grantAdReward`.
-          debugPrint('grantAdReward returned null '
-              '(not deployed / offline?) — coins not credited');
+    // Если награда засчитана — дожидаемся завершения серверного начисления,
+    // чтобы вызывающий получил актуальные lastServerCoins/lastRewardGranted.
+    if (grantFuture != null) {
+      await grantFuture;
+    }
+    return earned;
+  }
+
+  /// Серверное начисление за Яндекс-показ (у Яндекса нет Google-SSV). Зовётся
+  /// из onRewarded. Авторитетно, с дневным лимитом. Результат — в
+  /// [lastServerCoins]/[lastRewardGranted]/[lastRateLimited]: вызывающий
+  /// применяет точный баланс и не рисует фейк при лимите.
+  Future<void> _grantYandexReward() async {
+    try {
+      final res = await FirebaseService().callGrantAdReward();
+      if (res != null) {
+        _lastRewardGranted = res['ok'] == true;
+        _lastRateLimited = res['rateLimited'] == true;
+        final c = res['coins'];
+        if (c is num) _lastServerCoins = c.toInt();
+        if (_lastRateLimited) {
+          debugPrint('Yandex reward: daily limit reached, not granted');
         }
-      } catch (e) {
-        debugPrint('grantAdReward (Yandex) failed: $e');
+      } else {
+        // null = функция не ответила. Самая частая причина — grantAdReward
+        // не задеплоена: `firebase deploy --only functions:grantAdReward`.
+        debugPrint('grantAdReward returned null '
+            '(not deployed / offline?) — coins not credited');
       }
+    } catch (e) {
+      debugPrint('grantAdReward (Yandex) failed: $e');
     }
-    return didEarn;
   }
 
   void dispose() {
