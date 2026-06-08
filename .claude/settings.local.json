@@ -79,7 +79,8 @@
       "Bash(firebase functions:log --only grantAdReward --project togetherly-d4856)",
       "Bash(node -e \"const c=require\\('/c/Users/Alex/.config/configstore/firebase-tools.json'\\); const t=c.tokens||{}; console.log\\('has_refresh', !!t.refresh_token\\); console.log\\('scopes', \\(t.scopes||c.tokens&&c.tokens.scopes||''\\)+''\\); console.log\\('expires', t.expires_at\\); console.log\\('user', \\(c.user&&c.user.email\\)||'?'\\);\")",
       "Bash(node _diag.js)",
-      "Bash(node \"c:/Users/Alex/Documents/GitHub/love_app/functions/_diag.js\")"
+      "Bash(node \"c:/Users/Alex/Documents/GitHub/love_app/functions/_diag.js\")",
+      "Bash(curl -s \"https://togetherly-d4856.web.app/privacy-policy\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"
