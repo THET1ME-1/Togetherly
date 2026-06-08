@@ -1,6 +1,6 @@
 # Privacy Policy / Политика конфиденциальности
 
-Last updated / Дата обновления: 14 April 2026 / 14 апреля 2026 г.
+Last updated / Дата обновления: 8 June 2026 / 8 июня 2026 г.
 
 This document contains the privacy policy for the Togetherly mobile application in English and Russian.
 Этот документ содержит политику конфиденциальности мобильного приложения Togetherly на английском и русском языках.
@@ -114,14 +114,15 @@ Togetherly представляет собой приложение для ли�
 
 ### 7. Передача данных третьим лицам
 
-Мы не продаем ваши персональные данные и не передаем их третьим лицам для рекламных целей.
+Мы не продаем ваши персональные данные. Для показа рекламы рекламные сети могут обрабатывать ограниченный набор технических и рекламных данных (см. ниже).
 
-Данные могут обрабатываться следующими категориями поставщиков инфраструктуры и платформ:
+Данные могут обрабатываться следующими категориями поставщиков инфраструктуры, рекламы и платформ:
 
 1. Google Firebase, который используется для аутентификации, облачной базы данных, хранения файлов и push-уведомлений.
 2. Google Sign-In, если вы выбираете вход через аккаунт Google.
-3. Платформы Apple и Google, если это необходимо для доставки, сетевого взаимодействия, системных разрешений и работы приложения на соответствующей ОС.
-4. Сервисы, на которые вы сами переходите по внешним ссылкам, например музыкальные или видеоплатформы. В таком случае их обработка данных регулируется уже их собственными политиками конфиденциальности.
+3. Рекламные сети — Google AdMob и Рекламная сеть Яндекса (Yandex Mobile Ads) — для показа рекламы, включая баннеры и видеорекламу за вознаграждение. Эти сети могут обрабатывать рекламный идентификатор устройства, IP-адрес, данные об устройстве, действия в приложении и приблизительное местоположение. Подробнее: [Политика Google](https://policies.google.com/privacy) и [Политика Яндекса](https://yandex.ru/legal/confidential/).
+4. Платформы Apple и Google, если это необходимо для доставки, сетевого взаимодействия, системных разрешений и работы приложения на соответствующей ОС.
+5. Сервисы, на которые вы сами переходите по внешним ссылкам, например музыкальные или видеоплатформы. В таком случае их обработка данных регулируется уже их собственными политиками конфиденциальности.
 
 ### 8. Совместный доступ и видимость данных
 
@@ -311,14 +312,15 @@ Local storage is used to improve app performance, support offline cache, and res
 
 ### 7. Sharing With Third Parties
 
-We do not sell personal data and do not share personal data with third parties for advertising purposes.
+We do not sell personal data. To display ads, advertising networks may process a limited set of technical and advertising data (see below).
 
-Data may be processed by the following categories of infrastructure and platform providers:
+Data may be processed by the following categories of infrastructure, advertising, and platform providers:
 
 1. Google Firebase, used for authentication, cloud database, file storage, and push notifications.
 2. Google Sign-In, if you choose to sign in with a Google account.
-3. Apple and Google platform services when required for delivery, networking, system permissions, and app operation on the relevant operating system.
-4. External services that you choose to open through links, such as music or video platforms. In those cases, data processing is governed by the privacy policies of those third-party services.
+3. Advertising networks — Google AdMob and the Yandex Advertising Network (Yandex Mobile Ads) — to display ads, including banners and rewarded video. These networks may process your device's advertising ID, IP address, device data, in-app activity, and approximate location. Learn more: [Google Policy](https://policies.google.com/privacy) and [Yandex Policy](https://yandex.com/legal/confidential/).
+4. Apple and Google platform services when required for delivery, networking, system permissions, and app operation on the relevant operating system.
+5. External services that you choose to open through links, such as music or video platforms. In those cases, data processing is governed by the privacy policies of those third-party services.
 
 ### 8. Shared Visibility of Data
 
