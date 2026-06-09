@@ -146,6 +146,14 @@ service cloud.firestore {
         allow delete: if isMember() && request.auth.uid == authorId;
       }
 
+      // Индикатор «кто сейчас на холсте». Раньше правила не было →
+      // setCanvasPresence падал с permission-denied (само рисование работало).
+      match /canvas/{canvasId}/presence/{userId} {
+        allow read: if isMember();
+        allow create, update, delete:
+            if isMember() && request.auth.uid == userId;
+      }
+
       match /canvasCatalogue/{canvasId} {
         allow read, write: if isMember();
       }
