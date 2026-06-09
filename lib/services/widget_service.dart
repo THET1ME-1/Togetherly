@@ -10,8 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
+import '../config/migration_config.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
+import 'supabase_service.dart';
 
 /// Сервис для синхронизации виджет-данных между партнёрами.
 ///
@@ -20,8 +22,14 @@ import 'home_widget_service.dart';
 /// Поддерживает автоматическую отправку в Memory Lane и Mood Calendar.
 class WidgetService extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService();
+  final SupabaseService _sb = SupabaseService();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   bool _isDisposed = false;
+
+  /// Фаза 1: зеркалим widgetData в Supabase.
+  bool get _mig =>
+      MigrationConfig.isConfigured &&
+      MigrationConfig.isPhase1User(_fb.currentUser?.email);
   int _bindGeneration = 0;
 
   @override
@@ -488,6 +496,16 @@ class WidgetService extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
         ...fields,
       }, SetOptions(merge: true));
+
+      // Двойная запись в Supabase (widget_data).
+      if (_mig) {
+        unawaited(_sb.mirrorWidgetData(targetGroupId, uid, {
+          'displayName': name,
+          'avatarUrl': avatar,
+          'gender': gender,
+          ...fields,
+        }));
+      }
 
       if (targetGroupId != _groupId) return;
 

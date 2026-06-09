@@ -14,6 +14,8 @@ import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/migration_config.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
@@ -185,6 +187,15 @@ void main() async {
 
   // Firebase — инициализация
   await Firebase.initializeApp();
+
+  // Supabase — инициализируем рядом с Firebase.
+  // Пока credentials не заполнены в MigrationConfig — пропускаем без ошибок.
+  if (MigrationConfig.isConfigured) {
+    await Supabase.initialize(
+      url: MigrationConfig.supabaseUrl,
+      publishableKey: MigrationConfig.supabasePublishableKey,
+    );
+  }
 
   // Google UMP + AdMob — consent должен быть получен ДО инициализации SDK
   if (Platform.isAndroid || Platform.isIOS) {

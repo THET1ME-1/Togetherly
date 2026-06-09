@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_msg.dart';
+import '../config/migration_config.dart';
 import 'firebase_service.dart';
+import 'supabase_service.dart';
 
 /// URL базы Realtime Database (регион europe-west1 — не дефолтный).
 const String _kChatRtdbUrl =
@@ -22,6 +24,12 @@ class ChatService {
   static final ChatService instance = ChatService._();
 
   final FirebaseService _fb = FirebaseService();
+  final SupabaseService _sb = SupabaseService();
+
+  /// Фаза 1: зеркалим чат в Supabase и читаем оттуда.
+  bool get _mig =>
+      MigrationConfig.isConfigured &&
+      MigrationConfig.isPhase1User(_fb.currentUser?.email);
 
   FirebaseDatabase get _db => FirebaseDatabase.instanceFor(
         app: Firebase.app(),
@@ -52,6 +60,8 @@ class ChatService {
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
+    // Фаза 1: читаем сообщения из Supabase (chat_messages).
+    if (_mig) return _sb.watchMessages(groupId, limit: limit);
     return _messagesRef(groupId)
         .orderByChild('ts')
         .limitToLast(limit)
@@ -78,7 +88,8 @@ class ChatService {
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
     try {
       await ensureMember(groupId);
-      await _messagesRef(groupId).push().set({
+      final ref = _messagesRef(groupId).push();
+      await ref.set({
         'uid': _uid,
         'name': senderName,
         'text': trimmed,
@@ -87,6 +98,21 @@ class ChatService {
         if (pinTitle != null) 'pinTitle': pinTitle,
         if (pinThumb != null) 'pinThumb': pinThumb,
       });
+      // Двойная запись в Supabase. ts — клиентское now (RTDB ставит серверный,
+      // в Supabase достаточно близкого порядкового значения для сортировки).
+      if (_mig) {
+        unawaited(_sb.mirrorChatSend(
+          groupId: groupId,
+          id: ref.key ?? DateTime.now().microsecondsSinceEpoch.toString(),
+          uid: _uid,
+          name: senderName,
+          text: trimmed,
+          ts: DateTime.now().millisecondsSinceEpoch,
+          pinId: pinId,
+          pinTitle: pinTitle,
+          pinThumb: pinThumb,
+        ));
+      }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
       unawaited(_fb.sendChatPush(
         groupId: groupId,
@@ -111,6 +137,12 @@ class ChatService {
         'text': trimmed,
         'editedTs': ServerValue.timestamp,
       });
+      if (_mig) {
+        unawaited(_sb.mirrorChatUpdate(messageId, {
+          'text': trimmed,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        }));
+      }
     } catch (e) {
       debugPrint('ChatService.edit failed: $e');
     }
@@ -130,6 +162,15 @@ class ChatService {
         'pinTitle': null,
         'editedTs': ServerValue.timestamp,
       });
+      if (_mig) {
+        unawaited(_sb.mirrorChatUpdate(messageId, {
+          'deleted': true,
+          'text': '',
+          'pin_id': null,
+          'pin_title': null,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        }));
+      }
     } catch (e) {
       debugPrint('ChatService.delete failed: $e');
     }
@@ -146,12 +187,26 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
     try {
-      final ref =
-          _messagesRef(groupId).child(messageId).child('reactions').child(_uid);
+      final reactionsRef =
+          _messagesRef(groupId).child(messageId).child('reactions');
+      final ref = reactionsRef.child(_uid);
       if (emoji == null || emoji.isEmpty) {
         await ref.remove();
       } else {
         await ref.set(emoji);
+      }
+      // Двойная запись: зеркалим полный набор реакций сообщения в Supabase
+      // (читаем обратно из RTDB — это дёшево, не Firestore).
+      if (_mig) {
+        final snap = await reactionsRef.get();
+        final map = <String, String>{};
+        final v = snap.value;
+        if (v is Map) {
+          v.forEach((k, val) {
+            if (val is String && val.isNotEmpty) map[k.toString()] = val;
+          });
+        }
+        unawaited(_sb.mirrorChatUpdate(messageId, {'reactions': map}));
       }
     } catch (e) {
       debugPrint('ChatService.setReaction failed: $e');
