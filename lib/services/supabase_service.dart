@@ -805,11 +805,15 @@ class SupabaseService {
   static const _avatarsBucket = 'avatars';
 
   // Пути которые хранятся приватно (доступ только через Signed URL).
+  // groups/ — маскоты и рисунки холста (групповой контент);
+  // canvas/ — штрихи холста (старый путь без префикса groups/).
   static const _privatePathPrefixes = [
     'memories/',
     'music/',
     'timer_backgrounds/',
     'widget/',
+    'groups/',
+    'canvas/',
   ];
 
   bool _isPrivateStoragePath(String path) =>
@@ -986,7 +990,7 @@ class SupabaseService {
     try {
       final rows = await _client
           .from('groups')
-          .select('id, member_avatars')
+          .select('id, member_avatars, mascots')
           .eq('id', groupId)
           .limit(1)
           .timeout(const Duration(seconds: 10));
@@ -994,6 +998,23 @@ class SupabaseService {
     } catch (e) {
       debugPrint('SupabaseService.fetchGroupForMigration failed: $e');
       return null;
+    }
+  }
+
+  /// Обновить массив mascots группы после миграции их картинок.
+  Future<void> updateGroupMascots(
+    String groupId,
+    List<dynamic> mascots,
+  ) async {
+    if (!isReady || groupId.isEmpty) return;
+    try {
+      await _client
+          .from('groups')
+          .update({'mascots': _jsonSafe(mascots)})
+          .eq('id', groupId)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('SupabaseService.updateGroupMascots failed: $e');
     }
   }
 

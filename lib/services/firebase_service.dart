@@ -88,7 +88,7 @@ class FirebaseService {
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
   // Ключ одноразовой миграции медиафайлов Firebase Storage → Supabase Storage.
-  static const _kMediaMigrationDone = 'supabase_media_migration_v4';
+  static const _kMediaMigrationDone = 'supabase_media_migration_v5';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -170,21 +170,27 @@ class FirebaseService {
     }
   }
 
-  /// Скачивает файл напрямую из Firebase Storage (через SDK, минуя Cloud Function)
-  /// и загружает в Supabase Storage. Правила Storage разрешают чтение участникам
-  /// группы, поэтому Signed URL не нужен.
-  /// Возвращает 'sb://' ссылку или null.
+  /// Скачивает файл из Firebase Storage и загружает в Supabase Storage.
+  /// Возвращает 'sb://' (или public https для avatars) ссылку или null.
+  ///
+  /// Два пути скачивания:
+  ///  • https download-URL (с токеном ?alt=media&token=) → качаем по http,
+  ///    токен даёт доступ в обход правил Storage (нужно для путей вроде
+  ///    canvas/, которых нет в storage.rules → иначе getData = deny);
+  ///  • gs:// или «голый» путь → через SDK getData (правила Storage разрешают
+  ///    чтение участникам группы).
   Future<String?> _migrateFbFileToSupabase(String fbUrl, String storagePath) async {
     try {
-      final Reference ref;
-      if (fbUrl.startsWith('gs://') ||
-          fbUrl.contains('firebasestorage.googleapis.com')) {
-        ref = _storage.refFromURL(fbUrl);
-      } else {
-        // голый путь — качаем по исходному пути (не по целевому storagePath,
-        // который для аватарок может быть нормализован)
-        ref = _storage.ref(fbUrl.split('?').first);
+      // download-URL с токеном — самый надёжный путь (минует правила Storage).
+      if (fbUrl.startsWith('http')) {
+        final sbRef = await _sb.migrateFileFromHttpUrl(fbUrl, storagePath);
+        debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"} (http)');
+        return sbRef;
       }
+      // gs:// или голый путь — через SDK (правила разрешают участникам группы).
+      final ref = fbUrl.startsWith('gs://')
+          ? _storage.refFromURL(fbUrl)
+          : _storage.ref(fbUrl.split('?').first);
       final bytes = await ref
           .getData(100 * 1024 * 1024)
           .timeout(const Duration(minutes: 3));
@@ -193,7 +199,7 @@ class FirebaseService {
         return null;
       }
       final sbRef = await _sb.uploadStorageFile(bytes, storagePath);
-      debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"}');
+      debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"} (sdk)');
       return sbRef;
     } catch (e) {
       debugPrint('[MIG] _migrateFbFileToSupabase($storagePath) failed: $e');
@@ -311,6 +317,37 @@ class FirebaseService {
           await _sb.updateGroupMemberAvatars(groupId, newAvatars);
         }
       }
+
+      // ── 2b. Маскоты (group.mascots[].imageUrl) ─────────────────────────────
+      final rawMascots = group['mascots'];
+      if (rawMascots is List) {
+        final newMascots = <dynamic>[];
+        bool changed = false;
+        for (final item in rawMascots) {
+          if (item is Map) {
+            final m = Map<String, dynamic>.from(item);
+            final url = m['imageUrl'] as String?;
+            if (url != null && _isFirebaseMediaUrl(url)) {
+              final storagePath = _fbUrlToStoragePath(url);
+              if (storagePath != null) {
+                final sbRef = await _migrateFbFileToSupabase(url, storagePath);
+                if (sbRef != null) {
+                  m['imageUrl'] = sbRef;
+                  changed = true;
+                } else {
+                  failures++;
+                }
+              }
+            }
+            newMascots.add(m);
+          } else {
+            newMascots.add(item);
+          }
+        }
+        if (changed) {
+          await _sb.updateGroupMascots(groupId, newMascots);
+        }
+      }
     }
 
     // ── 3. Widget data ────────────────────────────────────────────────────────
@@ -338,6 +375,45 @@ class FirebaseService {
       if (updates.isNotEmpty) {
         await _sb.updateWidgetDataUrls(groupId, userUid, updates);
       }
+    }
+
+    // ── 4. Холсты: image-штрихи (Firestore-сабколлекция, НЕ Supabase) ─────────
+    // Штрихи читаются из Firestore, поэтому обновлённый sb://-URL пишем обратно
+    // в Firestore-док штриха. Перебираем все холсты группы (main + каталог).
+    try {
+      final canvasIds = <String>{'main'};
+      final catalogue = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .get();
+      for (final d in catalogue.docs) {
+        canvasIds.add(d.id);
+      }
+      for (final canvasId in canvasIds) {
+        final strokes = await _strokesRef(groupId, canvasId).get();
+        for (final doc in strokes.docs) {
+          final data = Map<String, dynamic>.from(doc.data() as Map);
+          final url = data['imageUrl'] as String?;
+          if (url == null || !_isFirebaseMediaUrl(url)) continue;
+          final storagePath = _fbUrlToStoragePath(url);
+          if (storagePath == null) continue;
+          final sbRef = await _migrateFbFileToSupabase(url, storagePath);
+          if (sbRef != null) {
+            await updateDrawingStroke(
+              groupId: groupId,
+              strokeId: doc.id,
+              updates: {'imageUrl': sbRef},
+              canvasId: canvasId,
+            );
+          } else {
+            failures++;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('_migrateMediaToSupabase($groupId): canvas step failed: $e');
+      failures++; // не ставим флаг — повторим
     }
 
     if (failures == 0) {
