@@ -80,45 +80,38 @@ class FirebaseService {
   /// «Я скучаю» из Firestore в RTDB в этой сессии.
   final Set<String> _missYouSeeded = {};
 
+  // SharedPreferences-ключ одноразовой аддитивной миграции Firestore → RTDB.
+  // При смене версии (v2→v3 и т.д.) миграция повторяется для всех пользователей.
+  static const _kMissYouLegacyMigrated = 'miss_you_legacy_additive_v2';
+
   /// Переносит старый Firestore-счётчик «Я скучаю» текущего пользователя в RTDB.
-  /// Idempotent и reset-безопасно.
   ///
-  /// Мигрируем ТОЛЬКО свой uid (`counts/{myUid}`) — тем же путём/правом, что и
-  /// боевой инкремент в [sendMissYou]. Свой legacy-счёт переносит каждое
-  /// устройство само, поэтому не нужна запись в чужие узлы (её запретят
-  /// security-правила RTDB). Транзакция ставит значение лишь когда узел ещё
-  /// пуст: живой счётчик никогда не затирается.
+  /// Проблема старой реализации: транзакция прерывалась если RTDB != null, т.е.
+  /// если пользователь хоть раз тапнул после обновления (RTDB=3), 50 legacy-тапов
+  /// из Firestore терялись навсегда. Результат: счётчик занижен у всех, у кого
+  /// была история в старом приложении.
   ///
-  /// Раньше тут был check-then-`set()` ЦЕЛОГО узла counts: между чтением
-  /// «пусто» и записью мог пройти тап (или сид со второго устройства), и `set`
-  /// откатывал счётчик к замороженному legacy-значению.
+  /// Новая реализация: аддитивная (RTDB += legacy), защищена ключом в
+  /// SharedPreferences чтобы не сложить дважды при следующем запуске.
   Future<void> _seedMissYouCountsIfEmpty(String groupId, Map raw) async {
     final myUid = uid;
     if (myUid == null) return;
     final mine = (raw[myUid] as num?)?.toInt() ?? 0;
-    if (mine <= 0) {
-      debugPrint(
-        '_seedMissYouCountsIfEmpty($groupId): skip — legacy value $mine <= 0',
-      );
-      return;
-    }
+    if (mine <= 0) return;
     try {
-      debugPrint(
-        '_seedMissYouCountsIfEmpty($groupId): migrating legacy count=$mine for uid=$myUid',
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final doneKey = '$_kMissYouLegacyMigrated.$groupId.$myUid';
+      if (prefs.getBool(doneKey) == true) return;
+
       await _missYouCountsRef(groupId).child(myUid).runTransaction((current) {
-        // Уже есть живое значение — не трогаем (никаких откатов).
-        if (current != null) {
-          debugPrint(
-            '_seedMissYouCountsIfEmpty($groupId): RTDB already has value=$current, aborting',
-          );
-          return Transaction.abort();
-        }
-        debugPrint(
-          '_seedMissYouCountsIfEmpty($groupId): SUCCESS — set RTDB to $mine',
-        );
-        return Transaction.success(mine);
+        final rtdbNow = (current as num?)?.toInt() ?? 0;
+        // Прибавляем legacy к текущему RTDB: legacy-период + новый независимы.
+        return Transaction.success(rtdbNow + mine);
       });
+      await prefs.setBool(doneKey, true);
+      debugPrint(
+        '_seedMissYouCountsIfEmpty($groupId): added legacy=$mine for $myUid',
+      );
     } catch (e) {
       debugPrint('_seedMissYouCountsIfEmpty failed: $e');
     }
