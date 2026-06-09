@@ -60,6 +60,8 @@ class ChatService {
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
+    // Фаза 1: читаем сообщения из Supabase (chat_messages).
+    if (_mig) return _sb.watchMessages(groupId, limit: limit);
     return _messagesRef(groupId)
         .orderByChild('ts')
         .limitToLast(limit)
