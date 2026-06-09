@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../services/firebase_service.dart';
 
-/// Drop-in замена [CachedNetworkImage] с поддержкой gs:// путей.
+/// Drop-in замена [CachedNetworkImage] с поддержкой gs:// и sb:// путей.
 ///
 /// Fast path: https:// URL → сразу [CachedNetworkImage], без FutureBuilder/мигания.
-/// Slow path: gs:// URL → запрашивает Signed URL через Cloud Function
+/// Slow path: gs:// (Firebase) или sb:// (Supabase) → запрашивает Signed URL
 /// (55-минутный кэш в [FirebaseService]) → [CachedNetworkImage].
 /// Старые https:// download URL работают без изменений (обратная совместимость).
 class StorageImage extends StatefulWidget {
@@ -42,23 +42,29 @@ class StorageImage extends StatefulWidget {
 class _StorageImageState extends State<StorageImage> {
   Future<String?>? _resolvedUrl;
 
-  bool get _isGsPath => widget.imageUrl.startsWith('gs://');
+  // gs:// (Firebase) и sb:// (Supabase) требуют асинхронного разрешения в
+  // подписанный https:// URL. https:// рендерится сразу.
+  bool get _needsResolve =>
+      widget.imageUrl.startsWith('gs://') || widget.imageUrl.startsWith('sb://');
 
   @override
   void initState() {
     super.initState();
-    if (_isGsPath) _resolvedUrl = _resolve(widget.imageUrl);
+    if (_needsResolve) _resolvedUrl = _resolve(widget.imageUrl);
   }
 
   @override
   void didUpdateWidget(StorageImage old) {
     super.didUpdateWidget(old);
-    if (old.imageUrl != widget.imageUrl && _isGsPath) {
+    if (old.imageUrl != widget.imageUrl && _needsResolve) {
       _resolvedUrl = _resolve(widget.imageUrl);
     }
   }
 
   Future<String?> _resolve(String url) async {
+    // sb:// → передаём ссылку целиком (Supabase сам её разрешит).
+    if (url.startsWith('sb://')) return FirebaseService().getSignedUrl(url);
+    // gs:// → снимаем префикс bucket'а, Cloud Function ждёт «голый» путь.
     final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
     return FirebaseService().getSignedUrl(gsPath);
   }
@@ -87,9 +93,9 @@ class _StorageImageState extends State<StorageImage> {
     if (url.isEmpty) return _empty();
 
     // Fast path: https:// → рендерим сразу, без async/мигания
-    if (!_isGsPath) return _buildCached(url);
+    if (!_needsResolve) return _buildCached(url);
 
-    // Slow path: gs:// → ждём Signed URL
+    // Slow path: gs:// / sb:// → ждём Signed URL
     return FutureBuilder<String?>(
       future: _resolvedUrl,
       builder: (context, snap) {

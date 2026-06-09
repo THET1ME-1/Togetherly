@@ -166,7 +166,8 @@ class TimerService extends ChangeNotifier {
       final path = t.backgroundImagePath;
       if (path != null &&
           !path.startsWith('http') &&
-          !path.startsWith('gs://')) {
+          !path.startsWith('gs://') &&
+          !path.startsWith('sb://')) {
         // Локальный путь от другого устройства — удаляем
         debugPrint(
           'TimerService: очищаю устаревший локальный путь у таймера ${t.id}',
@@ -509,7 +510,10 @@ class TimerService extends ChangeNotifier {
     try {
       // Удаляем старый фон из Storage, если это был URL
       final old = timer.backgroundImagePath;
-      if (old != null && (old.startsWith('http') || old.startsWith('gs://'))) {
+      if (old != null &&
+          (old.startsWith('http') ||
+              old.startsWith('gs://') ||
+              old.startsWith('sb://'))) {
         try {
           await _fb.deleteFileByUrl(old);
         } catch (_) {}
@@ -538,8 +542,10 @@ class TimerService extends ChangeNotifier {
   Future<void> removeTimerBackground(TimerItem timer) async {
     final path = timer.backgroundImagePath;
     if (path == null) return;
-    // Удаляем из Firebase Storage, если это URL
-    if (path.startsWith('http') || path.startsWith('gs://')) {
+    // Удаляем из Firebase/Supabase Storage, если это URL
+    if (path.startsWith('http') ||
+        path.startsWith('gs://') ||
+        path.startsWith('sb://')) {
       try {
         await _fb.deleteFileByUrl(path);
       } catch (_) {}

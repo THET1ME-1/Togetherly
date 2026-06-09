@@ -864,7 +864,9 @@ class HomeWidgetService {
 
       for (int i = 0; i < photoUrls.length; i++) {
         final url = photoUrls[i];
-        if (url.startsWith('http') || url.startsWith('gs://')) {
+        if (url.startsWith('http') ||
+            url.startsWith('gs://') ||
+            url.startsWith('sb://')) {
           final p = await _cachePhotoFromUrl(
             url,
             'photo_day_carousel_${widgetId}_$i',
@@ -1211,8 +1213,9 @@ class HomeWidgetService {
 
         // Single photo — cache and display directly.
         final selectedUrl = ownUrls.first;
-        final localPath =
-            (selectedUrl.startsWith('http') || selectedUrl.startsWith('gs://'))
+        final localPath = (selectedUrl.startsWith('http') ||
+                selectedUrl.startsWith('gs://') ||
+                selectedUrl.startsWith('sb://'))
             ? await _cachePhotoFromUrl(selectedUrl, 'photo_day_solo_$widgetId')
             : selectedUrl;
 
@@ -1917,10 +1920,13 @@ class HomeWidgetService {
     try {
       String httpUrl = url;
 
-      // Для gs:// путей запрашиваем Signed URL через Cloud Function
-      if (url.startsWith('gs://')) {
-        final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-        final signedUrl = await FirebaseService().getSignedUrl(gsPath);
+      // Для gs:// (Firebase) и sb:// (Supabase) путей запрашиваем Signed URL.
+      if (url.startsWith('gs://') || url.startsWith('sb://')) {
+        // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
+        final path = url.startsWith('sb://')
+            ? url
+            : url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+        final signedUrl = await FirebaseService().getSignedUrl(path);
         if (signedUrl == null || signedUrl.isEmpty) {
           debugPrint('HomeWidgetService._cachePhotoFromUrl: no signed URL for $url');
           if (file.existsSync()) return file.path;

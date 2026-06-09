@@ -886,12 +886,16 @@ class WidgetService extends ChangeNotifier {
     try {
       String httpUrl = url;
 
-      // gs:// пути не поддерживаются http.get — получаем signed URL через Cloud Function
-      if (url.startsWith('gs://')) {
-        final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-        final signedUrl = await FirebaseService().getSignedUrl(gsPath);
+      // gs:// (Firebase) и sb:// (Supabase) не поддерживаются http.get —
+      // получаем подписанный https:// URL.
+      if (url.startsWith('gs://') || url.startsWith('sb://')) {
+        // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
+        final path = url.startsWith('sb://')
+            ? url
+            : url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+        final signedUrl = await FirebaseService().getSignedUrl(path);
         if (signedUrl == null || signedUrl.isEmpty) {
-          debugPrint('_downloadPhoto($key): no signed URL for gs:// path');
+          debugPrint('_downloadPhoto($key): no signed URL for $url');
           await HomeWidget.saveWidgetData<String>(key, '');
           return;
         }

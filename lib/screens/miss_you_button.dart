@@ -316,7 +316,11 @@ class _MissYouButtonState extends State<MissYouButton>
 
   @override
   void dispose() {
-    _closePanel();
+    // НЕ вызываем _closePanel(): он дёргает setState(), а во время dispose
+    // элемент уже defunct → ассерт «_lifecycleState != defunct». Убираем
+    // оверлей напрямую, без обновления состояния.
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     _fillController.dispose();
     _scaleController.dispose();
     _countSub?.cancel();

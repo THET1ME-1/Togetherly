@@ -88,7 +88,7 @@ class FirebaseService {
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
   // Ключ одноразовой миграции медиафайлов Firebase Storage → Supabase Storage.
-  static const _kMediaMigrationDone = 'supabase_media_migration_v1';
+  static const _kMediaMigrationDone = 'supabase_media_migration_v3';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -128,23 +128,75 @@ class FirebaseService {
 
   // ── Одноразовая миграция медиафайлов Firebase Storage → Supabase Storage ──
 
-  static bool _isFirebaseMediaUrl(String url) =>
-      url.startsWith('gs://') ||
-      url.contains('firebasestorage.googleapis.com');
+  // Префиксы Firebase Storage путей (для распознавания «голых» путей без схемы).
+  static const _fbStoragePrefixes = [
+    'memories/',
+    'music/',
+    'timer_backgrounds/',
+    'widget/',
+    'groups/',
+    'avatars/',
+    'wallpapers/',
+  ];
+
+  static bool _isFirebaseMediaUrl(String url) {
+    if (url.isEmpty) return false;
+    if (url.startsWith('sb://')) return false; // уже в Supabase
+    return url.startsWith('gs://') ||
+        url.contains('firebasestorage.googleapis.com') ||
+        // «голый» storage-путь без схемы (старые записи): memories/gId/file.webp
+        _fbStoragePrefixes.any(url.startsWith);
+  }
 
   /// Извлекает storage-путь из Firebase URL.
   /// gs://bucket/memories/gId/file.webp → memories/gId/file.webp
   /// https://firebasestorage.../o/memories%2FgId%2Ffile.webp?... → memories/gId/file.webp
+  /// memories/gId/file.webp → memories/gId/file.webp (голый путь как есть)
   static String? _fbUrlToStoragePath(String url) {
     if (url.startsWith('gs://')) {
       final parts = url.split('/');
       return parts.length >= 4 ? parts.sublist(3).join('/') : null;
+    }
+    // Голый путь без схемы
+    if (_fbStoragePrefixes.any(url.startsWith)) {
+      return url.split('?').first;
     }
     try {
       final uri = Uri.parse(url);
       final encoded = uri.queryParameters['o'];
       return encoded != null ? Uri.decodeComponent(encoded) : null;
     } catch (_) {
+      return null;
+    }
+  }
+
+  /// Скачивает файл напрямую из Firebase Storage (через SDK, минуя Cloud Function)
+  /// и загружает в Supabase Storage. Правила Storage разрешают чтение участникам
+  /// группы, поэтому Signed URL не нужен.
+  /// Возвращает 'sb://' ссылку или null.
+  Future<String?> _migrateFbFileToSupabase(String fbUrl, String storagePath) async {
+    try {
+      final Reference ref;
+      if (fbUrl.startsWith('gs://') ||
+          fbUrl.contains('firebasestorage.googleapis.com')) {
+        ref = _storage.refFromURL(fbUrl);
+      } else {
+        // голый путь — качаем по исходному пути (не по целевому storagePath,
+        // который для аватарок может быть нормализован)
+        ref = _storage.ref(fbUrl.split('?').first);
+      }
+      final bytes = await ref
+          .getData(100 * 1024 * 1024)
+          .timeout(const Duration(minutes: 3));
+      if (bytes == null || bytes.isEmpty) {
+        debugPrint('[MIG] download empty for $storagePath');
+        return null;
+      }
+      final sbRef = await _sb.uploadStorageFile(bytes, storagePath);
+      debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"}');
+      return sbRef;
+    } catch (e) {
+      debugPrint('[MIG] _migrateFbFileToSupabase($storagePath) failed: $e');
       return null;
     }
   }
@@ -174,9 +226,7 @@ class FirebaseService {
         if (url == null || !_isFirebaseMediaUrl(url)) continue;
         final storagePath = _fbUrlToStoragePath(url);
         if (storagePath == null) continue;
-        final resolved = await getSignedUrl(url);
-        if (resolved == null) continue;
-        final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+        final sbRef = await _migrateFbFileToSupabase(url, storagePath);
         if (sbRef != null) {
           data[field] = sbRef;
           changed = true;
@@ -195,9 +245,7 @@ class FirebaseService {
           }
           final storagePath = _fbUrlToStoragePath(url);
           if (storagePath == null) { migratedUrls.add(url); continue; }
-          final resolved = await getSignedUrl(url);
-          if (resolved == null) { migratedUrls.add(url); continue; }
-          final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+          final sbRef = await _migrateFbFileToSupabase(url, storagePath);
           migratedUrls.add(sbRef ?? url);
           if (sbRef != null) changed = true;
         }
@@ -210,7 +258,7 @@ class FirebaseService {
       if (authorAvatar != null && _isFirebaseMediaUrl(authorAvatar)) {
         final storagePath = _fbUrlToStoragePath(authorAvatar) ??
             'avatars/unknown/avatar_${id.hashCode.abs()}.jpg';
-        final sbRef = await _sb.migrateFileFromHttpUrl(authorAvatar, storagePath);
+        final sbRef = await _migrateFbFileToSupabase(authorAvatar, storagePath);
         if (sbRef != null) {
           newAuthorAvatar = sbRef;
           changed = true;
@@ -234,20 +282,11 @@ class FirebaseService {
           final url = (entry.value as String?) ?? '';
           if (_isFirebaseMediaUrl(url)) {
             final storagePath = 'avatars/$uid/profile${_extFromUrl(url)}';
-            // Аватарки — публичные, signedUrl не нужен
-            final publicUrl = url.startsWith('gs://')
-                ? await getSignedUrl(url)
-                : url;
-            if (publicUrl != null) {
-              final sbRef = await _sb.migrateFileFromHttpUrl(
-                publicUrl,
-                storagePath,
-              );
-              if (sbRef != null) {
-                newAvatars[uid] = sbRef;
-                changed = true;
-                continue;
-              }
+            final sbRef = await _migrateFbFileToSupabase(url, storagePath);
+            if (sbRef != null) {
+              newAvatars[uid] = sbRef;
+              changed = true;
+              continue;
             }
           }
           newAvatars[uid] = url;
@@ -261,32 +300,23 @@ class FirebaseService {
     // ── 3. Widget data ────────────────────────────────────────────────────────
     final widgetRows = await _sb.fetchWidgetDataForMigration(groupId);
     for (final row in widgetRows) {
-      final id = row['id'] as String? ?? '';
-      if (id.isEmpty) continue;
+      final userUid = row['user_uid'] as String? ?? '';
+      if (userUid.isEmpty) continue;
       final updates = <String, String>{};
 
-      const urlColumns = {
-        'avatar_url': false,  // публичный
-        'photo_url': true,    // приватный
-        'music_url': true,
-        'music_cover_url': false,
-      };
+      const urlColumns = ['avatar_url', 'photo_url', 'music_url', 'music_cover_url'];
 
-      for (final entry in urlColumns.entries) {
-        final col = entry.key;
-        final isPrivate = entry.value;
+      for (final col in urlColumns) {
         final url = row[col] as String?;
         if (url == null || !_isFirebaseMediaUrl(url)) continue;
         final storagePath = _fbUrlToStoragePath(url);
         if (storagePath == null) continue;
-        final resolved = isPrivate ? await getSignedUrl(url) : url;
-        if (resolved == null) continue;
-        final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+        final sbRef = await _migrateFbFileToSupabase(url, storagePath);
         if (sbRef != null) updates[col] = sbRef;
       }
 
       if (updates.isNotEmpty) {
-        await _sb.updateWidgetDataUrls(id, updates);
+        await _sb.updateWidgetDataUrls(groupId, userUid, updates);
       }
     }
 
@@ -4244,15 +4274,12 @@ class FirebaseService {
     required String groupId,
     required void Function(int count) onData,
   }) {
-    // Фаза 1: общий счётчик из Supabase (с сидированием истории из RTDB).
-    if (_mig) {
-      _seedSupabaseMissYou(groupId);
-      final sub = _sb.listenMissYouCounts(groupId, (counts) {
-        final total = counts.values.fold<int>(0, (s, v) => s + v);
-        onData(total);
-      });
-      if (sub != null) return sub;
-    }
+    // ВАЖНО (Фаза 1): источник истины для «Я скучаю» — RTDB, а НЕ Supabase.
+    // Партнёр может работать на старом билде, который пишет только в RTDB и
+    // не зеркалит в Supabase → чтение из Supabase давало бы расходящиеся
+    // счётчики у партнёров. Поэтому читаем всегда из RTDB; зеркалирование в
+    // Supabase оставляем только для будущей миграции.
+    if (_mig) _seedSupabaseMissYou(groupId);
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
       final total = counts.values.fold<int>(0, (s, v) => s + v);
@@ -4289,12 +4316,8 @@ class FirebaseService {
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
-    // Фаза 1: per-user счётчики из Supabase (с сидированием истории из RTDB).
-    if (_mig) {
-      _seedSupabaseMissYou(groupId);
-      final sub = _sb.listenMissYouCounts(groupId, onData);
-      if (sub != null) return sub;
-    }
+    // Источник истины — RTDB (см. комментарий в listenToMissYouCount).
+    if (_mig) _seedSupabaseMissYou(groupId);
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
       debugPrint('listenToMissYouCounts($groupId): counts=$counts');

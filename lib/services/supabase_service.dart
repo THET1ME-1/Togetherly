@@ -1022,7 +1022,7 @@ class SupabaseService {
     try {
       final rows = await _client
           .from('widget_data')
-          .select('id, user_uid, avatar_url, photo_url, music_url, music_cover_url')
+          .select('user_uid, avatar_url, photo_url, music_url, music_cover_url')
           .eq('group_id', groupId)
           .timeout(const Duration(seconds: 10));
       return List<Map<String, dynamic>>.from(rows);
@@ -1033,19 +1033,22 @@ class SupabaseService {
   }
 
   /// Обновить URL-поля в widget_data после миграции.
+  /// widget_data использует составной PK (group_id, user_uid) — нет колонки id.
   Future<void> updateWidgetDataUrls(
-    String id,
+    String groupId,
+    String userUid,
     Map<String, String> urls,
   ) async {
-    if (!isReady || id.isEmpty || urls.isEmpty) return;
+    if (!isReady || groupId.isEmpty || userUid.isEmpty || urls.isEmpty) return;
     try {
       await _client
           .from('widget_data')
           .update(urls)
-          .eq('id', id)
+          .eq('group_id', groupId)
+          .eq('user_uid', userUid)
           .timeout(const Duration(seconds: 10));
     } catch (e) {
-      debugPrint('SupabaseService.updateWidgetDataUrls($id) failed: $e');
+      debugPrint('SupabaseService.updateWidgetDataUrls($groupId/$userUid) failed: $e');
     }
   }
 }
