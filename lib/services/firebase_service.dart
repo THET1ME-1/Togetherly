@@ -15,6 +15,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -30,6 +32,7 @@ import 'locale_service.dart';
 import 'nickname_service.dart';
 import 'rate_limiter_service.dart';
 import 'supabase_service.dart';
+import 'chat_service.dart';
 import '../config/migration_config.dart';
 
 /// URL базы Realtime Database (регион europe-west1 — не дефолтный).
@@ -88,7 +91,13 @@ class FirebaseService {
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
   // Ключ одноразовой миграции медиафайлов Firebase Storage → Supabase Storage.
-  static const _kMediaMigrationDone = 'supabase_media_migration_v5';
+  // v6: после добавления бэкфилла исторических данных в Supabase появляются
+  // старые воспоминания/аватары — их медиа тоже нужно перенести, поэтому
+  // media-проход обязан повториться один раз (новый ключ сбрасывает «готово»).
+  static const _kMediaMigrationDone = 'supabase_media_migration_v6';
+  // Ключ одноразового бэкфилла исторических ДАННЫХ (профиль/группа/воспоминания/
+  // настроения/чат), созданных ДО установки dual-write сборки.
+  static const _kDataBackfillDone = 'supabase_data_backfill_v1';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -121,9 +130,272 @@ class FirebaseService {
       }).catchError((Object e) {
         debugPrint('_seedSupabaseMissYou failed: $e');
       });
-      // Одновременно запускаем одноразовую миграцию медиафайлов.
-      unawaited(_migrateMediaToSupabase(groupId));
+      // Одновременно запускаем полный миграционный проход (данные + медиа).
+      unawaited(_runSupabaseMigration(groupId));
     });
+  }
+
+  // ── Оркестратор полной миграции группы в Supabase ─────────────────────────
+
+  /// Группы, по которым в этой сессии уже идёт миграционный проход — частые
+  /// обращения к группе (listenToMissYou…) не должны запускать его повторно.
+  final Set<String> _migrationInProgress = {};
+  // Сколько раз проход повторялся в текущей сессии (защита от бесконечного цикла).
+  final Map<String, int> _migrationRetryCount = {};
+  // Группы с уже запланированным отложенным повтором (чтобы не плодить таймеры).
+  final Set<String> _migrationRetryScheduled = {};
+  // Группы с НЕзавершённой миграцией в этой сессии. Обработчики «сеть вернулась»
+  // и «приложение на переднем плане» перебирают их, чтобы возобновить проход,
+  // прерванный выходом из приложения или потерей сети.
+  final Set<String> _migrationGroups = {};
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  AppLifecycleListener? _migrationLifecycleListener;
+  bool _migrationWatchersStarted = false;
+
+  /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
+  /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
+  ///
+  /// Свойства (цель — 0 риска потери данных):
+  ///  • идемпотентность — всё через upsert, повтор безопасен;
+  ///  • гонко-безопасность — один проход на группу за раз;
+  ///  • самовосстановление — флаги «готово» ставятся ТОЛЬКО при 0 неудач; иначе
+  ///    проход повторяется и при следующем обращении к группе, и через
+  ///    нарастающую паузу в этой же сессии (без перезапуска приложения);
+  ///  • порядок — медиа идёт ПОСЛЕ данных, т.к. media-проход читает воспоминания
+  ///    из Supabase (бэкфилл должен сначала их туда положить).
+  Future<void> _runSupabaseMigration(String groupId) async {
+    if (!_mig || groupId.isEmpty) return;
+    // Помечаем группу как «миграция не доведена» и поднимаем наблюдателей сети/
+    // жизненного цикла — даже если этот конкретный проход сейчас не стартует.
+    _migrationGroups.add(groupId);
+    _ensureMigrationWatchers();
+    if (_migrationInProgress.contains(groupId)) return;
+    _migrationInProgress.add(groupId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // ── 1. Бэкфилл исторических данных ──────────────────────────────────────
+      final dataKey = '$_kDataBackfillDone.$groupId';
+      var dataDone = prefs.getBool(dataKey) == true;
+      if (!dataDone) {
+        final failures = await _backfillDataToSupabase(groupId);
+        if (failures == 0) {
+          await prefs.setBool(dataKey, true);
+          dataDone = true;
+          debugPrint('[MIG] data backfill($groupId): complete');
+        } else {
+          debugPrint(
+            '[MIG] data backfill($groupId): $failures fail(s) — флаг НЕ ставим, повтор позже',
+          );
+        }
+      }
+
+      // ── 2. Медиа (только когда данные на месте) ─────────────────────────────
+      var mediaDone = prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
+      if (dataDone && !mediaDone) {
+        await _migrateMediaToSupabase(groupId);
+        mediaDone = prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
+      }
+
+      if (dataDone && mediaDone) {
+        _migrationRetryCount.remove(groupId);
+        _migrationGroups.remove(groupId); // больше не возобновляем
+        debugPrint('[MIG] $groupId: миграция полностью завершена');
+      } else {
+        _scheduleMigrationRetry(groupId);
+      }
+    } catch (e) {
+      debugPrint('_runSupabaseMigration($groupId) failed: $e');
+      _scheduleMigrationRetry(groupId);
+    } finally {
+      _migrationInProgress.remove(groupId);
+    }
+  }
+
+  /// Поднимает наблюдателей, которые ВОЗОБНОВЛЯЮТ прерванную миграцию без
+  /// перезапуска приложения: (1) «сеть вернулась» — мгновенный ретрай; (2)
+  /// «приложение снова на переднем плане» — добор миграции, которая могла
+  /// прерваться выходом из приложения (скачивание оборвалось) или чьи отложенные
+  /// таймеры ОС приостановила в фоне. Идемпотентно — стартует один раз за сессию.
+  void _ensureMigrationWatchers() {
+    if (_migrationWatchersStarted || !_mig) return;
+    _migrationWatchersStarted = true;
+    try {
+      _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+        final online = results.any((r) => r != ConnectivityResult.none);
+        if (online) {
+          _resumePendingMigrations(freshAttempt: true, reason: 'сеть вернулась');
+        }
+      });
+    } catch (e) {
+      debugPrint('[MIG] connectivity watcher failed: $e');
+    }
+    try {
+      _migrationLifecycleListener = AppLifecycleListener(
+        onResume: () =>
+            _resumePendingMigrations(freshAttempt: true, reason: 'foreground'),
+      );
+    } catch (e) {
+      debugPrint('[MIG] lifecycle watcher failed: $e');
+    }
+  }
+
+  /// Возобновляет миграцию для всех групп с незавершённым проходом. [freshAttempt]
+  /// сбрасывает счётчик сессионных повторов — событие (сеть/возврат в приложение)
+  /// даёт «новую надежду», даже если лимит таймер-ретраев уже исчерпан.
+  void _resumePendingMigrations({bool freshAttempt = false, String reason = ''}) {
+    if (!_mig || _migrationGroups.isEmpty) return;
+    debugPrint(
+      '[MIG] возобновление ($reason): ${_migrationGroups.length} групп(ы)',
+    );
+    for (final g in _migrationGroups.toList()) {
+      if (freshAttempt) _migrationRetryCount.remove(g);
+      unawaited(_runSupabaseMigration(g));
+    }
+  }
+
+  /// Планирует повтор прохода в этой же сессии с нарастающей паузой (2,4,6,8,10
+  /// мин) — самовосстановление при временной потере сети без перезапуска. До 5
+  /// повторов за сессию; дальше доберёт следующий холодный старт (флаги «готово»
+  /// не выставлены, поэтому проход всё равно повторится при новом запуске).
+  void _scheduleMigrationRetry(String groupId) {
+    if (_migrationRetryScheduled.contains(groupId)) return;
+    final n = _migrationRetryCount[groupId] ?? 0;
+    if (n >= 5) return;
+    _migrationRetryCount[groupId] = n + 1;
+    _migrationRetryScheduled.add(groupId);
+    Timer(Duration(minutes: (n + 1) * 2), () {
+      _migrationRetryScheduled.remove(groupId);
+      unawaited(_runSupabaseMigration(groupId));
+    });
+  }
+
+  /// Однократный бэкфилл исторических данных группы Firebase → Supabase.
+  /// Покрывает данные, созданные ДО установки dual-write сборки (их нет в
+  /// зеркале — иначе при переходе на чтение из Supabase они бы «пропали»).
+  /// Возвращает число неудачных операций (0 = можно ставить флаг «готово»).
+  Future<int> _backfillDataToSupabase(String groupId) async {
+    var failures = 0;
+    try {
+      // ── Группа (вкл. timers/mascots/статусы/даты) ──
+      final groupSnap = await _db
+          .collection('groups')
+          .doc(groupId)
+          .get()
+          .timeout(const Duration(seconds: 15));
+      if (!groupSnap.exists) {
+        debugPrint('[MIG] backfill($groupId): group doc отсутствует — пропуск');
+        return 0; // нечего переносить — не ошибка
+      }
+      final groupData = groupSnap.data() ?? <String, dynamic>{};
+      if (!await _sb.mirrorGroupRaw(groupId, groupData)) failures++;
+
+      final members = (groupData['members'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const <String>[];
+
+      // ── Свой профиль (партнёрский users/{uid} читать нельзя по правилам;
+      //    партнёр зеркалит свой сам, а имя/аватар партнёра берутся из group). ──
+      final myUid = uid;
+      if (myUid != null && members.contains(myUid)) {
+        try {
+          final us = await _db
+              .collection('users')
+              .doc(myUid)
+              .get()
+              .timeout(const Duration(seconds: 10));
+          final ud = us.data();
+          if (ud != null && !await _sb.mirrorUser(myUid, ud)) failures++;
+        } catch (e) {
+          debugPrint('[MIG] backfill user $myUid failed: $e');
+          failures++;
+        }
+      }
+
+      // ── Воспоминания (пагинация) ──
+      failures += await _backfillMemories(groupId);
+
+      // ── Настроения ОБОИХ участников (months + legacy): Фаза-1 юзер читает
+      //    настроения партнёра из Supabase, поэтому переносим всех. ──
+      for (final m in members) {
+        failures += await _backfillMoods(groupId, m);
+      }
+
+      // ── Чат (RTDB → Supabase) ──
+      failures += await ChatService.instance.backfillToSupabase(groupId);
+    } catch (e) {
+      debugPrint('_backfillDataToSupabase($groupId) failed: $e');
+      failures++;
+    }
+    return failures;
+  }
+
+  /// Переносит ВСЕ воспоминания группы в Supabase порциями. Возвращает число
+  /// неудачных upsert'ов (уже-перенесённые перезапишутся теми же значениями).
+  Future<int> _backfillMemories(String groupId) async {
+    var failures = 0;
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    const pageSize = 100;
+    try {
+      while (true) {
+        var q = _db
+            .collection('groups')
+            .doc(groupId)
+            .collection('memories')
+            .orderBy('createdAt', descending: true)
+            .limit(pageSize);
+        if (cursor != null) q = q.startAfterDocument(cursor);
+        final snap = await q.get().timeout(const Duration(seconds: 25));
+        if (snap.docs.isEmpty) break;
+        for (final doc in snap.docs) {
+          if (!await _sb.mirrorMemory(groupId, doc.id, doc.data())) failures++;
+        }
+        cursor = snap.docs.last;
+        if (snap.docs.length < pageSize) break;
+      }
+    } catch (e) {
+      debugPrint('_backfillMemories($groupId) failed: $e');
+      failures++;
+    }
+    return failures;
+  }
+
+  /// Переносит ВСЕ настроения участника [memberUid] (новые month-документы +
+  /// legacy-записи) в Supabase. Возвращает число неудач.
+  Future<int> _backfillMoods(String groupId, String memberUid) async {
+    var failures = 0;
+    // Новый формат: groups/{g}/moodCalendar/{uid}/months/{YYYY-MM}.entries{}
+    try {
+      final months = await _moodMonthsCol(groupId, memberUid)
+          .get()
+          .timeout(const Duration(seconds: 20));
+      for (final doc in months.docs) {
+        for (final entry in _entriesFromMonthDoc(doc.data())) {
+          if (entry['id'] == null) continue;
+          if (!await _sb.mirrorMoodEntry(groupId, memberUid, entry)) failures++;
+        }
+      }
+    } catch (e) {
+      debugPrint('_backfillMoods months($groupId/$memberUid) failed: $e');
+      failures++;
+    }
+    // Legacy: groups/{g}/moodCalendar/{uid}/entries/{id}
+    try {
+      final legacy = await _moodEntriesCol(groupId, memberUid)
+          .get()
+          .timeout(const Duration(seconds: 20));
+      for (final doc in legacy.docs) {
+        final e = Map<String, dynamic>.from(doc.data());
+        e['id'] ??= doc.id;
+        if (!await _sb.mirrorMoodEntry(groupId, memberUid, e)) failures++;
+      }
+    } catch (e) {
+      debugPrint('_backfillMoods legacy($groupId/$memberUid) failed: $e');
+      failures++;
+    }
+    return failures;
   }
 
   // ── Одноразовая миграция медиафайлов Firebase Storage → Supabase Storage ──
@@ -286,7 +558,12 @@ class FirebaseService {
       }
 
       if (changed) {
-        await _sb.updateMemoryData(id, data, authorAvatar: newAuthorAvatar);
+        // Если перезапись URL в Supabase не прошла — файл уже в Storage, но
+        // строка указывает на мёртвый Firebase-URL: считаем неудачей и повторим.
+        if (!await _sb.updateMemoryData(id, data,
+            authorAvatar: newAuthorAvatar)) {
+          failures++;
+        }
       }
     }
 
@@ -314,7 +591,9 @@ class FirebaseService {
           newAvatars[uid] = url;
         }
         if (changed) {
-          await _sb.updateGroupMemberAvatars(groupId, newAvatars);
+          if (!await _sb.updateGroupMemberAvatars(groupId, newAvatars)) {
+            failures++;
+          }
         }
       }
 
@@ -345,7 +624,9 @@ class FirebaseService {
           }
         }
         if (changed) {
-          await _sb.updateGroupMascots(groupId, newMascots);
+          if (!await _sb.updateGroupMascots(groupId, newMascots)) {
+            failures++;
+          }
         }
       }
     }
@@ -373,7 +654,9 @@ class FirebaseService {
       }
 
       if (updates.isNotEmpty) {
-        await _sb.updateWidgetDataUrls(groupId, userUid, updates);
+        if (!await _sb.updateWidgetDataUrls(groupId, userUid, updates)) {
+          failures++;
+        }
       }
     }
 
@@ -1213,10 +1496,12 @@ class FirebaseService {
     }
   }
 
-  // ── Коины: вызовы серверных Cloud Functions ─────────────────────────────
-  // Клиент НЕ может писать поля coins/ownedThemes/devCoinsGranted/lastDailyBonusAt/
-  // adRewardsDate/adRewardsToday напрямую — это запрещено Firestore Rules.
-  // Все начисления и списания идут только через эти вызовы.
+  // ── Коины: серверная логика ─────────────────────────────────────────────
+  // Клиент НЕ может писать coins/ownedThemes/devCoinsGranted/lastDailyBonusAt/
+  // adRewardsDate напрямую. Начисления/списания идут только через сервер:
+  //   • _mig-юзеры → Supabase Postgres RPC (supabase/coins.sql), Cloud Functions
+  //     для них не нужны;
+  //   • остальные → Firebase Cloud Functions (functions/index.js).
 
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
@@ -1224,7 +1509,13 @@ class FirebaseService {
     String name, [
     Map<String, dynamic>? data,
   ]) async {
-    if (currentUser == null) return null;
+    final u = currentUser;
+    if (u == null) return null;
+    // Миграция: коины через Supabase RPC. Источник правды по балансу — таблица
+    // public.users в Supabase (профиль тоже читается оттуда — см. loadUserProfile).
+    if (_mig) {
+      return _sb.callCoinRpc(name, u.uid, data ?? const {});
+    }
     try {
       final res = await _functions
           .httpsCallable(name)
@@ -1389,10 +1680,20 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return null;
 
-    // ── Миграция Фаза 1: профиль ЧИТАЕМ из Firebase (там coins/ownedThemes/
-    //    ownedIcons — их пишут Cloud Functions). В Supabase профиль только
-    //    зеркалится. Зеркалим полный doc из Firebase (с coins/owned*) при
-    //    каждом чтении — так таблица users наполняется и держится свежей. ──
+    // ── Миграция: профиль (включая coins/owned*) ЧИТАЕМ из Supabase — он
+    //    источник правды (коины пишет Postgres RPC). НЕ зеркалим Firebase→
+    //    Supabase здесь, иначе затрём свежие коины старым значением из Firestore.
+    //    Фолбэк на Firebase + сидирование, если в Supabase ещё пусто (первый
+    //    запуск до бэкфилла). ──
+    if (_mig) {
+      final sb = await _sb.loadUserProfile(u.uid);
+      if (sb != null) {
+        _cachedDisplayName = sb['displayName'] as String?;
+        _cachedAvatarUrl = sb['avatarUrl'] as String?;
+        return sb;
+      }
+    }
+
     try {
       final doc = await _db
           .collection('users')
@@ -1403,6 +1704,7 @@ class FirebaseService {
       if (data != null) {
         _cachedDisplayName = data['displayName'] as String?;
         _cachedAvatarUrl = data['avatarUrl'] as String?;
+        // Фолбэк-сидирование Supabase из Firebase (только пока Supabase пуст).
         if (_mig) unawaited(_sb.mirrorUser(u.uid, data));
       }
       return data;
@@ -2759,6 +3061,22 @@ class FirebaseService {
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
+    // Миграция: живая группа читается из Supabase (realtime на таблице groups).
+    if (_mig) {
+      final uid = _auth.currentUser?.uid ?? '';
+      return _sb.listenPair(pairId, uid, (data) {
+        if (data != null) {
+          // Кеш участников для пушей (как в _parseGroupDoc).
+          final members = (data['members'] as List?)
+                  ?.map((m) => ((m as Map)['uid'] ?? '').toString())
+                  .where((s) => s.isNotEmpty)
+                  .toList() ??
+              const <String>[];
+          if (members.isNotEmpty) _groupMembersCache[pairId] = members;
+        }
+        onData(data);
+      });
+    }
     // Shared hub — every listener for this group reuses one underlying
     // Firestore subscription. `includeMetadataChanges` is intentionally OFF:
     // metadata-only updates don't change any field the UI reads, and they
@@ -3492,6 +3810,13 @@ class FirebaseService {
     required void Function(List<Memory> memories) onData,
     int limit = 20,
   }) {
+    // Миграция: лента читается из Supabase (realtime на таблице memories).
+    if (_mig) {
+      return _sb.watchMemories(groupId, limit: limit).listen(
+            onData,
+            onError: (e) => debugPrint('listenToMemories(SB) error: $e'),
+          );
+    }
     return _db
         .collection('groups')
         .doc(groupId)
