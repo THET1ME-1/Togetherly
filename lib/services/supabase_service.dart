@@ -573,6 +573,39 @@ class SupabaseService {
     }
   }
 
+  /// Сидирование/синхронизация ПОЛНОГО набора счётчиков из RTDB в Supabase.
+  /// Берёт max(существующее, RTDB), чтобы не откатить живой счётчик.
+  /// Нужно для подтягивания исторических тапов (накопленных до dual-write).
+  Future<void> mirrorMissYouCountsFull(
+    String groupId,
+    Map<String, int> counts,
+  ) async {
+    if (!isReady || counts.isEmpty) return;
+    try {
+      // Текущие значения в Supabase, чтобы не понизить.
+      final existing = await getMissYouCounts(groupId);
+      final rows = <Map<String, dynamic>>[];
+      counts.forEach((uid, rtdbVal) {
+        final cur = existing[uid] ?? 0;
+        final val = rtdbVal > cur ? rtdbVal : cur;
+        rows.add({
+          'group_id': groupId,
+          'user_uid': uid,
+          'count': val,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      });
+      if (rows.isNotEmpty) {
+        await _client
+            .from('miss_you')
+            .upsert(rows, onConflict: 'group_id,user_uid')
+            .timeout(const Duration(seconds: 10));
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.mirrorMissYouCountsFull failed: $e');
+    }
+  }
+
   Future<void> mirrorMissYouReset(String groupId, String uid) async {
     if (!isReady) return;
     try {

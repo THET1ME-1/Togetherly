@@ -82,6 +82,26 @@ class FirebaseService {
   /// «Я скучаю» из Firestore в RTDB в этой сессии.
   final Set<String> _missYouSeeded = {};
 
+  /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
+  /// сессии (Фаза 1). Нужно, чтобы исторические тапы (накопленные до dual-write)
+  /// подтянулись в Supabase и числа совпали у обоих партнёров.
+  final Set<String> _sbMissYouSeeded = {};
+
+  /// Разово копирует ПОЛНЫЙ набор RTDB-счётчиков «Я скучаю» в Supabase.
+  /// Вызывается перед подпиской на Supabase-счётчик (Фаза 1).
+  void _seedSupabaseMissYou(String groupId) {
+    if (!_mig || groupId.isEmpty || _sbMissYouSeeded.contains(groupId)) return;
+    _sbMissYouSeeded.add(groupId);
+    _missYouCountsRef(groupId).get().then((snap) {
+      final counts = _parseMissYouCounts(snap.value);
+      if (counts.isNotEmpty) {
+        unawaited(_sb.mirrorMissYouCountsFull(groupId, counts));
+      }
+    }).catchError((Object e) {
+      debugPrint('_seedSupabaseMissYou failed: $e');
+    });
+  }
+
   /// Переносит старый Firestore-счётчик «Я скучаю» текущего пользователя в RTDB.
   /// Idempotent и reset-безопасно.
   ///
@@ -2005,9 +2025,20 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || pairId.isEmpty) return null;
 
-    // Фаза 1: группу ЧИТАЕМ из Firebase (единый источник для обоих партнёров —
-    // иначе рассинхрон, пока партнёр ещё не на Supabase). В Supabase группа
-    // только зеркалится — см. mirrorGroupRaw в _parseGroupDoc.
+    // Фаза 1: тестовые аккаунты читают группу из Supabase (оба партнёра в
+    // Фаза-1 списке → оба пишут и читают Supabase, рассинхрона нет).
+    if (_mig) {
+      final data = await _sb.loadPairById(pairId, u.uid);
+      if (data != null) {
+        final members = (data['members'] as List)
+            .map((m) => (m as Map)['uid'] as String)
+            .toList();
+        _groupMembersCache[pairId] = members;
+        return data;
+      }
+      // Supabase пуст — падаем на Firebase (он попутно зеркалит в Supabase).
+    }
+
     try {
       final doc = await _db
           .collection('groups')
@@ -3513,6 +3544,12 @@ class FirebaseService {
     // нет, поэтому hash первого снимка == '' и при старте с prevHash='' колбэк
     // проглатывался — _mergeRemoteTimers([]) не вызывался, _hasReceivedRemoteSync
     // оставался false и отложенный системный таймер не создавался.
+    // Фаза 1: live-таймеры из Supabase (groups.timers JSONB).
+    if (_mig) {
+      return _sb.listenGroupTimers(groupId, (rawTimers) {
+        onData(rawTimers.map(TimerItem.fromJson).toList());
+      });
+    }
     String? prevHash;
     return _groupDocStream(groupId).listen((snap) {
       if (!snap.exists) return;
@@ -3634,6 +3671,11 @@ class FirebaseService {
     required String monthKey,
     required void Function(List<Map<String, dynamic>> entries) onData,
   }) {
+    // Фаза 1: записи настроений пользователя из Supabase (monthKey неважен —
+    // MoodService дедупит по id).
+    if (_mig) {
+      return _sb.listenMoodEntries(groupId, uid, onData);
+    }
     return _moodMonthsCol(groupId, uid).doc(monthKey).snapshots().listen(
       (snap) => onData(_entriesFromMonthDoc(snap.data())),
       onError: (e) => debugPrint('listenMoodMonth error: $e'),
@@ -3649,6 +3691,8 @@ class FirebaseService {
     int months = 14,
     bool cacheFirst = true,
   }) async {
+    // Фаза 1: вся история настроений пользователя — из Supabase одним запросом.
+    if (_mig) return _sb.loadMoodEntries(groupId, uid);
     // Диапазон по documentId вместо orderBy(__name__, desc)+limit: убывающая
     // сортировка по имени документа требует составного индекса, а инеравенство
     // по __name__ индексируется автоматически. Ключи YYYY-MM лексикографически
@@ -3688,6 +3732,8 @@ class FirebaseService {
     required DateTime since,
     bool cacheFirst = true,
   }) async {
+    // Фаза 1: в Supabase нет legacy-формата — записи приходят через loadMoodMonths.
+    if (_mig) return const [];
     final q = _moodEntriesCol(groupId, uid)
         .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since));
     QuerySnapshot<Map<String, dynamic>> snap;
@@ -3718,6 +3764,8 @@ class FirebaseService {
     required String uid,
     required DateTime since,
   }) async {
+    // Фаза 1: миграция legacy→month неактуальна для Supabase-чтения.
+    if (_mig) return true;
     try {
       final snap = await _moodEntriesCol(groupId, uid)
           .where('timestamp',
@@ -3920,6 +3968,18 @@ class FirebaseService {
     required String groupId,
     required void Function(int count) onData,
   }) {
+    // Фаза 1: общий счётчик из Supabase (с сидированием истории из RTDB).
+    if (_mig) {
+      _seedSupabaseMissYou(groupId);
+      int? prevTotal;
+      final sub = _sb.listenMissYouCounts(groupId, (counts) {
+        final total = counts.values.fold<int>(0, (s, v) => s + v);
+        if (total == prevTotal) return;
+        prevTotal = total;
+        onData(total);
+      });
+      if (sub != null) return sub;
+    }
     int? prev;
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
@@ -3948,6 +4008,12 @@ class FirebaseService {
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
+    // Фаза 1: per-user счётчики из Supabase (с сидированием истории из RTDB).
+    if (_mig) {
+      _seedSupabaseMissYou(groupId);
+      final sub = _sb.listenMissYouCounts(groupId, onData);
+      if (sub != null) return sub;
+    }
     String prevHash = '';
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
