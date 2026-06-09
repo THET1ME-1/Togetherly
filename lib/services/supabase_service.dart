@@ -580,28 +580,41 @@ class SupabaseService {
     }
   }
 
-  /// Сидирование/синхронизация ПОЛНОГО набора счётчиков из RTDB в Supabase.
-  /// Берёт max(существующее, RTDB), чтобы не откатить живой счётчик.
-  /// Нужно для подтягивания исторических тапов (накопленных до dual-write).
+  /// Синхронизация ПОЛНОГО набора счётчиков из RTDB в Supabase.
+  ///
+  /// [forceOverwrite] = true: RTDB всегда побеждает (одноразовый repair после
+  /// рассинхрона). false (по умолчанию): берёт max(существующее, RTDB), чтобы
+  /// не откатить живой счётчик при обычном сидировании.
   Future<void> mirrorMissYouCountsFull(
     String groupId,
-    Map<String, int> counts,
-  ) async {
+    Map<String, int> counts, {
+    bool forceOverwrite = false,
+  }) async {
     if (!isReady || counts.isEmpty) return;
     try {
-      // Текущие значения в Supabase, чтобы не понизить.
-      final existing = await getMissYouCounts(groupId);
       final rows = <Map<String, dynamic>>[];
-      counts.forEach((uid, rtdbVal) {
-        final cur = existing[uid] ?? 0;
-        final val = rtdbVal > cur ? rtdbVal : cur;
-        rows.add({
-          'group_id': groupId,
-          'user_uid': uid,
-          'count': val,
-          'updated_at': DateTime.now().toIso8601String(),
+      if (forceOverwrite) {
+        counts.forEach((uid, rtdbVal) {
+          rows.add({
+            'group_id': groupId,
+            'user_uid': uid,
+            'count': rtdbVal,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
         });
-      });
+      } else {
+        // Не понижаем существующие значения (защита от race с live-тапом).
+        final existing = await getMissYouCounts(groupId);
+        counts.forEach((uid, rtdbVal) {
+          final cur = existing[uid] ?? 0;
+          rows.add({
+            'group_id': groupId,
+            'user_uid': uid,
+            'count': rtdbVal > cur ? rtdbVal : cur,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+        });
+      }
       if (rows.isNotEmpty) {
         await _client
             .from('miss_you')
