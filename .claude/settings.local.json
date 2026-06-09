@@ -89,7 +89,11 @@
       "Bash(mkdir -p \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\supabase\")",
       "Bash(mkdir -p \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\lib\\\\config\")",
       "Bash(Select-Object -First 30)",
-      "Bash(Write-Output \"---ERRORS-ABOVE \\(none = clean\\)---\")"
+      "Bash(Write-Output \"---ERRORS-ABOVE \\(none = clean\\)---\")",
+      "Bash(grep -A5 \"name: connectivity_plus$\" pubspec.lock)",
+      "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart 2>&1)",
+      "Bash(awk '/const COIN_PACKS/,/\\\\};/' functions/index.js)",
+      "Bash(echo \"error-count: $\\(flutter analyze lib/services/supabase_service.dart lib/services/firebase_service.dart 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"

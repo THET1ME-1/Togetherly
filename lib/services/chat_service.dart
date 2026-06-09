@@ -57,6 +57,52 @@ class ChatService {
     }
   }
 
+  /// Бэкфилл ВСЕЙ истории чата группы RTDB → Supabase (для миграции Фазы 1).
+  ///
+  /// Идемпотентен (upsert по id сообщения), поэтому безопасно повторять. Каждое
+  /// сообщение зеркалится через mirrorChatSend (повтор+бэкофф внутри), а правки/
+  /// удаления/реакции — через mirrorChatUpdate. Возвращает число НЕперенесённых
+  /// сообщений — оркестратор не ставит флаг «готово», пока оно > 0, и повторяет.
+  Future<int> backfillToSupabase(String groupId) async {
+    if (!_mig || groupId.isEmpty) return 0;
+    var failures = 0;
+    try {
+      final snap = await _messagesRef(groupId).get();
+      for (final child in snap.children) {
+        final msg = ChatMsg.fromSnapshot(child);
+        if (msg.id.isEmpty) continue;
+        final ok = await _sb.mirrorChatSend(
+          groupId: groupId,
+          id: msg.id,
+          uid: msg.uid,
+          name: msg.name,
+          text: msg.text,
+          ts: msg.ts,
+          pinId: msg.pinId,
+          pinTitle: msg.pinTitle,
+          pinThumb: msg.pinThumb,
+        );
+        if (!ok) {
+          failures++;
+          continue;
+        }
+        // Правки/удаления/реакции не покрываются базовым upsert'ом отправки.
+        final extra = <String, dynamic>{};
+        if (msg.deleted) extra['deleted'] = true;
+        if (msg.editedTs != null) extra['edited_ts'] = msg.editedTs;
+        if (msg.reactions.isNotEmpty) extra['reactions'] = msg.reactions;
+        if (extra.isNotEmpty) {
+          final ok2 = await _sb.mirrorChatUpdate(msg.id, extra);
+          if (!ok2) failures++;
+        }
+      }
+    } catch (e) {
+      debugPrint('ChatService.backfillToSupabase($groupId) failed: $e');
+      failures++; // не вышло прочитать RTDB — повторим позже
+    }
+    return failures;
+  }
+
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();

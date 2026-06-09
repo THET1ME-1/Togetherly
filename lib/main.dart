@@ -46,11 +46,9 @@ Future<void> _initConsentAndAds() async {
     params,
     () async {
       try {
-        await ConsentForm.loadAndShowConsentFormIfRequired(
-          (error) {
-            if (error != null) debugPrint('UMP form error: $error');
-          },
-        );
+        await ConsentForm.loadAndShowConsentFormIfRequired((error) {
+          if (error != null) debugPrint('UMP form error: $error');
+        });
       } finally {
         completer.complete();
       }
@@ -135,11 +133,26 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
     if (mySnap.exists && mySnap.data() != null) {
       final d = mySnap.data()!;
       await Future.wait([
-        HomeWidget.saveWidgetData<String>('my_status', d['status'] as String? ?? ''),
-        HomeWidget.saveWidgetData<String>('my_mood', d['moodLabel'] as String? ?? ''),
-        HomeWidget.saveWidgetData<String>('my_message', d['message'] as String? ?? ''),
-        HomeWidget.saveWidgetData<String>('my_music_title', d['musicTitle'] as String? ?? ''),
-        HomeWidget.saveWidgetData<String>('my_music_artist', d['musicArtist'] as String? ?? ''),
+        HomeWidget.saveWidgetData<String>(
+          'my_status',
+          d['status'] as String? ?? '',
+        ),
+        HomeWidget.saveWidgetData<String>(
+          'my_mood',
+          d['moodLabel'] as String? ?? '',
+        ),
+        HomeWidget.saveWidgetData<String>(
+          'my_message',
+          d['message'] as String? ?? '',
+        ),
+        HomeWidget.saveWidgetData<String>(
+          'my_music_title',
+          d['musicTitle'] as String? ?? '',
+        ),
+        HomeWidget.saveWidgetData<String>(
+          'my_music_artist',
+          d['musicArtist'] as String? ?? '',
+        ),
       ]);
     }
 
@@ -156,11 +169,26 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       if (partnerSnap.exists && partnerSnap.data() != null) {
         final d = partnerSnap.data()!;
         await Future.wait([
-          HomeWidget.saveWidgetData<String>('partner_status', d['status'] as String? ?? ''),
-          HomeWidget.saveWidgetData<String>('partner_mood', d['moodLabel'] as String? ?? ''),
-          HomeWidget.saveWidgetData<String>('partner_message', d['message'] as String? ?? ''),
-          HomeWidget.saveWidgetData<String>('partner_music_title', d['musicTitle'] as String? ?? ''),
-          HomeWidget.saveWidgetData<String>('partner_music_artist', d['musicArtist'] as String? ?? ''),
+          HomeWidget.saveWidgetData<String>(
+            'partner_status',
+            d['status'] as String? ?? '',
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'partner_mood',
+            d['moodLabel'] as String? ?? '',
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'partner_message',
+            d['message'] as String? ?? '',
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'partner_music_title',
+            d['musicTitle'] as String? ?? '',
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'partner_music_artist',
+            d['musicArtist'] as String? ?? '',
+          ),
         ]);
       }
     }
@@ -255,9 +283,7 @@ void main() async {
   // product events live in AnalyticsService.
   AnalyticsService.instance;
   // Bind userId to the current auth state so events are attributable.
-  unawaited(
-    AnalyticsService.instance.setUserId(FirebaseService().uid),
-  );
+  unawaited(AnalyticsService.instance.setUserId(FirebaseService().uid));
 
   // Deep links — инициализация
   DeepLinkService().init();
@@ -327,15 +353,18 @@ class _LoveAppState extends State<LoveApp> {
       },
       onPause: () {
         FirebaseService().setOnlineStatus(false);
-        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+        MascotInactivityNotificationService.instance
+            .scheduleReminderAfterOneDay();
       },
       onDetach: () {
         FirebaseService().setOnlineStatus(false);
-        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+        MascotInactivityNotificationService.instance
+            .scheduleReminderAfterOneDay();
       },
       onHide: () {
         FirebaseService().setOnlineStatus(false);
-        MascotInactivityNotificationService.instance.scheduleReminderAfterOneDay();
+        MascotInactivityNotificationService.instance
+            .scheduleReminderAfterOneDay();
       },
     );
   }
@@ -378,16 +407,15 @@ class _LoveAppState extends State<LoveApp> {
         'nakotumari@gmail.com',
         'lrt56k@mail.ru',
       };
-      const helperEmails = {
-        'ashatilov2008@gmail.com',
-      };
+      const helperEmails = {'ashatilov2008@gmail.com'};
       if (sponsorEmails.contains(_userData.email)) {
         final granted = await _userData.grantSpecialBadge('Sponsor');
         if (granted) {
           await FirebaseService().showLocalNotification(
             id: 8801,
             title: '🎉 Вам вручён значок «Спонсор»!',
-            body: 'Спасибо за поддержку — теперь рядом с вашим именем '
+            body:
+                'Спасибо за поддержку — теперь рядом с вашим именем '
                 'красуется особый бейдж 💖',
           );
         }

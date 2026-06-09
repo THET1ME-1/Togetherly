@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/migration_config.dart';
 import '../models/chat_msg.dart';
+import '../models/memory.dart';
 
 /// Зеркало + чтение данных в Supabase для миграции (Фаза 1).
 ///
@@ -33,6 +34,39 @@ class SupabaseService {
 
   /// Готов ли Supabase (credentials заполнены и SDK инициализирован в main).
   bool get isReady => MigrationConfig.isConfigured;
+
+  // ══════════════════════════════════════════════
+  //  НАДЁЖНАЯ ЗАПИСЬ (повторы + экспоненциальная пауза)
+  // ══════════════════════════════════════════════
+
+  /// Выполняет запись в Supabase с ограниченными повторами и нарастающей паузой.
+  ///
+  /// Возвращает true при успехе, false если все попытки исчерпаны (ошибка
+  /// залогирована). НЕ бросает — безопасно для fire-and-forget dual-write и для
+  /// подсчёта неудач при бэкфилле. Транзиентные сбои (сеть/таймаут/5xx) лечатся
+  /// сразу; то, что не вылечилось, доберёт сверочный проход (reconciliation),
+  /// потому что Firebase остаётся источником правды.
+  Future<bool> _write(
+    String label,
+    Future<void> Function() op, {
+    int maxAttempts = 4,
+  }) async {
+    var delay = const Duration(milliseconds: 400);
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await op();
+        return true;
+      } catch (e) {
+        if (attempt >= maxAttempts) {
+          debugPrint('SupabaseService.$label failed after $attempt attempts: $e');
+          return false;
+        }
+        await Future.delayed(delay);
+        delay *= 2;
+      }
+    }
+    return false;
+  }
 
   // ══════════════════════════════════════════════
   //  УТИЛИТЫ КОНВЕРТАЦИИ
@@ -100,15 +134,83 @@ class SupabaseService {
   }
 
   /// Двойная запись профиля. [data] — camelCase-ключи (как в saveUserProfile).
-  Future<void> mirrorUser(String uid, Map<String, dynamic> data) async {
-    if (!isReady) return;
-    try {
+  /// Возвращает true при успехе (для подсчёта неудач при бэкфилле).
+  Future<bool> mirrorUser(String uid, Map<String, dynamic> data) async {
+    if (!isReady) return false;
+    return _write('mirrorUser', () async {
       await _client
           .from('users')
           .upsert(_userFirebaseMapToRow(uid, data), onConflict: 'uid')
           .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Вызов «коиновой» серверной логики через Postgres RPC (замена Cloud
+  /// Functions). [fbName] — имя бывшей Firebase-функции, маппится на public RPC.
+  /// Возвращает JSONB-ответ как Map (ключи ok/coins/owned*/awarded — те же, что
+  /// отдавал callable), чтобы вызывающий код не менялся.
+  Future<Map<String, dynamic>?> callCoinRpc(
+    String fbName,
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    if (!isReady) return null;
+    final params = <String, dynamic>{'p_uid': uid};
+    String rpc;
+    switch (fbName) {
+      case 'purchaseTheme':
+        rpc = 'purchase_theme';
+        params['p_theme_id'] = data['themeId'];
+        break;
+      case 'purchaseIcon':
+        rpc = 'purchase_icon';
+        params['p_icon_id'] = data['iconId'];
+        break;
+      case 'purchaseFeature':
+        rpc = 'purchase_feature';
+        params['p_feature_id'] = data['featureId'];
+        break;
+      case 'spendCoins':
+        rpc = 'spend_coins';
+        params['p_action_id'] = data['actionId'];
+        break;
+      case 'grantDailyBonus':
+        rpc = 'grant_daily_bonus';
+        break;
+      case 'grantCoinsPurchase':
+        rpc = 'grant_coins_purchase';
+        params['p_product_id'] = data['productId'];
+        params['p_purchase_token'] = data['purchaseToken'];
+        break;
+      case 'grantDevCoins':
+        rpc = 'grant_dev_coins';
+        break;
+      case 'grantMemoryReward':
+        rpc = 'grant_memory_reward';
+        break;
+      case 'grantAdReward':
+        rpc = 'grant_ad_reward';
+        break;
+      case 'grantPartnerInviteReward':
+        rpc = 'grant_partner_invite_reward';
+        break;
+      case 'grantMoodStreakReward':
+        rpc = 'grant_mood_streak_reward';
+        params['p_group_id'] = data['groupId'];
+        break;
+      default:
+        debugPrint('SupabaseService.callCoinRpc: неизвестная функция $fbName');
+        return null;
+    }
+    try {
+      final res = await _client
+          .rpc(rpc, params: params)
+          .timeout(const Duration(seconds: 15));
+      if (res is Map) return Map<String, dynamic>.from(res);
+      return null;
     } catch (e) {
-      debugPrint('SupabaseService.mirrorUser failed: $e');
+      debugPrint('SupabaseService.callCoinRpc($fbName) failed: $e');
+      return null;
     }
   }
 
@@ -122,6 +224,8 @@ class SupabaseService {
       'gender': row['gender'],
       'birthDate': _toDate(row['birth_date']),
       'coins': row['coins'] ?? 0,
+      'devCoinsGranted': row['dev_coins_granted'] ?? false,
+      'partnerInviteRewardGranted': row['partner_invite_reward_granted'] ?? false,
       'ownedThemes': asList<dynamic>(row['owned_themes']).map((e) => e is int ? e : int.tryParse('$e') ?? 0).toList(),
       'ownedIcons': asList<String>(row['owned_icons']),
       'ownedFeatures': asList<String>(row['owned_features']),
@@ -221,61 +325,57 @@ class SupabaseService {
 
   /// Двойная запись группы из «сырого» firestore-документа (data из _parseGroupDoc
   /// или прямого чтения group-doc). Конвертирует Timestamps в ISO.
-  Future<void> mirrorGroupRaw(String groupId, Map<String, dynamic> raw) async {
-    if (!isReady || groupId.isEmpty) return;
-    try {
-      final row = <String, dynamic>{
-        'id': groupId,
-        'members': _jsonSafe(raw['members'] ?? []),
-        'member_names': _jsonSafe(raw['memberNames'] ?? {}),
-        'member_avatars': _jsonSafe(raw['memberAvatars'] ?? {}),
-        'max_members': raw['maxMembers'] ?? 2,
-        'relationship_type': raw['relationshipType'] ?? 'couple',
-        'custom_relationship_label': raw['customRelationshipLabel'],
-        'custom_relationship_emoji': raw['customRelationshipEmoji'],
-        'custom_relationship_types':
-            _jsonSafe(raw['customRelationshipTypes'] ?? []),
-        'start_date': _isoTs(raw['startDate']),
-        'anniversary_date': _isoTs(raw['anniversaryDate']),
-        'first_kiss_date': _isoTs(raw['firstKissDate']),
-        'member_birthdays': _jsonSafe(raw['memberBirthdays'] ?? {}),
-        'member_moods': _jsonSafe(raw['memberMoods'] ?? {}),
-        'current_status': _jsonSafe(raw['currentStatus']),
-        'custom_statuses': _jsonSafe(raw['customStatuses'] ?? []),
-        'memories_count': raw['memoriesCount'] ?? 0,
-        'drawings_count': raw['drawingsCount'] ?? 0,
-        'active_session': _jsonSafe(raw['activeSession']),
-        'disbanded': raw['disbanded'] ?? false,
-        'disbanded_at': _isoTs(raw['disbandedAt']),
-        'timers': _jsonSafe(raw['timers'] ?? []),
-        'mascots': _jsonSafe(raw['mascots'] ?? []),
-      };
-      // Убираем null-ключи, чтобы upsert не затирал заполненные поля null'ами.
-      row.removeWhere((k, v) => v == null && k != 'id');
+  Future<bool> mirrorGroupRaw(String groupId, Map<String, dynamic> raw) async {
+    if (!isReady || groupId.isEmpty) return false;
+    final row = <String, dynamic>{
+      'id': groupId,
+      'members': _jsonSafe(raw['members'] ?? []),
+      'member_names': _jsonSafe(raw['memberNames'] ?? {}),
+      'member_avatars': _jsonSafe(raw['memberAvatars'] ?? {}),
+      'max_members': raw['maxMembers'] ?? 2,
+      'relationship_type': raw['relationshipType'] ?? 'couple',
+      'custom_relationship_label': raw['customRelationshipLabel'],
+      'custom_relationship_emoji': raw['customRelationshipEmoji'],
+      'custom_relationship_types':
+          _jsonSafe(raw['customRelationshipTypes'] ?? []),
+      'start_date': _isoTs(raw['startDate']),
+      'anniversary_date': _isoTs(raw['anniversaryDate']),
+      'first_kiss_date': _isoTs(raw['firstKissDate']),
+      'member_birthdays': _jsonSafe(raw['memberBirthdays'] ?? {}),
+      'member_moods': _jsonSafe(raw['memberMoods'] ?? {}),
+      'current_status': _jsonSafe(raw['currentStatus']),
+      'custom_statuses': _jsonSafe(raw['customStatuses'] ?? []),
+      'memories_count': raw['memoriesCount'] ?? 0,
+      'drawings_count': raw['drawingsCount'] ?? 0,
+      'active_session': _jsonSafe(raw['activeSession']),
+      'disbanded': raw['disbanded'] ?? false,
+      'disbanded_at': _isoTs(raw['disbandedAt']),
+      'timers': _jsonSafe(raw['timers'] ?? []),
+      'mascots': _jsonSafe(raw['mascots'] ?? []),
+    };
+    // Убираем null-ключи, чтобы upsert не затирал заполненные поля null'ами.
+    row.removeWhere((k, v) => v == null && k != 'id');
+    return _write('mirrorGroupRaw', () async {
       await _client
           .from('groups')
           .upsert(row, onConflict: 'id')
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorGroupRaw failed: $e');
-    }
+    });
   }
 
   /// Точечно зеркалит массив timers группы (для upsert/delete таймеров).
-  Future<void> mirrorTimers(
+  Future<bool> mirrorTimers(
     String groupId,
     List<Map<String, dynamic>> timers,
   ) async {
-    if (!isReady || groupId.isEmpty) return;
-    try {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('mirrorTimers', () async {
       await _client
           .from('groups')
           .upsert({'id': groupId, 'timers': _jsonSafe(timers)},
               onConflict: 'id')
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorTimers failed: $e');
-    }
+    });
   }
 
   /// Live-подписка на timers группы. [onData] получает «сырые» json таймеров.
@@ -369,6 +469,38 @@ class SupabaseService {
     };
   }
 
+  /// Live-подписка на группу (realtime). [onData] получает распарсенную карту
+  /// в ТОМ ЖЕ формате, что отдаёт FirebaseService._parseGroupDoc, или null если
+  /// группа распущена/удалена. Замена listenToPair при чтении из Supabase.
+  StreamSubscription? listenPair(
+    String groupId,
+    String currentUid,
+    void Function(Map<String, dynamic>? data) onData,
+  ) {
+    if (!isReady || groupId.isEmpty) return null;
+    try {
+      return _client
+          .from('groups')
+          .stream(primaryKey: ['id'])
+          .eq('id', groupId)
+          .listen((rows) {
+        if (rows.isEmpty) {
+          onData(null);
+          return;
+        }
+        final row = rows.first;
+        if (row['disbanded'] == true) {
+          onData(null);
+          return;
+        }
+        onData(_groupRowToParsed(row, currentUid));
+      }, onError: (e) => debugPrint('listenPair error: $e'));
+    } catch (e) {
+      debugPrint('SupabaseService.listenPair failed: $e');
+      return null;
+    }
+  }
+
   // ══════════════════════════════════════════════
   //  MOOD
   // ══════════════════════════════════════════════
@@ -426,15 +558,15 @@ class SupabaseService {
       };
 
   /// Двойная запись записи настроения. [entry] — формат toFirestore (с Timestamp).
-  Future<void> mirrorMoodEntry(
+  Future<bool> mirrorMoodEntry(
     String groupId,
     String uid,
     Map<String, dynamic> entry,
   ) async {
-    if (!isReady) return;
+    if (!isReady) return false;
     final id = entry['id'] as String?;
-    if (id == null) return;
-    try {
+    if (id == null) return false;
+    return _write('mirrorMoodEntry', () async {
       await _client.from('mood_entries').upsert({
         'id': id,
         'group_id': groupId,
@@ -445,36 +577,99 @@ class SupabaseService {
         'timestamp': _isoTs(entry['timestamp']) ??
             DateTime.now().toIso8601String(),
       }, onConflict: 'id').timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMoodEntry failed: $e');
-    }
+    });
   }
 
-  Future<void> mirrorMoodDelete(String entryId) async {
-    if (!isReady) return;
-    try {
+  Future<bool> mirrorMoodDelete(String entryId) async {
+    if (!isReady) return false;
+    return _write('mirrorMoodDelete', () async {
       await _client
           .from('mood_entries')
           .delete()
           .eq('id', entryId)
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMoodDelete failed: $e');
-    }
+    });
   }
 
   // ══════════════════════════════════════════════
-  //  MEMORIES (dual-write; чтение пока из Firebase)
+  //  MEMORIES (dual-write + чтение из Supabase)
   // ══════════════════════════════════════════════
 
+  /// Live-лента воспоминаний группы (последние [limit], новые сверху).
+  /// Замена listenToMemories при чтении из Supabase. Soft-deleted (deleted=true)
+  /// отфильтровываются. Формат — модель Memory, как у Firestore-пути.
+  Stream<List<Memory>> watchMemories(String groupId, {int limit = 20}) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('memories')
+          .stream(primaryKey: ['id'])
+          .eq('group_id', groupId)
+          .order('created_at', ascending: false)
+          .limit(limit)
+          .map((rows) => rows
+              .where((r) => r['deleted'] != true)
+              .map(_memoryFromRow)
+              .toList());
+    } catch (e) {
+      debugPrint('SupabaseService.watchMemories failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Разовая загрузка ленты с пагинацией по времени. [beforeIso] — вернуть
+  /// только воспоминания старше этой метки (created_at < beforeIso). Замена
+  /// loadMemories: вместо Firestore-курсора используем created_at как курсор.
+  Future<List<Memory>> loadMemories(
+    String groupId, {
+    int limit = 50,
+    String? beforeIso,
+  }) async {
+    if (!isReady || groupId.isEmpty) return const [];
+    try {
+      var q = _client
+          .from('memories')
+          .select()
+          .eq('group_id', groupId)
+          .eq('deleted', false);
+      if (beforeIso != null) q = q.lt('created_at', beforeIso);
+      final rows = await q
+          .order('created_at', ascending: false)
+          .limit(limit)
+          .timeout(const Duration(seconds: 15));
+      return rows.map(_memoryFromRow).toList();
+    } catch (e) {
+      debugPrint('SupabaseService.loadMemories failed: $e');
+      return const [];
+    }
+  }
+
+  /// Строка таблицы memories → модель Memory. data JSONB хранит toFirestore-карту
+  /// с ISO-строками; Memory.fromFirestore ждёт Timestamp для createdAt/editedAt.
+  Memory _memoryFromRow(Map<String, dynamic> row) {
+    final raw = row['data'];
+    final data = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
+    data['createdAt'] =
+        _toTs(data['createdAt']) ?? _toTs(row['created_at']) ?? Timestamp.now();
+    final edited = _toTs(data['editedAt']) ?? _toTs(row['edited_at']);
+    if (edited != null) {
+      data['editedAt'] = edited;
+    } else {
+      data.remove('editedAt');
+    }
+    return Memory.fromFirestore((row['id'] ?? '').toString(), data);
+  }
+
   /// Двойная запись воспоминания. [data] — полный firestore-map воспоминания.
-  Future<void> mirrorMemory(
+  Future<bool> mirrorMemory(
     String groupId,
     String id,
     Map<String, dynamic> data,
   ) async {
-    if (!isReady || id.isEmpty) return;
-    try {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorMemory', () async {
       await _client.from('memories').upsert({
         'id': id,
         'group_id': groupId,
@@ -488,38 +683,44 @@ class SupabaseService {
         'deleted': data['deleted'] ?? false,
         'data': _jsonSafe(data),
       }, onConflict: 'id').timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMemory failed: $e');
-    }
+    });
   }
 
   /// Частичное обновление зеркала воспоминания (известные колонки).
   /// [fb] — те же camelCase-ключи, что updateMemory пишет в Firestore.
-  Future<void> mirrorMemoryPatch(String id, Map<String, dynamic> fb) async {
-    if (!isReady || id.isEmpty) return;
+  Future<bool> mirrorMemoryPatch(String id, Map<String, dynamic> fb) async {
+    if (!isReady || id.isEmpty) return false;
     final cols = <String, dynamic>{};
     if (fb.containsKey('isPinned')) cols['is_pinned'] = fb['isPinned'];
     if (fb.containsKey('editedAt')) cols['edited_at'] = _isoTs(fb['editedAt']);
     if (fb.containsKey('createdAt')) cols['created_at'] = _isoTs(fb['createdAt']);
-    if (cols.isEmpty) return;
-    try {
-      await _client.from('memories').update(cols).eq('id', id);
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMemoryPatch failed: $e');
-    }
+    if (cols.isEmpty) return true; // нечего обновлять — не ошибка
+    return _write('mirrorMemoryPatch', () async {
+      await _client
+          .from('memories')
+          .update(cols)
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
+    });
   }
 
-  Future<void> mirrorMemoryDelete(String id, {bool hard = false}) async {
-    if (!isReady || id.isEmpty) return;
-    try {
+  Future<bool> mirrorMemoryDelete(String id, {bool hard = false}) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorMemoryDelete', () async {
       if (hard) {
-        await _client.from('memories').delete().eq('id', id);
+        await _client
+            .from('memories')
+            .delete()
+            .eq('id', id)
+            .timeout(const Duration(seconds: 10));
       } else {
-        await _client.from('memories').update({'deleted': true}).eq('id', id);
+        await _client
+            .from('memories')
+            .update({'deleted': true})
+            .eq('id', id)
+            .timeout(const Duration(seconds: 10));
       }
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMemoryDelete failed: $e');
-    }
+    });
   }
 
   // ══════════════════════════════════════════════
@@ -578,16 +779,14 @@ class SupabaseService {
     }
   }
 
-  Future<void> mirrorMissYouIncrement(String groupId, String uid) async {
-    if (!isReady) return;
-    try {
+  Future<bool> mirrorMissYouIncrement(String groupId, String uid) async {
+    if (!isReady) return false;
+    return _write('mirrorMissYouIncrement', () async {
       await _client.rpc('increment_miss_you', params: {
         'p_group_id': groupId,
         'p_user_uid': uid,
       }).timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMissYouIncrement failed: $e');
-    }
+    });
   }
 
   /// Синхронизация ПОЛНОГО набора счётчиков из RTDB в Supabase.
@@ -595,104 +794,97 @@ class SupabaseService {
   /// [forceOverwrite] = true: RTDB всегда побеждает (одноразовый repair после
   /// рассинхрона). false (по умолчанию): берёт max(существующее, RTDB), чтобы
   /// не откатить живой счётчик при обычном сидировании.
-  Future<void> mirrorMissYouCountsFull(
+  Future<bool> mirrorMissYouCountsFull(
     String groupId,
     Map<String, int> counts, {
     bool forceOverwrite = false,
   }) async {
-    if (!isReady || counts.isEmpty) return;
-    try {
-      final rows = <Map<String, dynamic>>[];
-      if (forceOverwrite) {
-        counts.forEach((uid, rtdbVal) {
-          rows.add({
-            'group_id': groupId,
-            'user_uid': uid,
-            'count': rtdbVal,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+    if (!isReady || counts.isEmpty) return false;
+    final rows = <Map<String, dynamic>>[];
+    if (forceOverwrite) {
+      counts.forEach((uid, rtdbVal) {
+        rows.add({
+          'group_id': groupId,
+          'user_uid': uid,
+          'count': rtdbVal,
+          'updated_at': DateTime.now().toIso8601String(),
         });
-      } else {
-        // Не понижаем существующие значения (защита от race с live-тапом).
-        final existing = await getMissYouCounts(groupId);
-        counts.forEach((uid, rtdbVal) {
-          final cur = existing[uid] ?? 0;
-          rows.add({
-            'group_id': groupId,
-            'user_uid': uid,
-            'count': rtdbVal > cur ? rtdbVal : cur,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      });
+    } else {
+      // Не понижаем существующие значения (защита от race с live-тапом).
+      final existing = await getMissYouCounts(groupId);
+      counts.forEach((uid, rtdbVal) {
+        final cur = existing[uid] ?? 0;
+        rows.add({
+          'group_id': groupId,
+          'user_uid': uid,
+          'count': rtdbVal > cur ? rtdbVal : cur,
+          'updated_at': DateTime.now().toIso8601String(),
         });
-      }
-      if (rows.isNotEmpty) {
-        await _client
-            .from('miss_you')
-            .upsert(rows, onConflict: 'group_id,user_uid')
-            .timeout(const Duration(seconds: 10));
-      }
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMissYouCountsFull failed: $e');
+      });
     }
+    if (rows.isEmpty) return true;
+    return _write('mirrorMissYouCountsFull', () async {
+      await _client
+          .from('miss_you')
+          .upsert(rows, onConflict: 'group_id,user_uid')
+          .timeout(const Duration(seconds: 10));
+    });
   }
 
-  Future<void> mirrorMissYouReset(String groupId, String uid) async {
-    if (!isReady) return;
-    try {
+  Future<bool> mirrorMissYouReset(String groupId, String uid) async {
+    if (!isReady) return false;
+    return _write('mirrorMissYouReset', () async {
       await _client.from('miss_you').upsert({
         'group_id': groupId,
         'user_uid': uid,
         'count': 0,
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'group_id,user_uid');
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorMissYouReset failed: $e');
-    }
+      }, onConflict: 'group_id,user_uid').timeout(const Duration(seconds: 10));
+    });
   }
 
   // ══════════════════════════════════════════════
   //  WIDGET DATA (dual-write; чтение пока из Firebase)
   // ══════════════════════════════════════════════
 
-  Future<void> mirrorWidgetData(
+  Future<bool> mirrorWidgetData(
     String groupId,
     String uid,
     Map<String, dynamic> fields,
   ) async {
-    if (!isReady || groupId.isEmpty) return;
-    try {
-      const colMap = {
-        'displayName': 'display_name',
-        'avatarUrl': 'avatar_url',
-        'gender': 'gender',
-        'status': 'status',
-        'moodEmoji': 'mood_emoji',
-        'moodLabel': 'mood_label',
-        'message': 'message',
-        'musicTitle': 'music_title',
-        'musicArtist': 'music_artist',
-        'musicUrl': 'music_url',
-        'musicCoverUrl': 'music_cover_url',
-        'photoUrl': 'photo_url',
-      };
-      final row = <String, dynamic>{
-        'group_id': groupId,
-        'user_uid': uid,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-      fields.forEach((k, v) {
-        final col = colMap[k];
-        if (col != null) row[col] = v;
-      });
-      // Полный снимок полей — в data JSONB (на случай чтения позже).
-      row['data'] = _jsonSafe(fields);
+    if (!isReady || groupId.isEmpty) return false;
+    const colMap = {
+      'displayName': 'display_name',
+      'avatarUrl': 'avatar_url',
+      'gender': 'gender',
+      'status': 'status',
+      'moodEmoji': 'mood_emoji',
+      'moodLabel': 'mood_label',
+      'message': 'message',
+      'musicTitle': 'music_title',
+      'musicArtist': 'music_artist',
+      'musicUrl': 'music_url',
+      'musicCoverUrl': 'music_cover_url',
+      'photoUrl': 'photo_url',
+    };
+    final row = <String, dynamic>{
+      'group_id': groupId,
+      'user_uid': uid,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    fields.forEach((k, v) {
+      final col = colMap[k];
+      if (col != null) row[col] = v;
+    });
+    // Полный снимок полей — в data JSONB (на случай чтения позже).
+    row['data'] = _jsonSafe(fields);
+    return _write('mirrorWidgetData', () async {
       await _client
           .from('widget_data')
           .upsert(row, onConflict: 'group_id,user_uid')
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorWidgetData failed: $e');
-    }
+    });
   }
 
   // ══════════════════════════════════════════════
@@ -740,7 +932,7 @@ class SupabaseService {
   }
 
   /// Двойная запись отправки сообщения.
-  Future<void> mirrorChatSend({
+  Future<bool> mirrorChatSend({
     required String groupId,
     required String id,
     required String uid,
@@ -751,8 +943,8 @@ class SupabaseService {
     String? pinTitle,
     String? pinThumb,
   }) async {
-    if (!isReady) return;
-    try {
+    if (!isReady) return false;
+    return _write('mirrorChatSend', () async {
       await _client.from('chat_messages').upsert({
         'id': id,
         'group_id': groupId,
@@ -764,19 +956,19 @@ class SupabaseService {
         if (pinTitle != null) 'pin_title': pinTitle,
         if (pinThumb != null) 'pin_thumb': pinThumb,
       }, onConflict: 'id').timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorChatSend failed: $e');
-    }
+    });
   }
 
   /// Двойная запись правки/удаления/реакции сообщения.
-  Future<void> mirrorChatUpdate(String id, Map<String, dynamic> fields) async {
-    if (!isReady || id.isEmpty) return;
-    try {
-      await _client.from('chat_messages').update(fields).eq('id', id);
-    } catch (e) {
-      debugPrint('SupabaseService.mirrorChatUpdate failed: $e');
-    }
+  Future<bool> mirrorChatUpdate(String id, Map<String, dynamic> fields) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorChatUpdate', () async {
+      await _client
+          .from('chat_messages')
+          .update(fields)
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
+    });
   }
 
   /// Проверка соединения (для диагностики).
@@ -963,23 +1155,21 @@ class SupabaseService {
   }
 
   /// Обновить data JSONB воспоминания (заменить Firebase URL → sb://).
-  Future<void> updateMemoryData(
+  Future<bool> updateMemoryData(
     String memoryId,
     Map<String, dynamic> data, {
     String? authorAvatar,
   }) async {
-    if (!isReady || memoryId.isEmpty) return;
-    try {
-      final row = <String, dynamic>{'data': _jsonSafe(data)};
-      if (authorAvatar != null) row['author_avatar'] = authorAvatar;
+    if (!isReady || memoryId.isEmpty) return false;
+    final row = <String, dynamic>{'data': _jsonSafe(data)};
+    if (authorAvatar != null) row['author_avatar'] = authorAvatar;
+    return _write('updateMemoryData($memoryId)', () async {
       await _client
           .from('memories')
           .update(row)
           .eq('id', memoryId)
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.updateMemoryData($memoryId) failed: $e');
-    }
+    });
   }
 
   /// Загрузить groups.member_avatars для миграции аватарок.
@@ -1002,37 +1192,33 @@ class SupabaseService {
   }
 
   /// Обновить массив mascots группы после миграции их картинок.
-  Future<void> updateGroupMascots(
+  Future<bool> updateGroupMascots(
     String groupId,
     List<dynamic> mascots,
   ) async {
-    if (!isReady || groupId.isEmpty) return;
-    try {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('updateGroupMascots', () async {
       await _client
           .from('groups')
           .update({'mascots': _jsonSafe(mascots)})
           .eq('id', groupId)
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.updateGroupMascots failed: $e');
-    }
+    });
   }
 
   /// Обновить member_avatars группы после миграции.
-  Future<void> updateGroupMemberAvatars(
+  Future<bool> updateGroupMemberAvatars(
     String groupId,
     Map<String, String> avatars,
   ) async {
-    if (!isReady || groupId.isEmpty) return;
-    try {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('updateGroupMemberAvatars', () async {
       await _client
           .from('groups')
           .update({'member_avatars': _jsonSafe(avatars)})
           .eq('id', groupId)
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.updateGroupMemberAvatars failed: $e');
-    }
+    });
   }
 
   /// Загрузить widget_data для миграции медиа-URL.
@@ -1055,21 +1241,21 @@ class SupabaseService {
 
   /// Обновить URL-поля в widget_data после миграции.
   /// widget_data использует составной PK (group_id, user_uid) — нет колонки id.
-  Future<void> updateWidgetDataUrls(
+  Future<bool> updateWidgetDataUrls(
     String groupId,
     String userUid,
     Map<String, String> urls,
   ) async {
-    if (!isReady || groupId.isEmpty || userUid.isEmpty || urls.isEmpty) return;
-    try {
+    if (!isReady || groupId.isEmpty || userUid.isEmpty || urls.isEmpty) {
+      return false;
+    }
+    return _write('updateWidgetDataUrls($groupId/$userUid)', () async {
       await _client
           .from('widget_data')
           .update(urls)
           .eq('group_id', groupId)
           .eq('user_uid', userUid)
           .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('SupabaseService.updateWidgetDataUrls($groupId/$userUid) failed: $e');
-    }
+    });
   }
 }
