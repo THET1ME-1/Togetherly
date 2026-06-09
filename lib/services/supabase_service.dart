@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/migration_config.dart';
 import '../models/chat_msg.dart';
@@ -14,6 +16,14 @@ import '../models/chat_msg.dart';
 ///                  FirebaseService, чтобы слой UI не менялся.
 ///
 /// Все методы безопасны при незаполненных credentials: гард [isReady].
+
+class _SbSignedUrlEntry {
+  final String url;
+  final DateTime expiresAt;
+  const _SbSignedUrlEntry(this.url, this.expiresAt);
+  bool get isValid => DateTime.now().isBefore(expiresAt);
+}
+
 class SupabaseService {
   static final SupabaseService _instance = SupabaseService._();
   factory SupabaseService() => _instance;
@@ -779,6 +789,263 @@ class SupabaseService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  STORAGE — Supabase Storage вместо Firebase Storage (Фаза 1)
+  //
+  //  Схема URL:
+  //    Приватные файлы → 'sb://media/{storagePath}'  (подписанный URL по запросу)
+  //    Публичные (аватары) → прямой https:// из Supabase
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  static const _sbScheme = 'sb://';
+  static const _mediaBucket = 'media';
+  static const _avatarsBucket = 'avatars';
+
+  // Пути которые хранятся приватно (доступ только через Signed URL).
+  static const _privatePathPrefixes = [
+    'memories/',
+    'music/',
+    'timer_backgrounds/',
+    'widget/',
+  ];
+
+  bool _isPrivateStoragePath(String path) =>
+      _privatePathPrefixes.any(path.startsWith);
+
+  // Кэш подписанных URL (55 мин — бакет выдаёт на 60 мин).
+  final Map<String, _SbSignedUrlEntry> _sbSignedUrlCache = {};
+
+  /// Загрузить байты в Supabase Storage.
+  /// Приватные пути → возвращает 'sb://media/{path}'.
+  /// Публичный путь (avatars/) → возвращает прямой https://.
+  Future<String?> uploadStorageFile(
+    Uint8List bytes,
+    String storagePath, {
+    String? contentType,
+  }) async {
+    if (!isReady || bytes.isEmpty || storagePath.isEmpty) return null;
+    try {
+      final isPrivate = _isPrivateStoragePath(storagePath);
+      final bucket = isPrivate ? _mediaBucket : _avatarsBucket;
+      await _client.storage.from(bucket).uploadBinary(
+        storagePath,
+        bytes,
+        fileOptions: FileOptions(
+          contentType: contentType ?? 'application/octet-stream',
+          upsert: true,
+        ),
+      );
+      if (isPrivate) {
+        return '$_sbScheme$bucket/$storagePath';
+      } else {
+        return _client.storage.from(bucket).getPublicUrl(storagePath);
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.uploadStorageFile($storagePath) failed: $e');
+      return null;
+    }
+  }
+
+  /// Преобразует 'sb://media/{path}' в подписанный https:// URL (60 мин TTL).
+  /// Если передан https:// — возвращает как есть (обратная совместимость).
+  Future<String?> getStorageSignedUrl(String sbRef) async {
+    if (sbRef.isEmpty) return null;
+    if (sbRef.startsWith('http')) return sbRef;
+    if (!sbRef.startsWith(_sbScheme)) return null;
+
+    final cached = _sbSignedUrlCache[sbRef];
+    if (cached != null && cached.isValid) return cached.url;
+
+    try {
+      final withoutScheme = sbRef.substring(_sbScheme.length);
+      final slashIdx = withoutScheme.indexOf('/');
+      if (slashIdx == -1) return null;
+      final bucket = withoutScheme.substring(0, slashIdx);
+      final path = withoutScheme.substring(slashIdx + 1);
+
+      final signedUrl = await _client.storage
+          .from(bucket)
+          .createSignedUrl(path, 3600);
+
+      _sbSignedUrlCache[sbRef] = _SbSignedUrlEntry(
+        signedUrl,
+        DateTime.now().add(const Duration(minutes: 55)),
+      );
+      return signedUrl;
+    } catch (e) {
+      debugPrint('SupabaseService.getStorageSignedUrl($sbRef) failed: $e');
+      return null;
+    }
+  }
+
+  /// Удалить файл из Supabase Storage по ссылке 'sb://...'.
+  Future<void> deleteStorageFile(String sbRef) async {
+    if (!isReady || sbRef.isEmpty || !sbRef.startsWith(_sbScheme)) return;
+    try {
+      final withoutScheme = sbRef.substring(_sbScheme.length);
+      final slashIdx = withoutScheme.indexOf('/');
+      if (slashIdx == -1) return;
+      final bucket = withoutScheme.substring(0, slashIdx);
+      final path = withoutScheme.substring(slashIdx + 1);
+      await _client.storage.from(bucket).remove([path]);
+    } catch (e) {
+      debugPrint('SupabaseService.deleteStorageFile($sbRef) failed: $e');
+    }
+  }
+
+  /// Скачать файл по [httpUrl] и загрузить в Supabase Storage.
+  /// Возвращает 'sb://' ссылку или null при ошибке.
+  Future<String?> migrateFileFromHttpUrl(
+    String httpUrl,
+    String storagePath, {
+    String? contentType,
+  }) async {
+    if (!isReady || httpUrl.isEmpty || storagePath.isEmpty) return null;
+    try {
+      final response = await http
+          .get(Uri.parse(httpUrl))
+          .timeout(const Duration(minutes: 3));
+      if (response.statusCode != 200) {
+        debugPrint(
+          'migrateFileFromHttpUrl: HTTP ${response.statusCode} for $storagePath',
+        );
+        return null;
+      }
+      final ct = contentType ?? _contentTypeFromPath(storagePath);
+      return uploadStorageFile(response.bodyBytes, storagePath, contentType: ct);
+    } catch (e) {
+      debugPrint('SupabaseService.migrateFileFromHttpUrl($storagePath) failed: $e');
+      return null;
+    }
+  }
+
+  String? _contentTypeFromPath(String path) {
+    final lower = path.toLowerCase().split('?').first;
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    return null;
+  }
+
+  // ── Вспомогательные методы для мигратора ────────────────────────────────────
+
+  /// Загрузить все воспоминания группы (id + data + author_avatar).
+  Future<List<Map<String, dynamic>>> fetchMemoriesForMigration(
+    String groupId,
+  ) async {
+    if (!isReady || groupId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('memories')
+          .select('id, data, author_avatar')
+          .eq('group_id', groupId)
+          .eq('deleted', false)
+          .timeout(const Duration(seconds: 30));
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('SupabaseService.fetchMemoriesForMigration failed: $e');
+      return [];
+    }
+  }
+
+  /// Обновить data JSONB воспоминания (заменить Firebase URL → sb://).
+  Future<void> updateMemoryData(
+    String memoryId,
+    Map<String, dynamic> data, {
+    String? authorAvatar,
+  }) async {
+    if (!isReady || memoryId.isEmpty) return;
+    try {
+      final row = <String, dynamic>{'data': _jsonSafe(data)};
+      if (authorAvatar != null) row['author_avatar'] = authorAvatar;
+      await _client
+          .from('memories')
+          .update(row)
+          .eq('id', memoryId)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('SupabaseService.updateMemoryData($memoryId) failed: $e');
+    }
+  }
+
+  /// Загрузить groups.member_avatars для миграции аватарок.
+  Future<Map<String, dynamic>?> fetchGroupForMigration(
+    String groupId,
+  ) async {
+    if (!isReady || groupId.isEmpty) return null;
+    try {
+      final rows = await _client
+          .from('groups')
+          .select('id, member_avatars')
+          .eq('id', groupId)
+          .limit(1)
+          .timeout(const Duration(seconds: 10));
+      return rows.isEmpty ? null : Map<String, dynamic>.from(rows.first);
+    } catch (e) {
+      debugPrint('SupabaseService.fetchGroupForMigration failed: $e');
+      return null;
+    }
+  }
+
+  /// Обновить member_avatars группы после миграции.
+  Future<void> updateGroupMemberAvatars(
+    String groupId,
+    Map<String, String> avatars,
+  ) async {
+    if (!isReady || groupId.isEmpty) return;
+    try {
+      await _client
+          .from('groups')
+          .update({'member_avatars': _jsonSafe(avatars)})
+          .eq('id', groupId)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('SupabaseService.updateGroupMemberAvatars failed: $e');
+    }
+  }
+
+  /// Загрузить widget_data для миграции медиа-URL.
+  Future<List<Map<String, dynamic>>> fetchWidgetDataForMigration(
+    String groupId,
+  ) async {
+    if (!isReady || groupId.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('widget_data')
+          .select('id, user_uid, avatar_url, photo_url, music_url, music_cover_url')
+          .eq('group_id', groupId)
+          .timeout(const Duration(seconds: 10));
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('SupabaseService.fetchWidgetDataForMigration failed: $e');
+      return [];
+    }
+  }
+
+  /// Обновить URL-поля в widget_data после миграции.
+  Future<void> updateWidgetDataUrls(
+    String id,
+    Map<String, String> urls,
+  ) async {
+    if (!isReady || id.isEmpty || urls.isEmpty) return;
+    try {
+      await _client
+          .from('widget_data')
+          .update(urls)
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('SupabaseService.updateWidgetDataUrls($id) failed: $e');
     }
   }
 }

@@ -87,6 +87,8 @@ class FirebaseService {
   static const _kMissYouLegacyMigrated = 'miss_you_legacy_additive_v2';
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
+  // Ключ одноразовой миграции медиафайлов Firebase Storage → Supabase Storage.
+  static const _kMediaMigrationDone = 'supabase_media_migration_v1';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -119,7 +121,188 @@ class FirebaseService {
       }).catchError((Object e) {
         debugPrint('_seedSupabaseMissYou failed: $e');
       });
+      // Одновременно запускаем одноразовую миграцию медиафайлов.
+      unawaited(_migrateMediaToSupabase(groupId));
     });
+  }
+
+  // ── Одноразовая миграция медиафайлов Firebase Storage → Supabase Storage ──
+
+  static bool _isFirebaseMediaUrl(String url) =>
+      url.startsWith('gs://') ||
+      url.contains('firebasestorage.googleapis.com');
+
+  /// Извлекает storage-путь из Firebase URL.
+  /// gs://bucket/memories/gId/file.webp → memories/gId/file.webp
+  /// https://firebasestorage.../o/memories%2FgId%2Ffile.webp?... → memories/gId/file.webp
+  static String? _fbUrlToStoragePath(String url) {
+    if (url.startsWith('gs://')) {
+      final parts = url.split('/');
+      return parts.length >= 4 ? parts.sublist(3).join('/') : null;
+    }
+    try {
+      final uri = Uri.parse(url);
+      final encoded = uri.queryParameters['o'];
+      return encoded != null ? Uri.decodeComponent(encoded) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Разовая фоновая миграция всех медиафайлов группы:
+  /// Firebase Storage → Supabase Storage, обновление URL в Supabase.
+  Future<void> _migrateMediaToSupabase(String groupId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final doneKey = '$_kMediaMigrationDone.$groupId';
+    if (prefs.getBool(doneKey) == true) return;
+
+    debugPrint('_migrateMediaToSupabase($groupId): started');
+
+    // ── 1. Воспоминания ──────────────────────────────────────────────────────
+    final memories = await _sb.fetchMemoriesForMigration(groupId);
+    for (final row in memories) {
+      final id = row['id'] as String? ?? '';
+      if (id.isEmpty) continue;
+      final rawData = row['data'];
+      if (rawData is! Map) continue;
+      final data = Map<String, dynamic>.from(rawData);
+      bool changed = false;
+
+      // Одиночные URL-поля
+      for (final field in ['imageUrl', 'videoUrl', 'musicUrl', 'musicCoverUrl']) {
+        final url = data[field] as String?;
+        if (url == null || !_isFirebaseMediaUrl(url)) continue;
+        final storagePath = _fbUrlToStoragePath(url);
+        if (storagePath == null) continue;
+        final resolved = await getSignedUrl(url);
+        if (resolved == null) continue;
+        final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+        if (sbRef != null) {
+          data[field] = sbRef;
+          changed = true;
+        }
+      }
+
+      // Массив imageUrls
+      final rawUrls = data['imageUrls'];
+      if (rawUrls is List) {
+        final migratedUrls = <dynamic>[];
+        for (final item in rawUrls) {
+          final url = item as String? ?? '';
+          if (!_isFirebaseMediaUrl(url)) {
+            migratedUrls.add(url);
+            continue;
+          }
+          final storagePath = _fbUrlToStoragePath(url);
+          if (storagePath == null) { migratedUrls.add(url); continue; }
+          final resolved = await getSignedUrl(url);
+          if (resolved == null) { migratedUrls.add(url); continue; }
+          final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+          migratedUrls.add(sbRef ?? url);
+          if (sbRef != null) changed = true;
+        }
+        if (changed) data['imageUrls'] = migratedUrls;
+      }
+
+      // author_avatar (Firebase Storage или Firebase Auth — мигрируем только Storage)
+      String? newAuthorAvatar;
+      final authorAvatar = row['author_avatar'] as String?;
+      if (authorAvatar != null && _isFirebaseMediaUrl(authorAvatar)) {
+        final storagePath = _fbUrlToStoragePath(authorAvatar) ??
+            'avatars/unknown/avatar_${id.hashCode.abs()}.jpg';
+        final sbRef = await _sb.migrateFileFromHttpUrl(authorAvatar, storagePath);
+        if (sbRef != null) {
+          newAuthorAvatar = sbRef;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await _sb.updateMemoryData(id, data, authorAvatar: newAuthorAvatar);
+      }
+    }
+
+    // ── 2. Аватарки участников группы ────────────────────────────────────────
+    final group = await _sb.fetchGroupForMigration(groupId);
+    if (group != null) {
+      final rawAvatars = group['member_avatars'];
+      if (rawAvatars is Map) {
+        final newAvatars = <String, String>{};
+        bool changed = false;
+        for (final entry in rawAvatars.entries) {
+          final uid = entry.key.toString();
+          final url = (entry.value as String?) ?? '';
+          if (_isFirebaseMediaUrl(url)) {
+            final storagePath = 'avatars/$uid/profile${_extFromUrl(url)}';
+            // Аватарки — публичные, signedUrl не нужен
+            final publicUrl = url.startsWith('gs://')
+                ? await getSignedUrl(url)
+                : url;
+            if (publicUrl != null) {
+              final sbRef = await _sb.migrateFileFromHttpUrl(
+                publicUrl,
+                storagePath,
+              );
+              if (sbRef != null) {
+                newAvatars[uid] = sbRef;
+                changed = true;
+                continue;
+              }
+            }
+          }
+          newAvatars[uid] = url;
+        }
+        if (changed) {
+          await _sb.updateGroupMemberAvatars(groupId, newAvatars);
+        }
+      }
+    }
+
+    // ── 3. Widget data ────────────────────────────────────────────────────────
+    final widgetRows = await _sb.fetchWidgetDataForMigration(groupId);
+    for (final row in widgetRows) {
+      final id = row['id'] as String? ?? '';
+      if (id.isEmpty) continue;
+      final updates = <String, String>{};
+
+      const urlColumns = {
+        'avatar_url': false,  // публичный
+        'photo_url': true,    // приватный
+        'music_url': true,
+        'music_cover_url': false,
+      };
+
+      for (final entry in urlColumns.entries) {
+        final col = entry.key;
+        final isPrivate = entry.value;
+        final url = row[col] as String?;
+        if (url == null || !_isFirebaseMediaUrl(url)) continue;
+        final storagePath = _fbUrlToStoragePath(url);
+        if (storagePath == null) continue;
+        final resolved = isPrivate ? await getSignedUrl(url) : url;
+        if (resolved == null) continue;
+        final sbRef = await _sb.migrateFileFromHttpUrl(resolved, storagePath);
+        if (sbRef != null) updates[col] = sbRef;
+      }
+
+      if (updates.isNotEmpty) {
+        await _sb.updateWidgetDataUrls(id, updates);
+      }
+    }
+
+    await prefs.setBool(doneKey, true);
+    debugPrint('_migrateMediaToSupabase($groupId): completed!');
+  }
+
+  static String _extFromUrl(String url) {
+    final lower = url.toLowerCase().split('?').first;
+    for (final ext in [
+      '.webp', '.jpg', '.jpeg', '.png',
+      '.mp4', '.mov', '.mp3', '.aac', '.m4a', '.wav',
+    ]) {
+      if (lower.endsWith(ext)) return ext;
+    }
+    return '.jpg';
   }
 
   /// Переносит старый Firestore-счётчик «Я скучаю» текущего пользователя в RTDB.
@@ -2659,26 +2842,28 @@ class FirebaseService {
   // TTL 55 мин — облачная функция выдаёт на 60 мин, буфер 5 мин на запрос.
   final Map<String, _SignedUrlEntry> _signedUrlCache = {};
 
-  /// Получить временный Signed URL для gs:// пути.
-  /// Результат кэшируется на 55 минут. Если путь — https:// URL, вернёт его как есть.
-  Future<String?> getSignedUrl(String gsPath) async {
-    if (gsPath.isEmpty) return null;
+  /// Получить временный Signed URL для gs:// пути ИЛИ sb:// пути.
+  /// Результат кэшируется на 55 минут. https:// URL возвращается как есть.
+  Future<String?> getSignedUrl(String path) async {
+    if (path.isEmpty) return null;
     // Обратная совместимость: старые записи хранят download URL
-    if (gsPath.startsWith('http')) return gsPath;
+    if (path.startsWith('http')) return path;
+    // Фаза 1: Supabase Storage
+    if (path.startsWith('sb://')) return _sb.getStorageSignedUrl(path);
 
-    final cached = _signedUrlCache[gsPath];
+    final cached = _signedUrlCache[path];
     if (cached != null && cached.isValid) return cached.url;
 
     try {
       final res = await _functions
           .httpsCallable('getSignedUrl')
-          .call<Map<dynamic, dynamic>>({'gsPath': gsPath})
+          .call<Map<dynamic, dynamic>>({'gsPath': path})
           .timeout(const Duration(seconds: 15));
       final data = Map<String, dynamic>.from(res.data);
       final url = data['url'] as String?;
       final expiresAt = data['expiresAt'] as int?;
       if (url != null && expiresAt != null) {
-        _signedUrlCache[gsPath] = _SignedUrlEntry(
+        _signedUrlCache[path] = _SignedUrlEntry(
           url,
           DateTime.fromMillisecondsSinceEpoch(expiresAt),
         );
@@ -2801,6 +2986,19 @@ class FirebaseService {
         }
       }
 
+      // Фаза 1: для тестовых пользователей загружаем в Supabase Storage.
+      if (_mig) {
+        final bytes = await fileToUpload.readAsBytes();
+        final sbRef = await _sb.uploadStorageFile(
+          bytes,
+          uploadDestination,
+          contentType: contentType,
+        );
+        _compressedTempFile?.delete().catchError((_) {});
+        debugPrint('uploadFile (Supabase): $sbRef');
+        return sbRef;
+      }
+
       final metadata = contentType != null
           ? SettableMetadata(contentType: contentType)
           : null;
@@ -2859,8 +3057,12 @@ class FirebaseService {
     }
   }
 
-  /// Удалить файл из Firebase Storage по его download URL.
+  /// Удалить файл из Firebase Storage (gs:// / https://) или Supabase (sb://).
   Future<void> deleteFileByUrl(String url) async {
+    if (url.startsWith('sb://')) {
+      await _sb.deleteStorageFile(url);
+      return;
+    }
     try {
       final ref = _storage.refFromURL(url);
       await ref.delete();
