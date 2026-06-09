@@ -96,11 +96,27 @@ class FirebaseService {
     final myUid = uid;
     if (myUid == null) return;
     final mine = (raw[myUid] as num?)?.toInt() ?? 0;
-    if (mine <= 0) return;
+    if (mine <= 0) {
+      debugPrint(
+        '_seedMissYouCountsIfEmpty($groupId): skip — legacy value $mine <= 0',
+      );
+      return;
+    }
     try {
+      debugPrint(
+        '_seedMissYouCountsIfEmpty($groupId): migrating legacy count=$mine for uid=$myUid',
+      );
       await _missYouCountsRef(groupId).child(myUid).runTransaction((current) {
         // Уже есть живое значение — не трогаем (никаких откатов).
-        if (current != null) return Transaction.abort();
+        if (current != null) {
+          debugPrint(
+            '_seedMissYouCountsIfEmpty($groupId): RTDB already has value=$current, aborting',
+          );
+          return Transaction.abort();
+        }
+        debugPrint(
+          '_seedMissYouCountsIfEmpty($groupId): SUCCESS — set RTDB to $mine',
+        );
         return Transaction.success(mine);
       });
     } catch (e) {
@@ -121,7 +137,9 @@ class FirebaseService {
   final Map<String, _DocSnapshotHub> _groupDocHubs = {};
   final Map<String, _DocSnapshotHub> _userDocHubs = {};
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> _groupDocStream(String groupId) {
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _groupDocStream(
+    String groupId,
+  ) {
     return _groupDocHubs
         .putIfAbsent(
           groupId,
@@ -148,7 +166,8 @@ class FirebaseService {
   String? get uid => _auth.currentUser?.uid;
 
   /// Cached display name — use this instead of reading users/{uid} from Firestore.
-  String get displayName => _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';
+  String get displayName =>
+      _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';
 
   /// Cached avatar URL — always reflects the latest save, even before Firestore syncs.
   String get avatarUrl => _cachedAvatarUrl ?? _auth.currentUser?.photoURL ?? '';
@@ -623,13 +642,12 @@ class FirebaseService {
     required int id,
     required String title,
     required String body,
-  }) =>
-      _showLocalNotification(
-        id: id,
-        title: title,
-        body: body,
-        channelId: _kChannelId,
-      );
+  }) => _showLocalNotification(
+    id: id,
+    title: title,
+    body: body,
+    channelId: _kChannelId,
+  );
 
   static Future<void> _showLocalNotification({
     required int id,
@@ -874,11 +892,10 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callGrantCoinsPurchase({
     required String productId,
     required String purchaseToken,
-  }) =>
-      _callCoinFn('grantCoinsPurchase', {
-        'productId': productId,
-        'purchaseToken': purchaseToken,
-      });
+  }) => _callCoinFn('grantCoinsPurchase', {
+    'productId': productId,
+    'purchaseToken': purchaseToken,
+  });
 
   Future<Map<String, dynamic>?> callGrantDevCoins() =>
       _callCoinFn('grantDevCoins');
@@ -915,8 +932,10 @@ class FirebaseService {
 
   /// Сохраняет список выданных иконок-наград (Sponsor/Helper) и, опционально,
   /// текущий закреплённый бейдж за одну запись.
-  Future<void> saveGrantedBadges(List<String> grantedBadges,
-      {String? badge}) async {
+  Future<void> saveGrantedBadges(
+    List<String> grantedBadges, {
+    String? badge,
+  }) async {
     final u = currentUser;
     if (u == null) return;
     try {
@@ -956,10 +975,9 @@ class FirebaseService {
 
       final nameBatch = _db.batch();
       for (final groupId in pairIds) {
-        nameBatch.update(
-          _db.collection('groups').doc(groupId),
-          {'memberNames.${u.uid}': displayName},
-        );
+        nameBatch.update(_db.collection('groups').doc(groupId), {
+          'memberNames.${u.uid}': displayName,
+        });
       }
       await nameBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
@@ -989,10 +1007,9 @@ class FirebaseService {
 
       final avatarBatch = _db.batch();
       for (final groupId in pairIds) {
-        avatarBatch.update(
-          _db.collection('groups').doc(groupId),
-          {'memberAvatars.${u.uid}': avatarUrl},
-        );
+        avatarBatch.update(_db.collection('groups').doc(groupId), {
+          'memberAvatars.${u.uid}': avatarUrl,
+        });
       }
       await avatarBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
@@ -1000,7 +1017,9 @@ class FirebaseService {
     }
   }
 
-  Future<Map<String, dynamic>?> loadUserProfile({bool fromServer = false}) async {
+  Future<Map<String, dynamic>?> loadUserProfile({
+    bool fromServer = false,
+  }) async {
     final u = currentUser;
     if (u == null) return null;
     try {
@@ -1587,8 +1606,7 @@ class FirebaseService {
       'disbandedAt': FieldValue.delete(),
       'memberNames.$ownerUid': ownerData['displayName'] ?? '',
       'memberAvatars.$ownerUid': ownerData['avatarUrl'] ?? '',
-      'memberNames.${u.uid}':
-          myData['displayName'] ?? u.displayName ?? '',
+      'memberNames.${u.uid}': myData['displayName'] ?? u.displayName ?? '',
       'memberAvatars.${u.uid}': myData['avatarUrl'] ?? u.photoURL ?? '',
     });
     debugPrint('_restoreGroup: group $groupId restored');
@@ -1815,10 +1833,9 @@ class FirebaseService {
   /// Сохраняет дату годовщины для пары (общая для группы).
   Future<void> updateAnniversaryDate(String groupId, DateTime? date) async {
     try {
-      await _db.collection('groups').doc(groupId).set(
-        {'anniversaryDate': date != null ? Timestamp.fromDate(date) : null},
-        SetOptions(merge: true),
-      );
+      await _db.collection('groups').doc(groupId).set({
+        'anniversaryDate': date != null ? Timestamp.fromDate(date) : null,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('updateAnniversaryDate failed: $e');
     }
@@ -1827,10 +1844,9 @@ class FirebaseService {
   /// Сохраняет дату первого поцелуя для пары (общая для группы).
   Future<void> updateFirstKissDate(String groupId, DateTime? date) async {
     try {
-      await _db.collection('groups').doc(groupId).set(
-        {'firstKissDate': date != null ? Timestamp.fromDate(date) : null},
-        SetOptions(merge: true),
-      );
+      await _db.collection('groups').doc(groupId).set({
+        'firstKissDate': date != null ? Timestamp.fromDate(date) : null,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('updateFirstKissDate failed: $e');
     }
@@ -1842,10 +1858,9 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
-      await _db.collection('users').doc(u.uid).set(
-        {'birthDate': date != null ? Timestamp.fromDate(date) : null},
-        SetOptions(merge: true),
-      );
+      await _db.collection('users').doc(u.uid).set({
+        'birthDate': date != null ? Timestamp.fromDate(date) : null,
+      }, SetOptions(merge: true));
       // Обновляем в каждой группе, чтобы партнёр видел дату рождения.
       final groupIds = <String>[];
       // Пробуем прочитать pairIds из users/{uid}
@@ -1860,8 +1875,9 @@ class FirebaseService {
       } catch (_) {}
       for (final gid in groupIds) {
         await _db.collection('groups').doc(gid).update({
-          'memberBirthdays.${u.uid}':
-              date != null ? Timestamp.fromDate(date) : FieldValue.delete(),
+          'memberBirthdays.${u.uid}': date != null
+              ? Timestamp.fromDate(date)
+              : FieldValue.delete(),
         });
       }
     } catch (e) {
@@ -2079,17 +2095,14 @@ class FirebaseService {
       'customRelationshipEmoji': data['customRelationshipEmoji'] as String?,
       'customRelationshipTypes':
           data['customRelationshipTypes'] as List<dynamic>?,
-      'anniversaryDate':
-          (data['anniversaryDate'] as Timestamp?)?.toDate(),
-      'firstKissDate':
-          (data['firstKissDate'] as Timestamp?)?.toDate(),
+      'anniversaryDate': (data['anniversaryDate'] as Timestamp?)?.toDate(),
+      'firstKissDate': (data['firstKissDate'] as Timestamp?)?.toDate(),
       'memberBirthdays': () {
         final raw = data['memberBirthdays'] as Map<String, dynamic>?;
         if (raw == null) return null;
-        return raw.map((k, v) => MapEntry(
-              k,
-              v is Timestamp ? v.toDate() : null,
-            ));
+        return raw.map(
+          (k, v) => MapEntry(k, v is Timestamp ? v.toDate() : null),
+        );
       }(),
       'raw': data,
     };
@@ -2178,7 +2191,9 @@ class FirebaseService {
       final rawMembers = List<String>.from(data['members'] ?? []);
       members = rawMembers.toSet().toList();
     } catch (e) {
-      debugPrint('cleanupPhantomMembersInGroup($groupId) group read failed: $e');
+      debugPrint(
+        'cleanupPhantomMembersInGroup($groupId) group read failed: $e',
+      );
       return const [];
     }
     if (members.length <= 1) return const [];
@@ -2204,8 +2219,9 @@ class FirebaseService {
     }
 
     try {
-      final memberAvatars =
-          Map<String, dynamic>.from(data['memberAvatars'] ?? {});
+      final memberAvatars = Map<String, dynamic>.from(
+        data['memberAvatars'] ?? {},
+      );
 
       // Читаем user doc КАЖДОГО участника (включая себя), различая
       // «документа нет» (orphan) и «ошибка чтения» (не трогаем).
@@ -2293,9 +2309,7 @@ class FirebaseService {
               phantoms.add(uid);
             }
           }
-          debugPrint(
-            '  [self-twins] keeping winner=$winner of $twins',
-          );
+          debugPrint('  [self-twins] keeping winner=$winner of $twins');
         }
       }
 
@@ -2674,7 +2688,9 @@ class FirebaseService {
             }
           }
         } catch (e) {
-          debugPrint('uploadFile: WebP conversion failed, uploading original: $e');
+          debugPrint(
+            'uploadFile: WebP conversion failed, uploading original: $e',
+          );
         }
       }
 
@@ -2703,7 +2719,9 @@ class FirebaseService {
             );
           }
         } catch (e) {
-          debugPrint('uploadFile: Video compression failed, uploading original: $e');
+          debugPrint(
+            'uploadFile: Video compression failed, uploading original: $e',
+          );
           // cancelCompression only on error — calling it after success on some
           // Android devices leaves the native codec spinning and freezes the UI.
           VideoCompress.cancelCompression();
@@ -2731,9 +2749,15 @@ class FirebaseService {
       // Для аватарок (avatars/) оставляем download URL: они намеренно доступны
       // любому авторизованному пользователю и не несут private-данных группы.
       const privatePathPrefixes = [
-        'memories/', 'groups/', 'music/', 'timer_backgrounds/', 'widget/',
+        'memories/',
+        'groups/',
+        'music/',
+        'timer_backgrounds/',
+        'widget/',
       ];
-      final isPrivatePath = privatePathPrefixes.any(uploadDestination.startsWith);
+      final isPrivatePath = privatePathPrefixes.any(
+        uploadDestination.startsWith,
+      );
 
       String resultUrl;
       if (isPrivatePath) {
@@ -2816,7 +2840,11 @@ class FirebaseService {
 
     try {
       final name = _cachedDisplayName ?? u.displayName ?? '';
-      final avatar = (_cachedAvatarUrl?.isNotEmpty == true ? _cachedAvatarUrl! : u.photoURL) ?? '';
+      final avatar =
+          (_cachedAvatarUrl?.isNotEmpty == true
+              ? _cachedAvatarUrl!
+              : u.photoURL) ??
+          '';
 
       final ref = _db
           .collection('groups')
@@ -2866,13 +2894,13 @@ class FirebaseService {
 
       await ref.set(memory.toFirestore());
       unawaited(
-        _db.collection('groups').doc(groupId).update({
-          'memoriesCount': FieldValue.increment(1),
-        }).catchError((_) {}),
+        _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memoriesCount': FieldValue.increment(1)})
+            .catchError((_) {}),
       );
-      unawaited(
-        AnalyticsService.instance.logMemoryAdded(type: type.name),
-      );
+      unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
       return memory;
     } catch (e) {
       debugPrint('addMemory failed: $e');
@@ -2966,9 +2994,11 @@ class FirebaseService {
           .doc(memoryId)
           .delete();
       unawaited(
-        _db.collection('groups').doc(groupId).update({
-          'memoriesCount': FieldValue.increment(-1),
-        }).catchError((_) {}),
+        _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memoriesCount': FieldValue.increment(-1)})
+            .catchError((_) {}),
       );
     } catch (e) {
       debugPrint('deleteMemory failed: $e');
@@ -2994,12 +3024,14 @@ class FirebaseService {
     bool cacheFirst = false,
   }) async {
     try {
-      var query = _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .orderBy('createdAt', descending: true)
-          .limit(limit) as Query<Map<String, dynamic>>;
+      var query =
+          _db
+                  .collection('groups')
+                  .doc(groupId)
+                  .collection('memories')
+                  .orderBy('createdAt', descending: true)
+                  .limit(limit)
+              as Query<Map<String, dynamic>>;
       if (startAfter != null) {
         query = query.startAfterDocument(startAfter);
       }
@@ -3024,7 +3056,9 @@ class FirebaseService {
       }
       final docs = snap.docs;
       return (
-        memories: docs.map((d) => Memory.fromFirestore(d.id, d.data())).toList(),
+        memories: docs
+            .map((d) => Memory.fromFirestore(d.id, d.data()))
+            .toList(),
         lastDoc: docs.isNotEmpty ? docs.last : null,
       );
     } catch (e) {
@@ -3419,10 +3453,9 @@ class FirebaseService {
     final id = uid;
     if (id == null) return;
     try {
-      await _db.collection('users').doc(id).set(
-        {'soloTimers': timers},
-        SetOptions(merge: true),
-      );
+      await _db.collection('users').doc(id).set({
+        'soloTimers': timers,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('saveSoloTimers failed: $e');
     }
@@ -3493,25 +3526,26 @@ class FirebaseService {
       '${ts.month.toString().padLeft(2, '0')}';
 
   CollectionReference<Map<String, dynamic>> _moodMonthsCol(
-          String groupId, String uid) =>
-      _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('moodCalendar')
-          .doc(uid)
-          .collection('months');
+    String groupId,
+    String uid,
+  ) => _db
+      .collection('groups')
+      .doc(groupId)
+      .collection('moodCalendar')
+      .doc(uid)
+      .collection('months');
 
   CollectionReference<Map<String, dynamic>> _moodEntriesCol(
-          String groupId, String uid) =>
-      _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('moodCalendar')
-          .doc(uid)
-          .collection('entries');
+    String groupId,
+    String uid,
+  ) => _db
+      .collection('groups')
+      .doc(groupId)
+      .collection('moodCalendar')
+      .doc(uid)
+      .collection('entries');
 
-  List<Map<String, dynamic>> _entriesFromMonthDoc(
-      Map<String, dynamic>? data) {
+  List<Map<String, dynamic>> _entriesFromMonthDoc(Map<String, dynamic>? data) {
     final map = data?['entries'];
     if (map is! Map) return const [];
     return map.values
@@ -3577,10 +3611,13 @@ class FirebaseService {
     required String monthKey,
     required void Function(List<Map<String, dynamic>> entries) onData,
   }) {
-    return _moodMonthsCol(groupId, uid).doc(monthKey).snapshots().listen(
-      (snap) => onData(_entriesFromMonthDoc(snap.data())),
-      onError: (e) => debugPrint('listenMoodMonth error: $e'),
-    );
+    return _moodMonthsCol(groupId, uid)
+        .doc(monthKey)
+        .snapshots()
+        .listen(
+          (snap) => onData(_entriesFromMonthDoc(snap.data())),
+          onError: (e) => debugPrint('listenMoodMonth error: $e'),
+        );
   }
 
   /// Разовая загрузка истории: последние [months] month-документов.
@@ -3597,9 +3634,13 @@ class FirebaseService {
     // по __name__ индексируется автоматически. Ключи YYYY-MM лексикографически
     // совпадают с хронологией, поэтому `>= cutoff` = последние [months] месяцев.
     final now = DateTime.now();
-    final cutoff = _moodMonthKey(DateTime(now.year, now.month - (months - 1), 1));
-    final q = _moodMonthsCol(groupId, uid)
-        .where(FieldPath.documentId, isGreaterThanOrEqualTo: cutoff);
+    final cutoff = _moodMonthKey(
+      DateTime(now.year, now.month - (months - 1), 1),
+    );
+    final q = _moodMonthsCol(
+      groupId,
+      uid,
+    ).where(FieldPath.documentId, isGreaterThanOrEqualTo: cutoff);
     QuerySnapshot<Map<String, dynamic>> snap;
     try {
       if (cacheFirst) {
@@ -3631,8 +3672,10 @@ class FirebaseService {
     required DateTime since,
     bool cacheFirst = true,
   }) async {
-    final q = _moodEntriesCol(groupId, uid)
-        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since));
+    final q = _moodEntriesCol(
+      groupId,
+      uid,
+    ).where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since));
     QuerySnapshot<Map<String, dynamic>> snap;
     try {
       if (cacheFirst) {
@@ -3663,8 +3706,7 @@ class FirebaseService {
   }) async {
     try {
       final snap = await _moodEntriesCol(groupId, uid)
-          .where('timestamp',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
           .get();
       if (snap.docs.isEmpty) return true;
       final byMonth = <String, Map<String, dynamic>>{};
@@ -3763,16 +3805,12 @@ class FirebaseService {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
     try {
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('chatEvents')
-          .add({
-            'senderUid': myUid,
-            'senderName': senderName,
-            'text': text.length > 120 ? '${text.substring(0, 120)}…' : text,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
+      await _db.collection('groups').doc(groupId).collection('chatEvents').add({
+        'senderUid': myUid,
+        'senderName': senderName,
+        'text': text.length > 120 ? '${text.substring(0, 120)}…' : text,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       debugPrint('sendChatPush failed: $e');
     }
@@ -3786,12 +3824,16 @@ class FirebaseService {
     if (myUid == null || groupId.isEmpty) return;
     await RateLimiterService().checkVibe();
     try {
+      debugPrint('sendMissYou($groupId): incrementing counter for uid=$myUid');
       // 1. Инкремент per-user счётчика в RTDB (атомарно, серверный increment).
       // Раньше это был set в Firestore group-doc — а его живьём слушают оба
       // партнёра (listenToPair + listenToMissYouCount), поэтому каждый тап
       // стоил чтение на ОБОИХ устройствах. RTDB-счётчик читается даром и не
       // дёргает Firestore-листенеры. total считается как сумма counts.
-      await _missYouCountsRef(groupId).child(myUid).set(ServerValue.increment(1));
+      await _missYouCountsRef(
+        groupId,
+      ).child(myUid).set(ServerValue.increment(1));
+      debugPrint('sendMissYou($groupId): counter incremented successfully');
 
       // 2. Добавить запись в subcollection для push-триггера.
       // recipientUids кладём из кеша, чтобы функция не читала group-doc.
@@ -3806,6 +3848,7 @@ class FirebaseService {
             if (recipients.isNotEmpty) 'recipientUids': recipients,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      debugPrint('sendMissYou($groupId): event written for push');
       unawaited(RateLimiterService().recordVibe());
       unawaited(AnalyticsService.instance.logMissYouSent());
     } catch (e) {
@@ -3858,16 +3901,23 @@ class FirebaseService {
 
   /// Слушать общий счётчик «Я скучаю» (сумма per-user) в реальном времени.
   /// Источник — RTDB, поэтому изменения не стоят Firestore-чтений.
+  /// ВАЖНО: Дедупликация по значению здесь ОПАСНА! Если один партнёр сбросил
+  /// счётчик до 0, а у другого он уже был 0, то 0→0 игнорируется и слушатель
+  /// не срабатывает. Вместо этого используем хеш снимка (timestamp неявный в RTDB)
+  /// или полностью убираем дедупликацию для этого узла.
+  ///
+  /// Решение: убрали дедупликацию. RTDB отправляет только при реальных изменениях
+  /// данных, so we rely on RTDB's dedup, не на наш код.
   StreamSubscription listenToMissYouCount({
     required String groupId,
     required void Function(int count) onData,
   }) {
-    int? prev;
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
       final total = counts.values.fold<int>(0, (s, v) => s + v);
-      if (total == prev) return;
-      prev = total;
+      debugPrint(
+        'listenToMissYouCount($groupId): total=$total from counts=$counts',
+      );
       onData(total);
     }, onError: (e) => debugPrint('listenToMissYouCount error: $e'));
   }
@@ -3878,23 +3928,28 @@ class FirebaseService {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
     try {
+      debugPrint(
+        'resetMyMissYouCount($groupId): resetting counter for uid=$myUid',
+      );
       await _missYouCountsRef(groupId).child(myUid).set(0);
+      debugPrint('resetMyMissYouCount($groupId): SUCCESS');
     } catch (e) {
       debugPrint('resetMyMissYouCount failed: $e');
     }
   }
 
   /// Слушать per-user счётчики «Я скучаю» (Map uid → count) из RTDB.
+  /// ВАЖНО: убрали дедупликацию. RTDB гарантирует что срабатывает только
+  /// при реальных изменениях данных (не при каждом read), поэтому мы можем
+  /// полагаться на это и всегда передавать onData() свежие снимки.
+  /// Без этого 0→0 переходы (сброс у одного партнёра) не проходят UI.
   StreamSubscription listenToMissYouCounts({
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
-    String prevHash = '';
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
-      final hash = counts.toString();
-      if (hash == prevHash) return;
-      prevHash = hash;
+      debugPrint('listenToMissYouCounts($groupId): counts=$counts');
       onData(counts);
     }, onError: (e) => debugPrint('listenToMissYouCounts error: $e'));
   }
@@ -3944,9 +3999,10 @@ class FirebaseService {
         // Re-arm onDisconnect on every (re)connect so a crash/kill flips us
         // offline server-side even after a transient network blip.
         _ensurePresenceConnectionWatcher();
-        await ref
-            .onDisconnect()
-            .set({'online': false, 'lastSeen': ServerValue.timestamp});
+        await ref.onDisconnect().set({
+          'online': false,
+          'lastSeen': ServerValue.timestamp,
+        });
         await ref
             .set({'online': true, 'lastSeen': ServerValue.timestamp})
             .timeout(const Duration(seconds: 8));
@@ -3970,16 +4026,18 @@ class FirebaseService {
   /// заново ставим online:true и перевешиваем onDisconnect (он одноразовый —
   /// после срабатывания на разрыве его нужно вооружить снова).
   void _ensurePresenceConnectionWatcher() {
-    _presenceConnSub ??=
-        _rtdb.ref('.info/connected').onValue.listen((event) async {
+    _presenceConnSub ??= _rtdb.ref('.info/connected').onValue.listen((
+      event,
+    ) async {
       if (event.snapshot.value != true) return;
       final u = currentUser;
       if (u == null || _lastOnlineStatus != true) return;
       final ref = _presenceRef(u.uid);
       try {
-        await ref
-            .onDisconnect()
-            .set({'online': false, 'lastSeen': ServerValue.timestamp});
+        await ref.onDisconnect().set({
+          'online': false,
+          'lastSeen': ServerValue.timestamp,
+        });
         await ref.set({'online': true, 'lastSeen': ServerValue.timestamp});
       } catch (_) {}
     });
@@ -4625,8 +4683,10 @@ class FirebaseService {
   /// for groups that predate the counter field. The result is written back so
   /// subsequent calls are a single doc read instead of a full index scan.
   /// Pass [groupData] to avoid an extra group doc read when the caller already has it.
-  Future<int> getGroupMemoriesCount(String groupId,
-      {Map<String, dynamic>? groupData}) async {
+  Future<int> getGroupMemoriesCount(
+    String groupId, {
+    Map<String, dynamic>? groupData,
+  }) async {
     try {
       if (groupData != null) {
         final c = groupData['memoriesCount'];
@@ -4639,12 +4699,18 @@ class FirebaseService {
         }
       }
       final snap = await _db
-          .collection('groups').doc(groupId)
-          .collection('memories').count().get();
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .count()
+          .get();
       final count = snap.count ?? 0;
       unawaited(
-        _db.collection('groups').doc(groupId)
-            .update({'memoriesCount': count}).catchError((_) {}),
+        _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memoriesCount': count})
+            .catchError((_) {}),
       );
       return count;
     } catch (e) {
@@ -4654,8 +4720,10 @@ class FirebaseService {
 
   /// Read denormalized drawings count from group doc, with the same fallback.
   /// Pass [groupData] to avoid an extra group doc read when the caller already has it.
-  Future<int> getGroupDrawingsCount(String groupId,
-      {Map<String, dynamic>? groupData}) async {
+  Future<int> getGroupDrawingsCount(
+    String groupId, {
+    Map<String, dynamic>? groupData,
+  }) async {
     try {
       if (groupData != null) {
         final c = groupData['drawingsCount'];
@@ -4668,12 +4736,18 @@ class FirebaseService {
         }
       }
       final snap = await _db
-          .collection('groups').doc(groupId)
-          .collection('canvases').count().get();
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvases')
+          .count()
+          .get();
       final count = snap.count ?? 0;
       unawaited(
-        _db.collection('groups').doc(groupId)
-            .update({'drawingsCount': count}).catchError((_) {}),
+        _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'drawingsCount': count})
+            .catchError((_) {}),
       );
       return count;
     } catch (e) {
@@ -4725,7 +4799,11 @@ class RemoteCanvasMeta {
   final int? bgColor;
   final int? clearVersion;
   final int? rotationMilliRadians;
-  const RemoteCanvasMeta({this.bgColor, this.clearVersion, this.rotationMilliRadians});
+  const RemoteCanvasMeta({
+    this.bgColor,
+    this.clearVersion,
+    this.rotationMilliRadians,
+  });
 }
 
 /// Ref-counted multiplexer around a single Firestore document snapshot listener.
