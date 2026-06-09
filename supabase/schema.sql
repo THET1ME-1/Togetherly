@@ -182,6 +182,46 @@ CREATE OR REPLACE FUNCTION public.increment_miss_you(
 $$ LANGUAGE sql;
 
 -- ──────────────────────────────────────────────
+-- STORAGE — бакеты для медиафайлов (Фаза 1 миграции)
+-- Run ONCE after enabling Storage in Supabase Dashboard.
+-- ──────────────────────────────────────────────
+-- Бакет «media» (приватный): memories/, music/, widget/, timer_backgrounds/
+-- Бакет «avatars» (публичный): аватарки пользователей
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES
+  ('media',   'media',   false, 104857600),  -- 100 MB, приватный
+  ('avatars', 'avatars', true,  5242880)     -- 5 MB, публичный
+ON CONFLICT (id) DO NOTHING;
+
+-- Политики доступа (Фаза 1: полный доступ для anon-ключа).
+-- В Фазе 2 заменить на политики с проверкой группы.
+DO $$
+BEGIN
+  -- media: anon может читать и писать (доступ через Signed URL)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='phase1_media_all'
+  ) THEN
+    EXECUTE $pol$
+      CREATE POLICY phase1_media_all ON storage.objects
+        FOR ALL TO anon
+        USING (bucket_id = 'media')
+        WITH CHECK (bucket_id = 'media');
+    $pol$;
+  END IF;
+  -- avatars: anon может читать и писать
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='phase1_avatars_all'
+  ) THEN
+    EXECUTE $pol$
+      CREATE POLICY phase1_avatars_all ON storage.objects
+        FOR ALL TO anon
+        USING (bucket_id = 'avatars')
+        WITH CHECK (bucket_id = 'avatars');
+    $pol$;
+  END IF;
+END $$;
+
+-- ──────────────────────────────────────────────
 -- REALTIME — включить, чтобы стримы (группа, настроения, чат, скучаю)
 -- получали live-обновления. Идемпотентно через DO-блок.
 -- ──────────────────────────────────────────────
