@@ -88,7 +88,7 @@ class FirebaseService {
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
   // Ключ одноразовой миграции медиафайлов Firebase Storage → Supabase Storage.
-  static const _kMediaMigrationDone = 'supabase_media_migration_v3';
+  static const _kMediaMigrationDone = 'supabase_media_migration_v4';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -210,6 +210,12 @@ class FirebaseService {
 
     debugPrint('_migrateMediaToSupabase($groupId): started');
 
+    // Считаем файлы, которые НЕ удалось перенести (скачать/загрузить). Флаг
+    // «миграция завершена» выставляем только при 0 неудач — иначе повторим при
+    // следующем запуске. Повтор дёшев: уже-sb:// пропускаются (_isFirebaseMediaUrl
+    // = false), ретраятся только упавшие файлы.
+    int failures = 0;
+
     // ── 1. Воспоминания ──────────────────────────────────────────────────────
     final memories = await _sb.fetchMemoriesForMigration(groupId);
     for (final row in memories) {
@@ -230,6 +236,8 @@ class FirebaseService {
         if (sbRef != null) {
           data[field] = sbRef;
           changed = true;
+        } else {
+          failures++;
         }
       }
 
@@ -247,7 +255,11 @@ class FirebaseService {
           if (storagePath == null) { migratedUrls.add(url); continue; }
           final sbRef = await _migrateFbFileToSupabase(url, storagePath);
           migratedUrls.add(sbRef ?? url);
-          if (sbRef != null) changed = true;
+          if (sbRef != null) {
+            changed = true;
+          } else {
+            failures++;
+          }
         }
         if (changed) data['imageUrls'] = migratedUrls;
       }
@@ -262,6 +274,8 @@ class FirebaseService {
         if (sbRef != null) {
           newAuthorAvatar = sbRef;
           changed = true;
+        } else {
+          failures++;
         }
       }
 
@@ -287,6 +301,8 @@ class FirebaseService {
               newAvatars[uid] = sbRef;
               changed = true;
               continue;
+            } else {
+              failures++;
             }
           }
           newAvatars[uid] = url;
@@ -312,7 +328,11 @@ class FirebaseService {
         final storagePath = _fbUrlToStoragePath(url);
         if (storagePath == null) continue;
         final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-        if (sbRef != null) updates[col] = sbRef;
+        if (sbRef != null) {
+          updates[col] = sbRef;
+        } else {
+          failures++;
+        }
       }
 
       if (updates.isNotEmpty) {
@@ -320,8 +340,15 @@ class FirebaseService {
       }
     }
 
-    await prefs.setBool(doneKey, true);
-    debugPrint('_migrateMediaToSupabase($groupId): completed!');
+    if (failures == 0) {
+      await prefs.setBool(doneKey, true);
+      debugPrint('_migrateMediaToSupabase($groupId): completed!');
+    } else {
+      debugPrint(
+        '_migrateMediaToSupabase($groupId): $failures файл(ов) не мигрировали '
+        '— флаг НЕ ставим, повтор при следующем запуске',
+      );
+    }
   }
 
   static String _extFromUrl(String url) {
