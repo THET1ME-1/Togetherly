@@ -24,6 +24,7 @@ abstract final class MigrationConfig {
   static const Set<String> _phase1Emails = {
     'badzoff@gmail.com',
     'ashatilov2008@gmail.com',
+    'sasamatrosov87@gmail.com',
   };
 
   /// true — если этого пользователя читаем из Supabase (Фаза 1).
