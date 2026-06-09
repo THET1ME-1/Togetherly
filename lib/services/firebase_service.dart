@@ -2236,6 +2236,7 @@ class FirebaseService {
     // Фаза 1: тестовые аккаунты читают группу из Supabase (оба партнёра в
     // Фаза-1 списке → оба пишут и читают Supabase, рассинхрона нет).
     if (_mig) {
+      debugPrint('[SB] loadPairData: reading group $pairId from Supabase');
       final data = await _sb.loadPairById(pairId, u.uid);
       if (data != null) {
         final members = (data['members'] as List)
@@ -2245,6 +2246,7 @@ class FirebaseService {
         return data;
       }
       // Supabase пуст — падаем на Firebase (он попутно зеркалит в Supabase).
+      debugPrint('[FB] loadPairData: Supabase empty, fallback to Firestore');
     }
 
     try {
@@ -2849,7 +2851,11 @@ class FirebaseService {
     // Обратная совместимость: старые записи хранят download URL
     if (path.startsWith('http')) return path;
     // Фаза 1: Supabase Storage
-    if (path.startsWith('sb://')) return _sb.getStorageSignedUrl(path);
+    if (path.startsWith('sb://')) {
+      debugPrint('[SB] getSignedUrl: resolving $path');
+      return _sb.getStorageSignedUrl(path);
+    }
+    debugPrint('[FB] getSignedUrl: calling Cloud Function for $path');
 
     final cached = _signedUrlCache[path];
     if (cached != null && cached.isValid) return cached.url;
@@ -2995,9 +3001,10 @@ class FirebaseService {
           contentType: contentType,
         );
         _compressedTempFile?.delete().catchError((_) {});
-        debugPrint('uploadFile (Supabase): $sbRef');
+        debugPrint('[SB] uploadFile → $sbRef');
         return sbRef;
       }
+      debugPrint('[FB] uploadFile → Firebase Storage: $uploadDestination');
 
       final metadata = contentType != null
           ? SettableMetadata(contentType: contentType)
@@ -3790,10 +3797,12 @@ class FirebaseService {
     // оставался false и отложенный системный таймер не создавался.
     // Фаза 1: live-таймеры из Supabase (groups.timers JSONB).
     if (_mig) {
+      debugPrint('[SB] listenTimers: subscribing to Supabase timers for $groupId');
       return _sb.listenGroupTimers(groupId, (rawTimers) {
         onData(rawTimers.map(TimerItem.fromJson).toList());
       });
     }
+    debugPrint('[FB] listenTimers: subscribing to Firestore timers for $groupId');
     String? prevHash;
     return _groupDocStream(groupId).listen((snap) {
       if (!snap.exists) return;
@@ -3919,8 +3928,10 @@ class FirebaseService {
     // Фаза 1: записи настроений пользователя из Supabase (monthKey неважен —
     // MoodService дедупит по id).
     if (_mig) {
+      debugPrint('[SB] listenMoodMonth: subscribing to Supabase mood entries');
       return _sb.listenMoodEntries(groupId, uid, onData);
     }
+    debugPrint('[FB] listenMoodMonth: subscribing to Firestore mood entries');
     return _moodMonthsCol(groupId, uid)
         .doc(monthKey)
         .snapshots()
@@ -3940,7 +3951,11 @@ class FirebaseService {
     bool cacheFirst = true,
   }) async {
     // Фаза 1: вся история настроений пользователя — из Supabase одним запросом.
-    if (_mig) return _sb.loadMoodEntries(groupId, uid);
+    if (_mig) {
+      debugPrint('[SB] loadMoodMonths: reading from Supabase');
+      return _sb.loadMoodEntries(groupId, uid);
+    }
+    debugPrint('[FB] loadMoodMonths: reading from Firestore');
     // Диапазон по documentId вместо orderBy(__name__, desc)+limit: убывающая
     // сортировка по имени документа требует составного индекса, а инеравенство
     // по __name__ индексируется автоматически. Ключи YYYY-MM лексикографически
