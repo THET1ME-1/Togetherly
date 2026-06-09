@@ -540,21 +540,28 @@ class SupabaseService {
   ) {
     if (!isReady || groupId.isEmpty) return null;
     try {
-      String prevHash = '';
-      return _client
-          .from('miss_you')
-          .stream(primaryKey: ['group_id', 'user_uid'])
-          .eq('group_id', groupId)
-          .listen((rows) {
-        final counts = <String, int>{
-          for (final r in rows)
-            (r['user_uid'] as String): ((r['count'] as num?)?.toInt() ?? 0),
-        };
-        final hash = counts.toString();
-        if (hash == prevHash) return;
-        prevHash = hash;
-        onData(counts);
-      }, onError: (e) => debugPrint('listenMissYouCounts error: $e'));
+      // У miss_you составной первичный ключ (group_id+user_uid) — .stream() с
+      // ним ненадёжен (счётчик не обновлялся). Используем realtime-канал +
+      // пере-чтение через getMissYouCounts: PK-агностично и стабильно.
+      getMissYouCounts(groupId).then(onData);
+      final channel = _client.channel('miss_you_$groupId');
+      channel
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'miss_you',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'group_id',
+              value: groupId,
+            ),
+            callback: (_) => getMissYouCounts(groupId).then(onData),
+          )
+          .subscribe();
+      // StreamController как «ручка» отписки: на cancel убираем канал.
+      final controller = StreamController<void>();
+      controller.onCancel = () => _client.removeChannel(channel);
+      return controller.stream.listen((_) {});
     } catch (e) {
       debugPrint('SupabaseService.listenMissYouCounts failed: $e');
       return null;
