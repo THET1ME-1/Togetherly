@@ -30,6 +30,10 @@ class RewardedAdService {
   yandex.RewardedAd? _yandexAd;
   yandex.RewardedAdLoader? _yandexLoader;
   bool _isLoading = false;
+  // Идёт показ ролика. Защита от «реклама показывается дважды»: двойной тап по
+  // кнопке (она тапабельна в зазоре между тапом и появлением полноэкранной
+  // рекламы) или гонка вызовов show() не должны запускать второй ролик.
+  bool _isShowing = false;
 
   // Фоновый авто-ретрай предзагрузки. Когда обе сети не дали рекламу (частый
   // транзиентный no-fill), без ретрая реклама остаётся «не готова» до тех пор,
@@ -163,19 +167,27 @@ class RewardedAdService {
   /// награда начисляется внутри [_showYandex] (callable), для AdMob — на сервере
   /// через SSV.
   Future<bool> show({required String uid}) async {
+    // Уже идёт показ — игнорируем повторный вызов (двойной тап/гонка), иначе
+    // запустится второй ролик подряд.
+    if (_isShowing) return false;
+    _isShowing = true;
     // Сбрасываем авторитетный результат прошлого показа.
     _lastServerCoins = null;
     _lastRewardGranted = false;
     _lastRateLimited = false;
-    if (_yandexAd != null) {
-      _lastShowWasYandex = true;
-      return _showYandex(_yandexAd!);
+    try {
+      if (_yandexAd != null) {
+        _lastShowWasYandex = true;
+        return await _showYandex(_yandexAd!);
+      }
+      if (_ad != null) {
+        _lastShowWasYandex = false;
+        return await _showAdMob(_ad!, uid);
+      }
+      return false;
+    } finally {
+      _isShowing = false;
     }
-    if (_ad != null) {
-      _lastShowWasYandex = false;
-      return _showAdMob(_ad!, uid);
-    }
-    return false;
   }
 
   Future<bool> _showAdMob(RewardedAd ad, String uid) async {
