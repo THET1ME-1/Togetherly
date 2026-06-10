@@ -92,6 +92,11 @@ class Connection {
   final FirebaseService _fb;
   final Function()? onChanged;
 
+  /// Группа была распущена партнёром (этот клиент НЕ инициировал удаление).
+  /// Менеджер при следующем onChanged уберёт такую связь из локального списка,
+  /// чтобы группа исчезла у ОБОИХ, а не висела пустой карточкой у партнёра.
+  bool justDisbanded = false;
+
   // Mood data: uid -> MemberMood
   Map<String, MemberMood> memberMoods = {};
 
@@ -731,6 +736,10 @@ class Connection {
           partnerAvatarUrl = '';
           startDate = null;
           members = [];
+          // Партнёр распустил группу — помечаем связь на удаление из локального
+          // списка (менеджер уберёт её в onChanged), чтобы группа исчезла у
+          // обоих, а не осталась пустой карточкой.
+          justDisbanded = true;
           onChanged?.call();
           if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
           return;
