@@ -50,8 +50,15 @@ ALTER TABLE public.iap_purchases DISABLE ROW LEVEL SECURITY;
 -- Вспомогательные функции цен (зеркало констант в functions/index.js)
 -- ──────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public._theme_price(p_theme_id INT) RETURNS INT AS $$
-  -- PREMIUM_THEME_PRICES: темы 5..12 = 30 коинов. Остальные не продаются.
-  SELECT CASE WHEN p_theme_id BETWEEN 5 AND 12 THEN 30 ELSE NULL END;
+  -- Премиум-темы: индексы 5+ (0-4 бесплатные). По умолчанию 30 коинов; особая
+  -- цена 16 (Aurora/«Северное сияние») = 40. Верхняя граница 50 — защита от
+  -- мусорных id. Совпадает с themePrice() в functions/index.js — добавление
+  -- новых тем (13..19 и далее) больше не ломает покупку.
+  SELECT CASE
+    WHEN p_theme_id < 5 OR p_theme_id > 50 THEN NULL
+    WHEN p_theme_id = 16 THEN 40
+    ELSE 30
+  END;
 $$ LANGUAGE sql IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION public._icon_price(p_icon_id TEXT) RETURNS INT AS $$
