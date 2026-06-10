@@ -3212,6 +3212,17 @@ class FirebaseService {
         }
         await batch.commit();
 
+        // Миграция: зеркалим роспуск в Supabase, иначе партнёр, читающий группу
+        // из Supabase (listenPair), не увидел бы disbanded=true и группа осталась
+        // бы у него. На main этого не нужно — там listenToPair читает Firestore.
+        if (_mig) {
+          unawaited(_sb.mirrorGroupRaw(groupId, {
+            ...data,
+            'disbanded': true,
+            'disbandedAt': DateTime.now(),
+          }));
+        }
+
         for (final member in members) {
           final memberDoc = await _db.collection('users').doc(member).get();
           final remaining =
