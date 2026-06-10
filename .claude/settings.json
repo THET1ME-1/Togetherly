@@ -23,7 +23,11 @@
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('../firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json валиден'\\)\")",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")",
       "Bash(echo \"error-count: $\\(flutter analyze lib/screens/memory_lane_screen.dart lib/screens/chat_screen.dart lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)",
-      "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)"
+      "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)",
+      "Bash(cd \"c:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\memory\" && printf '%s\\\\n' '- [Mood + delete-group bugs]\\(project_mood_and_delete_group_bugs.md\\) — настроение на прошлый день не применялось \\(month-scoped listener, фикс=оптимистичный _applyLocalAdd/Remove\\) + удаление группы зависало/чёрный экран \\(await в диалоге, фикс=pop до await\\)' >> MEMORY.md && echo \"indexed\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
     ]
   }
 }
