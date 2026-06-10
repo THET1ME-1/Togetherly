@@ -806,6 +806,216 @@ class SupabaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  CANVAS (холсты/рисунки: dual-write + чтение)
+  // ══════════════════════════════════════════════
+
+  /// Двойная запись завершённого штриха. [data] — toFirestore-карта штриха.
+  Future<bool> mirrorStroke(
+    String groupId,
+    String canvasId,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorStroke', () async {
+      await _client.from('canvas_strokes').upsert({
+        'id': id,
+        'group_id': groupId,
+        'canvas_id': canvasId,
+        'order_index': (data['orderIndex'] as num?)?.toInt() ?? 0,
+        'data': _jsonSafe(data),
+      }, onConflict: 'id').timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Патч полей штриха (перетаскивание картинки, замена URL) через RPC —
+  /// data || updates атомарно, без read-modify-write.
+  Future<bool> mirrorStrokePatch(String id, Map<String, dynamic> updates) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorStrokePatch', () async {
+      await _client.rpc('canvas_stroke_patch', params: {
+        'p_id': id,
+        'p_patch': _jsonSafe(updates),
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> mirrorStrokeDelete(String id) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorStrokeDelete', () async {
+      await _client
+          .from('canvas_strokes')
+          .delete()
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Очистка холста: удаляем все штрихи канваса + проставляем clear_version
+  /// (и опционально bg_color) в canvas_meta.
+  Future<bool> mirrorCanvasClear(
+    String groupId,
+    String canvasId,
+    int version, {
+    int? bgColor,
+  }) async {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('mirrorCanvasClear', () async {
+      await _client
+          .from('canvas_strokes')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('canvas_id', canvasId)
+          .timeout(const Duration(seconds: 10));
+      final row = <String, dynamic>{
+        'group_id': groupId,
+        'canvas_id': canvasId,
+        'clear_version': version,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (bgColor != null) row['bg_color'] = bgColor;
+      await _client
+          .from('canvas_meta')
+          .upsert(row, onConflict: 'group_id,canvas_id')
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Запись мета-полей холста (фон/поворот/версия очистки) — только переданные.
+  Future<bool> mirrorCanvasMeta(
+    String groupId,
+    String canvasId, {
+    int? bgColor,
+    int? rotation,
+    int? clearVersion,
+  }) async {
+    if (!isReady || groupId.isEmpty) return false;
+    final row = <String, dynamic>{
+      'group_id': groupId,
+      'canvas_id': canvasId,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (bgColor != null) row['bg_color'] = bgColor;
+    if (rotation != null) row['canvas_rotation'] = rotation;
+    if (clearVersion != null) row['clear_version'] = clearVersion;
+    return _write('mirrorCanvasMeta', () async {
+      await _client
+          .from('canvas_meta')
+          .upsert(row, onConflict: 'group_id,canvas_id')
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Двойная запись записи каталога холстов. [data] — id/name/createdAt/updatedAt/createdBy.
+  Future<bool> mirrorCanvasCatalogue(
+    String groupId,
+    String canvasId,
+    Map<String, dynamic> data,
+  ) async {
+    if (!isReady || groupId.isEmpty || canvasId.isEmpty) return false;
+    final row = <String, dynamic>{'group_id': groupId, 'canvas_id': canvasId};
+    if (data.containsKey('name')) row['name'] = data['name'];
+    if (data.containsKey('createdAt')) row['created_at'] = data['createdAt'];
+    if (data.containsKey('updatedAt')) row['updated_at'] = data['updatedAt'];
+    if (data.containsKey('createdBy')) row['created_by'] = data['createdBy'];
+    return _write('mirrorCanvasCatalogue', () async {
+      await _client
+          .from('canvas_catalogue')
+          .upsert(row, onConflict: 'group_id,canvas_id')
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> mirrorCanvasCatalogueDelete(
+    String groupId,
+    String canvasId,
+  ) async {
+    if (!isReady || groupId.isEmpty || canvasId.isEmpty) return false;
+    return _write('mirrorCanvasCatalogueDelete', () async {
+      await _client
+          .from('canvas_catalogue')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('canvas_id', canvasId)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Live-поток штрихов холста (по order_index). Каждый элемент — {id, data}.
+  /// FirebaseService оборачивает в _DrawStrokeRaw.
+  Stream<List<Map<String, dynamic>>> watchCanvasStrokes(
+    String groupId,
+    String canvasId,
+  ) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('canvas_strokes')
+          .stream(primaryKey: ['id'])
+          .eq('gc', '$groupId:$canvasId')
+          .order('order_index', ascending: true)
+          .map((rows) => rows.where((r) => r['deleted'] != true).map((r) {
+                final d = r['data'];
+                return {
+                  'id': (r['id'] ?? '').toString(),
+                  'data': d is Map
+                      ? Map<String, dynamic>.from(d)
+                      : <String, dynamic>{},
+                };
+              }).toList());
+    } catch (e) {
+      debugPrint('SupabaseService.watchCanvasStrokes failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Live-поток мета холста — {bgColor, clearVersion, rotation} (int?).
+  Stream<Map<String, int?>> watchCanvasMeta(String groupId, String canvasId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('canvas_meta')
+          .stream(primaryKey: ['group_id', 'canvas_id'])
+          .eq('gc', '$groupId:$canvasId')
+          .map((rows) {
+        if (rows.isEmpty) {
+          return {'bgColor': null, 'clearVersion': null, 'rotation': null};
+        }
+        final r = rows.first;
+        return {
+          'bgColor': (r['bg_color'] as num?)?.toInt(),
+          'clearVersion': (r['clear_version'] as num?)?.toInt(),
+          'rotation': (r['canvas_rotation'] as num?)?.toInt(),
+        };
+      });
+    } catch (e) {
+      debugPrint('SupabaseService.watchCanvasMeta failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Live-поток каталога холстов группы (формат как у Firestore-пути).
+  Stream<List<Map<String, dynamic>>> watchCanvasCatalogue(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('canvas_catalogue')
+          .stream(primaryKey: ['group_id', 'canvas_id'])
+          .eq('group_id', groupId)
+          .map((rows) => rows.map((r) => <String, dynamic>{
+                'id': r['canvas_id'],
+                'name': r['name'],
+                'createdAt': r['created_at'],
+                'updatedAt': r['updated_at'],
+                if (r['created_by'] != null) 'createdBy': r['created_by'],
+              }).toList());
+    } catch (e) {
+      debugPrint('SupabaseService.watchCanvasCatalogue failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  // ══════════════════════════════════════════════
   //  MISS YOU
   // ══════════════════════════════════════════════
 
