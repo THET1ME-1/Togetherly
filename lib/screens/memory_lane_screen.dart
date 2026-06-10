@@ -128,7 +128,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _loadedAll = false;
-  DocumentSnapshot? _lastDoc;
+  Memory? _lastMemory;
 
   // User location for distance display
   double? _userLat;
@@ -209,7 +209,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       _memories = result.memories;
       _loading = false;
       _loadedAll = result.memories.length < 20;
-      _lastDoc = result.lastDoc;
+      _lastMemory = result.lastMemory;
     });
   }
 
@@ -221,7 +221,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     setState(() {
       _memories = result.memories;
       _loadedAll = result.memories.length < 20;
-      _lastDoc = result.lastDoc;
+      _lastMemory = result.lastMemory;
     });
   }
 
@@ -232,13 +232,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final result = await fb.loadMemories(
       groupId: _groupId,
       limit: 10,
-      startAfter: _lastDoc,
+      startAfter: _lastMemory,
     );
     if (!mounted) return;
     setState(() {
       if (result.memories.length < 10) _loadedAll = true;
       _memories.addAll(result.memories);
-      _lastDoc = result.lastDoc;
+      _lastMemory = result.lastMemory;
       _loadingMore = false;
     });
   }

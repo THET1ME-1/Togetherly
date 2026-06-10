@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/migration_config.dart';
 import '../models/chat_msg.dart';
 import '../models/memory.dart';
+import '../models/comment.dart';
 
 /// Зеркало + чтение данных в Supabase для миграции (Фаза 1).
 ///
@@ -721,6 +722,87 @@ class SupabaseService {
             .timeout(const Duration(seconds: 10));
       }
     });
+  }
+
+  // ══════════════════════════════════════════════
+  //  COMMENTS (dual-write + чтение из Supabase)
+  // ══════════════════════════════════════════════
+
+  /// Двойная запись комментария к воспоминанию. [data] — toFirestore-карта.
+  Future<bool> mirrorComment(
+    String groupId,
+    String memoryId,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorComment', () async {
+      await _client.from('memory_comments').upsert({
+        'id': id,
+        'group_id': groupId,
+        'memory_id': memoryId,
+        'author_uid': data['authorUid'],
+        'author_name': data['authorName'],
+        'author_avatar': data['authorAvatar'],
+        'text': data['text'],
+        'created_at': _isoTs(data['createdAt']) ??
+            DateTime.now().toIso8601String(),
+      }, onConflict: 'id').timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> mirrorCommentDelete(String id) async {
+    if (!isReady || id.isEmpty) return false;
+    return _write('mirrorCommentDelete', () async {
+      await _client
+          .from('memory_comments')
+          .delete()
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Live-поток комментариев воспоминания (старые сверху, как Firestore-путь).
+  Stream<List<MemoryComment>> watchComments(String groupId, String memoryId) {
+    if (!isReady || groupId.isEmpty || memoryId.isEmpty) {
+      return const Stream.empty();
+    }
+    try {
+      return _client
+          .from('memory_comments')
+          .stream(primaryKey: ['id'])
+          .eq('memory_id', memoryId)
+          .order('created_at', ascending: true)
+          .map((rows) => rows
+              .where((r) => r['deleted'] != true)
+              .map((r) => MemoryComment.fromFirestore((r['id'] ?? '').toString(), {
+                    'authorUid': r['author_uid'],
+                    'authorName': r['author_name'],
+                    'authorAvatar': r['author_avatar'],
+                    'text': r['text'],
+                    'createdAt': _toTs(r['created_at']),
+                  }))
+              .toList());
+    } catch (e) {
+      debugPrint('SupabaseService.watchComments failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Разовая загрузка всех комментариев воспоминания (для бэкфилла подсчёта/проверок).
+  Future<List<Map<String, dynamic>>> fetchComments(String memoryId) async {
+    if (!isReady || memoryId.isEmpty) return const [];
+    try {
+      final rows = await _client
+          .from('memory_comments')
+          .select('id')
+          .eq('memory_id', memoryId)
+          .timeout(const Duration(seconds: 10));
+      return List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('SupabaseService.fetchComments failed: $e');
+      return const [];
+    }
   }
 
   // ══════════════════════════════════════════════
