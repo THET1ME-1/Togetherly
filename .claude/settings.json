@@ -21,7 +21,9 @@
       "Bash(grep -rhoE \"'memories/[^']*'|\\\\\"memories/[^\\\\\"]*\\\\\"|memories/\\\\$\\\\{[^}]*\\\\}|memories/' *\\\\+|destination\" lib/)",
       "Bash(node --check index.js)",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('../firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json валиден'\\)\")",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")",
+      "Bash(echo \"error-count: $\\(flutter analyze lib/screens/memory_lane_screen.dart lib/screens/chat_screen.dart lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)",
+      "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)"
     ]
   }
 }

@@ -96,8 +96,9 @@ class FirebaseService {
   // media-проход обязан повториться один раз (новый ключ сбрасывает «готово»).
   static const _kMediaMigrationDone = 'supabase_media_migration_v6';
   // Ключ одноразового бэкфилла исторических ДАННЫХ (профиль/группа/воспоминания/
-  // настроения/чат), созданных ДО установки dual-write сборки.
-  static const _kDataBackfillDone = 'supabase_data_backfill_v1';
+  // настроения/чат/комментарии), созданных ДО установки dual-write сборки.
+  // v2: добавлен бэкфилл комментариев → форсируем повтор для уже мигрированных.
+  static const _kDataBackfillDone = 'supabase_data_backfill_v2';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -351,12 +352,35 @@ class FirebaseService {
         if (snap.docs.isEmpty) break;
         for (final doc in snap.docs) {
           if (!await _sb.mirrorMemory(groupId, doc.id, doc.data())) failures++;
+          // Комментарии воспоминания (сабколлекция) — переносим вместе с ним.
+          failures += await _backfillComments(groupId, doc.id);
         }
         cursor = snap.docs.last;
         if (snap.docs.length < pageSize) break;
       }
     } catch (e) {
       debugPrint('_backfillMemories($groupId) failed: $e');
+      failures++;
+    }
+    return failures;
+  }
+
+  /// Переносит ВСЕ комментарии воспоминания [memoryId] в Supabase. Возвращает
+  /// число неудач (пустая сабколлекция → 0, не ошибка).
+  Future<int> _backfillComments(String groupId, String memoryId) async {
+    var failures = 0;
+    try {
+      final snap = await _commentsRef(groupId, memoryId)
+          .get()
+          .timeout(const Duration(seconds: 15));
+      for (final doc in snap.docs) {
+        final data = Map<String, dynamic>.from(doc.data() as Map);
+        if (!await _sb.mirrorComment(groupId, memoryId, doc.id, data)) {
+          failures++;
+        }
+      }
+    } catch (e) {
+      debugPrint('_backfillComments($groupId/$memoryId) failed: $e');
       failures++;
     }
     return failures;
@@ -3755,12 +3779,27 @@ class FirebaseService {
     );
   }
 
-  Future<({List<Memory> memories, DocumentSnapshot? lastDoc})> loadMemories({
+  /// Пагинация ленты. Курсор — последнее воспоминание предыдущей страницы
+  /// [startAfter] (его createdAt), а не Firestore-DocumentSnapshot: единый
+  /// механизм для Firebase и Supabase. Возвращает страницу + lastMemory-курсор.
+  Future<({List<Memory> memories, Memory? lastMemory})> loadMemories({
     required String groupId,
     int limit = 50,
-    DocumentSnapshot? startAfter,
+    Memory? startAfter,
     bool cacheFirst = false,
   }) async {
+    // Миграция: лента читается из Supabase. Курсор — created_at < beforeIso.
+    if (_mig) {
+      final memories = await _sb.loadMemories(
+        groupId,
+        limit: limit,
+        beforeIso: startAfter?.createdAt.toIso8601String(),
+      );
+      return (
+        memories: memories,
+        lastMemory: memories.isNotEmpty ? memories.last : null,
+      );
+    }
     try {
       var query =
           _db
@@ -3770,8 +3809,13 @@ class FirebaseService {
                   .orderBy('createdAt', descending: true)
                   .limit(limit)
               as Query<Map<String, dynamic>>;
+      // Курсор по времени (createdAt последнего) вместо startAfterDocument —
+      // единый механизм с Supabase-путём.
       if (startAfter != null) {
-        query = query.startAfterDocument(startAfter);
+        query = query.where(
+          'createdAt',
+          isLessThan: Timestamp.fromDate(startAfter.createdAt),
+        );
       }
       // cacheFirst: для начального открытия экрана сначала читаем из локального
       // persistent-кэша (его уже прогрел live-слушатель listenToMemories на home),
@@ -3792,16 +3836,16 @@ class FirebaseService {
       } else {
         snap = await query.get().timeout(const Duration(seconds: 10));
       }
-      final docs = snap.docs;
+      final memories = snap.docs
+          .map((d) => Memory.fromFirestore(d.id, d.data()))
+          .toList();
       return (
-        memories: docs
-            .map((d) => Memory.fromFirestore(d.id, d.data()))
-            .toList(),
-        lastDoc: docs.isNotEmpty ? docs.last : null,
+        memories: memories,
+        lastMemory: memories.isNotEmpty ? memories.last : null,
       );
     } catch (e) {
       debugPrint('loadMemories failed: $e');
-      return (memories: <Memory>[], lastDoc: null);
+      return (memories: <Memory>[], lastMemory: null);
     }
   }
 
@@ -3864,7 +3908,10 @@ class FirebaseService {
       createdAt: DateTime.now(),
     );
     try {
-      await _commentsRef(groupId, memoryId).add(comment.toFirestore());
+      final fb = comment.toFirestore();
+      final ref = await _commentsRef(groupId, memoryId).add(fb);
+      // Двойная запись в Supabase (id из автогенерируемого Firestore-дока).
+      if (_mig) unawaited(_sb.mirrorComment(groupId, memoryId, ref.id, fb));
     } catch (e) {
       debugPrint('addComment failed: $e');
     }
@@ -3877,6 +3924,7 @@ class FirebaseService {
   }) async {
     try {
       await _commentsRef(groupId, memoryId).doc(commentId).delete();
+      if (_mig) unawaited(_sb.mirrorCommentDelete(commentId));
     } catch (e) {
       debugPrint('deleteComment failed: $e');
     }
@@ -3886,6 +3934,8 @@ class FirebaseService {
     required String groupId,
     required String memoryId,
   }) {
+    // Миграция: комментарии читаются из Supabase (realtime).
+    if (_mig) return _sb.watchComments(groupId, memoryId);
     return _commentsRef(groupId, memoryId)
         .orderBy('createdAt', descending: false)
         .snapshots()
