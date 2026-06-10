@@ -96,9 +96,9 @@ class FirebaseService {
   // media-проход обязан повториться один раз (новый ключ сбрасывает «готово»).
   static const _kMediaMigrationDone = 'supabase_media_migration_v6';
   // Ключ одноразового бэкфилла исторических ДАННЫХ (профиль/группа/воспоминания/
-  // настроения/чат/комментарии), созданных ДО установки dual-write сборки.
-  // v2: добавлен бэкфилл комментариев → форсируем повтор для уже мигрированных.
-  static const _kDataBackfillDone = 'supabase_data_backfill_v2';
+  // настроения/чат/комментарии/холсты), созданных ДО установки dual-write сборки.
+  // v2: + комментарии; v3: + холсты (штрихи/мета/каталог) → форс повтора.
+  static const _kDataBackfillDone = 'supabase_data_backfill_v3';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -326,8 +326,61 @@ class FirebaseService {
 
       // ── Чат (RTDB → Supabase) ──
       failures += await ChatService.instance.backfillToSupabase(groupId);
+
+      // ── Холсты (штрихи + мета + каталог) ──
+      failures += await _backfillCanvas(groupId);
     } catch (e) {
       debugPrint('_backfillDataToSupabase($groupId) failed: $e');
+      failures++;
+    }
+    return failures;
+  }
+
+  /// Переносит холсты группы (штрихи + мета + каталог) в Supabase. Эфемерные
+  /// live-штрихи и presence НЕ переносятся. Возвращает число неудач.
+  Future<int> _backfillCanvas(String groupId) async {
+    var failures = 0;
+    try {
+      // Список канвасов: 'main' + каталог.
+      final canvasIds = <String>{'main'};
+      final cat = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('canvasCatalogue')
+          .get()
+          .timeout(const Duration(seconds: 20));
+      for (final doc in cat.docs) {
+        canvasIds.add(doc.id);
+        final data = Map<String, dynamic>.from(doc.data())..['id'] = doc.id;
+        if (!await _sb.mirrorCanvasCatalogue(groupId, doc.id, data)) failures++;
+      }
+      for (final canvasId in canvasIds) {
+        // Штрихи (сам рисунок).
+        final strokes = await _strokesRef(groupId, canvasId)
+            .get()
+            .timeout(const Duration(seconds: 25));
+        for (final s in strokes.docs) {
+          final sd = Map<String, dynamic>.from(s.data() as Map);
+          if (!await _sb.mirrorStroke(groupId, canvasId, s.id, sd)) failures++;
+        }
+        // Мета (фон/clear/поворот).
+        final metaSnap = await _canvasMainRef(groupId, canvasId)
+            .get()
+            .timeout(const Duration(seconds: 15));
+        final md = metaSnap.data();
+        if (md != null) {
+          final bg = (md['bgColor'] as num?)?.toInt();
+          final cv = (md['clearVersion'] as num?)?.toInt();
+          final rot = (md['canvasRotation'] as num?)?.toInt();
+          if ((bg != null || cv != null || rot != null) &&
+              !await _sb.mirrorCanvasMeta(groupId, canvasId,
+                  bgColor: bg, rotation: rot, clearVersion: cv)) {
+            failures++;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('_backfillCanvas($groupId) failed: $e');
       failures++;
     }
     return failures;
@@ -4964,6 +5017,17 @@ class FirebaseService {
     required String groupId,
     String canvasId = 'main',
   }) {
+    // Миграция: штрихи читаются из Supabase (realtime, порядок по order_index).
+    if (_mig) {
+      return _sb.watchCanvasStrokes(groupId, canvasId).map(
+            (rows) => rows
+                .map((r) => _DrawStrokeRaw(
+                      id: r['id'] as String,
+                      data: Map<String, dynamic>.from(r['data'] as Map),
+                    ))
+                .toList(),
+          );
+    }
     return _strokesRef(groupId, canvasId)
         .orderBy('orderIndex')
         .snapshots()
@@ -4987,6 +5051,9 @@ class FirebaseService {
   }) async {
     try {
       final ref = await _strokesRef(groupId, canvasId).add(strokeData);
+      if (_mig) {
+        unawaited(_sb.mirrorStroke(groupId, canvasId, ref.id, strokeData));
+      }
       return ref.id;
     } catch (e) {
       debugPrint('addDrawingStroke failed: $e');
@@ -5003,6 +5070,7 @@ class FirebaseService {
   }) async {
     try {
       await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
+      if (_mig) unawaited(_sb.mirrorStrokePatch(strokeId, updates));
     } catch (e) {
       debugPrint('updateDrawingStroke failed: $e');
     }
@@ -5016,6 +5084,7 @@ class FirebaseService {
   }) async {
     try {
       await _strokesRef(groupId, canvasId).doc(strokeId).delete();
+      if (_mig) unawaited(_sb.mirrorStrokeDelete(strokeId));
     } catch (e) {
       debugPrint('deleteDrawingStroke failed: $e');
     }
@@ -5093,6 +5162,14 @@ class FirebaseService {
         SetOptions(merge: true),
       );
       await batch.commit();
+      if (_mig) {
+        unawaited(_sb.mirrorCanvasClear(
+          groupId,
+          canvasId,
+          version,
+          bgColor: bgColorValue,
+        ));
+      }
     } catch (e) {
       debugPrint('clearDrawingCanvas failed: $e');
     }
@@ -5110,6 +5187,9 @@ class FirebaseService {
         groupId,
         canvasId,
       ).set({'bgColor': colorValue}, SetOptions(merge: true));
+      if (_mig) {
+        unawaited(_sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue));
+      }
     } catch (e) {
       debugPrint('setCanvasBgColor failed: $e');
     }
@@ -5123,6 +5203,16 @@ class FirebaseService {
     required String groupId,
     String canvasId = 'main',
   }) {
+    // Миграция: мета холста читается из Supabase (realtime).
+    if (_mig) {
+      return _sb.watchCanvasMeta(groupId, canvasId).map(
+            (m) => RemoteCanvasMeta(
+              bgColor: m['bgColor'],
+              clearVersion: m['clearVersion'],
+              rotationMilliRadians: m['rotation'],
+            ),
+          );
+    }
     return _canvasMainRef(groupId, canvasId).snapshots().map((snap) {
       final data = snap.data();
       return RemoteCanvasMeta(
@@ -5145,6 +5235,13 @@ class FirebaseService {
         groupId,
         canvasId,
       ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
+      if (_mig) {
+        unawaited(_sb.mirrorCanvasMeta(
+          groupId,
+          canvasId,
+          rotation: rotationQuarterTurns,
+        ));
+      }
     } catch (e) {
       debugPrint('setCanvasRotation failed: $e');
     }
@@ -5185,6 +5282,7 @@ class FirebaseService {
           .collection('canvasCatalogue')
           .doc(canvasId)
           .set(data, SetOptions(merge: true));
+      if (_mig) unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, data));
     } catch (e) {
       debugPrint('upsertCanvasMeta failed: $e');
     }
@@ -5197,15 +5295,19 @@ class FirebaseService {
     required String newName,
   }) async {
     try {
+      final updates = {
+        'name': newName,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      };
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
-          .update({
-            'name': newName,
-            'updatedAt': DateTime.now().millisecondsSinceEpoch,
-          });
+          .update(updates);
+      if (_mig) {
+        unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, updates));
+      }
     } catch (e) {
       debugPrint('renameCanvasMeta failed: $e');
     }
@@ -5223,6 +5325,9 @@ class FirebaseService {
           .collection('canvasCatalogue')
           .doc(canvasId)
           .delete();
+      if (_mig) {
+        unawaited(_sb.mirrorCanvasCatalogueDelete(groupId, canvasId));
+      }
     } catch (e) {
       debugPrint('deleteCanvasMeta failed: $e');
     }
@@ -5232,6 +5337,8 @@ class FirebaseService {
   Stream<List<Map<String, dynamic>>> listenToCanvasCatalogue({
     required String groupId,
   }) {
+    // Миграция: каталог холстов читается из Supabase (realtime).
+    if (_mig) return _sb.watchCanvasCatalogue(groupId);
     return _db
         .collection('groups')
         .doc(groupId)
