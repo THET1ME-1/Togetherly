@@ -21,7 +21,14 @@
       "Bash(grep -rhoE \"'memories/[^']*'|\\\\\"memories/[^\\\\\"]*\\\\\"|memories/\\\\$\\\\{[^}]*\\\\}|memories/' *\\\\+|destination\" lib/)",
       "Bash(node --check index.js)",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('../firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json валиден'\\)\")",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('c:/Users/Alex/Documents/GitHub/love_app/firebase.json','utf8'\\)\\); console.log\\('OK: firebase.json valid'\\)\")",
+      "Bash(py --version)",
+      "Bash(gcloud auth *)",
+      "Bash(node tools/admin_groups.js lookup stgroup.dev@gmail.com badzoff@gmail.com)",
+      "Bash(node -e ' *)",
+      "Bash(node tools/admin_groups.js mascot сердечкин)",
+      "Bash(node tools/admin_groups.js group gBdX0hzn6mN8ho3hFbGJ)",
+      "Bash(node tools/admin_groups.js fixpair gBdX0hzn6mN8ho3hFbGJ)"
     ]
   }
 }

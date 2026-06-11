@@ -197,10 +197,7 @@ class ConnectionsManager extends ChangeNotifier {
       target = Connection(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         firebaseService: _fb,
-        onChanged: () {
-          _saveLocal();
-          notifyListeners();
-        },
+        onChanged: _onConnectionChanged,
       );
       _connections.add(target);
     }
@@ -463,10 +460,7 @@ class ConnectionsManager extends ChangeNotifier {
         unpaired = Connection(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           firebaseService: _fb,
-          onChanged: () {
-            _saveLocal();
-            notifyListeners();
-          },
+          onChanged: _onConnectionChanged,
         );
         _connections.add(unpaired);
         wasNewlyCreated = true;
@@ -550,10 +544,7 @@ class ConnectionsManager extends ChangeNotifier {
             members: List.of(existingSolo.members),
             inviteCode: existingSolo.inviteCode,
             relationshipType: existingSolo.relationshipType,
-            onChanged: () {
-              _saveLocal();
-              notifyListeners();
-            },
+            onChanged: _onConnectionChanged,
           );
           _connections.add(rescued);
           debugPrint(
@@ -585,10 +576,7 @@ class ConnectionsManager extends ChangeNotifier {
       id: 'solo',
       firebaseService: _fb,
       isSolo: true,
-      onChanged: () {
-        _saveLocal();
-        notifyListeners();
-      },
+      onChanged: _onConnectionChanged,
     );
 
     _connections.insert(0, soloConnection);
@@ -607,10 +595,7 @@ class ConnectionsManager extends ChangeNotifier {
     final newConnection = Connection(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       firebaseService: _fb,
-      onChanged: () {
-        _saveLocal();
-        notifyListeners();
-      },
+      onChanged: _onConnectionChanged,
     );
 
     _connections.add(newConnection);
@@ -677,6 +662,31 @@ class ConnectionsManager extends ChangeNotifier {
 
     await _saveLocal();
     notifyListeners();
+  }
+
+  /// Единый обработчик изменений любой связи. Помимо сохранения/нотификации
+  /// убирает связи, помеченные [Connection.justDisbanded] — т.е. группы,
+  /// распущенные ПАРТНЁРОМ: так группа исчезает у обоих, а не висит пустой
+  /// карточкой у того, кто не нажимал «Удалить».
+  void _onConnectionChanged() {
+    _removeDisbandedConnections();
+    _saveLocal();
+    notifyListeners();
+  }
+
+  /// Удаляет из локального списка связи, распущенные партнёром (solo не трогаем).
+  void _removeDisbandedConnections() {
+    final disbanded =
+        _connections.where((c) => c.justDisbanded && !c.isSolo).toList();
+    if (disbanded.isEmpty) return;
+    for (final c in disbanded) {
+      c.dispose();
+      _connections.remove(c);
+    }
+    if (_activeConnectionIndex >= _connections.length) {
+      _activeConnectionIndex =
+          _connections.isEmpty ? 0 : _connections.length - 1;
+    }
   }
 
   Future<void> switchToConnection(int index) async {
@@ -811,10 +821,8 @@ class ConnectionsManager extends ChangeNotifier {
         final List<dynamic> connectionsJson = jsonDecode(connectionsStr);
         _connections.clear();
         for (var json in connectionsJson) {
-          final connection = Connection.fromJson(json, _fb, () {
-            _saveLocal();
-            notifyListeners();
-          });
+          final connection =
+              Connection.fromJson(json, _fb, _onConnectionChanged);
           _connections.add(connection);
         }
       }

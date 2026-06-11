@@ -2450,8 +2450,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           ),
           TextButton(
             onPressed: () async {
-              await pair.manager.removeConnection(connectionId);
+              // Закрываем диалог СРАЗУ, до сетевого removeConnection (unpair +
+              // генерация инвайт-кода ~секунды). Иначе диалог «висит», а повторный
+              // тап по кнопке запускал второй removeConnection и второй pop —
+              // pop'ал нижний экран → чёрный экран/вылет. После pop кнопки нет,
+              // двойной тап невозможен.
               Navigator.of(context).pop();
+              await pair.manager.removeConnection(connectionId);
+              if (!mounted) return;
               _resetCodeInput();
               setState(() {});
               _showSnack(LocaleService.current.connectionRemoved);
