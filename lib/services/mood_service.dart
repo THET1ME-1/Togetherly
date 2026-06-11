@@ -124,6 +124,32 @@ class MoodService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Оптимистично добавить свою запись в локальное состояние и обновить UI.
+  /// Нужно для записей на ПРОШЛЫЕ месяцы: live-подписка слушает только текущий
+  /// месяц, а история грузится один раз, поэтому без этого правка прошлого дня
+  /// не появилась бы в календаре до перезахода («настроение не работает на
+  /// нужный день»). Live-слушатель позже подтвердит запись (дедуп по id).
+  void _applyLocalAdd(MoodEntry e) {
+    if (_monthKey(e.timestamp) == _monthKey(DateTime.now())) {
+      _myLiveMonth[e.id] = e;
+    } else {
+      _myHistory[e.id] = e;
+    }
+    _rebuildMine();
+  }
+
+  /// Оптимистично убрать свои записи из локального состояния и обновить UI.
+  /// Без этого удаление записи на прошлый день не отражалось в UI («удалить
+  /// нельзя»), т.к. live-подписка не покрывает прошлые месяцы.
+  void _applyLocalRemove(Iterable<String> ids) {
+    for (final id in ids) {
+      _myLegacy.remove(id);
+      _myHistory.remove(id);
+      _myLiveMonth.remove(id);
+    }
+    _rebuildMine();
+  }
+
   /// Пересобрать список партнёра (дедуп по id, live > history > legacy).
   void _rebuildPartner(String uid) {
     final m = <String, MoodEntry>{}
@@ -341,6 +367,7 @@ class MoodService extends ChangeNotifier {
       timestamp: ts,
     );
     await _fb.addMoodEntry(groupId: _groupId, entry: entry.toFirestore());
+    _applyLocalAdd(entry);
   }
 
   /// Установить настроение на сегодня атомарно во всех источниках.
@@ -367,6 +394,7 @@ class MoodService extends ChangeNotifier {
             .map((e) => _fb.deleteMoodEntry(
                 groupId: _groupId, entryId: e.id, timestamp: e.timestamp)),
       );
+      _applyLocalRemove(existing.map((e) => e.id));
     }
 
     // 2. Календарь — каноничный источник.
@@ -407,6 +435,7 @@ class MoodService extends ChangeNotifier {
             .map((e) => _fb.deleteMoodEntry(
                 groupId: _groupId, entryId: e.id, timestamp: e.timestamp)),
       );
+      _applyLocalRemove(existing.map((e) => e.id));
     }
     await addMood(
       moodId: moodId,
@@ -424,6 +453,7 @@ class MoodService extends ChangeNotifier {
     await Future.wait(
       existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
     );
+    _applyLocalRemove(existing.map((e) => e.id));
     await _pairData?.clearMood();
     await _widgetService?.clearMood();
   }
@@ -445,6 +475,7 @@ class MoodService extends ChangeNotifier {
     await Future.wait(
       existing.map((e) => _fb.deleteMoodEntry(groupId: _groupId, entryId: e.id)),
     );
+    _applyLocalRemove(existing.map((e) => e.id));
   }
 
   /// Удалить запись настроения.
@@ -459,6 +490,7 @@ class MoodService extends ChangeNotifier {
     }
     await _fb.deleteMoodEntry(
         groupId: _groupId, entryId: entryId, timestamp: ts);
+    _applyLocalRemove([entryId]);
   }
 
   /// Получить записи за конкретный день (мои).

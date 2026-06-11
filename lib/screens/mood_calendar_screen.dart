@@ -773,6 +773,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       size: size,
       isToday: isToday,
       primary: widget.theme.primary,
+      // Циклить историю настроений дня только в режиме «несколько в день».
+      // В одиночном (по умолчанию) — показываем последнее, без мелькания
+      // classic↔pink при случайных дублях после смены пака настроений.
+      allowCycling: _mood.allowMultipleMoodsPerDay,
     );
   }
 
@@ -1232,12 +1236,14 @@ class _CyclingMoodSquare extends StatefulWidget {
   final double size;
   final bool isToday;
   final Color primary;
+  final bool allowCycling;
 
   const _CyclingMoodSquare({
     required this.moods,
     required this.size,
     required this.isToday,
     required this.primary,
+    this.allowCycling = false,
   });
 
   @override
@@ -1257,7 +1263,8 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
   @override
   void didUpdateWidget(_CyclingMoodSquare old) {
     super.didUpdateWidget(old);
-    if (old.moods.length != widget.moods.length) {
+    if (old.moods.length != widget.moods.length ||
+        old.allowCycling != widget.allowCycling) {
       _timer?.cancel();
       _timer = null;
       _currentIndex = 0;
@@ -1266,7 +1273,8 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
   }
 
   void _startCycling() {
-    if (widget.moods.length > 1) {
+    // Циклим только если включён режим «несколько настроений в день».
+    if (widget.allowCycling && widget.moods.length > 1) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (mounted) {
           setState(() {
@@ -1277,6 +1285,10 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
     }
   }
 
+  /// Последняя (самая свежая) запись дня — показываем её, когда не циклим.
+  MoodEntry get _latest =>
+      widget.moods.reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b);
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -1285,7 +1297,10 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
 
   @override
   Widget build(BuildContext context) {
-    final mood = widget.moods[_currentIndex % widget.moods.length];
+    final cycling = widget.allowCycling && widget.moods.length > 1;
+    final mood = cycling
+        ? widget.moods[_currentIndex % widget.moods.length]
+        : _latest;
     final size = widget.size;
     final radius = size > 20 ? 4.0 : 2.0;
 

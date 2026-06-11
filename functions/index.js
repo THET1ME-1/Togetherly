@@ -533,16 +533,18 @@ exports.onChatMessageEvent = onDocumentCreated(
 //
 // Источник правды о ценах и премиум-темах — этот файл (зеркало lib/theme/app_theme.dart).
 
-const PREMIUM_THEME_PRICES = {
-  5: 30,  // Midnight
-  6: 30,  // Lavender
-  7: 30,  // Cherry
-  8: 30,  // Mint
-  9: 30,  // Sunset
-  10: 30, // Monochrome
-  11: 30, // Forest
-  12: 30, // Ocean
+// Премиум-темы: индексы 5+ (0-4 бесплатные). Цена по умолчанию 30 коинов;
+// особые цены — в THEME_PRICE_OVERRIDES. Раньше тут был enum 5..12 и при
+// добавлении тем 13..19 в клиент (но не сюда) покупка падала с «Тема не
+// продаётся» — теперь любая премиум-тема автоматически стоит 30, ломаться при
+// добавлении новых тем не будет. Верхняя граница 50 — защита от мусорных id.
+const THEME_PRICE_OVERRIDES = {
+  16: 40, // Северное сияние (Aurora)
 };
+function themePrice(themeId) {
+  if (typeof themeId !== "number" || themeId < 5 || themeId > 50) return null;
+  return THEME_PRICE_OVERRIDES[themeId] || 30;
+}
 
 // Цены профильных иконок (зеркало lib/models/profile_icon.dart).
 // Common = 20, Rare = 35, Premium = 50. Grant-only иконки (Sponsor/Helper)
@@ -609,7 +611,7 @@ exports.purchaseTheme = onCall(async (request) => {
   if (!Number.isInteger(themeId)) {
     throw new HttpsError("invalid-argument", "themeId должен быть числом");
   }
-  const price = PREMIUM_THEME_PRICES[themeId];
+  const price = themePrice(themeId);
   if (!price) {
     throw new HttpsError("invalid-argument", "Тема не премиум или не существует");
   }
