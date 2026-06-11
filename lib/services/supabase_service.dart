@@ -33,6 +33,9 @@ class SupabaseService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
+  /// Монотонный счётчик для уникальных имён realtime-каналов (miss_you и т.п.).
+  static int _channelSeq = 0;
+
   /// Готов ли Supabase (credentials заполнены и SDK инициализирован в main).
   bool get isReady => MigrationConfig.isConfigured;
 
@@ -1064,8 +1067,11 @@ class SupabaseService {
       // У miss_you составной первичный ключ (group_id+user_uid) — .stream() с
       // ним ненадёжен (счётчик не обновлялся). Используем realtime-канал +
       // пере-чтение через getMissYouCounts: PK-агностично и стабильно.
+      // Имя канала УНИКАЛЬНО на подписку: одну группу могут слушать сразу
+      // несколько виджетов (total + per-user), а одинаковый topic конфликтует.
       getMissYouCounts(groupId).then(onData);
-      final channel = _client.channel('miss_you_$groupId');
+      final channel =
+          _client.channel('miss_you_${groupId}_${_channelSeq++}');
       channel
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
