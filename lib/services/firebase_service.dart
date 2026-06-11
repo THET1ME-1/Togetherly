@@ -3447,6 +3447,22 @@ class FirebaseService {
 
   /// Получить временный Signed URL для gs:// пути ИЛИ sb:// пути.
   /// Результат кэшируется на 55 минут. https:// URL возвращается как есть.
+  /// Резолвит медиа-URL в проигрываемый http(s)-URL для видеоплеера / launchUrl.
+  /// sb://→signed (Supabase), gs://bucket/path→signed (CF), http/file→как есть.
+  /// Картинки делают то же через StorageImage; видео раньше получало сырой
+  /// sb://, из-за чего плеер не запускался (показывалось только превью).
+  Future<String> resolveMediaUrl(String url) async {
+    if (url.isEmpty) return url;
+    if (url.startsWith('sb://')) {
+      return (await getSignedUrl(url)) ?? url;
+    }
+    if (url.startsWith('gs://')) {
+      final bare = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+      return (await getSignedUrl(bare)) ?? url;
+    }
+    return url; // http(s) или локальный файл — играем как есть
+  }
+
   Future<String?> getSignedUrl(String path) async {
     if (path.isEmpty) return null;
     // Обратная совместимость: старые записи хранят download URL

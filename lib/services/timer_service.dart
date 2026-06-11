@@ -430,16 +430,18 @@ class TimerService extends ChangeNotifier {
     required String relationshipEmoji,
     required String partnerName,
   }) async {
-    // Не создаём дубликат
-    if (systemTimer != null) return;
-
     final title = '$relationshipLabel with $partnerName';
 
-    // Если группа привязана, но Firestore ещё не ответил — откладываем.
-    // _mergeRemoteTimers создаст таймер как только получит первый снимок.
+    // Если группа привязана, но remote-таймеры ещё не пришли — откладываем.
+    // ВАЖНО: проверку `systemTimer != null` НЕЛЬЗЯ делать раньше этого, т.к. при
+    // переключении пар bindToGroup → _loadLocal грузит таймеры ПРЕДЫДУЩЕЙ группы
+    // из глобального ключа prefs. Этот «фантомный» системный таймер заставлял
+    // createSystemTimer выйти раньше, не отложив создание → у новой пары timers
+    // оставались пустыми (0 0 0 на экране). _mergeRemoteTimers перезапишет _timers
+    // remote-данными и создаст отложенный таймер, если системного там нет.
     if (_groupId.isNotEmpty && !_hasReceivedRemoteSync) {
       debugPrint(
-        'TimerService: createSystemTimer — ждём первую синхронизацию с Firestore',
+        'TimerService: createSystemTimer — ждём первую синхронизацию remote',
       );
       _pendingSystemTimer = {
         'title': title,
@@ -448,6 +450,9 @@ class TimerService extends ChangeNotifier {
       };
       return;
     }
+
+    // Remote синхронизирован — создаём только если системного таймера реально нет.
+    if (systemTimer != null) return;
 
     await addTimer(
       id: systemTimerId,

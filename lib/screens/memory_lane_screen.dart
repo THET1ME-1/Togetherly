@@ -10727,10 +10727,15 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               final item = widget.items[i];
               if (item.isVideo) {
                 return GestureDetector(
-                  onTap: () => launchUrl(
-                    Uri.parse(item.videoUrl!),
-                    mode: LaunchMode.externalApplication,
-                  ),
+                  onTap: () async {
+                    // sb://gs:// → signed URL, иначе внешний плеер не откроет.
+                    final playable = await FirebaseService()
+                        .resolveMediaUrl(item.videoUrl!);
+                    await launchUrl(
+                      Uri.parse(playable),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -11754,7 +11759,7 @@ class _InAppVideoPlayerPage extends StatefulWidget {
 }
 
 class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   bool _isInitialized = false;
   bool _showControls = true;
   Timer? _hideTimer;
@@ -11764,29 +11769,45 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {
-          _isInitialized = true;
-          _duration = _controller.value.duration;
-        });
-        _controller.play();
-        _scheduleHide();
-      });
-    _controller.addListener(_onUpdate);
+    _setupController();
+  }
+
+  /// Резолвим sb://gs:// в проигрываемый signed URL ПЕРЕД созданием контроллера —
+  /// иначе VideoPlayerController.networkUrl получает сырой sb:// и не запускается
+  /// (видео отображалось как фото-превью без воспроизведения).
+  Future<void> _setupController() async {
+    final playable = await FirebaseService().resolveMediaUrl(widget.url);
+    if (!mounted) return;
+    final controller = VideoPlayerController.networkUrl(Uri.parse(playable));
+    _controller = controller;
+    controller.addListener(_onUpdate);
+    try {
+      await controller.initialize();
+    } catch (e) {
+      debugPrint('_InAppVideoPlayerPage: init failed for $playable: $e');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _isInitialized = true;
+      _duration = controller.value.duration;
+    });
+    controller.play();
+    _scheduleHide();
   }
 
   void _onUpdate() {
     if (!mounted) return;
+    final c = _controller;
+    if (c == null) return;
     setState(() {
-      _position = _controller.value.position;
+      _position = c.value.position;
     });
     // Auto-restart when finished
-    if (_controller.value.position >= _controller.value.duration &&
-        _controller.value.duration > Duration.zero) {
-      _controller.seekTo(Duration.zero);
-      _controller.pause();
+    if (c.value.position >= c.value.duration &&
+        c.value.duration > Duration.zero) {
+      c.seekTo(Duration.zero);
+      c.pause();
       setState(() => _showControls = true);
       _hideTimer?.cancel();
     }
@@ -11795,7 +11816,7 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _controller.value.isPlaying) {
+      if (mounted && (_controller?.value.isPlaying ?? false)) {
         setState(() => _showControls = false);
       }
     });
@@ -11803,16 +11824,20 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
 
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
-    if (_showControls && _controller.value.isPlaying) _scheduleHide();
+    if (_showControls && (_controller?.value.isPlaying ?? false)) {
+      _scheduleHide();
+    }
   }
 
   void _togglePlay() {
-    if (_controller.value.isPlaying) {
-      _controller.pause();
+    final c = _controller;
+    if (c == null) return;
+    if (c.value.isPlaying) {
+      c.pause();
       _hideTimer?.cancel();
       setState(() => _showControls = true);
     } else {
-      _controller.play();
+      c.play();
       _scheduleHide();
     }
   }
@@ -11826,14 +11851,15 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
   @override
   void dispose() {
     _hideTimer?.cancel();
-    _controller.removeListener(_onUpdate);
-    _controller.dispose();
+    _controller?.removeListener(_onUpdate);
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isPlaying = _controller.value.isPlaying;
+    final controller = _controller;
+    final isPlaying = controller?.value.isPlaying ?? false;
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -11845,10 +11871,10 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
             children: [
               // ── Video ──
               Center(
-                child: _isInitialized
+                child: _isInitialized && controller != null
                     ? AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: VideoPlayer(_controller),
+                        aspectRatio: controller.value.aspectRatio,
+                        child: VideoPlayer(controller),
                       )
                     : const CircularProgressIndicator(color: Colors.white),
               ),
@@ -11949,16 +11975,17 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            VideoProgressIndicator(
-                              _controller,
-                              allowScrubbing: true,
-                              padding: EdgeInsets.zero,
-                              colors: const VideoProgressColors(
-                                playedColor: Color(0xFFEC4899),
-                                bufferedColor: Colors.white38,
-                                backgroundColor: Colors.white24,
+                            if (controller != null)
+                              VideoProgressIndicator(
+                                controller,
+                                allowScrubbing: true,
+                                padding: EdgeInsets.zero,
+                                colors: const VideoProgressColors(
+                                  playedColor: Color(0xFFEC4899),
+                                  bufferedColor: Colors.white38,
+                                  backgroundColor: Colors.white24,
+                                ),
                               ),
-                            ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
