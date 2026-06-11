@@ -364,6 +364,24 @@ class SupabaseService {
     });
   }
 
+  /// Точечно обновляет отдельные колонки группы (snake_case → значение).
+  /// В отличие от mirrorGroupRaw НЕ выкидывает null — поэтому годится для
+  /// ОЧИСТКИ полей (current_status/active_session → null). Использует update
+  /// (а не upsert): если строки нет — 0 строк, без вставки с дефолтами.
+  Future<bool> mirrorGroupFields(
+    String groupId,
+    Map<String, dynamic> columns,
+  ) async {
+    if (!isReady || groupId.isEmpty || columns.isEmpty) return false;
+    return _write('mirrorGroupFields', () async {
+      await _client
+          .from('groups')
+          .update(columns)
+          .eq('id', groupId)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
   /// Точечно зеркалит массив timers группы (для upsert/delete таймеров).
   Future<bool> mirrorTimers(
     String groupId,

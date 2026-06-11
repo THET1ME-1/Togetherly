@@ -2197,6 +2197,41 @@ class FirebaseService {
     }
   }
 
+  /// Зеркалит свежесозданную/восстановленную пару в Supabase сразу после
+  /// записи в Firestore. Без этого пара, созданная только в Firestore, не
+  /// появлялась в Supabase до первого fallback-чтения, а live-листенер
+  /// (listenToPair) фолбэка не делает → партнёр не видел группу/статус/
+  /// настроение. Зеркалим КАНОНИЧНЫЙ снимок group-doc + свой профиль (чужой
+  /// профиль не трогаем, чтобы не затереть его коины — партнёр сидирует свою
+  /// users-строку сам; имя/аватар для UI берутся из memberNames группы).
+  Future<void> _mirrorPairToSupabase(
+    String groupId,
+    Map<String, dynamic> myData,
+  ) async {
+    if (!_mig || groupId.isEmpty) return;
+    await _mirrorGroupDocToSupabase(groupId);
+    final myUid = currentUser?.uid;
+    if (myUid != null) unawaited(_sb.mirrorUser(myUid, myData));
+  }
+
+  /// Перечитывает group-doc из Firestore и зеркалит КАНОНИЧНЫЙ снимок в Supabase.
+  /// Нужен после ЛЮБОЙ записи group-поля (статус, тип отношений, даты, дни
+  /// рождения…): под `_mig` чтение группы идёт из Supabase (listenToPair), а
+  /// прежний mirror-on-read в `_parseGroupDoc` больше не срабатывает (Firestore
+  /// не читается). Полный снимок безопасен — partial-mirror через mirrorGroupRaw
+  /// затёр бы непереданные поля дефолтами. Fire-and-forget у вызывающих.
+  Future<void> _mirrorGroupDocToSupabase(String groupId) async {
+    if (!_mig || groupId.isEmpty) return;
+    try {
+      final doc = await _db.collection('groups').doc(groupId).get();
+      if (doc.exists && doc.data() != null) {
+        await _sb.mirrorGroupRaw(groupId, doc.data()!);
+      }
+    } catch (e) {
+      debugPrint('_mirrorGroupDocToSupabase($groupId) failed: $e');
+    }
+  }
+
   /// Create a brand new group between owner and current user.
   Future<Map<String, dynamic>> _createNewGroup({
     required String code,
@@ -2259,6 +2294,11 @@ class FirebaseService {
     } catch (e) {
       debugPrint('_createNewGroup: could not delete invite code: $e');
     }
+
+    // Зеркалим новую пару в Supabase, чтобы оба партнёра сразу увидели группу.
+    // Fire-and-forget: пара уже создана в Firestore, а listenToPair (realtime)
+    // подхватит INSERT — не блокируем UX паринга на Supabase.
+    unawaited(_mirrorPairToSupabase(groupRef.id, myData));
 
     return {
       'success': true,
@@ -2399,6 +2439,9 @@ class FirebaseService {
     memberNames[u.uid] = myData['displayName'] ?? u.displayName ?? 'Partner';
     memberAvatars[u.uid] = myData['avatarUrl'] ?? u.photoURL ?? '';
 
+    // Зеркалим восстановленную пару в Supabase (снимаем disbanded и там тоже).
+    unawaited(_mirrorPairToSupabase(groupId, myData));
+
     return {
       'success': true,
       'message': 'Reconnected!',
@@ -2522,6 +2565,9 @@ class FirebaseService {
     memberNames[u.uid] = myName;
     memberAvatars[u.uid] = myAvatar;
 
+    // Зеркалим обновлённую группу (со мной в members) в Supabase.
+    unawaited(_mirrorPairToSupabase(groupId, myData));
+
     final otherUid = members.isNotEmpty ? members.first : ownerUid;
     return {
       'success': true,
@@ -2558,6 +2604,7 @@ class FirebaseService {
       await _db.collection('groups').doc(groupId).update({
         'maxMembers': maxMembers,
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateGroupMaxMembers failed: $e');
     }
@@ -2578,6 +2625,7 @@ class FirebaseService {
         'customRelationshipLabel': customLabel,
         'customRelationshipEmoji': customEmoji,
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateGroupRelationshipType failed: $e');
     }
@@ -2591,6 +2639,7 @@ class FirebaseService {
       await _db.collection('groups').doc(groupId).set({
         'anniversaryDate': date != null ? Timestamp.fromDate(date) : null,
       }, SetOptions(merge: true));
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateAnniversaryDate failed: $e');
     }
@@ -2602,6 +2651,7 @@ class FirebaseService {
       await _db.collection('groups').doc(groupId).set({
         'firstKissDate': date != null ? Timestamp.fromDate(date) : null,
       }, SetOptions(merge: true));
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateFirstKissDate failed: $e');
     }
@@ -2634,6 +2684,7 @@ class FirebaseService {
               ? Timestamp.fromDate(date)
               : FieldValue.delete(),
         });
+        unawaited(_mirrorGroupDocToSupabase(gid));
       }
     } catch (e) {
       debugPrint('updateMyBirthDate failed: $e');
@@ -2660,6 +2711,7 @@ class FirebaseService {
         }
         tx.set(ref, {'customRelationshipTypes': list}, SetOptions(merge: true));
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('addCustomRelationshipType failed: $e');
     }
@@ -2700,6 +2752,7 @@ class FirebaseService {
 
         tx.update(ref, updates);
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateCustomRelationshipType failed: $e');
     }
@@ -2739,6 +2792,7 @@ class FirebaseService {
 
         tx.update(ref, updates);
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('deleteCustomRelationshipType failed: $e');
     }
@@ -3248,6 +3302,7 @@ class FirebaseService {
           'memberAvatars.${u.uid}': FieldValue.delete(),
           'memberMoods.${u.uid}': FieldValue.delete(),
         });
+        unawaited(_mirrorGroupDocToSupabase(groupId));
 
         debugPrint('unpairById: removed from group, updating user doc');
 
@@ -3355,6 +3410,7 @@ class FirebaseService {
           'startedAt': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('setActiveSession failed: $e');
     }
@@ -3367,6 +3423,8 @@ class FirebaseService {
       await _db.collection('groups').doc(groupId).update({
         'activeSession': FieldValue.delete(),
       });
+      // Очистка: точечный update с null (полный re-mirror не очистил бы поле).
+      if (_mig) unawaited(_sb.mirrorGroupFields(groupId, {'active_session': null}));
     } catch (e) {
       debugPrint('clearActiveSession failed: $e');
     }
@@ -4040,6 +4098,7 @@ class FirebaseService {
           'updatedAt': FieldValue.serverTimestamp(),
         },
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
       unawaited(AnalyticsService.instance.logMoodSet(label: label));
     } catch (e) {
       debugPrint('setMood failed: $e');
@@ -4054,6 +4113,7 @@ class FirebaseService {
       await _db.collection('groups').doc(groupId).update({
         'memberMoods.${u.uid}': FieldValue.delete(),
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('clearMood failed: $e');
     }
@@ -4075,6 +4135,7 @@ class FirebaseService {
         'currentStatus': statusData,
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('setGroupStatus failed: $e');
     }
@@ -4088,6 +4149,8 @@ class FirebaseService {
         'currentStatus': FieldValue.delete(),
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
+      // Очистка: полный re-mirror выкинул бы null → используем точечный update.
+      if (_mig) unawaited(_sb.mirrorGroupFields(groupId, {'current_status': null}));
     } catch (e) {
       debugPrint('clearGroupStatus failed: $e');
     }
@@ -4116,6 +4179,7 @@ class FirebaseService {
           'customStatuses': customStatuses,
         }, SetOptions(merge: true));
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('addCustomStatus failed: $e');
     }
@@ -4152,6 +4216,7 @@ class FirebaseService {
         }
         tx.update(ref, updates);
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateCustomStatus failed: $e');
     }
@@ -4181,6 +4246,7 @@ class FirebaseService {
         }
         tx.update(ref, updates);
       });
+      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('deleteCustomStatus failed: $e');
     }
