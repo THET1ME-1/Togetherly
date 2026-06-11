@@ -208,45 +208,131 @@ class FirebaseService {
     }
   }
 
-  /// Создание аккаунта через email/пароль
+  /// Создание аккаунта через email/пароль.
+  ///
+  /// Устойчиво к медленным/нестабильным соединениям (частый кейс из России —
+  /// VPN, троттлинг, потери пакетов):
+  ///  • увеличенный таймаут;
+  ///  • повтор при временных сетевых сбоях (`network-request-failed` и т.п.);
+  ///  • если таймаут случился ПОСЛЕ фактического создания аккаунта на сервере —
+  ///    подхватываем уже залогиненного пользователя вместо падения;
+  ///  • если прошлая попытка успела создать аккаунт (`email-already-in-use`),
+  ///    а пользователь ввёл тот же пароль — молча входим в этот аккаунт,
+  ///    завершая «зависшую» регистрацию (раньше человек оставался заблокирован).
   Future<User?> signUpWithEmailPassword({
     required String email,
     required String password,
     required String displayName,
   }) async {
-    try {
-      debugPrint('Firebase Auth: creating account with email...');
-      final userCredential = await _auth
-          .createUserWithEmailAndPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 15));
-      final user = userCredential.user;
-      if (user == null) return null;
+    const transientCodes = {
+      'network-request-failed',
+      'internal-error',
+      'timeout',
+    };
+    FirebaseAuthException? lastTransient;
 
-      // Обновляем displayName
-      await user.updateDisplayName(displayName);
-      await user.reload();
-
-      debugPrint('Firebase Auth success: ${user.uid}');
-
-      try {
-        await _db
-            .collection('users')
-            .doc(user.uid)
-            .set({
-              'displayName': displayName,
-              'email': email,
-              'avatarUrl': '',
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true))
-            .timeout(const Duration(seconds: 10));
-      } catch (e) {
-        debugPrint('Firestore save failed: $e');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(Duration(seconds: attempt * 2));
       }
+      try {
+        debugPrint('Firebase Auth: creating account with email...');
+        User? user;
+        try {
+          final userCredential = await _auth
+              .createUserWithEmailAndPassword(email: email, password: password)
+              .timeout(const Duration(seconds: 30));
+          user = userCredential.user;
+        } on TimeoutException {
+          // Ответ сервера не успел прийти за таймаут, но аккаунт мог уже
+          // создаться, и SDK нередко уже обновил currentUser. Если это так —
+          // считаем регистрацию успешной, иначе пробуем ещё раз.
+          final current = _auth.currentUser;
+          if (current != null && current.email == email) {
+            user = current;
+          } else {
+            lastTransient = FirebaseAuthException(code: 'timeout');
+            continue;
+          }
+        }
 
-      return _auth.currentUser;
+        user ??= _auth.currentUser;
+        if (user == null) return null;
+
+        await _finishEmailSignUp(user, email: email, displayName: displayName);
+        debugPrint('Firebase Auth success: ${user.uid}');
+        return _auth.currentUser;
+      } on FirebaseAuthException catch (e) {
+        // Прошлая (возможно недозавершённая из-за обрыва) попытка уже создала
+        // аккаунт. Пользователь ввёл пароль — пробуем войти им же: успех = это
+        // его аккаунт, восстанавливаемся; неудача = чужой email, отдаём ошибку.
+        if (e.code == 'email-already-in-use') {
+          try {
+            final cred = await _auth
+                .signInWithEmailAndPassword(email: email, password: password)
+                .timeout(const Duration(seconds: 30));
+            final user = cred.user;
+            if (user != null) {
+              await _finishEmailSignUp(
+                user,
+                email: email,
+                displayName: displayName,
+              );
+              debugPrint('signUp recovered via sign-in: ${user.uid}');
+              return _auth.currentUser;
+            }
+          } catch (_) {
+            // Пароль не подошёл — это чужой аккаунт. Пробрасываем исходную
+            // ошибку, чтобы UI показал диалог «аккаунт уже существует».
+          }
+          rethrow;
+        }
+        if (transientCodes.contains(e.code)) {
+          lastTransient = e;
+          debugPrint('signUp transient error ${e.code}, retrying...');
+          continue;
+        }
+        debugPrint('signUpWithEmailPassword failed: $e');
+        rethrow;
+      } catch (e) {
+        debugPrint('signUpWithEmailPassword failed: $e');
+        rethrow;
+      }
+    }
+
+    // Все попытки исчерпаны на временных сетевых сбоях.
+    throw lastTransient ??
+        FirebaseAuthException(code: 'network-request-failed');
+  }
+
+  /// Дописывает профиль после успешного создания/входа email-аккаунта:
+  /// displayName в Firebase Auth + базовый user-документ. Ошибки записи в
+  /// Firestore не считаем фатальными — аккаунт уже создан.
+  Future<void> _finishEmailSignUp(
+    User user, {
+    required String email,
+    required String displayName,
+  }) async {
+    try {
+      if ((user.displayName ?? '') != displayName) {
+        await user.updateDisplayName(displayName);
+        await user.reload();
+      }
     } catch (e) {
-      debugPrint('signUpWithEmailPassword failed: $e');
-      rethrow;
+      debugPrint('updateDisplayName failed: $e');
+    }
+    try {
+      await _db
+          .collection('users')
+          .doc(user.uid)
+          .set({
+            'displayName': displayName,
+            'email': email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('Firestore save failed: $e');
     }
   }
 
@@ -2146,6 +2232,86 @@ class FirebaseService {
     } catch (e) {
       debugPrint('loadPairData failed: $e');
       return null;
+    }
+  }
+
+  /// Самолечение «потерянных» групп.
+  ///
+  /// Симптом: какой-то путь (как правило переустановка / повторный вход)
+  /// обнуляет `pairIds` в user-документе, НЕ распуская саму группу. Клиент для
+  /// активных групп смотрит только на `pairIds`, поэтому пара «теряется» и сама
+  /// не восстанавливается — раньше это приходилось чинить вручную (fixpair).
+  ///
+  /// Здесь при старте мы находим все НЕ распущенные группы, где числимся в
+  /// `members[]`, и `arrayUnion`-им недостающие id обратно в `pairIds`. Запись в
+  /// user-документ подхватывает обычный слушатель ([listenToUserDoc]) и
+  /// привязывает восстановленные группы к connection'ам — без ручного
+  /// вмешательства у всех пользователей.
+  ///
+  /// Запрос по `members arrayContains uid` разрешён правилами (как и в
+  /// [_findDisbandedGroup]) и остаётся в рамках собственных групп пользователя.
+  /// Возвращает список id активных групп (для логов/диагностики).
+  Future<List<String>> selfHealActiveGroups() async {
+    final u = currentUser;
+    if (u == null) return const [];
+    try {
+      // 1) Все группы, где мы в members[] и которые не распущены.
+      final snap = await _db
+          .collection('groups')
+          .where('members', arrayContains: u.uid)
+          .get()
+          .timeout(const Duration(seconds: 15));
+
+      final activeGroupIds = <String>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if (data['disbanded'] == true) continue;
+        // Группа должна содержать хотя бы одного партнёра кроме нас —
+        // «группа из одного» это мусор (остатки тестов/недозавершённых пар).
+        final members = List<String>.from(data['members'] ?? [])
+            .where((m) => m.isNotEmpty)
+            .toSet();
+        if (members.length < 2 || !members.contains(u.uid)) continue;
+        activeGroupIds.add(doc.id);
+      }
+      if (activeGroupIds.isEmpty) return const [];
+
+      // 2) Что из активных групп отсутствует в pairIds user-документа.
+      final userDoc = await _db
+          .collection('users')
+          .doc(u.uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      final known = <String>{};
+      final pairIdsList = userDoc.data()?['pairIds'] as List<dynamic>?;
+      if (pairIdsList != null) {
+        known.addAll(
+          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
+        );
+      }
+      final legacy = userDoc.data()?['pairId'] as String?;
+      if (legacy != null && legacy.isNotEmpty) known.add(legacy);
+
+      final missing =
+          activeGroupIds.where((id) => !known.contains(id)).toList();
+      if (missing.isEmpty) return activeGroupIds;
+
+      // 3) Возвращаем недостающие группы в pairIds. Слушатель user-документа
+      //    подхватит их и привяжет к connection'ам.
+      await _db
+          .collection('users')
+          .doc(u.uid)
+          .set({
+            'pairIds': FieldValue.arrayUnion(missing),
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+      debugPrint(
+        'selfHealActiveGroups: restored ${missing.length} group(s): $missing',
+      );
+      return activeGroupIds;
+    } catch (e) {
+      debugPrint('selfHealActiveGroups failed: $e');
+      return const [];
     }
   }
 
