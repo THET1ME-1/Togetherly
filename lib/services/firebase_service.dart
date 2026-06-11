@@ -884,6 +884,10 @@ class FirebaseService {
       MigrationConfig.isConfigured &&
       MigrationConfig.isPhase1User(_auth.currentUser?.email);
 
+  /// Публичный гейт миграции — нужен другим сервисам (WidgetService /
+  /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
+  bool get isMigrationUser => _mig;
+
   /// Cached display name — use this instead of reading users/{uid} from Firestore.
   String get displayName =>
       _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';

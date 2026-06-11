@@ -1159,6 +1159,14 @@ class SupabaseService {
       'musicUrl': 'music_url',
       'musicCoverUrl': 'music_cover_url',
       'photoUrl': 'photo_url',
+      // Фото-поля парного виджета. Отдельные колонки (а не `data` JSONB),
+      // т.к. upsert накапливает их между частичными апдейтами — иначе чтение
+      // потеряло бы их при следующем patch'е статуса/настроения. Списки идут
+      // в JSONB-колонки, photoGridCount — в INT.
+      'photoForPartnerUrl': 'photo_for_partner_url',
+      'photoForPartnerUrls': 'photo_for_partner_urls',
+      'photoGridCount': 'photo_grid_count',
+      'photoGridUrls': 'photo_grid_urls',
     };
     final row = <String, dynamic>{
       'group_id': groupId,
@@ -1177,6 +1185,90 @@ class SupabaseService {
           .upsert(row, onConflict: 'group_id,user_uid')
           .timeout(const Duration(seconds: 10));
     });
+  }
+
+  /// Конвертирует строку widget_data (типизированные колонки) в карту
+  /// firestore-формата — те же ключи, что отдаёт WidgetData.toFirestore /
+  /// читает WidgetData.fromFirestore. Источник правды — КОЛОНКИ (а не `data`
+  /// JSONB, который хранит лишь последний частичный патч).
+  Map<String, dynamic> _widgetRowToFirestore(Map<String, dynamic> row) {
+    List<String> strList(dynamic v) =>
+        v is List ? v.map((e) => e.toString()).toList() : const <String>[];
+    return {
+      'uid': row['user_uid'] ?? '',
+      'displayName': row['display_name'] ?? '',
+      'avatarUrl': row['avatar_url'] ?? '',
+      'gender': row['gender'] ?? '',
+      'status': row['status'] ?? '',
+      'moodEmoji': row['mood_emoji'] ?? '',
+      'moodLabel': row['mood_label'] ?? '',
+      'message': row['message'] ?? '',
+      'photoUrl': row['photo_url'],
+      'photoForPartnerUrl': row['photo_for_partner_url'],
+      'photoForPartnerUrls': strList(row['photo_for_partner_urls']),
+      'photoGridCount': (row['photo_grid_count'] as num?)?.toInt() ?? 1,
+      'photoGridUrls': strList(row['photo_grid_urls']),
+      'musicTitle': row['music_title'],
+      'musicArtist': row['music_artist'],
+      'musicUrl': row['music_url'],
+      'musicCoverUrl': row['music_cover_url'],
+      'updatedAt': _toTs(row['updated_at']),
+    };
+  }
+
+  /// Разовое чтение widget_data одного участника (firestore-формат) или null.
+  Future<Map<String, dynamic>?> loadWidgetData(
+    String groupId,
+    String userUid,
+  ) async {
+    if (!isReady || groupId.isEmpty || userUid.isEmpty) return null;
+    try {
+      final row = await _client
+          .from('widget_data')
+          .select()
+          .eq('group_id', groupId)
+          .eq('user_uid', userUid)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+      if (row == null) return null;
+      return _widgetRowToFirestore(row);
+    } catch (e) {
+      debugPrint('SupabaseService.loadWidgetData($groupId/$userUid) failed: $e');
+      return null;
+    }
+  }
+
+  /// Live-подписка на widget_data одного участника. [onData] получает карту
+  /// firestore-формата (как snapshot widgetData) или null, если строки нет —
+  /// чтобы вызывающий код мог запустить fallback/bootstrap как и раньше.
+  /// Realtime .stream() допускает один .eq(), а PK составной (group_id,
+  /// user_uid) → фильтруем по group_id и выбираем нужного user_uid в коде
+  /// (в группе всего 2 участника, накладные расходы ничтожны).
+  StreamSubscription? listenWidgetData(
+    String groupId,
+    String userUid,
+    void Function(Map<String, dynamic>? data) onData,
+  ) {
+    if (!isReady || groupId.isEmpty || userUid.isEmpty) return null;
+    try {
+      return _client
+          .from('widget_data')
+          .stream(primaryKey: ['group_id', 'user_uid'])
+          .eq('group_id', groupId)
+          .listen((rows) {
+        Map<String, dynamic>? mine;
+        for (final r in rows) {
+          if (r['user_uid'] == userUid) {
+            mine = r;
+            break;
+          }
+        }
+        onData(mine == null ? null : _widgetRowToFirestore(mine));
+      }, onError: (e) => debugPrint('listenWidgetData error: $e'));
+    } catch (e) {
+      debugPrint('SupabaseService.listenWidgetData failed: $e');
+      return null;
+    }
   }
 
   // ══════════════════════════════════════════════

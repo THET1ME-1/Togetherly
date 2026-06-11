@@ -126,16 +126,11 @@ class WidgetService extends ChangeNotifier {
     _partnerSubs.remove(partnerUid)?.cancel();
     _partnerData.remove(partnerUid);
 
-    final ref = _db
-        .collection('groups')
-        .doc(_groupId)
-        .collection('widgetData')
-        .doc(partnerUid);
-
-    _partnerSubs[partnerUid] = ref.snapshots().listen((snap) {
+    // Общий обработчик снимка widget_data партнёра (firestore-формат).
+    void handle(Map<String, dynamic>? data) {
       if (_isDisposed) return;
-      if (snap.exists && snap.data() != null) {
-        _partnerData[partnerUid] = WidgetData.fromFirestore(snap.data()!);
+      if (data != null) {
+        _partnerData[partnerUid] = WidgetData.fromFirestore(data);
       } else {
         _partnerData[partnerUid] = WidgetData(uid: partnerUid);
         // Fallback: read name/avatar from group document
@@ -151,7 +146,25 @@ class WidgetService extends ChangeNotifier {
         HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
       }
       notifyListeners();
-    }, onError: (e) => debugPrint('WidgetService partner listener error: $e'));
+    }
+
+    // Фаза 1: читаем widget_data партнёра из Supabase realtime.
+    if (_mig) {
+      final sub = _sb.listenWidgetData(_groupId, partnerUid, handle);
+      if (sub != null) _partnerSubs[partnerUid] = sub;
+      return;
+    }
+
+    final ref = _db
+        .collection('groups')
+        .doc(_groupId)
+        .collection('widgetData')
+        .doc(partnerUid);
+
+    _partnerSubs[partnerUid] = ref.snapshots().listen(
+      (snap) => handle(snap.exists ? snap.data() : null),
+      onError: (e) => debugPrint('WidgetService partner listener error: $e'),
+    );
   }
 
   Future<void> unbindFromGroup({bool clearNativeWidget = true}) async {
@@ -184,16 +197,11 @@ class WidgetService extends ChangeNotifier {
     if (uid == null || _groupId.isEmpty) return;
 
     _mySub?.cancel();
-    final ref = _db
-        .collection('groups')
-        .doc(_groupId)
-        .collection('widgetData')
-        .doc(uid);
 
-    _mySub = ref.snapshots().listen((snap) {
+    void handle(Map<String, dynamic>? data) {
       if (_isDisposed) return;
-      if (snap.exists && snap.data() != null) {
-        _myData = WidgetData.fromFirestore(snap.data()!);
+      if (data != null) {
+        _myData = WidgetData.fromFirestore(data);
       } else {
         _myData = WidgetData(uid: uid);
         // Bootstrap document with profile data so widget shows name/avatar
@@ -207,7 +215,24 @@ class WidgetService extends ChangeNotifier {
         HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
       }
       notifyListeners();
-    }, onError: (e) => debugPrint('WidgetService my data listener error: $e'));
+    }
+
+    // Фаза 1: читаем свой widget_data из Supabase realtime.
+    if (_mig) {
+      _mySub = _sb.listenWidgetData(_groupId, uid, handle);
+      return;
+    }
+
+    final ref = _db
+        .collection('groups')
+        .doc(_groupId)
+        .collection('widgetData')
+        .doc(uid);
+
+    _mySub = ref.snapshots().listen(
+      (snap) => handle(snap.exists ? snap.data() : null),
+      onError: (e) => debugPrint('WidgetService my data listener error: $e'),
+    );
   }
 
   /// Creates widgetData doc with profile data when it doesn't exist yet.
@@ -218,6 +243,11 @@ class WidgetService extends ChangeNotifier {
       final userDoc = await _db.collection('users').doc(uid).get();
       if (!userDoc.exists || _isDisposed || _groupId != gid) return;
       final d = userDoc.data()!;
+      final bootstrap = {
+        'displayName': d['displayName'] ?? '',
+        'avatarUrl': d['avatarUrl'] ?? '',
+        'gender': d['gender'] ?? '',
+      };
       await _db
           .collection('groups')
           .doc(gid)
@@ -225,11 +255,15 @@ class WidgetService extends ChangeNotifier {
           .doc(uid)
           .set({
         'uid': uid,
-        'displayName': d['displayName'] ?? '',
-        'avatarUrl': d['avatarUrl'] ?? '',
-        'gender': d['gender'] ?? '',
+        ...bootstrap,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      // Фаза 1: зеркалим bootstrap в Supabase, чтобы строка widget_data
+      // существовала и Supabase-листенер получил имя/аватар (без этого новый
+      // юзер бесконечно падал бы в ветку «строки нет»).
+      if (_mig) {
+        unawaited(_sb.mirrorWidgetData(gid, uid, bootstrap));
+      }
       debugPrint('WidgetService: widgetData initialized for $uid');
     } catch (e) {
       debugPrint('WidgetService._initializeMyWidgetData failed: $e');
@@ -241,6 +275,36 @@ class WidgetService extends ChangeNotifier {
   void _loadPartnerFallback(String partnerUid) {
     final gid = _groupId;
     if (gid.isEmpty) return;
+
+    // Фаза 1: имя/аватар партнёра берём из группы в Supabase, а не из Firestore.
+    if (_mig) {
+      final myUid = _fb.currentUser?.uid ?? '';
+      _sb.loadPairById(gid, myUid).then((parsed) {
+        if (_isDisposed || _groupId != gid || parsed == null) return;
+        final members = (parsed['members'] as List?) ?? const [];
+        String name = '';
+        String avatar = '';
+        for (final m in members) {
+          if (m is Map && m['uid'] == partnerUid) {
+            name = (m['name'] ?? '').toString();
+            avatar = (m['avatar'] ?? '').toString();
+            break;
+          }
+        }
+        if (name.isEmpty && avatar.isEmpty) return;
+        _partnerData[partnerUid] = WidgetData(
+          uid: partnerUid,
+          displayName: name,
+          avatarUrl: avatar,
+        );
+        _syncToNativeWidget();
+        notifyListeners();
+      }).catchError((Object e) {
+        debugPrint('WidgetService._loadPartnerFallback (sb) failed: $e');
+      });
+      return;
+    }
+
     _db.collection('groups').doc(gid).get().then((groupDoc) {
       if (!groupDoc.exists || _isDisposed || _groupId != gid) return;
       final data = groupDoc.data()!;
