@@ -247,13 +247,25 @@ class _SetupScreenState extends State<SetupScreen>
       if (mounted) {
         setState(() => _isLoading = false);
         final errorMsg = e.toString();
+        final s = LocaleService.current;
         // Проверяем, не существует ли уже аккаунт с таким email
         if (errorMsg.contains('email-already-in-use')) {
           _showEmailExistsDialog();
-        } else if (errorMsg.contains('TimeoutException')) {
-          _showError(LocaleService.current.serverNotResponding);
+        } else if (errorMsg.contains('TimeoutException') ||
+            errorMsg.contains('network-request-failed') ||
+            errorMsg.contains('internal-error') ||
+            errorMsg.contains('timeout')) {
+          // Частый кейс из России: нестабильное/VPN-соединение. Понятный текст
+          // вместо сырого исключения — и сервис уже сделал ретраи.
+          _showError(s.serverNotResponding);
+        } else if (errorMsg.contains('weak-password')) {
+          _showError(s.passwordMin6);
+        } else if (errorMsg.contains('invalid-email')) {
+          _showError(s.invalidEmailFormat);
+        } else if (errorMsg.contains('too-many-requests')) {
+          _showError(s.tooManyAttempts);
         } else {
-          _showError(LocaleService.current.registrationError(errorMsg));
+          _showError(s.registrationError(errorMsg));
         }
       }
     }

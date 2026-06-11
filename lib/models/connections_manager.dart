@@ -49,6 +49,14 @@ class ConnectionsManager extends ChangeNotifier {
     // Ensure solo connection exists at index 0 (can't be deleted)
     _ensureSoloConnection();
 
+    // Самолечение: если pairIds в user-документе обнулились (переустановка/
+    // повторный вход), но группа жива — возвращаем активные группы в pairIds.
+    // Запись подхватит слушатель user-документа (_startListeningForNewPairs)
+    // ниже и сам привяжет восстановленные группы к connection'ам.
+    if (_fb.isLoggedIn) {
+      await _fb.selfHealActiveGroups();
+    }
+
     // If no connections exist (besides solo), create a default one
     if (_connections.length <= 1) {
       await _createNewConnection();
