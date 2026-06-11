@@ -19,17 +19,27 @@ abstract final class MigrationConfig {
       'sb_publishable_CjlP42zWZwPWGiUcbHC07w_qH9GZyuO';
 
   // ──────────────────────────────────────────────────────────────
-  // Фаза 1: тестовые аккаунты
+  // Фаза 2: миграция включена для ВСЕХ пользователей этой сборки
+  // (не только тест-аккаунтов). Любой залогиненный юзер dual-write'ит
+  // и читает из Supabase. Это dev-сборка — у прод-юзеров (Play Store /
+  // main) Supabase-кода нет вовсе, так что флаг затрагивает только тех,
+  // кто реально запускает эту ветку. Список ниже оставлен для отката.
   // ──────────────────────────────────────────────────────────────
+  static const bool enabledForEveryone = true;
+
   static const Set<String> _phase1Emails = {
     'badzoff@gmail.com',
     'ashatilov2008@gmail.com',
     'sasamatrosov87@gmail.com',
   };
 
-  /// true — если этого пользователя читаем из Supabase (Фаза 1).
-  static bool isPhase1User(String? email) =>
-      email != null && _phase1Emails.contains(email.toLowerCase());
+  /// true — если этого пользователя читаем/пишем через Supabase.
+  /// При [enabledForEveryone] — любой залогиненный юзер (есть email).
+  static bool isPhase1User(String? email) {
+    if (email == null) return false;
+    if (enabledForEveryone) return true;
+    return _phase1Emails.contains(email.toLowerCase());
+  }
 
   /// true — Supabase credentials заполнены (не placeholder).
   static bool get isConfigured =>
