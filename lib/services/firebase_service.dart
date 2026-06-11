@@ -4886,12 +4886,20 @@ class FirebaseService {
     required String groupId,
     required void Function(int count) onData,
   }) {
-    // ВАЖНО (Фаза 1): источник истины для «Я скучаю» — RTDB, а НЕ Supabase.
-    // Партнёр может работать на старом билде, который пишет только в RTDB и
-    // не зеркалит в Supabase → чтение из Supabase давало бы расходящиеся
-    // счётчики у партнёров. Поэтому читаем всегда из RTDB; зеркалирование в
-    // Supabase оставляем только для будущей миграции.
-    if (_mig) _seedSupabaseMissYou(groupId);
+    // Фаза 2: читаем «Я скучаю» из Supabase (таблица miss_you, realtime).
+    // Оба партнёра на сборке dual-write'ят в Supabase, поэтому счётчики сходятся.
+    // _seedSupabaseMissYou заранее подтягивает исторические RTDB-тапы (max).
+    // RTDB-запись остаётся (дешёвый триггер пуша + фолбэк), но НЕ источник чтения.
+    if (_mig) {
+      _seedSupabaseMissYou(groupId);
+      final sub = _sb.listenMissYouCounts(groupId, (counts) {
+        final total = counts.values.fold<int>(0, (s, v) => s + v);
+        debugPrint('[SB] listenToMissYouCount($groupId): total=$total');
+        onData(total);
+      });
+      if (sub != null) return sub;
+      // Supabase-листенер не стартанул — падаем на RTDB.
+    }
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
       final total = counts.values.fold<int>(0, (s, v) => s + v);
@@ -4928,8 +4936,15 @@ class FirebaseService {
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
-    // Источник истины — RTDB (см. комментарий в listenToMissYouCount).
-    if (_mig) _seedSupabaseMissYou(groupId);
+    // Фаза 2: per-user счётчики из Supabase (realtime). См. listenToMissYouCount.
+    if (_mig) {
+      _seedSupabaseMissYou(groupId);
+      final sub = _sb.listenMissYouCounts(groupId, (counts) {
+        debugPrint('[SB] listenToMissYouCounts($groupId): counts=$counts');
+        onData(counts);
+      });
+      if (sub != null) return sub;
+    }
     return _missYouCountsRef(groupId).onValue.listen((event) {
       final counts = _parseMissYouCounts(event.snapshot.value);
       debugPrint('listenToMissYouCounts($groupId): counts=$counts');
@@ -4938,10 +4953,17 @@ class FirebaseService {
   }
 
   /// Разовый снимок общего счётчика «Я скучаю» (для фонового апдейта виджета,
-  /// где живой listener не нужен). RTDB-чтение — не Firestore.
+  /// где живой listener не нужен). Фаза 2: из Supabase, фолбэк на RTDB.
   Future<int> getMissYouTotal(String groupId) async {
     if (groupId.isEmpty) return 0;
     try {
+      if (_mig) {
+        final counts = await _sb.getMissYouCounts(groupId);
+        if (counts.isNotEmpty) {
+          return counts.values.fold<int>(0, (s, v) => s + v);
+        }
+        // Пусто в Supabase — падаем на RTDB (мог не сработать сид).
+      }
       final snap = await _missYouCountsRef(groupId).get();
       final counts = _parseMissYouCounts(snap.value);
       return counts.values.fold<int>(0, (s, v) => s + v);
