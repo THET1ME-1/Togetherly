@@ -26,7 +26,17 @@
       "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart lib/services/supabase_service.dart 2>&1)",
       "Bash(cd \"c:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\memory\" && printf '%s\\\\n' '- [Mood + delete-group bugs]\\(project_mood_and_delete_group_bugs.md\\) — настроение на прошлый день не применялось \\(month-scoped listener, фикс=оптимистичный _applyLocalAdd/Remove\\) + удаление группы зависало/чёрный экран \\(await в диалоге, фикс=pop до await\\)' >> MEMORY.md && echo \"indexed\")",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(curl -s -o /tmp/r1.txt -w 'HTTP %{http_code}\\\\n' '__TRACKED_VAR__/users?select=uid&limit=2' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /tmp/r2.txt -w 'HTTP %{http_code}\\\\n' '__TRACKED_VAR__/miss_you?select=group_id,user_uid,count&limit=3' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s -o /tmp/r3.txt -w 'HTTP %{http_code}\\\\n' __TRACKED_VAR__/groups?select=id -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Prefer: count=exact' -I)",
+      "Bash(curl -s -o /tmp/w1.txt -w 'HTTP %{http_code}\\\\n' -X POST __TRACKED_VAR__/users -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -H 'Prefer: return=representation' -d '{\"uid\":\"__anon_write_test__\",\"displayName\":\"write-test\"}')",
+      "Bash(curl -s -o /tmp/w2.txt -w 'HTTP %{http_code}\\\\n' -X POST __TRACKED_VAR__/rpc/increment_miss_you -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -d '{\"p_group_id\":\"__test_grp__\",\"p_user_uid\":\"__anon_write_test__\"}')",
+      "Bash(curl -s -o /dev/null -w 'del users: HTTP %{http_code}\\\\n' -X DELETE __TRACKED_VAR__/users?uid=eq.__anon_write_test__ -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s -o /dev/null -w 'del miss_you: HTTP %{http_code}\\\\n' -X DELETE __TRACKED_VAR__/miss_you?group_id=eq.__test_grp__ -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s '__TRACKED_VAR__/groups?select=id,start_date,timers,member_moods,current_status,members&order=id' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(grep -n \"getSignedUrl\\\\|sb://\\\\|gs://\\\\|resolve\\\\|Future<String\" lib/widgets/storage_image.dart)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

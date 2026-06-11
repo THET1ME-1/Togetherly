@@ -823,7 +823,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: HomeActionButtons(
                       theme: _t,
                       isPaired: _pairData.isPaired,
-                      myMoodImagePath: _pairData.myMood.imagePath,
+                      // Единый источник правды — календарь (myMoodToday), как у
+                      // шапки. Раньше кнопка читала pairData.myMood (group
+                      // memberMoods) и расходилась с мини-календарём/шапкой:
+                      // настроение с мини-календаря не отображалось на кнопке.
+                      myMoodImagePath:
+                          _moodService.myMoodToday?.imagePath ?? '',
                       onDraw: _openDraw,
                       onMood: _showMoodPicker,
                       onCalendar: _openMoodCalendar,
