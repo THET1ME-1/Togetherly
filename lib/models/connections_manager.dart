@@ -278,6 +278,16 @@ class ConnectionsManager extends ChangeNotifier {
     notifyListeners();
     debugPrint('acceptCodeAndCreateGroup: SUCCESS, paired=$pairId');
     unawaited(AnalyticsService.instance.logPairConnected(groupId: pairId));
+
+    // Взаимный коннект (оба приняли коды друг друга одновременно) мог успеть
+    // создать вторую группу пары до страховки в _createNewGroup. Через полминуты
+    // партнёрская группа уже придёт через листенер user-документа — проверяем
+    // дубликаты и сливаем их сразу, не дожидаясь перезапуска приложения.
+    unawaited(
+      Future.delayed(const Duration(seconds: 30), () {
+        if (_fb.isLoggedIn) _cleanupStaleConnections();
+      }),
+    );
     return true;
   }
 
@@ -309,25 +319,55 @@ class ConnectionsManager extends ChangeNotifier {
       toRemove.add(conn);
     }
 
-    // 2) Duplicate groups — same partner set already in another connection.
-    //    Keeps the first occurrence (loaded from SharedPreferences, which is the
-    //    primary production group). Removes later duplicates left by debug runs.
-    final seenPartnerKeys = <String>{};
-    for (final conn in _connections) {
+    // 2) Duplicate groups — same partner set in another connection (пара
+    //    «раскололась» на две группы после потери pairIds). Раньше здесь
+    //    оставляли ПЕРВУЮ по локальному списку и убирали остальные из pairIds —
+    //    но локальный порядок у партнёров разный, каждый держался своей группы,
+    //    а selfHealActiveGroups возвращал удалённую обратно: пара навсегда
+    //    расходилась по разным группам (счётчики/чат/воспоминания врозь).
+    //    Теперь сервер (mergeDuplicateGroups) детерминированно сливает данные
+    //    в старейшую группу и распускает дубликат — оба устройства сходятся
+    //    на одном groupId. При ошибке мерджа оставляем обе связи и повторяем
+    //    на следующем старте.
+    final firstConnByPartnerKey = <String, Connection>{};
+    Connection? replacementActive;
+    for (final conn in List<Connection>.from(_connections)) {
       if (conn.isSolo || toRemove.contains(conn)) continue;
       if (!conn.isPaired || conn.partners.isEmpty) continue;
 
       final partnerUids = conn.partners.map((p) => p.uid).toList()..sort();
       final partnerKey = partnerUids.join(',');
 
-      if (seenPartnerKeys.contains(partnerKey)) {
-        debugPrint(
-          '_cleanupStaleConnections: removing duplicate group ${conn.pairId} (same partners already in another group)',
-        );
-        await _fb.removeStaleGroupFromUser(conn.pairId);
-        toRemove.add(conn);
+      final first = firstConnByPartnerKey[partnerKey];
+      if (first == null) {
+        firstConnByPartnerKey[partnerKey] = conn;
+        continue;
+      }
+
+      debugPrint(
+        '_cleanupStaleConnections: duplicate pair groups '
+        '${first.pairId} / ${conn.pairId} — requesting server merge',
+      );
+      final canonicalId =
+          await _fb.mergeDuplicateGroups(first.pairId, conn.pairId);
+      if (canonicalId == null) continue; // мердж не удался — повтор позже
+
+      final Connection canonical;
+      final Connection duplicate;
+      if (first.pairId == canonicalId) {
+        canonical = first;
+        duplicate = conn;
       } else {
-        seenPartnerKeys.add(partnerKey);
+        canonical = conn;
+        duplicate = first;
+        firstConnByPartnerKey[partnerKey] = canonical;
+      }
+      toRemove.add(duplicate);
+
+      // Если активной была удаляемая связь — после удаления переключимся на
+      // каноническую, чтобы пользователь не «выпал» из пары после слияния.
+      if (_connections.indexOf(duplicate) == _activeConnectionIndex) {
+        replacementActive = canonical;
       }
     }
 
@@ -341,11 +381,19 @@ class ConnectionsManager extends ChangeNotifier {
       if (_connections.where((c) => !c.isSolo).isEmpty) {
         await _createNewConnection();
       }
+      // Перенос актива на каноническую группу после слияния дубликатов.
+      final replacementIndex =
+          replacementActive != null ? _connections.indexOf(replacementActive) : -1;
+      if (replacementIndex >= 0) {
+        _activeConnectionIndex = replacementIndex;
+      }
       // Keep active index in bounds
       if (_activeConnectionIndex >= _connections.length) {
         _activeConnectionIndex =
             _connections.length > 1 ? 1 : _connections.length - 1;
       }
+      await _saveLocal();
+      notifyListeners();
     }
 
     // 3) Phantom members — same person occupying multiple uid slots in members[].

@@ -3139,8 +3139,32 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       return;
     }
 
-    // For external links (Spotify, YouTube etc.) just open them
-    if (!url.contains('firebasestorage') && !url.contains('firebase')) {
+    // gs:// пути нельзя скачать напрямую (http.get кидает
+    // "unsupported scheme 'gs'") — резолвим во временный Signed URL
+    // через Cloud Function, как это делает StorageImage.
+    final isGsPath = url.startsWith('gs://');
+    if (isGsPath) {
+      final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
+      url = await FirebaseService().getSignedUrl(gsPath);
+      if (url == null || url.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LocaleService.current.downloadFailed('no access')),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // For external links (Spotify, YouTube etc.) just open them.
+    // Signed URL (storage.googleapis.com) не содержит 'firebase' — поэтому
+    // gs://-медиа пропускаем мимо этой проверки по флагу isGsPath.
+    if (!isGsPath &&
+        !url.contains('firebasestorage') &&
+        !url.contains('firebase')) {
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       }
