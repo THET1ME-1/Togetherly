@@ -47,6 +47,8 @@ class _MissYouButtonState extends State<MissYouButton>
   int _partnerCount = 0;
   int _inFlightTaps = 0;
   StreamSubscription? _countSub;
+  Timer? _listenRetryTimer;
+  int _listenRetryAttempt = 0;
 
   // ── Animations ───────────────────────────────────────────────────────────────
   late AnimationController _fillController;
@@ -110,11 +112,25 @@ class _MissYouButtonState extends State<MissYouButton>
 
   void _startListening() {
     _countSub?.cancel();
+    _listenRetryTimer?.cancel();
     if (widget.groupId.isEmpty) return;
     _countSub = _fb.listenToMissYouCounts(
       groupId: widget.groupId,
+      onError: (_) {
+        // RTDB отменяет подписку насовсем (например, permission-denied, пока
+        // auth-токен не доехал на холодном старте) — переподнимаем с бэкоффом,
+        // иначе счётчик показывает нули до перезапуска приложения.
+        if (!mounted) return;
+        final delay = Duration(seconds: min(30, 2 << min(_listenRetryAttempt, 4)));
+        _listenRetryAttempt++;
+        _listenRetryTimer?.cancel();
+        _listenRetryTimer = Timer(delay, () {
+          if (mounted) _startListening();
+        });
+      },
       onData: (counts) {
         if (!mounted) return;
+        _listenRetryAttempt = 0;
         final myUid = _fb.uid ?? '';
         final newMyCount = counts[myUid] ?? 0;
         final newPartnerCount = counts.entries
@@ -320,6 +336,7 @@ class _MissYouButtonState extends State<MissYouButton>
     _fillController.dispose();
     _scaleController.dispose();
     _countSub?.cancel();
+    _listenRetryTimer?.cancel();
     _feedbackTimer?.cancel();
     for (final h in _hearts) {
       h.controller.dispose();
