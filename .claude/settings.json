@@ -36,7 +36,15 @@
       "Bash(curl -s -o /dev/null -w 'del users: HTTP %{http_code}\\\\n' -X DELETE __TRACKED_VAR__/users?uid=eq.__anon_write_test__ -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
       "Bash(curl -s -o /dev/null -w 'del miss_you: HTTP %{http_code}\\\\n' -X DELETE __TRACKED_VAR__/miss_you?group_id=eq.__test_grp__ -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
       "Bash(curl -s '__TRACKED_VAR__/groups?select=id,start_date,timers,member_moods,current_status,members&order=id' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
-      "Bash(grep -n \"getSignedUrl\\\\|sb://\\\\|gs://\\\\|resolve\\\\|Future<String\" lib/widgets/storage_image.dart)"
+      "Bash(grep -n \"getSignedUrl\\\\|sb://\\\\|gs://\\\\|resolve\\\\|Future<String\" lib/widgets/storage_image.dart)",
+      "PowerShell(git -C \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" status)",
+      "PowerShell(git -C \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" branch -a)",
+      "PowerShell(git -C \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\" log --oneline -15 feature/supabase-migration)",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\lib\\\\services\\\\firebase_service.dart\" | Measure-Object -Line\\).Lines; \\(Get-Content \"c:\\\\Users\\\\Alex\\\\Documents\\\\GitHub\\\\love_app\\\\lib\\\\services\\\\supabase_service.dart\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(flutter analyze 2>&1)",
+      "PowerShell(flutter test 2>&1)",
+      "PowerShell(git add supabase/group_ops.sql lib/services/supabase_service.dart lib/services/firebase_service.dart lib/services/widget_service.dart lib/services/home_widget_service.dart lib/screens/memory_lane_screen.dart)",
+      "PowerShell(git push origin feature/supabase-migration)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
