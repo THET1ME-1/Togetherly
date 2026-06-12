@@ -99,6 +99,11 @@ class FirebaseService {
   // настроения/чат/комментарии/холсты), созданных ДО установки dual-write сборки.
   // v2: + комментарии; v3: + холсты (штрихи/мета/каталог) → форс повтора.
   static const _kDataBackfillDone = 'supabase_data_backfill_v3';
+  // Числовые версии проходов — для СЕРВЕРНЫХ флагов (migration_flags в
+  // Supabase). Должны совпадать с vN в ключах выше; при бампе ключа бампать
+  // и константу — иначе серверный флаг подавит повторный проход.
+  static const _kDataBackfillVersion = 3;
+  static const _kMediaMigrationVersion = 6;
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -175,14 +180,41 @@ class FirebaseService {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // ── 1. Бэкфилл исторических данных ──────────────────────────────────────
+      // ── 0. Серверные флаги (migration_flags в Supabase) ─────────────────────
+      // Локальные prefs стираются при переустановке, а ПОВТОРНЫЙ бэкфилл после
+      // Этапа 4 опасен: Firestore-копия устарела (правки/удаления идут только в
+      // Supabase) — он затёр бы правки и воскресил удалённое. Если сервер
+      // говорит «проход этой версии уже был» — восстанавливаем prefs и выходим.
       final dataKey = '$_kDataBackfillDone.$groupId';
+      final mediaKey = '$_kMediaMigrationDone.$groupId';
       var dataDone = prefs.getBool(dataKey) == true;
+      var mediaDone = prefs.getBool(mediaKey) == true;
+      if (!dataDone || !mediaDone) {
+        final server = await _sb.fetchMigrationFlags(groupId);
+        if (server != null) {
+          if (!dataDone && server.dataVersion >= _kDataBackfillVersion) {
+            dataDone = true;
+            await prefs.setBool(dataKey, true);
+            debugPrint('[MIG] $groupId: data-бэкфилл уже выполнен (сервер)');
+          }
+          if (!mediaDone && server.mediaVersion >= _kMediaMigrationVersion) {
+            mediaDone = true;
+            await prefs.setBool(mediaKey, true);
+            debugPrint('[MIG] $groupId: media-проход уже выполнен (сервер)');
+          }
+        }
+      }
+
+      // ── 1. Бэкфилл исторических данных ──────────────────────────────────────
       if (!dataDone) {
         final failures = await _backfillDataToSupabase(groupId);
         if (failures == 0) {
           await prefs.setBool(dataKey, true);
           dataDone = true;
+          unawaited(_sb.markMigrationFlag(
+            groupId,
+            dataVersion: _kDataBackfillVersion,
+          ));
           debugPrint('[MIG] data backfill($groupId): complete');
         } else {
           debugPrint(
@@ -192,10 +224,15 @@ class FirebaseService {
       }
 
       // ── 2. Медиа (только когда данные на месте) ─────────────────────────────
-      var mediaDone = prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
       if (dataDone && !mediaDone) {
         await _migrateMediaToSupabase(groupId);
-        mediaDone = prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
+        mediaDone = prefs.getBool(mediaKey) == true;
+        if (mediaDone) {
+          unawaited(_sb.markMigrationFlag(
+            groupId,
+            mediaVersion: _kMediaMigrationVersion,
+          ));
+        }
       }
 
       if (dataDone && mediaDone) {
@@ -3331,6 +3368,30 @@ class FirebaseService {
     }
   }
 
+  /// true — группы действительно больше нет (удалена/распущена и в Firestore).
+  /// false — группа жива (миграционная гонка: Supabase-строка ещё не создана)
+  /// ИЛИ Firestore недоступен — в обоих случаях «группы нет» сообщать нельзя.
+  Future<bool> _verifyPairGone(String groupId) async {
+    try {
+      final doc = await _db.collection('groups').doc(groupId).get();
+      final data = doc.data();
+      if (!doc.exists || data == null) return true;
+      if (data['disbanded'] == true) return true;
+      // Жива в Firestore → засеваем Supabase-строку и запускаем полный
+      // миграционный проход; realtime-листенер получит INSERT.
+      debugPrint(
+        '_verifyPairGone($groupId): группа жива в Firestore — засеваем Supabase',
+      );
+      await _mirrorGroupRawIfMissing(groupId, data);
+      unawaited(_runSupabaseMigration(groupId));
+      return false;
+    } catch (e) {
+      // Ошибка чтения (сеть/правила) — не рискуем расспариванием.
+      debugPrint('_verifyPairGone($groupId) failed: $e');
+      return false;
+    }
+  }
+
   /// Remove a stale groupId from the user's pairIds list in Firestore.
   /// Called when a group turns out to have no partners (orphaned after testing).
   Future<void> removeStaleGroupFromUser(String groupId) async {
@@ -3358,16 +3419,30 @@ class FirebaseService {
     // Миграция: живая группа читается из Supabase (realtime на таблице groups).
     if (_mig) {
       final uid = _auth.currentUser?.uid ?? '';
+      var verifyingGone = false;
       return _sb.listenPair(pairId, uid, (data) {
-        if (data != null) {
-          // Кеш участников для пушей (как в _parseGroupDoc).
-          final members = (data['members'] as List?)
-                  ?.map((m) => ((m as Map)['uid'] ?? '').toString())
-                  .where((s) => s.isNotEmpty)
-                  .toList() ??
-              const <String>[];
-          if (members.isNotEmpty) _groupMembersCache[pairId] = members;
+        if (data == null) {
+          // ПУСТОЙ снимок ≠ «группы нет». У только что обновившегося юзера
+          // строки groups в Supabase ещё нет (зеркало/бэкфилл в полёте), а
+          // потребитель (Connection._listenToPair) на null СНИМАЕТ паринг и
+          // вычищает группу из pairIds — ложный null равен «потерял группу».
+          // Поэтому сверяемся с Firestore: группа жива → засеваем строку и
+          // молчим (realtime INSERT доставит данные), мертва → пробрасываем.
+          if (verifyingGone) return;
+          verifyingGone = true;
+          _verifyPairGone(pairId).then((gone) {
+            verifyingGone = false;
+            if (gone) onData(null);
+          });
+          return;
         }
+        // Кеш участников для пушей (как в _parseGroupDoc).
+        final members = (data['members'] as List?)
+                ?.map((m) => ((m as Map)['uid'] ?? '').toString())
+                .where((s) => s.isNotEmpty)
+                .toList() ??
+            const <String>[];
+        if (members.isNotEmpty) _groupMembersCache[pairId] = members;
         onData(data);
       });
     }
