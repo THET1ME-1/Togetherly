@@ -101,6 +101,20 @@ CREATE OR REPLACE FUNCTION public.memory_patch(
    WHERE id = p_id;
 $$ LANGUAGE sql;
 
+-- ── Серверные флаги миграции группы ──
+-- Локальные SharedPreferences-флаги «бэкфилл готов» стираются при
+-- переустановке. Повторный бэкфилл после Этапа 4 ОПАСЕН: Firestore-копия
+-- устарела (правки/удаления идут только в Supabase) — он затёр бы правки и
+-- воскресил удалённое. Версии = версии ключей бэкфилла на клиенте
+-- (data v3, media v6): бамп версии на клиенте форсирует повторный проход.
+CREATE TABLE IF NOT EXISTS public.migration_flags (
+  group_id      TEXT        PRIMARY KEY,
+  data_version  INT         NOT NULL DEFAULT 0,
+  media_version INT         NOT NULL DEFAULT 0,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.migration_flags DISABLE ROW LEVEL SECURITY;
+
 -- ── Права (как у increment_miss_you) ──
 GRANT EXECUTE ON FUNCTION
   public.group_set_member_mood(TEXT, TEXT, JSONB),

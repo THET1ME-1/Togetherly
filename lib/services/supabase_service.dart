@@ -639,6 +639,51 @@ class SupabaseService {
     }
   }
 
+  /// Серверные версии завершённого бэкфилла группы (data/media). null —
+  /// ошибка чтения (вызывающий не должен трактовать как «не мигрировано»).
+  /// Строки нет → (0, 0) = миграция не выполнялась.
+  Future<({int dataVersion, int mediaVersion})?> fetchMigrationFlags(
+    String groupId,
+  ) async {
+    if (!isReady || groupId.isEmpty) return null;
+    try {
+      final row = await _client
+          .from('migration_flags')
+          .select()
+          .eq('group_id', groupId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+      return (
+        dataVersion: (row?['data_version'] as num?)?.toInt() ?? 0,
+        mediaVersion: (row?['media_version'] as num?)?.toInt() ?? 0,
+      );
+    } catch (e) {
+      debugPrint('SupabaseService.fetchMigrationFlags($groupId) failed: $e');
+      return null;
+    }
+  }
+
+  /// Помечает на сервере завершённый проход бэкфилла (data и/или media).
+  Future<bool> markMigrationFlag(
+    String groupId, {
+    int? dataVersion,
+    int? mediaVersion,
+  }) async {
+    if (!isReady || groupId.isEmpty) return false;
+    final row = <String, dynamic>{
+      'group_id': groupId,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (dataVersion != null) row['data_version'] = dataVersion;
+    if (mediaVersion != null) row['media_version'] = mediaVersion;
+    return _write('markMigrationFlag', () async {
+      await _client
+          .from('migration_flags')
+          .upsert(row, onConflict: 'group_id')
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
   /// Live-поток activeSession группы (или null) — замена activeSessionStream,
   /// который под `_mig` больше не может опираться на Firestore group-doc.
   Stream<Map<String, dynamic>?> watchActiveSession(String groupId) {
