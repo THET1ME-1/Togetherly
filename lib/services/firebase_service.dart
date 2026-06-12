@@ -235,6 +235,10 @@ class FirebaseService {
         }
       }
 
+      // Данные перенесены → помечаем себя «мигрировавшим» в users-doc:
+      // по этому флагу сборки партнёров решают, нужен ли мост совместимости.
+      if (dataDone) unawaited(_ensureSbMigratedFlag());
+
       if (dataDone && mediaDone) {
         _migrationRetryCount.remove(groupId);
         _migrationGroups.remove(groupId); // больше не возобновляем
