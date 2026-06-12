@@ -2282,10 +2282,10 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Исправили баг с отсувствием таймеров у новых пар.\n'
-      '— Исправили баг с фото на виджетах.\n'
-      '— Исправили баг с синхрониацией счетчика «Я скучаю».\n'
-      '— Должны были исправить уведомления о настроении партнера.';
+      '— Надеемся, что исправили ВСЕ расхождения в группах:\n'
+      'Открыли приложение → несколько секунд фоновой работы → у обоих снова одна общая группа.\n\n'
+      '‼️ Пока один партнёр на старой версии, а второй уже обновился, старый клиент может временно «потерять» пару. Всё починится автоматически с обновлением. ‼️\n\n'
+      '— Исправили скачивание воспоминаний.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -4098,10 +4098,10 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Fixed a bug where new couples had no timers.\n'
-      '— Fixed a bug with photos on widgets.\n'
-      '— Fixed a bug with syncing the “I miss you” counter.\n'
-      '— We should have fixed partner mood notifications.';
+      '— We hope we\'ve fixed ALL group sync issues:\n'
+      'Open the app → a few seconds of background work → both partners are back in one shared group.\n\n'
+      '‼️ If one partner is still on the old version while the other has updated, the old client may temporarily “lose” the pair. Everything will fix itself automatically once both update. ‼️\n\n'
+      '— Fixed downloading memories.';
   @override
   String get updateButton => 'Update';
   @override

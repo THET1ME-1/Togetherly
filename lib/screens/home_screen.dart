@@ -2299,8 +2299,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      '''— Поправили награду за рекламу.
-— Добавили новый тип пинов "Фильм/Сериал" (не совместный просмотр).''',
+                      LocaleService.current.updateWhatsNew,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,
