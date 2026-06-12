@@ -289,7 +289,14 @@ class FirebaseService {
         return 0; // нечего переносить — не ошибка
       }
       final groupData = groupSnap.data() ?? <String, dynamic>{};
-      if (!await _sb.mirrorGroupRaw(groupId, groupData)) failures++;
+      // Этап 4: group-поля пишутся ТОЛЬКО в Supabase → Firestore-снимок группы
+      // может быть устаревшим. Полный mirrorGroupRaw нужен лишь для
+      // исторических групп, которых в Supabase ещё нет; существующую строку
+      // не трогаем, чтобы не затереть свежие memberMoods/статус/таймеры.
+      final existing = await _sb.fetchGroupColumns(groupId, ['id']);
+      if (existing == null) {
+        if (!await _sb.mirrorGroupRaw(groupId, groupData)) failures++;
+      }
 
       final members = (groupData['members'] as List?)
               ?.map((e) => e.toString())
@@ -1663,6 +1670,9 @@ class FirebaseService {
           .doc(u.uid)
           .set({'badge': badge}, SetOptions(merge: true))
           .timeout(const Duration(seconds: 8));
+      // Профиль под `_mig` читается из Supabase — без зеркала смена бейджа
+      // была бы невидимой (откатывалась при следующем loadUserProfile).
+      if (_mig) unawaited(_sb.mirrorUser(u.uid, {'badge': badge}));
     } catch (e) {
       debugPrint('setBadge failed: $e');
     }
@@ -1684,6 +1694,8 @@ class FirebaseService {
           .doc(u.uid)
           .set(data, SetOptions(merge: true))
           .timeout(const Duration(seconds: 8));
+      // См. setBadge: профиль под `_mig` читается из Supabase.
+      if (_mig) unawaited(_sb.mirrorUser(u.uid, data));
     } catch (e) {
       debugPrint('saveGrantedBadges failed: $e');
     }
@@ -1711,11 +1723,16 @@ class FirebaseService {
         );
       }
 
+      // Firestore-запись остаётся и под `_mig`: memberNames читает Cloud
+      // Function пуша настроения (имя отправителя). Но партнёр видит группу из
+      // Supabase, поэтому БЕЗ зеркала смена имени до него не доезжала — это
+      // был баг dual-write; чиним атомарным jsonb_set.
       final nameBatch = _db.batch();
       for (final groupId in pairIds) {
         nameBatch.update(_db.collection('groups').doc(groupId), {
           'memberNames.${u.uid}': displayName,
         });
+        if (_mig) unawaited(_sb.setMemberName(groupId, u.uid, displayName));
       }
       await nameBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
@@ -1743,11 +1760,14 @@ class FirebaseService {
         );
       }
 
+      // Как в updateNameInGroups: Firestore — для пуш-функций, Supabase —
+      // источник чтения партнёра (без зеркала аватар не обновлялся у него).
       final avatarBatch = _db.batch();
       for (final groupId in pairIds) {
         avatarBatch.update(_db.collection('groups').doc(groupId), {
           'memberAvatars.${u.uid}': avatarUrl,
         });
+        if (_mig) unawaited(_sb.setMemberAvatar(groupId, u.uid, avatarUrl));
       }
       await avatarBatch.commit().timeout(const Duration(seconds: 10));
     } catch (e) {
@@ -2214,19 +2234,58 @@ class FirebaseService {
     if (myUid != null) unawaited(_sb.mirrorUser(myUid, myData));
   }
 
-  /// Перечитывает group-doc из Firestore и зеркалит КАНОНИЧНЫЙ снимок в Supabase.
-  /// Нужен после ЛЮБОЙ записи group-поля (статус, тип отношений, даты, дни
-  /// рождения…): под `_mig` чтение группы идёт из Supabase (listenToPair), а
-  /// прежний mirror-on-read в `_parseGroupDoc` больше не срабатывает (Firestore
-  /// не читается). Полный снимок безопасен — partial-mirror через mirrorGroupRaw
-  /// затёр бы непереданные поля дефолтами. Fire-and-forget у вызывающих.
+  /// JSONB-список из Supabase → изменяемый `List<Map<String, dynamic>>`
+  /// (для read-modify-write редких списков: customStatuses, timers и т.п.).
+  static List<Map<String, dynamic>> _jsonMapList(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// Полный mirror группы — только если строки в Supabase ещё нет
+  /// (сидирование исторической группы; существующую не перезаписываем).
+  Future<void> _mirrorGroupRawIfMissing(
+    String groupId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final existing = await _sb.fetchGroupColumns(groupId, ['id']);
+      if (existing == null) await _sb.mirrorGroupRaw(groupId, data);
+    } catch (e) {
+      debugPrint('_mirrorGroupRawIfMissing($groupId) failed: $e');
+    }
+  }
+
+  /// Зеркалит группу из Firestore в Supabase ПОСЛЕ membership-операции
+  /// (паринг/restore/выход). С Этапа 4 горячие поля (memberMoods, статус,
+  /// таймеры, даты…) пишутся ТОЛЬКО в Supabase — полный снимок Firestore-дока
+  /// затёр бы их устаревшими значениями. Поэтому: строки нет (новая группа) →
+  /// полный mirrorGroupRaw; строка есть → обновляем только membership-поля.
   Future<void> _mirrorGroupDocToSupabase(String groupId) async {
     if (!_mig || groupId.isEmpty) return;
     try {
       final doc = await _db.collection('groups').doc(groupId).get();
-      if (doc.exists && doc.data() != null) {
-        await _sb.mirrorGroupRaw(groupId, doc.data()!);
+      final data = doc.data();
+      if (!doc.exists || data == null) return;
+      final existing = await _sb.fetchGroupColumns(groupId, ['id']);
+      if (existing == null) {
+        await _sb.mirrorGroupRaw(groupId, data);
+        return;
       }
+      final disbanded = data['disbanded'] == true;
+      await _sb.mirrorGroupFields(groupId, {
+        'members': SupabaseService.jsonSafe(data['members'] ?? []),
+        'member_names': SupabaseService.jsonSafe(data['memberNames'] ?? {}),
+        'member_avatars': SupabaseService.jsonSafe(data['memberAvatars'] ?? {}),
+        'max_members': data['maxMembers'] ?? 2,
+        'disbanded': disbanded,
+        // null при restore очищает метку роспуска (mirrorGroupFields не
+        // выкидывает null-значения — в отличие от mirrorGroupRaw).
+        'disbanded_at':
+            disbanded ? SupabaseService.jsonSafe(data['disbandedAt']) : null,
+      });
     } catch (e) {
       debugPrint('_mirrorGroupDocToSupabase($groupId) failed: $e');
     }
@@ -2601,10 +2660,13 @@ class FirebaseService {
   /// Update group maxMembers
   Future<void> updateGroupMaxMembers(String groupId, int maxMembers) async {
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {'max_members': maxMembers});
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'maxMembers': maxMembers,
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateGroupMaxMembers failed: $e');
     }
@@ -2619,13 +2681,21 @@ class FirebaseService {
     String customEmoji = '',
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {
+          'relationship_type': type,
+          'max_members': maxMembers,
+          'custom_relationship_label': customLabel,
+          'custom_relationship_emoji': customEmoji,
+        });
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'relationshipType': type,
         'maxMembers': maxMembers,
         'customRelationshipLabel': customLabel,
         'customRelationshipEmoji': customEmoji,
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateGroupRelationshipType failed: $e');
     }
@@ -2636,10 +2706,16 @@ class FirebaseService {
   /// Сохраняет дату годовщины для пары (общая для группы).
   Future<void> updateAnniversaryDate(String groupId, DateTime? date) async {
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(
+          groupId,
+          {'anniversary_date': date?.toIso8601String()},
+        );
+        return;
+      }
       await _db.collection('groups').doc(groupId).set({
         'anniversaryDate': date != null ? Timestamp.fromDate(date) : null,
       }, SetOptions(merge: true));
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateAnniversaryDate failed: $e');
     }
@@ -2648,10 +2724,16 @@ class FirebaseService {
   /// Сохраняет дату первого поцелуя для пары (общая для группы).
   Future<void> updateFirstKissDate(String groupId, DateTime? date) async {
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(
+          groupId,
+          {'first_kiss_date': date?.toIso8601String()},
+        );
+        return;
+      }
       await _db.collection('groups').doc(groupId).set({
         'firstKissDate': date != null ? Timestamp.fromDate(date) : null,
       }, SetOptions(merge: true));
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateFirstKissDate failed: $e');
     }
@@ -2663,9 +2745,12 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return;
     try {
+      // users-doc остаётся dual-write (его читают паринг и пуш-функции),
+      // поэтому пишем дату и в Firestore, и в Supabase-профиль.
       await _db.collection('users').doc(u.uid).set({
         'birthDate': date != null ? Timestamp.fromDate(date) : null,
       }, SetOptions(merge: true));
+      if (_mig) unawaited(_sb.mirrorUser(u.uid, {'birthDate': date}));
       // Обновляем в каждой группе, чтобы партнёр видел дату рождения.
       final groupIds = <String>[];
       // Пробуем прочитать pairIds из users/{uid}
@@ -2679,12 +2764,16 @@ class FirebaseService {
         }
       } catch (_) {}
       for (final gid in groupIds) {
+        // Этап 4: memberBirthdays живёт в Supabase (атомарный jsonb_set).
+        if (_mig) {
+          await _sb.setMemberBirthday(gid, u.uid, date);
+          continue;
+        }
         await _db.collection('groups').doc(gid).update({
           'memberBirthdays.${u.uid}': date != null
               ? Timestamp.fromDate(date)
               : FieldValue.delete(),
         });
-        unawaited(_mirrorGroupDocToSupabase(gid));
       }
     } catch (e) {
       debugPrint('updateMyBirthDate failed: $e');
@@ -2697,6 +2786,20 @@ class FirebaseService {
     Map<String, String> entry,
   ) async {
     try {
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(
+          groupId,
+          ['custom_relationship_types'],
+        );
+        final list = _jsonMapList(row?['custom_relationship_types']);
+        if (!list.any((e) => e['id'] == entry['id'])) {
+          list.add(Map<String, dynamic>.from(entry));
+        }
+        await _sb.mirrorGroupFields(groupId, {
+          'custom_relationship_types': SupabaseService.jsonSafe(list),
+        });
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -2711,7 +2814,6 @@ class FirebaseService {
         }
         tx.set(ref, {'customRelationshipTypes': list}, SetOptions(merge: true));
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('addCustomRelationshipType failed: $e');
     }
@@ -2723,6 +2825,33 @@ class FirebaseService {
     Map<String, String> entry,
   ) async {
     try {
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(groupId, [
+          'custom_relationship_types',
+          'custom_relationship_label',
+          'custom_relationship_emoji',
+        ]);
+        if (row == null) return;
+        final list = _jsonMapList(row['custom_relationship_types']);
+        final idx = list.indexWhere((e) => e['id'] == entry['id']);
+        if (idx == -1) return;
+        final previous = Map<String, dynamic>.from(list[idx]);
+        list[idx] = Map<String, dynamic>.from(entry);
+
+        final updates = <String, dynamic>{
+          'custom_relationship_types': SupabaseService.jsonSafe(list),
+        };
+        final currentLabel = row['custom_relationship_label'] as String? ?? '';
+        final currentEmoji = row['custom_relationship_emoji'] as String? ?? '';
+        final prevLabel = previous['label'] as String? ?? '';
+        final prevEmoji = previous['emoji'] as String? ?? '';
+        if (currentLabel == prevLabel && currentEmoji == prevEmoji) {
+          updates['custom_relationship_label'] = entry['label'] ?? '';
+          updates['custom_relationship_emoji'] = entry['emoji'] ?? '';
+        }
+        await _sb.mirrorGroupFields(groupId, updates);
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -2752,7 +2881,6 @@ class FirebaseService {
 
         tx.update(ref, updates);
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateCustomRelationshipType failed: $e');
     }
@@ -2761,6 +2889,36 @@ class FirebaseService {
   /// Delete a custom relationship type from the group's shared list
   Future<void> deleteCustomRelationshipType(String groupId, String id) async {
     try {
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(groupId, [
+          'custom_relationship_types',
+          'custom_relationship_label',
+          'relationship_type',
+        ]);
+        if (row == null) return;
+        final list = _jsonMapList(row['custom_relationship_types']);
+        final removed = list.where((e) => e['id'] == id).toList();
+        list.removeWhere((e) => e['id'] == id);
+
+        final updates = <String, dynamic>{
+          'custom_relationship_types': SupabaseService.jsonSafe(list),
+        };
+        final removedLabel = removed.isNotEmpty
+            ? removed.first['label'] as String? ?? ''
+            : '';
+        final currentType = row['relationship_type'] as String? ?? '';
+        final currentLabel = row['custom_relationship_label'] as String? ?? '';
+        if (currentType == 'custom' &&
+            removedLabel.isNotEmpty &&
+            currentLabel == removedLabel) {
+          updates['relationship_type'] = 'couple';
+          updates['max_members'] = 2;
+          updates['custom_relationship_label'] = '';
+          updates['custom_relationship_emoji'] = '';
+        }
+        await _sb.mirrorGroupFields(groupId, updates);
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -2792,7 +2950,6 @@ class FirebaseService {
 
         tx.update(ref, updates);
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('deleteCustomRelationshipType failed: $e');
     }
@@ -2857,9 +3014,11 @@ class FirebaseService {
     // Кешируем участников — sendMissYou/sendVibe кладут recipientUids в event,
     // чтобы функция пуша не читала group-doc.
     _groupMembersCache[groupId] = members;
-    // Двойная запись: зеркалим group-doc в Supabase при каждом чтении из
-    // Firebase, чтобы строка существовала и не отставала (Фаза 1).
-    if (_mig) unawaited(_sb.mirrorGroupRaw(groupId, data));
+    // Сидирование: под `_mig` сюда попадаем только на Firestore-фолбэке
+    // (Supabase-строки нет). Зеркалим ТОЛЬКО отсутствующую строку — с Этапа 4
+    // горячие поля живут в Supabase, и полный снимок затёр бы их устаревшим
+    // Firestore-содержимым (например, при временной ошибке сети).
+    if (_mig) unawaited(_mirrorGroupRawIfMissing(groupId, data));
     // Миграция: переносим старые Firestore-счётчики «Я скучаю» в RTDB при первом
     // разборе группы после обновления, чтобы у обновившегося не показывало 0/0,
     // пока партнёр на старой версии (которая пишет в group-doc). Только если
@@ -3272,12 +3431,12 @@ class FirebaseService {
 
         // Миграция: зеркалим роспуск в Supabase, иначе партнёр, читающий группу
         // из Supabase (listenPair), не увидел бы disbanded=true и группа осталась
-        // бы у него. На main этого не нужно — там listenToPair читает Firestore.
+        // бы у него. Точечный update — полный снимок Firestore-дока затёр бы
+        // горячие поля, которые с Этапа 4 живут только в Supabase.
         if (_mig) {
-          unawaited(_sb.mirrorGroupRaw(groupId, {
-            ...data,
+          unawaited(_sb.mirrorGroupFields(groupId, {
             'disbanded': true,
-            'disbandedAt': DateTime.now(),
+            'disbanded_at': DateTime.now().toIso8601String(),
           }));
         }
 
@@ -3384,6 +3543,9 @@ class FirebaseService {
   /// Поток активного приглашения для группы. Реюзает hub-подписку group-doc,
   /// поэтому новых чтений не создаёт.
   Stream<Map<String, dynamic>?> activeSessionStream(String pairId) {
+    // Этап 4: под `_mig` activeSession пишется только в Supabase, поэтому и
+    // слушаем его там (realtime на groups.active_session).
+    if (_mig) return _sb.watchActiveSession(pairId);
     return _groupDocStream(pairId).map(
       (snap) => snap.exists
           ? (snap.data()?['activeSession'] as Map<String, dynamic>?)
@@ -3401,6 +3563,18 @@ class FirebaseService {
   }) async {
     if (groupId.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {
+          'active_session': {
+            'activity': activity,
+            'mediaId': mediaId,
+            'hostUid': uid,
+            'hostName': hostName,
+            'startedAt': DateTime.now().toIso8601String(),
+          },
+        });
+        return;
+      }
       await _db.collection('groups').doc(groupId).set({
         'activeSession': {
           'activity': activity,
@@ -3410,7 +3584,6 @@ class FirebaseService {
           'startedAt': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('setActiveSession failed: $e');
     }
@@ -3420,11 +3593,13 @@ class FirebaseService {
   Future<void> clearActiveSession(String groupId) async {
     if (groupId.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {'active_session': null});
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'activeSession': FieldValue.delete(),
       });
-      // Очистка: точечный update с null (полный re-mirror не очистил бы поле).
-      if (_mig) unawaited(_sb.mirrorGroupFields(groupId, {'active_session': null}));
     } catch (e) {
       debugPrint('clearActiveSession failed: $e');
     }
@@ -3791,17 +3966,23 @@ class FirebaseService {
         isAdult: isAdult,
       );
 
-      await ref.set(memory.toFirestore());
+      // Этап 4: воспоминание пишется только в Supabase (ref.id используется как
+      // локально сгенерированный id — doc() не ходит в сеть). Запись awaited:
+      // вызывающий код должен знать, что воспоминание реально сохранено.
       if (_mig) {
-        unawaited(_sb.mirrorMemory(groupId, ref.id, memory.toFirestore()));
+        final ok = await _sb.mirrorMemory(groupId, ref.id, memory.toFirestore());
+        if (!ok) return null;
+        unawaited(_sb.incrementGroupCounters(groupId, memories: 1));
+      } else {
+        await ref.set(memory.toFirestore());
+        unawaited(
+          _db
+              .collection('groups')
+              .doc(groupId)
+              .update({'memoriesCount': FieldValue.increment(1)})
+              .catchError((_) {}),
+        );
       }
-      unawaited(
-        _db
-            .collection('groups')
-            .doc(groupId)
-            .update({'memoriesCount': FieldValue.increment(1)})
-            .catchError((_) {}),
-      );
       unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
       return memory;
     } catch (e) {
@@ -3847,6 +4028,17 @@ class FirebaseService {
         updates['createdAt'] = Timestamp.fromDate(customDate);
       }
 
+      // Этап 4: правка идёт только в Supabase через RPC memory_patch
+      // (data || patch атомарно + синк edited_at/created_at/is_pinned).
+      // Раньше mirrorMemoryPatch обновлял ТОЛЬКО типизированные колонки —
+      // title/caption/rating не доезжали до data JSONB и партнёр не видел
+      // правок; memory_patch это закрывает. captionHistory (Firestore
+      // arrayUnion) в Supabase-пути не ведём.
+      if (_mig) {
+        await _sb.patchMemory(memoryId, updates);
+        return;
+      }
+
       // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
       // This prevents data loss if both partners edit the caption offline simultaneously.
       if (caption != null && uid != null) {
@@ -3861,7 +4053,6 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .update(updates);
-      if (_mig) unawaited(_sb.mirrorMemoryPatch(memoryId, updates));
     } catch (e) {
       debugPrint('updateMemory failed: $e');
     }
@@ -3876,10 +4067,13 @@ class FirebaseService {
     String? musicCoverUrl,
   }) async {
     try {
-      // Delete associated files from Firebase Storage
+      // Delete associated files from storage (Firebase https:// или Supabase sb://)
       final urls = [imageUrl, videoUrl, musicUrl, musicCoverUrl];
       for (final url in urls) {
-        if (url != null && url.contains('firebasestorage')) {
+        if (url == null) continue;
+        if (url.startsWith('sb://')) {
+          await _sb.deleteStorageFile(url);
+        } else if (url.contains('firebasestorage')) {
           try {
             await _storage.refFromURL(url).delete();
             debugPrint('Deleted storage file: $url');
@@ -3889,6 +4083,13 @@ class FirebaseService {
         }
       }
 
+      // Этап 4: документ воспоминания живёт только в Supabase.
+      if (_mig) {
+        await _sb.mirrorMemoryDelete(memoryId, hard: true);
+        unawaited(_sb.incrementGroupCounters(groupId, memories: -1));
+        return;
+      }
+
       // Delete Firestore document
       await _db
           .collection('groups')
@@ -3896,7 +4097,6 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .delete();
-      if (_mig) unawaited(_sb.mirrorMemoryDelete(memoryId, hard: true));
       unawaited(
         _db
             .collection('groups')
@@ -3991,6 +4191,29 @@ class FirebaseService {
     }
   }
 
+  /// Точечное чтение одного воспоминания (пин из чата не на первой странице).
+  /// Под `_mig` — из Supabase, иначе Firestore.
+  Future<Memory?> getMemoryById({
+    required String groupId,
+    required String memoryId,
+  }) async {
+    if (groupId.isEmpty || memoryId.isEmpty) return null;
+    try {
+      if (_mig) return await _sb.loadMemoryById(memoryId);
+      final doc = await _db
+          .collection('groups')
+          .doc(groupId)
+          .collection('memories')
+          .doc(memoryId)
+          .get();
+      if (!doc.exists) return null;
+      return Memory.fromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      debugPrint('getMemoryById($memoryId) failed: $e');
+      return null;
+    }
+  }
+
   StreamSubscription? listenToMemories({
     required String groupId,
     required void Function(List<Memory> memories) onData,
@@ -4051,9 +4274,14 @@ class FirebaseService {
     );
     try {
       final fb = comment.toFirestore();
-      final ref = await _commentsRef(groupId, memoryId).add(fb);
-      // Двойная запись в Supabase (id из автогенерируемого Firestore-дока).
-      if (_mig) unawaited(_sb.mirrorComment(groupId, memoryId, ref.id, fb));
+      // Этап 4: комментарий пишется только в Supabase; id генерируем локально
+      // (doc() без сети) — формат тот же, что у Firestore-автогенерации.
+      if (_mig) {
+        final id = _commentsRef(groupId, memoryId).doc().id;
+        await _sb.mirrorComment(groupId, memoryId, id, fb);
+        return;
+      }
+      await _commentsRef(groupId, memoryId).add(fb);
     } catch (e) {
       debugPrint('addComment failed: $e');
     }
@@ -4065,8 +4293,11 @@ class FirebaseService {
     required String commentId,
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorCommentDelete(commentId);
+        return;
+      }
       await _commentsRef(groupId, memoryId).doc(commentId).delete();
-      if (_mig) unawaited(_sb.mirrorCommentDelete(commentId));
     } catch (e) {
       debugPrint('deleteComment failed: $e');
     }
@@ -4107,14 +4338,23 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
     try {
-      await _db.collection('groups').doc(groupId).update({
-        'memberMoods.${u.uid}': {
+      // Этап 4: Supabase — единственное хранилище memberMoods (партнёр читает
+      // группу из Supabase realtime, Firestore-запись была бы мёртвым грузом).
+      if (_mig) {
+        await _sb.setMemberMood(groupId, u.uid, {
           'imagePath': imagePath,
           'label': label,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } else {
+        await _db.collection('groups').doc(groupId).update({
+          'memberMoods.${u.uid}': {
+            'imagePath': imagePath,
+            'label': label,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        });
+      }
       unawaited(AnalyticsService.instance.logMoodSet(label: label));
     } catch (e) {
       debugPrint('setMood failed: $e');
@@ -4126,10 +4366,13 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.clearMemberMood(groupId, u.uid);
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'memberMoods.${u.uid}': FieldValue.delete(),
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('clearMood failed: $e');
     }
@@ -4147,11 +4390,18 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
+      // Этап 4: статус живёт только в Supabase (оттуда его читает listenPair).
+      if (_mig) {
+        await _sb.mirrorGroupFields(
+          groupId,
+          {'current_status': SupabaseService.jsonSafe(statusData)},
+        );
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'currentStatus': statusData,
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('setGroupStatus failed: $e');
     }
@@ -4161,12 +4411,14 @@ class FirebaseService {
   Future<void> clearGroupStatus(String groupId) async {
     if (groupId.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {'current_status': null});
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'currentStatus': FieldValue.delete(),
         'statusUpdatedAt': FieldValue.serverTimestamp(),
       });
-      // Очистка: полный re-mirror выкинул бы null → используем точечный update.
-      if (_mig) unawaited(_sb.mirrorGroupFields(groupId, {'current_status': null}));
     } catch (e) {
       debugPrint('clearGroupStatus failed: $e');
     }
@@ -4179,6 +4431,18 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
+      // Этап 4: список редкоменяемый, read-modify-write по Supabase-строке.
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(groupId, ['custom_statuses']);
+        final customStatuses = _jsonMapList(row?['custom_statuses']);
+        if (!customStatuses.any((s) => s['id'] == statusData['id'])) {
+          customStatuses.add(Map<String, dynamic>.from(statusData));
+        }
+        await _sb.mirrorGroupFields(groupId, {
+          'custom_statuses': SupabaseService.jsonSafe(customStatuses),
+        });
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4195,7 +4459,6 @@ class FirebaseService {
           'customStatuses': customStatuses,
         }, SetOptions(merge: true));
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('addCustomStatus failed: $e');
     }
@@ -4208,6 +4471,28 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(
+          groupId,
+          ['custom_statuses', 'current_status'],
+        );
+        if (row == null) return;
+        final customStatuses = _jsonMapList(row['custom_statuses']);
+        final index = customStatuses.indexWhere(
+          (s) => s['id'] == statusData['id'],
+        );
+        if (index == -1) return;
+        customStatuses[index] = Map<String, dynamic>.from(statusData);
+        final updates = <String, dynamic>{
+          'custom_statuses': SupabaseService.jsonSafe(customStatuses),
+        };
+        final current = row['current_status'];
+        if (current is Map && current['id'] == statusData['id']) {
+          updates['current_status'] = SupabaseService.jsonSafe(statusData);
+        }
+        await _sb.mirrorGroupFields(groupId, updates);
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4232,7 +4517,6 @@ class FirebaseService {
         }
         tx.update(ref, updates);
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('updateCustomStatus failed: $e');
     }
@@ -4242,6 +4526,24 @@ class FirebaseService {
   Future<void> deleteCustomStatus(String groupId, String statusId) async {
     if (groupId.isEmpty) return;
     try {
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(
+          groupId,
+          ['custom_statuses', 'current_status'],
+        );
+        if (row == null) return;
+        final customStatuses = _jsonMapList(row['custom_statuses'])
+          ..removeWhere((s) => s['id'] == statusId);
+        final updates = <String, dynamic>{
+          'custom_statuses': SupabaseService.jsonSafe(customStatuses),
+        };
+        final current = row['current_status'];
+        if (current is Map && current['id'] == statusId) {
+          updates['current_status'] = null;
+        }
+        await _sb.mirrorGroupFields(groupId, updates);
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4262,7 +4564,6 @@ class FirebaseService {
         }
         tx.update(ref, updates);
       });
-      unawaited(_mirrorGroupDocToSupabase(groupId));
     } catch (e) {
       debugPrint('deleteCustomStatus failed: $e');
     }
@@ -4281,9 +4582,13 @@ class FirebaseService {
       debugPrint(
         'FirebaseService: сохраняю ${timers.length} таймеров в группу $groupId',
       );
+      // Этап 4: timers живут только в Supabase (оттуда их слушает listenToTimers).
+      if (_mig) {
+        await _sb.mirrorTimers(groupId, timers);
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({'timers': timers});
       debugPrint('FirebaseService: таймеры успешно сохранены');
-      if (_mig) unawaited(_sb.mirrorTimers(groupId, timers));
     } catch (e) {
       debugPrint('FirebaseService: ошибка сохранения таймеров - $e');
       // Если документ группы не существует или нет поля timers - пробуем set
@@ -4302,12 +4607,53 @@ class FirebaseService {
     }
   }
 
+  // Мутации списка таймеров — общие для Firestore-транзакции и
+  // Supabase read-modify-write пути (Этап 4).
+
+  static void _applyTimerUpsert(
+    List<Map<String, dynamic>> timers,
+    Map<String, dynamic> timer,
+  ) {
+    timers.removeWhere((t) => t['id'] == timer['id']);
+    final isDefault = timer['isDefault'] as bool? ?? false;
+    if (isDefault) {
+      for (final existing in timers) {
+        existing['isDefault'] = false;
+      }
+    }
+    timers.add(Map<String, dynamic>.from(timer));
+    _ensureDefaultTimer(timers);
+  }
+
+  static void _ensureDefaultTimer(List<Map<String, dynamic>> timers) {
+    if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
+      timers.first['isDefault'] = true;
+    }
+  }
+
+  /// Этап 4: читает timers из Supabase, применяет [mutate] и пишет обратно.
+  Future<void> _mutateSupabaseTimers(
+    String groupId,
+    void Function(List<Map<String, dynamic>> timers) mutate,
+  ) async {
+    final row = await _sb.fetchGroupColumns(groupId, ['timers']);
+    final timers = _jsonMapList(row?['timers']);
+    mutate(timers);
+    await _sb.mirrorTimers(groupId, timers);
+  }
+
   Future<void> upsertGroupTimer({
     required String groupId,
     required Map<String, dynamic> timer,
   }) async {
     try {
-      List<Map<String, dynamic>>? finalTimers;
+      if (_mig) {
+        await _mutateSupabaseTimers(
+          groupId,
+          (timers) => _applyTimerUpsert(timers, timer),
+        );
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4318,25 +4664,9 @@ class FirebaseService {
           ),
         );
 
-        timers.removeWhere((t) => t['id'] == timer['id']);
-        final isDefault = timer['isDefault'] as bool? ?? false;
-        if (isDefault) {
-          for (final existing in timers) {
-            existing['isDefault'] = false;
-          }
-        }
-
-        timers.add(Map<String, dynamic>.from(timer));
-        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
-          timers.first['isDefault'] = true;
-        }
-
-        finalTimers = timers;
+        _applyTimerUpsert(timers, timer);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
       });
-      if (_mig && finalTimers != null) {
-        unawaited(_sb.mirrorTimers(groupId, finalTimers!));
-      }
     } catch (e) {
       debugPrint('upsertGroupTimer failed: $e');
     }
@@ -4347,7 +4677,13 @@ class FirebaseService {
     required String timerId,
   }) async {
     try {
-      List<Map<String, dynamic>>? finalTimers;
+      if (_mig) {
+        await _mutateSupabaseTimers(groupId, (timers) {
+          timers.removeWhere((t) => t['id'] == timerId);
+          _ensureDefaultTimer(timers);
+        });
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4359,16 +4695,9 @@ class FirebaseService {
         );
 
         timers.removeWhere((t) => t['id'] == timerId);
-        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
-          timers.first['isDefault'] = true;
-        }
-
-        finalTimers = timers;
+        _ensureDefaultTimer(timers);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
       });
-      if (_mig && finalTimers != null) {
-        unawaited(_sb.mirrorTimers(groupId, finalTimers!));
-      }
     } catch (e) {
       debugPrint('deleteGroupTimer failed: $e');
     }
@@ -4379,7 +4708,15 @@ class FirebaseService {
     required String timerId,
   }) async {
     try {
-      List<Map<String, dynamic>>? finalTimers;
+      if (_mig) {
+        await _mutateSupabaseTimers(groupId, (timers) {
+          for (final timer in timers) {
+            timer['isDefault'] = timer['id'] == timerId;
+          }
+          _ensureDefaultTimer(timers);
+        });
+        return;
+      }
       await _db.runTransaction((tx) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
@@ -4393,16 +4730,9 @@ class FirebaseService {
         for (final timer in timers) {
           timer['isDefault'] = timer['id'] == timerId;
         }
-        if (timers.isNotEmpty && !timers.any((t) => t['isDefault'] == true)) {
-          timers.first['isDefault'] = true;
-        }
-
-        finalTimers = timers;
+        _ensureDefaultTimer(timers);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
       });
-      if (_mig && finalTimers != null) {
-        unawaited(_sb.mirrorTimers(groupId, finalTimers!));
-      }
     } catch (e) {
       debugPrint('setDefaultGroupTimer failed: $e');
     }
@@ -4418,6 +4748,8 @@ class FirebaseService {
       await _db.collection('users').doc(id).set({
         'soloTimers': timers,
       }, SetOptions(merge: true));
+      // users-строка в Supabase — источник профиля под `_mig`, держим в синке.
+      if (_mig) unawaited(_sb.mirrorUser(id, {'soloTimers': timers}));
     } catch (e) {
       debugPrint('saveSoloTimers failed: $e');
     }
@@ -4535,12 +4867,16 @@ class FirebaseService {
     final ts = (entry['timestamp'] as Timestamp?)?.toDate();
     if (id == null || ts == null) return;
     try {
+      // Этап 4: запись настроения живёт только в Supabase (mood_entries).
+      if (_mig) {
+        await _sb.mirrorMoodEntry(groupId, u.uid, entry);
+        return;
+      }
       // merge:true сохраняет остальные записи месяца — дописываем только свою.
       await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).set({
         'entries': {id: entry},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      if (_mig) unawaited(_sb.mirrorMoodEntry(groupId, u.uid, entry));
     } catch (e) {
       debugPrint('addMoodEntry failed: $e');
     }
@@ -4555,6 +4891,11 @@ class FirebaseService {
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
+    // Этап 4: в Supabase запись адресуется по id — месяц не нужен.
+    if (_mig) {
+      await _sb.mirrorMoodDelete(entryId);
+      return;
+    }
     var ts = timestamp;
     if (ts == null) {
       final ms = int.tryParse(entryId.split('_').last);
@@ -4569,7 +4910,6 @@ class FirebaseService {
       await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).update({
         'entries.$entryId': FieldValue.delete(),
       });
-      if (_mig) unawaited(_sb.mirrorMoodDelete(entryId));
     } catch (e) {
       debugPrint('deleteMoodEntry failed: $e');
     }
@@ -5169,10 +5509,13 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      final ref = await _strokesRef(groupId, canvasId).add(strokeData);
+      // Этап 4: штрих живёт только в Supabase; id генерим локально (doc()).
       if (_mig) {
-        unawaited(_sb.mirrorStroke(groupId, canvasId, ref.id, strokeData));
+        final id = _strokesRef(groupId, canvasId).doc().id;
+        final ok = await _sb.mirrorStroke(groupId, canvasId, id, strokeData);
+        return ok ? id : '';
       }
+      final ref = await _strokesRef(groupId, canvasId).add(strokeData);
       return ref.id;
     } catch (e) {
       debugPrint('addDrawingStroke failed: $e');
@@ -5188,8 +5531,11 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorStrokePatch(strokeId, updates);
+        return;
+      }
       await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
-      if (_mig) unawaited(_sb.mirrorStrokePatch(strokeId, updates));
     } catch (e) {
       debugPrint('updateDrawingStroke failed: $e');
     }
@@ -5202,8 +5548,11 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorStrokeDelete(strokeId);
+        return;
+      }
       await _strokesRef(groupId, canvasId).doc(strokeId).delete();
-      if (_mig) unawaited(_sb.mirrorStrokeDelete(strokeId));
     } catch (e) {
       debugPrint('deleteDrawingStroke failed: $e');
     }
@@ -5262,6 +5611,25 @@ class FirebaseService {
   }) async {
     final version = clearVersion ?? DateTime.now().millisecondsSinceEpoch;
     try {
+      // Этап 4: штрихи и мета живут в Supabase. Live-курсоры остаются
+      // эфемерными Firestore-доками (этап 5) — их чистим в обоих режимах.
+      if (_mig) {
+        await _sb.mirrorCanvasClear(
+          groupId,
+          canvasId,
+          version,
+          bgColor: bgColorValue,
+        );
+        try {
+          final liveSnap = await _liveRef(groupId, canvasId).get();
+          for (final doc in liveSnap.docs) {
+            await doc.reference.delete();
+          }
+        } catch (e) {
+          debugPrint('clearDrawingCanvas: live cleanup failed: $e');
+        }
+        return;
+      }
       final strokesSnap = await _strokesRef(groupId, canvasId).get();
       final liveSnap = await _liveRef(groupId, canvasId).get();
       final batch = _db.batch();
@@ -5281,14 +5649,6 @@ class FirebaseService {
         SetOptions(merge: true),
       );
       await batch.commit();
-      if (_mig) {
-        unawaited(_sb.mirrorCanvasClear(
-          groupId,
-          canvasId,
-          version,
-          bgColor: bgColorValue,
-        ));
-      }
     } catch (e) {
       debugPrint('clearDrawingCanvas failed: $e');
     }
@@ -5302,13 +5662,14 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue);
+        return;
+      }
       await _canvasMainRef(
         groupId,
         canvasId,
       ).set({'bgColor': colorValue}, SetOptions(merge: true));
-      if (_mig) {
-        unawaited(_sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue));
-      }
     } catch (e) {
       debugPrint('setCanvasBgColor failed: $e');
     }
@@ -5350,17 +5711,18 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorCanvasMeta(
+          groupId,
+          canvasId,
+          rotation: rotationQuarterTurns,
+        );
+        return;
+      }
       await _canvasMainRef(
         groupId,
         canvasId,
       ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
-      if (_mig) {
-        unawaited(_sb.mirrorCanvasMeta(
-          groupId,
-          canvasId,
-          rotation: rotationQuarterTurns,
-        ));
-      }
     } catch (e) {
       debugPrint('setCanvasRotation failed: $e');
     }
@@ -5395,13 +5757,16 @@ class FirebaseService {
         'updatedAt': updatedAt,
       };
       if (createdBy != null) data['createdBy'] = createdBy;
+      if (_mig) {
+        await _sb.mirrorCanvasCatalogue(groupId, canvasId, data);
+        return;
+      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .set(data, SetOptions(merge: true));
-      if (_mig) unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, data));
     } catch (e) {
       debugPrint('upsertCanvasMeta failed: $e');
     }
@@ -5418,15 +5783,16 @@ class FirebaseService {
         'name': newName,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       };
+      if (_mig) {
+        await _sb.mirrorCanvasCatalogue(groupId, canvasId, updates);
+        return;
+      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .update(updates);
-      if (_mig) {
-        unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, updates));
-      }
     } catch (e) {
       debugPrint('renameCanvasMeta failed: $e');
     }
@@ -5438,15 +5804,16 @@ class FirebaseService {
     required String canvasId,
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorCanvasCatalogueDelete(groupId, canvasId);
+        return;
+      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .delete();
-      if (_mig) {
-        unawaited(_sb.mirrorCanvasCatalogueDelete(groupId, canvasId));
-      }
     } catch (e) {
       debugPrint('deleteCanvasMeta failed: $e');
     }
@@ -5763,6 +6130,11 @@ class FirebaseService {
     Map<String, dynamic>? groupData,
   }) async {
     try {
+      // Этап 4: счётчик ведётся в Supabase (group_inc_counters).
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(groupId, ['memories_count']);
+        return (row?['memories_count'] as num?)?.toInt() ?? 0;
+      }
       if (groupData != null) {
         final c = groupData['memoriesCount'];
         if (c != null) return (c as num).toInt();
@@ -5800,6 +6172,10 @@ class FirebaseService {
     Map<String, dynamic>? groupData,
   }) async {
     try {
+      if (_mig) {
+        final row = await _sb.fetchGroupColumns(groupId, ['drawings_count']);
+        return (row?['drawings_count'] as num?)?.toInt() ?? 0;
+      }
       if (groupData != null) {
         final c = groupData['drawingsCount'];
         if (c != null) return (c as num).toInt();
@@ -5833,6 +6209,10 @@ class FirebaseService {
   /// Atomically increment/decrement the denormalized drawings counter.
   Future<void> incrementDrawingsCount(String groupId, int delta) async {
     try {
+      if (_mig) {
+        await _sb.incrementGroupCounters(groupId, drawings: delta);
+        return;
+      }
       await _db.collection('groups').doc(groupId).update({
         'drawingsCount': FieldValue.increment(delta),
       });

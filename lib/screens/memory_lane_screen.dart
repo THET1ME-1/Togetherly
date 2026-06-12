@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -163,19 +162,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         break;
       }
     }
-    // Пина нет в первой странице — точечно дочитываем один документ.
+    // Пина нет в первой странице — точечно дочитываем одно воспоминание
+    // (под миграцией — из Supabase, иначе Firestore).
     if (target == null && _groupId.isNotEmpty) {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('groups')
-            .doc(_groupId)
-            .collection('memories')
-            .doc(id)
-            .get();
-        if (doc.exists) {
-          target = Memory.fromFirestore(doc.id, doc.data()!);
-        }
-      } catch (_) {}
+      target = await FirebaseService().getMemoryById(
+        groupId: _groupId,
+        memoryId: id,
+      );
     }
     if (target != null && mounted) _showMemoryDetail(target);
   }

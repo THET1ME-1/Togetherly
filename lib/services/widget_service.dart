@@ -248,21 +248,22 @@ class WidgetService extends ChangeNotifier {
         'avatarUrl': d['avatarUrl'] ?? '',
         'gender': d['gender'] ?? '',
       };
-      await _db
-          .collection('groups')
-          .doc(gid)
-          .collection('widgetData')
-          .doc(uid)
-          .set({
-        'uid': uid,
-        ...bootstrap,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      // Фаза 1: зеркалим bootstrap в Supabase, чтобы строка widget_data
-      // существовала и Supabase-листенер получил имя/аватар (без этого новый
-      // юзер бесконечно падал бы в ветку «строки нет»).
+      // Этап 4: bootstrap-строка создаётся только в Supabase (оттуда читают
+      // оба листенера); без неё новый юзер бесконечно падал бы в ветку
+      // «строки нет».
       if (_mig) {
-        unawaited(_sb.mirrorWidgetData(gid, uid, bootstrap));
+        await _sb.mirrorWidgetData(gid, uid, bootstrap);
+      } else {
+        await _db
+            .collection('groups')
+            .doc(gid)
+            .collection('widgetData')
+            .doc(uid)
+            .set({
+          'uid': uid,
+          ...bootstrap,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
       debugPrint('WidgetService: widgetData initialized for $uid');
     } catch (e) {
@@ -546,29 +547,31 @@ class WidgetService extends ChangeNotifier {
       final avatar = _cachedProfileAvatar!;
       final gender = _cachedProfileGender!;
 
-      final ref = _db
-          .collection('groups')
-          .doc(targetGroupId)
-          .collection('widgetData')
-          .doc(uid);
-
-      await ref.set({
-        'uid': uid,
-        'displayName': name,
-        'avatarUrl': avatar,
-        'gender': gender,
-        'updatedAt': FieldValue.serverTimestamp(),
-        ...fields,
-      }, SetOptions(merge: true));
-
-      // Двойная запись в Supabase (widget_data).
+      // Этап 4: widget_data живёт только в Supabase (свой и партнёрский
+      // листенеры читают оттуда). Firestore-док больше не пишем; событие
+      // widgetDataEvents ниже остаётся — это триггер FCM-пуша.
       if (_mig) {
-        unawaited(_sb.mirrorWidgetData(targetGroupId, uid, {
+        await _sb.mirrorWidgetData(targetGroupId, uid, {
           'displayName': name,
           'avatarUrl': avatar,
           'gender': gender,
           ...fields,
-        }));
+        });
+      } else {
+        final ref = _db
+            .collection('groups')
+            .doc(targetGroupId)
+            .collection('widgetData')
+            .doc(uid);
+
+        await ref.set({
+          'uid': uid,
+          'displayName': name,
+          'avatarUrl': avatar,
+          'gender': gender,
+          'updatedAt': FieldValue.serverTimestamp(),
+          ...fields,
+        }, SetOptions(merge: true));
       }
 
       if (targetGroupId != _groupId) return;

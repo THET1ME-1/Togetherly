@@ -76,6 +76,10 @@ class SupabaseService {
   //  УТИЛИТЫ КОНВЕРТАЦИИ
   // ══════════════════════════════════════════════
 
+  /// Публичная версия [_jsonSafe] — для вызывающих сервисов, которым нужно
+  /// подготовить firestore-значения к записи в JSONB-колонку.
+  static dynamic jsonSafe(dynamic v) => _jsonSafe(v);
+
   /// Рекурсивно превращает firestore-данные в JSON-safe для Supabase JSONB:
   /// Timestamp/DateTime → ISO-строка, вложенные Map/List — обходятся.
   static dynamic _jsonSafe(dynamic v) {
@@ -524,6 +528,138 @@ class SupabaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  GROUP — Этап 4: Supabase как первичное хранилище group-полей.
+  //  JSONB-карты «uid → значение» меняются через Postgres RPC (jsonb_set):
+  //  оба партнёра пишут свои ключи одновременно, read-modify-write с клиента
+  //  терял бы чужой ключ. (supabase/group_ops.sql)
+  // ══════════════════════════════════════════════
+
+  /// Текущее настроение участника на карточке (groups.member_moods.{uid}).
+  /// [mood] — {imagePath, label, updatedAt} c JSON-safe значениями.
+  Future<bool> setMemberMood(
+    String groupId,
+    String uid,
+    Map<String, dynamic> mood,
+  ) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('setMemberMood', () async {
+      await _client.rpc('group_set_member_mood', params: {
+        'p_group_id': groupId,
+        'p_uid': uid,
+        'p_mood': _jsonSafe(mood),
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> clearMemberMood(String groupId, String uid) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('clearMemberMood', () async {
+      await _client.rpc('group_clear_member_mood', params: {
+        'p_group_id': groupId,
+        'p_uid': uid,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> setMemberName(String groupId, String uid, String name) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('setMemberName', () async {
+      await _client.rpc('group_set_member_name', params: {
+        'p_group_id': groupId,
+        'p_uid': uid,
+        'p_name': name,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> setMemberAvatar(String groupId, String uid, String url) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('setMemberAvatar', () async {
+      await _client.rpc('group_set_member_avatar', params: {
+        'p_group_id': groupId,
+        'p_uid': uid,
+        'p_url': url,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// null = убрать дату рождения участника.
+  Future<bool> setMemberBirthday(
+    String groupId,
+    String uid,
+    DateTime? date,
+  ) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('setMemberBirthday', () async {
+      await _client.rpc('group_set_member_birthday', params: {
+        'p_group_id': groupId,
+        'p_uid': uid,
+        'p_date': date?.toIso8601String(),
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Атомарный инкремент memories_count / drawings_count.
+  Future<bool> incrementGroupCounters(
+    String groupId, {
+    int memories = 0,
+    int drawings = 0,
+  }) async {
+    if (!isReady || groupId.isEmpty || (memories == 0 && drawings == 0)) {
+      return false;
+    }
+    return _write('incrementGroupCounters', () async {
+      await _client.rpc('group_inc_counters', params: {
+        'p_group_id': groupId,
+        'p_memories': memories,
+        'p_drawings': drawings,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Разовое чтение выбранных колонок группы (snake_case), или null если
+  /// строки нет. Для read-modify-write редких списков (customStatuses,
+  /// customRelationshipTypes, timers) и счётчиков статистики.
+  Future<Map<String, dynamic>?> fetchGroupColumns(
+    String groupId,
+    List<String> columns,
+  ) async {
+    if (!isReady || groupId.isEmpty || columns.isEmpty) return null;
+    try {
+      final row = await _client
+          .from('groups')
+          .select(columns.join(', '))
+          .eq('id', groupId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+      return row == null ? null : Map<String, dynamic>.from(row);
+    } catch (e) {
+      debugPrint('SupabaseService.fetchGroupColumns($groupId) failed: $e');
+      return null;
+    }
+  }
+
+  /// Live-поток activeSession группы (или null) — замена activeSessionStream,
+  /// который под `_mig` больше не может опираться на Firestore group-doc.
+  Stream<Map<String, dynamic>?> watchActiveSession(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('groups')
+          .stream(primaryKey: ['id'])
+          .eq('id', groupId)
+          .map((rows) {
+        if (rows.isEmpty) return null;
+        final raw = rows.first['active_session'];
+        return raw is Map ? Map<String, dynamic>.from(raw) : null;
+      });
+    } catch (e) {
+      debugPrint('SupabaseService.watchActiveSession failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  // ══════════════════════════════════════════════
   //  MOOD
   // ══════════════════════════════════════════════
 
@@ -724,6 +860,39 @@ class SupabaseService {
           .eq('id', id)
           .timeout(const Duration(seconds: 10));
     });
+  }
+
+  /// Этап 4: частичная правка воспоминания как ПЕРВИЧНАЯ запись (RPC
+  /// memory_patch: data || patch атомарно + синк типизированных колонок).
+  /// [fb] — те же camelCase-ключи, что updateMemory писал в Firestore;
+  /// Timestamp'ы конвертируются в ISO.
+  Future<bool> patchMemory(String id, Map<String, dynamic> fb) async {
+    if (!isReady || id.isEmpty) return false;
+    if (fb.isEmpty) return true;
+    return _write('patchMemory', () async {
+      await _client.rpc('memory_patch', params: {
+        'p_id': id,
+        'p_patch': _jsonSafe(fb),
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Разовое чтение одного воспоминания (пин из чата не на первой странице).
+  Future<Memory?> loadMemoryById(String memoryId) async {
+    if (!isReady || memoryId.isEmpty) return null;
+    try {
+      final row = await _client
+          .from('memories')
+          .select()
+          .eq('id', memoryId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+      if (row == null || row['deleted'] == true) return null;
+      return _memoryFromRow(row);
+    } catch (e) {
+      debugPrint('SupabaseService.loadMemoryById($memoryId) failed: $e');
+      return null;
+    }
   }
 
   Future<bool> mirrorMemoryDelete(String id, {bool hard = false}) async {
