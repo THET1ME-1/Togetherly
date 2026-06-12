@@ -1605,13 +1605,22 @@ class HomeWidgetService {
         if (inMemory == null) _relStatsCache[groupId] = cached;
       } else {
         final fb = FirebaseService();
-        final groupDoc = await _db.collection('groups').doc(groupId).get();
-        if (!groupDoc.exists) return;
-        final groupData = groupDoc.data()!;
+        if (fb.isMigrationUser) {
+          // Этап 4: счётчики группы живут в Supabase — group-doc из Firestore
+          // не читаем (getGroup*Count сами ходят в Supabase под миграцией).
+          memoriesCount = await fb.getGroupMemoriesCount(groupId);
+          drawingsCount = await fb.getGroupDrawingsCount(groupId);
+        } else {
+          final groupDoc = await _db.collection('groups').doc(groupId).get();
+          if (!groupDoc.exists) return;
+          final groupData = groupDoc.data()!;
 
-        memoriesCount = await fb.getGroupMemoriesCount(groupId, groupData: groupData);
-        drawingsCount = await fb.getGroupDrawingsCount(groupId, groupData: groupData);
-        // missYouCount живёт в RTDB (не в group-doc) — см. sendMissYou.
+          memoriesCount =
+              await fb.getGroupMemoriesCount(groupId, groupData: groupData);
+          drawingsCount =
+              await fb.getGroupDrawingsCount(groupId, groupData: groupData);
+        }
+        // missYouCount живёт в RTDB/Supabase (не в group-doc) — см. sendMissYou.
         missYouCount = await fb.getMissYouTotal(groupId);
 
         final fresh = _CachedRelStats(
