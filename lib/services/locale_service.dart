@@ -898,6 +898,10 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get notifChat;
   String get notifChatSub;
+  String get notifDaysTogether;
+  String get notifDaysTogetherSub;
+  String daysTogetherNotifBody(int days);
+  String get daysTogetherNotifTagline;
   String get openSystemSettings;
   String get notifSystemSettingsHint;
 
@@ -2668,6 +2672,25 @@ class _RuStrings extends AppStrings {
   String get notifChat => 'Сообщения в чате';
   @override
   String get notifChatSub => 'Когда партнёр пишет тебе в чат';
+  @override
+  String get notifDaysTogether => 'Счётчик дней вместе';
+  @override
+  String get notifDaysTogetherSub =>
+      'Постоянный счётчик в шторке уведомлений';
+  @override
+  String daysTogetherNotifBody(int days) {
+    final mod10 = days % 10;
+    final mod100 = days % 100;
+    final word = (mod10 == 1 && mod100 != 11)
+        ? 'день'
+        : (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14))
+            ? 'дня'
+            : 'дней';
+    return 'Вы вместе уже $days $word ❤️';
+  }
+
+  @override
+  String get daysTogetherNotifTagline => 'Каждый день вместе — особенный 💕';
   @override
   String get openSystemSettings => 'Системные настройки';
   @override
@@ -4469,6 +4492,16 @@ class _EnStrings extends AppStrings {
   String get notifChat => 'Chat Messages';
   @override
   String get notifChatSub => 'When your partner messages you';
+  @override
+  String get notifDaysTogether => 'Days-together counter';
+  @override
+  String get notifDaysTogetherSub =>
+      'Always-on counter in your notification shade';
+  @override
+  String daysTogetherNotifBody(int days) =>
+      "You've been together $days ${days == 1 ? 'day' : 'days'} ❤️";
+  @override
+  String get daysTogetherNotifTagline => 'Every day together counts 💕';
   @override
   String get openSystemSettings => 'System Settings';
   @override

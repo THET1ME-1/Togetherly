@@ -53,6 +53,7 @@ import 'widget_screen.dart';
 import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 import '../services/celebration_notification_service.dart';
+import '../services/days_together_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -168,6 +169,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Пересчёт расписания уведомлений о праздниках при каждом старте.
     Future.microtask(() async {
       await CelebrationNotificationService.instance.rescheduleOnAppStart();
+      // Постоянный счётчик «дней вместе» (если включён) — пересчитать число.
+      await DaysTogetherNotificationService.instance.rescheduleOnAppStart();
     });
 
     _appLifecycleListener = AppLifecycleListener(
@@ -179,6 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Re-sync the love widget so partner's latest status/mood appears
         // immediately when the user returns to the home screen.
         _widgetService.syncNow();
+        // Обновляем число в постоянном счётчике «дней вместе» (могла смениться
+        // дата за полночь). No-op, если фича выключена.
+        unawaited(DaysTogetherNotificationService.instance.refresh());
         // Попытка ежедневного бонуса при возврате в приложение
         _tryClaimDailyBonus();
       },
@@ -384,6 +390,13 @@ class _HomeScreenState extends State<HomeScreen> {
         // Дальнейшие изменения статуса отношений не меняют название — пользователь
         // может свободно редактировать его через UI.
         // updateSystemTimerTitle был удалён, т.к. перезаписывал ручные правки.
+
+        // Постоянный счётчик «дней вместе»: сохраняем дату старта; если фича
+        // включена — обновляем число в шторке уведомлений.
+        unawaited(
+          DaysTogetherNotificationService.instance
+              .onStartDateChanged(_pairData.startDate),
+        );
       }
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
@@ -405,6 +418,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _mascotService.unbind();
       // Sync widgets for single user mode (no group)
       _scheduleSyncHomeWidgets();
+    }
+
+    // Нет пары → убрать постоянный счётчик «дней вместе» из шторки.
+    if (!isPaired) {
+      unawaited(
+        DaysTogetherNotificationService.instance.onStartDateChanged(null),
+      );
     }
 
     // Auto-navigate to home tab when user just joined a group.
