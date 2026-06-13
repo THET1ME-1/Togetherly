@@ -2323,48 +2323,107 @@ class FirebaseService {
     }
   }
 
-  /// Самолечение «потерянных» групп.
+  /// Самолечение «потерянных» И РАСЩЕПЛЁННЫХ групп при старте.
   ///
-  /// Симптом: какой-то путь (как правило переустановка / повторный вход)
-  /// обнуляет `pairIds` в user-документе, НЕ распуская саму группу. Клиент для
-  /// активных групп смотрит только на `pairIds`, поэтому пара «теряется» и сама
-  /// не восстанавливается — раньше это приходилось чинить вручную (fixpair).
+  /// Чинит два симптома сразу, опираясь на реальное членство (`members[]`), а
+  /// не на `pairIds` (который мог обнулиться или потерять одну из групп):
   ///
-  /// Здесь при старте мы находим все НЕ распущенные группы, где числимся в
-  /// `members[]`, и `arrayUnion`-им недостающие id обратно в `pairIds`. Запись в
-  /// user-документ подхватывает обычный слушатель ([listenToUserDoc]) и
-  /// привязывает восстановленные группы к connection'ам — без ручного
-  /// вмешательства у всех пользователей.
+  ///  1. «Потеряли группу»: какой-то путь (переустановка / повторный вход)
+  ///     обнулил `pairIds`, НЕ распуская группу. Возвращаем живые группы в
+  ///     `pairIds` — слушатель user-документа ([listenToUserDoc]) привяжет их.
+  ///
+  ///  2. «Расщеплённая пара» (симптом из отзывов: видно только свои настроения/
+  ///     «скучаю»/фото, данных партнёра нет): на одну и ту же пару оказалось
+  ///     ДВЕ живые группы (гонка взаимного коннекта + частично упавшие
+  ///     кросс-записи). Партнёр пишет в одну, ты читаешь из другой. Здесь мы
+  ///     ДЕТЕРМИНИРОВАННО сливаем такие дубли через сервер
+  ///     ([mergeDuplicateGroups]) прямо на старте — не полагаясь на отложенный
+  ///     цикл rebuild→cleanup, — и проверяем, что на каждого партнёра осталась
+  ///     ровно одна группа. Сервер сам выбирает канон (старейшую группу),
+  ///     переносит данные и чинит pairIds ОБОИХ участников; операция
+  ///     идемпотентна и безопасна при гонке двух устройств.
   ///
   /// Запрос по `members arrayContains uid` разрешён правилами (как и в
   /// [_findDisbandedGroup]) и остаётся в рамках собственных групп пользователя.
-  /// Возвращает список id активных групп (для логов/диагностики).
+  /// Возвращает id выживших (канонических) групп — по одной на партнёра.
   Future<List<String>> selfHealActiveGroups() async {
     final u = currentUser;
     if (u == null) return const [];
     try {
-      // 1) Все группы, где мы в members[] и которые не распущены.
+      // 1) Все живые группы (>=2 участника), где мы реально в members[].
       final snap = await _db
           .collection('groups')
           .where('members', arrayContains: u.uid)
           .get()
           .timeout(const Duration(seconds: 15));
 
-      final activeGroupIds = <String>[];
+      // groupId -> отсортированный список партнёров (members без меня) и дата
+      // создания (для группировки по паре и детерминированного выбора канона).
+      final partnersByGroup = <String, List<String>>{};
+      final createdAtByGroup = <String, Timestamp?>{};
       for (final doc in snap.docs) {
         final data = doc.data();
         if (data['disbanded'] == true) continue;
-        // Группа должна содержать хотя бы одного партнёра кроме нас —
-        // «группа из одного» это мусор (остатки тестов/недозавершённых пар).
+        if (data['mergedInto'] != null) continue; // дубль, уже слитый ранее
         final members = List<String>.from(data['members'] ?? [])
             .where((m) => m.isNotEmpty)
             .toSet();
+        // «Группа из одного» — мусор (остатки тестов/недозавершённых пар).
         if (members.length < 2 || !members.contains(u.uid)) continue;
-        activeGroupIds.add(doc.id);
+        final partners = (members.toList()..remove(u.uid))..sort();
+        partnersByGroup[doc.id] = partners;
+        createdAtByGroup[doc.id] = data['createdAt'] as Timestamp?;
       }
-      if (activeGroupIds.isEmpty) return const [];
+      if (partnersByGroup.isEmpty) return const [];
 
-      // 2) Что из активных групп отсутствует в pairIds user-документа.
+      // 2) Сгруппировать живые группы по набору партнёров.
+      final groupsByPartnerKey = <String, List<String>>{};
+      partnersByGroup.forEach((gid, partners) {
+        groupsByPartnerKey.putIfAbsent(partners.join(','), () => []).add(gid);
+      });
+
+      // 3) На каждого партнёра — ровно одна группа. Дубли сливаем через сервер
+      //    в детерминированном порядке (старейшая = канон), используя
+      //    возвращённый сервером канон для следующей итерации.
+      final survivors = <String>[];
+      for (final ids in groupsByPartnerKey.values) {
+        if (ids.length == 1) {
+          survivors.add(ids.first);
+          continue;
+        }
+        ids.sort((a, b) {
+          final ta = createdAtByGroup[a];
+          final tb = createdAtByGroup[b];
+          if (ta == null && tb == null) return a.compareTo(b);
+          if (ta == null) return 1; // без даты создания — в конец
+          if (tb == null) return -1;
+          return ta.compareTo(tb); // старейшая первой
+        });
+        debugPrint(
+          'selfHealActiveGroups: расщеплённая пара — ${ids.length} живых '
+          'групп(ы) на одного партнёра: $ids — сливаю',
+        );
+        var canonical = ids.first;
+        var allMerged = true;
+        for (var i = 1; i < ids.length; i++) {
+          final merged = await mergeDuplicateGroups(canonical, ids[i]);
+          if (merged != null) {
+            canonical = merged;
+          } else {
+            allMerged = false; // не удалось — повторим на следующем старте
+          }
+        }
+        survivors.add(canonical);
+        if (!allMerged) {
+          debugPrint(
+            'selfHealActiveGroups: не все дубли слиты для $ids — повтор позже',
+          );
+        }
+      }
+
+      // 4) Вернуть выжившие (канонические) группы в pairIds, если их там нет.
+      //    (Сервер при merge уже чинит pairIds, но недубликатные «потерянные»
+      //    группы тоже нужно вернуть — поэтому проверяем все survivors.)
       final userDoc = await _db
           .collection('users')
           .doc(u.uid)
@@ -2380,23 +2439,20 @@ class FirebaseService {
       final legacy = userDoc.data()?['pairId'] as String?;
       if (legacy != null && legacy.isNotEmpty) known.add(legacy);
 
-      final missing =
-          activeGroupIds.where((id) => !known.contains(id)).toList();
-      if (missing.isEmpty) return activeGroupIds;
-
-      // 3) Возвращаем недостающие группы в pairIds. Слушатель user-документа
-      //    подхватит их и привяжет к connection'ам.
-      await _db
-          .collection('users')
-          .doc(u.uid)
-          .set({
-            'pairIds': FieldValue.arrayUnion(missing),
-          }, SetOptions(merge: true))
-          .timeout(const Duration(seconds: 10));
-      debugPrint(
-        'selfHealActiveGroups: restored ${missing.length} group(s): $missing',
-      );
-      return activeGroupIds;
+      final missing = survivors.where((id) => !known.contains(id)).toList();
+      if (missing.isNotEmpty) {
+        await _db
+            .collection('users')
+            .doc(u.uid)
+            .set({
+              'pairIds': FieldValue.arrayUnion(missing),
+            }, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 10));
+        debugPrint(
+          'selfHealActiveGroups: restored ${missing.length} group(s): $missing',
+        );
+      }
+      return survivors;
     } catch (e) {
       debugPrint('selfHealActiveGroups failed: $e');
       return const [];
