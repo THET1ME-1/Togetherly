@@ -1,0 +1,102 @@
+name: Build APK → GitHub Release
+
+# ── Когда запускается сборка ──────────────────────────────────────────────
+#  1) Пуш тега вида v1.12.9  →  git tag v1.12.9 && git push origin v1.12.9
+#  2) Вручную: вкладка Actions → "Build APK → GitHub Release" → Run workflow
+#  Обычные коммиты в main сборку НЕ запускают.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read           # релиз публикуется в ДРУГОЙ репо через RELEASES_REPO_TOKEN,
+                           # GITHUB_TOKEN нужен только для checkout (read)
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter 3.38.5
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.5
+          channel: stable
+          cache: true
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 -d > android/app/keystore.jks
+
+      - name: Write key.properties
+        env:
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cat > android/key.properties <<EOF
+          storeFile=keystore.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Read version from pubspec
+        id: ver
+        run: |
+          LINE=$(grep '^version:' pubspec.yaml | awk '{print $2}')   # 1.12.8+76
+          NAME=${LINE%%+*}                                           # 1.12.8
+          CODE=${LINE##*+}                                           # 76
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v$NAME+$CODE" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Building $NAME (versionCode $CODE)"
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist
+          APK="love-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/$APK"
+          cat > dist/version.json <<EOF
+          {
+            "versionCode": ${{ steps.ver.outputs.code }},
+            "versionName": "${{ steps.ver.outputs.name }}",
+            "apk": "$APK",
+            "tag": "${{ steps.ver.outputs.tag }}"
+          }
+          EOF
+
+      - name: Publish to public releases repo
+        uses: softprops/action-gh-release@v2
+        with:
+          # Исходники приватные → APK кладём в отдельный ПУБЛИЧНЫЙ репо,
+          # откуда приложение качает его без токена.
+          repository: THET1ME-1/togetherly_app_releases
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
+          make_latest: true
+          files: |
+            dist/love-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk
+            dist/version.json

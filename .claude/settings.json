@@ -31,7 +31,14 @@
       "Bash(node tools/admin_groups.js fixpair gBdX0hzn6mN8ho3hFbGJ)",
       "PowerShell($out = flutter analyze lib/screens/widget_screen.dart lib/services/locale_service.dart 2>&1 | Out-String; $out -split \"`n\" | Where-Object { $_ -match \"error\" } | Select-Object -First 40; \"----- SUMMARY -----\"; $out -split \"`n\" | Select-Object -Last 3)",
       "PowerShell(flutter analyze lib/screens/widget_screen.dart lib/services/locale_service.dart)",
-      "PowerShell($o = flutter analyze lib/screens/widget_screen.dart lib/screens/home_screen.dart lib/services/locale_service.dart --no-pub | Out-String; \\($o -split \"`n\"\\) | Where-Object { $_ -match '\\\\berror\\\\b' }; \"---- new-code warnings ----\"; \\($o -split \"`n\"\\) | Where-Object { $_ -match '_openPairEditor|_galleryScroll|_pairWidgetKey|openPairEditorOnStart|_PhotoDestination' }; \"---- summary ----\"; \\($o -split \"`n\"\\) | Select-Object -Last 1)"
+      "PowerShell($o = flutter analyze lib/screens/widget_screen.dart lib/screens/home_screen.dart lib/services/locale_service.dart --no-pub | Out-String; \\($o -split \"`n\"\\) | Where-Object { $_ -match '\\\\berror\\\\b' }; \"---- new-code warnings ----\"; \\($o -split \"`n\"\\) | Where-Object { $_ -match '_openPairEditor|_galleryScroll|_pairWidgetKey|openPairEditorOnStart|_PhotoDestination' }; \"---- summary ----\"; \\($o -split \"`n\"\\) | Select-Object -Last 1)",
+      "Bash(gh repo *)",
+      "Bash(grep -iE \"google-services.json|key.properties|\\\\.jks$|\\\\.keystore$\")",
+      "Bash(python -c \"import yaml,sys; yaml.safe_load\\(open\\('.github/workflows/release-apk.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(python3 -c \"import yaml,sys; yaml.safe_load\\(open\\('.github/workflows/release-apk.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(gh auth *)",
+      "Bash(curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/THET1ME-1/togetherly_app_releases)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://api.github.com/repos/THET1ME-1/togetherly_app_releases/releases/latest)"
     ]
   }
 }
