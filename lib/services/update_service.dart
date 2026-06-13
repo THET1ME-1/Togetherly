@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -71,12 +72,18 @@ class UpdateService {
       }
       final data = json.decode(resp.body) as Map<String, dynamic>;
       final remoteCode = (data['versionCode'] as num?)?.toInt() ?? 0;
-      final apk = (data['apk'] as String?)?.trim() ?? '';
-      if (remoteCode <= 0 || apk.isEmpty) return null;
+      // apk — сборка под arm64-v8a (основная), apkArm — под armeabi-v7a.
+      // Старые релизы могли отдавать единый universal APK в поле apk.
+      final apkArm64 = (data['apk'] as String?)?.trim() ?? '';
+      final apkArm = (data['apkArm'] as String?)?.trim() ?? '';
+      if (remoteCode <= 0 || apkArm64.isEmpty) return null;
 
       final info = await PackageInfo.fromPlatform();
       final currentCode = int.tryParse(info.buildNumber) ?? 0;
       if (remoteCode <= currentCode) return null;
+
+      // Под архитектуру устройства: 64-битные → arm64-v8a, чисто 32-битные → v7a.
+      final apk = await _pickApkForDevice(arm64: apkArm64, arm: apkArm);
 
       return GithubUpdate(
         versionCode: remoteCode,
@@ -88,6 +95,28 @@ class UpdateService {
     } catch (e) {
       debugPrint('UpdateService.checkForUpdate failed: $e');
       return null;
+    }
+  }
+
+  /// Выбирает имя APK под архитектуру устройства.
+  ///
+  /// 64-битные устройства поддерживают `arm64-v8a` (и обычно ещё `armeabi-v7a`)
+  /// — им отдаём arm64-сборку (производительнее). Чисто 32-битные устройства
+  /// видят только `armeabi-v7a` — им отдаём v7a-сборку. Если v7a-файла нет
+  /// (старый формат version.json) — всегда arm64.
+  static Future<String> _pickApkForDevice({
+    required String arm64,
+    required String arm,
+  }) async {
+    if (arm.isEmpty) return arm64;
+    try {
+      final android = await DeviceInfoPlugin().androidInfo;
+      final abis = android.supportedAbis;
+      if (abis.contains('arm64-v8a')) return arm64;
+      if (abis.contains('armeabi-v7a')) return arm;
+      return arm64; // x86/прочее — фолбэк на arm64
+    } catch (_) {
+      return arm64;
     }
   }
 }
