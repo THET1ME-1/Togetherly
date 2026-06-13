@@ -28,7 +28,10 @@
       "Bash(node -e ' *)",
       "Bash(node tools/admin_groups.js mascot сердечкин)",
       "Bash(node tools/admin_groups.js group gBdX0hzn6mN8ho3hFbGJ)",
-      "Bash(node tools/admin_groups.js fixpair gBdX0hzn6mN8ho3hFbGJ)"
+      "Bash(node tools/admin_groups.js fixpair gBdX0hzn6mN8ho3hFbGJ)",
+      "PowerShell($out = flutter analyze lib/screens/widget_screen.dart lib/services/locale_service.dart 2>&1 | Out-String; $out -split \"`n\" | Where-Object { $_ -match \"error\" } | Select-Object -First 40; \"----- SUMMARY -----\"; $out -split \"`n\" | Select-Object -Last 3)",
+      "PowerShell(flutter analyze lib/screens/widget_screen.dart lib/services/locale_service.dart)",
+      "PowerShell($o = flutter analyze lib/screens/widget_screen.dart lib/screens/home_screen.dart lib/services/locale_service.dart --no-pub | Out-String; \\($o -split \"`n\"\\) | Where-Object { $_ -match '\\\\berror\\\\b' }; \"---- new-code warnings ----\"; \\($o -split \"`n\"\\) | Where-Object { $_ -match '_openPairEditor|_galleryScroll|_pairWidgetKey|openPairEditorOnStart|_PhotoDestination' }; \"---- summary ----\"; \\($o -split \"`n\"\\) | Select-Object -Last 1)"
     ]
   }
 }

@@ -70,6 +70,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
+  // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
+  // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
+  bool _openPairEditorOnWidgetsTab = false;
 
   StreamSubscription? _deepLinkSub;
 
@@ -235,9 +238,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleWidgetUri(Uri uri) {
     // loveapp://widgets → вкладка виджетов (index 1)
+    // loveapp://widgets/pair → ещё и сразу раскрыть настройки парного виджета
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
+      final wantPairEditor = uri.pathSegments.contains('pair');
       if (mounted) {
-        setState(() => _selectedNavIndex = 1);
+        setState(() {
+          _selectedNavIndex = 1;
+          if (wantPairEditor) _openPairEditorOnWidgetsTab = true;
+        });
       }
     }
     // loveapp://home → главная (index 0)
@@ -892,6 +900,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // WIDGETS TAB
   // =============================================
   Widget _buildWidgetsTab() {
+    // Флаг открытия настроек парного виджета одноразовый — гасим сразу,
+    // чтобы при обычном переходе на вкладку карточка не раскрывалась снова.
+    final openPair = _openPairEditorOnWidgetsTab;
+    _openPairEditorOnWidgetsTab = false;
     return WidgetScreen(
       userData: widget.userData,
       pairData: _pairData,
@@ -899,6 +911,7 @@ class _HomeScreenState extends State<HomeScreen> {
       moodService: _moodService,
       timerService: _timerService,
       theme: _t,
+      openPairEditorOnStart: openPair,
     );
   }
 
