@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # нужна вся история + теги для генерации changelog
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -87,6 +89,25 @@ jobs:
           }
           EOF
 
+      - name: Generate changelog
+        run: |
+          # Список коммитов с предыдущего тега — попадёт в тело релиза.
+          PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.ver.outputs.tag }}^" 2>/dev/null || echo "")
+          {
+            echo "## Togetherly ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})"
+            echo ""
+            if [ -n "$PREV_TAG" ]; then
+              echo "Изменения с $PREV_TAG:"
+              echo ""
+              git log --no-merges --pretty=format:'- %s' "$PREV_TAG"..HEAD
+            else
+              echo "Последние изменения:"
+              echo ""
+              git log --no-merges --pretty=format:'- %s' -n 20
+            fi
+          } > dist/notes.md
+          echo "---- generated notes ----"; cat dist/notes.md
+
       - name: Publish to public releases repo
         uses: softprops/action-gh-release@v2
         with:
@@ -96,6 +117,7 @@ jobs:
           token: ${{ secrets.RELEASES_REPO_TOKEN }}
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
+          body_path: dist/notes.md
           make_latest: true
           files: |
             dist/love-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk
