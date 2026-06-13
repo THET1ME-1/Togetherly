@@ -19,7 +19,9 @@ import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/update_service.dart';
 import '../theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/common/animations.dart';
 import '../widgets/common/m3_loading.dart';
 import 'home/widgets/mood_picker_dialog.dart';
@@ -1791,6 +1793,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkForUpdate() async {
     if (!mounted) return;
+    // Sideload-сборки (установленные из публичного GitHub-репо, а не из Play
+    // Store) не получают обновления через Google Play — проверяем version.json
+    // в релизах вручную и отдаём установку системному установщику.
+    if (await UpdateService.isSideloaded()) {
+      final upd = await UpdateService.checkForUpdate();
+      if (!mounted || upd == null) return;
+      _showGithubUpdateSheet(upd);
+      return;
+    }
     try {
       final info = await InAppUpdate.checkForUpdate();
       if (!mounted) return;
@@ -1800,6 +1811,125 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       debugPrint('HomeScreen._checkForUpdate failed: $e');
     }
+  }
+
+  /// Лист обновления для sideload-сборок: ведёт на скачивание APK из публичного
+  /// GitHub-репо (браузер докачивает файл и вызывает системный установщик).
+  void _showGithubUpdateSheet(GithubUpdate upd) {
+    final p = primary;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          12,
+          24,
+          MediaQuery.of(ctx).viewPadding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: p.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.system_update_rounded, color: p, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        LocaleService.current.updateAvailableTitle,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        upd.versionName.isNotEmpty
+                            ? '${LocaleService.current.updateAvailableSubtitle} · ${upd.versionName}'
+                            : LocaleService.current.updateAvailableSubtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.parse(upd.apkUrl);
+                  try {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint('GitHub update launch failed: $e');
+                  }
+                },
+                icon: const Icon(Icons.download_rounded),
+                label: Text(LocaleService.current.updateButton),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  LocaleService.current.updateLaterButton,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showUpdateSheet(AppUpdateInfo info) {
