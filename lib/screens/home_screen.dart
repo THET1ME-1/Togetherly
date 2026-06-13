@@ -1364,31 +1364,54 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Show caption dialog (with optional "set as widget photo" toggle)
-    final result = await _showCaptionDialog();
+    // Диалог: название/описание + три тумблера «куда отправить».
+    // Дефолты тумблеров запоминаются (общие ключи с виджет-экраном).
+    final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    // null means user cancelled
+    final result = await _showCaptionDialog(
+      initToMemories: _widgetService.autoSendPhotoToMemory,
+      initToPairWidget: prefs.getBool('widget_sendPhotoToPairWidget') ?? true,
+      initToPartnerWidget:
+          prefs.getBool('widget_sendPhotoToPartnerWidget') ?? true,
+      partnerName: _pairData.partnerName,
+    );
+    if (!mounted) return;
+    // null = отмена; ничего не выбрано — выходим.
     if (result == null) return;
-
-    // Check rate limit before uploading to avoid wasting bandwidth
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await RateLimiterService().checkMemory();
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      }
+    if (!result.toMemories &&
+        !result.toPairWidget &&
+        !result.toPartnerWidget) {
       return;
+    }
+    // Запоминаем выбор на следующий раз.
+    await _widgetService.setAutoSendPhotoToMemory(result.toMemories);
+    await prefs.setBool('widget_sendPhotoToPairWidget', result.toPairWidget);
+    await prefs.setBool(
+      'widget_sendPhotoToPartnerWidget',
+      result.toPartnerWidget,
+    );
+
+    // Лимит проверяем только если фото идёт в ленту воспоминаний.
+    final messenger = ScaffoldMessenger.of(context);
+    if (result.toMemories) {
+      try {
+        await RateLimiterService().checkMemory();
+      } on RateLimitException catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(e.message),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+        return;
+      }
     }
 
     // Show loading
@@ -1442,23 +1465,32 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Create memory
-      await _fb.addMemory(
-        groupId: _pairData.pairId,
-        type: MemoryType.photo,
-        imageUrl: downloadUrl,
-        title: result.title,
-        caption: result.caption,
-        locationName: photoLocationName,
-        latitude: photoLat,
-        longitude: photoLng,
-      );
+      // 1. Лента воспоминаний.
+      if (result.toMemories) {
+        await _fb.addMemory(
+          groupId: _pairData.pairId,
+          type: MemoryType.photo,
+          imageUrl: downloadUrl,
+          title: result.title,
+          caption: result.caption,
+          locationName: photoLocationName,
+          latitude: photoLat,
+          longitude: photoLng,
+        );
+      }
 
-      // Автоматически отправляем свежее фото в виджет «Фото партнёра».
-      // Переключатель остаётся как ручное отключение, но по умолчанию он включён.
-      if (_pairData.pairId.isNotEmpty && result.setAsWidget) {
+      // 2. Парный виджет (моя половина).
+      if (result.toPairWidget) {
         try {
-          final prefs = await SharedPreferences.getInstance();
+          await _widgetService.updatePhotoUrl(downloadUrl);
+        } catch (e) {
+          debugPrint('Failed to set pair widget photo: $e');
+        }
+      }
+
+      // 3. Виджет «Фото партнёра».
+      if (result.toPartnerWidget && _pairData.pairId.isNotEmpty) {
+        try {
           await _widgetService.updatePhotoForPartnerUrl(downloadUrl);
           await prefs.setString(
             'photo_day_path_${_pairData.pairId}',
@@ -1475,7 +1507,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LocaleService.current.postedToMemoryLane),
+            content: Text(
+              result.toMemories
+                  ? LocaleService.current.postedToMemoryLane
+                  : 'Фото отправлено',
+            ),
             backgroundColor: primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -1484,8 +1520,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-      // Награда за воспоминание (1 🪙 в день) — после успешного сохранения
-      _tryClaimMemoryReward();
+      // Награда (1 🪙 в день) — только если фото добавлено в ленту воспоминаний.
+      if (result.toMemories) _tryClaimMemoryReward();
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {
@@ -1496,16 +1532,42 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<({String? title, String? caption, bool setAsWidget})?>
-  _showCaptionDialog() async {
+  Future<
+    ({
+      String? title,
+      String? caption,
+      bool toMemories,
+      bool toPairWidget,
+      bool toPartnerWidget,
+    })?
+  >
+  _showCaptionDialog({
+    required bool initToMemories,
+    required bool initToPairWidget,
+    required bool initToPartnerWidget,
+    required String partnerName,
+  }) async {
     final titleController = TextEditingController();
     final controller = TextEditingController();
-    return showDialog<({String? title, String? caption, bool setAsWidget})>(
+    return showDialog<
+      ({
+        String? title,
+        String? caption,
+        bool toMemories,
+        bool toPairWidget,
+        bool toPartnerWidget,
+      })
+    >(
       context: context,
       builder: (ctx) {
-        bool setAsWidget = true;
+        bool toMemories = initToMemories;
+        bool toPairWidget = initToPairWidget;
+        bool toPartnerWidget = initToPartnerWidget;
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
+            final partner = partnerName.isNotEmpty ? partnerName : 'партнёр';
+            final nothingSelected =
+                !toMemories && !toPairWidget && !toPartnerWidget;
             return Dialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -1589,25 +1651,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Опция: сразу показать это фото в виджете партнёра
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            LocaleService.current.setAsWidgetPhoto,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: setAsWidget,
-                          activeColor: primary,
-                          onChanged: (v) => setDlgState(() => setAsWidget = v),
-                        ),
-                      ],
+                    // Куда отправить фото — три независимых тумблера.
+                    _captionDestRow(
+                      title: 'Воспоминания',
+                      subtitle: 'Добавить фото в ленту воспоминаний',
+                      value: toMemories,
+                      onChanged: (v) => setDlgState(() => toMemories = v),
+                    ),
+                    _captionDestRow(
+                      title: 'Парный виджет',
+                      subtitle: 'Фото в «Моём виджете» — видно тебе и $partner',
+                      value: toPairWidget,
+                      onChanged: (v) => setDlgState(() => toPairWidget = v),
+                    ),
+                    _captionDestRow(
+                      title: 'Виджет «Фото партнёра»',
+                      subtitle: 'Отдельный виджет с фото для $partner',
+                      value: toPartnerWidget,
+                      onChanged: (v) => setDlgState(() => toPartnerWidget = v),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1627,18 +1688,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              final titleText = titleController.text.trim();
-                              final text = controller.text.trim();
-                              Navigator.pop(ctx, (
-                                title: titleText.isEmpty ? null : titleText,
-                                caption: text.isEmpty ? null : text,
-                                setAsWidget: setAsWidget,
-                              ));
-                            },
+                            onPressed: nothingSelected
+                                ? null
+                                : () {
+                                    final titleText = titleController.text
+                                        .trim();
+                                    final text = controller.text.trim();
+                                    Navigator.pop(ctx, (
+                                      title: titleText.isEmpty
+                                          ? null
+                                          : titleText,
+                                      caption: text.isEmpty ? null : text,
+                                      toMemories: toMemories,
+                                      toPairWidget: toPairWidget,
+                                      toPartnerWidget: toPartnerWidget,
+                                    ));
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade300,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -1659,6 +1728,47 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+
+  /// Строка-тумблер «куда отправить фото» в диалоге публикации.
+  Widget _captionDestRow({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeColor: primary,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 
