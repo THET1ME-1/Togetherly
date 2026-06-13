@@ -1284,7 +1284,7 @@ class _RuStrings extends AppStrings {
   String get photoUploaded => 'Фото загружено';
   @override
   String get widgetPhotoOwnerOnlyHint =>
-      'Видно только тебе. Чтобы показать партнёру — «Фото партнёра»';
+      'При добавлении выбери, куда отправить: парный виджет, «Фото партнёра», воспоминания';
   @override
   String get music => 'Музыка';
   @override
@@ -3098,7 +3098,7 @@ class _EnStrings extends AppStrings {
   String get photoUploaded => 'Photo uploaded';
   @override
   String get widgetPhotoOwnerOnlyHint =>
-      'Only you can see this. To show your partner — “Partner Photo”';
+      'When adding, choose where to send: paired widget, “Partner Photo”, memories';
   @override
   String get music => 'Music';
   @override

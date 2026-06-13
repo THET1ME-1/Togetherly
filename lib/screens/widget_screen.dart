@@ -45,6 +45,10 @@ class WidgetScreen extends StatefulWidget {
   final TimerService timerService;
   final AppTheme theme;
 
+  /// Открыт по тапу на парный виджет рабочего стола — сразу разворачиваем
+  /// карточку «Парный виджет» и прокручиваем к ней (правка фото/музыки и т.д.).
+  final bool openPairEditorOnStart;
+
   const WidgetScreen({
     super.key,
     required this.userData,
@@ -53,6 +57,7 @@ class WidgetScreen extends StatefulWidget {
     required this.moodService,
     required this.timerService,
     required this.theme,
+    this.openPairEditorOnStart = false,
   });
 
   @override
@@ -67,6 +72,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   TimerService get _timerService => widget.timerService;
   PairData get _pair => widget.pairData;
   AppStrings get _s => LocaleService.current;
+
+  // Скролл галереи + ключ карточки «Парный виджет» — чтобы прокрутить к ней
+  // при открытии по тапу на виджет рабочего стола.
+  final ScrollController _galleryScrollController = ScrollController();
+  final GlobalKey _pairWidgetKey = GlobalKey();
 
   bool _canPinWidgets = false;
   bool _pairWidgetExpanded = false;
@@ -153,6 +163,28 @@ class _WidgetScreenState extends State<WidgetScreen>
       _moodService.listenToPartner(p.uid);
     }
     _loadAllInitialPrefs();
+
+    // Открыты по тапу на парный виджет → сразу разворачиваем его настройки.
+    if (widget.openPairEditorOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openPairEditor());
+    }
+  }
+
+  /// Разворачивает карточку «Парный виджет» и прокручивает к ней.
+  void _openPairEditor() {
+    if (!mounted) return;
+    setState(() => _pairWidgetExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _pairWidgetKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          alignment: 0.0,
+        );
+      }
+    });
   }
 
   Future<void> _loadAllInitialPrefs() async {
@@ -1093,6 +1125,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       _loadPhotoDayPrefs();
       _loadPhotoDayWidgets();
     }
+    // Тап по парному виджету, когда вкладка «Виджеты» уже открыта (initState
+    // не пересоздаётся) — ловим переход флага false→true.
+    if (!oldWidget.openPairEditorOnStart && widget.openPairEditorOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openPairEditor());
+    }
   }
 
   @override
@@ -1104,6 +1141,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
     _moodService.removeListener(_onDataChanged);
+    _galleryScrollController.dispose();
     super.dispose();
   }
 
@@ -1177,6 +1215,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               _buildHeader(),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _galleryScrollController,
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
                   child: Column(
@@ -1513,17 +1552,20 @@ class _WidgetScreenState extends State<WidgetScreen>
         if (!isPaired) ...[_buildNotPairedBanner(), const SizedBox(height: 16)],
 
         if (isPaired) ...[
-          _buildGalleryItem(
-            title: LocaleService.current.pairWidgetTitle,
-            subtitle: LocaleService.current.pairWidgetSubtitle,
-            svgString: _heartSvg,
-            qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
-            preview: _buildWidgetPreview(),
-            widgetType: 'pair',
-            expandedContent: _buildPairWidgetExpandedContent(),
-            isExpanded: _pairWidgetExpanded,
-            onToggleExpand: () =>
-                setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
+          KeyedSubtree(
+            key: _pairWidgetKey,
+            child: _buildGalleryItem(
+              title: LocaleService.current.pairWidgetTitle,
+              subtitle: LocaleService.current.pairWidgetSubtitle,
+              svgString: _heartSvg,
+              qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
+              preview: _buildWidgetPreview(),
+              widgetType: 'pair',
+              expandedContent: _buildPairWidgetExpandedContent(),
+              isExpanded: _pairWidgetExpanded,
+              onToggleExpand: () =>
+                  setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -3670,7 +3712,6 @@ class _WidgetScreenState extends State<WidgetScreen>
             iconColor: _t.iconPost,
             label: _s.photo,
             value: data.hasPhoto ? _s.photoUploaded : null,
-            subtitle: _s.widgetPhotoOwnerOnlyHint,
             trailing: data.hasPhoto
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -4852,7 +4893,84 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
     if (file == null || !mounted) return;
 
-    // Показываем лоадер
+    // Соло-режим: партнёра/воспоминаний нет — старое поведение (только мой виджет).
+    if (_pair.pairId.isEmpty) {
+      _showPhotoLoader();
+      await _ws.updatePhoto(file.path);
+      if (mounted) Navigator.of(context).pop(); // закрываем лоадер
+      return;
+    }
+
+    // Куда отправить фото — три независимых тумблера (запоминаются).
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final dest = await showModalBottomSheet<_PhotoDestinations>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoDestinationSheet(
+        theme: _t,
+        partnerName: _pair.partnerName,
+        initialToPairWidget:
+            prefs.getBool('widget_sendPhotoToPairWidget') ?? true,
+        initialToPartnerWidget:
+            prefs.getBool('widget_sendPhotoToPartnerWidget') ?? true,
+        initialToMemories: _ws.autoSendPhotoToMemory,
+      ),
+    );
+    if (dest == null || !mounted) return;
+    if (!dest.toPairWidget && !dest.toPartnerWidget && !dest.toMemories) return;
+
+    // Запоминаем выбор для следующего раза.
+    await prefs.setBool('widget_sendPhotoToPairWidget', dest.toPairWidget);
+    await prefs.setBool(
+      'widget_sendPhotoToPartnerWidget',
+      dest.toPartnerWidget,
+    );
+    await _ws.setAutoSendPhotoToMemory(dest.toMemories);
+
+    if (!mounted) return;
+    _showPhotoLoader();
+
+    // Один аплоад → раздаём по выбранным направлениям.
+    final fb = FirebaseService();
+    final uid = fb.uid ?? '';
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final url = await fb.uploadFile(
+      file.path,
+      'widget/${_pair.pairId}/${uid}_$ts.jpg',
+    );
+
+    if (url != null) {
+      // 1. Парный виджет (моя половина + у партнёра как фолбэк).
+      if (dest.toPairWidget) {
+        await _ws.updatePhotoUrl(url);
+      }
+      // 2. Виджет «Фото партнёра» — то, что осознанно показываем партнёру.
+      if (dest.toPartnerWidget) {
+        await _ws.updatePhotoForPartnerUrl(url);
+        await HomeWidgetService.instance.refreshPhotoOfDay(_pair.pairId);
+        await _loadPhotoDayWidgets();
+      }
+      // 3. Лента воспоминаний.
+      if (dest.toMemories) {
+        try {
+          await fb.addMemory(
+            groupId: _pair.pairId,
+            type: MemoryType.photo,
+            imageUrl: url,
+            caption: '📸 Виджет',
+          );
+        } catch (e) {
+          debugPrint('Widget → Memory (photo) failed: $e');
+        }
+      }
+    }
+
+    if (mounted) Navigator.of(context).pop(); // закрываем лоадер
+  }
+
+  void _showPhotoLoader() {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -4877,9 +4995,6 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
       ),
     );
-
-    await _ws.updatePhoto(file.path);
-    if (mounted) Navigator.of(context).pop(); // закрываем лоадер
   }
 
   void _showMusicEditor(WidgetData data) {
@@ -5392,6 +5507,201 @@ class _PhotoSourceSheet extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHOTO DESTINATION SHEET — куда отправить фото из парного виджета
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Результат выбора направлений для загруженного фото.
+class _PhotoDestinations {
+  final bool toPairWidget;
+  final bool toPartnerWidget;
+  final bool toMemories;
+  const _PhotoDestinations({
+    required this.toPairWidget,
+    required this.toPartnerWidget,
+    required this.toMemories,
+  });
+}
+
+class _PhotoDestinationSheet extends StatefulWidget {
+  final AppTheme theme;
+  final String partnerName;
+  final bool initialToPairWidget;
+  final bool initialToPartnerWidget;
+  final bool initialToMemories;
+
+  const _PhotoDestinationSheet({
+    required this.theme,
+    required this.partnerName,
+    required this.initialToPairWidget,
+    required this.initialToPartnerWidget,
+    required this.initialToMemories,
+  });
+
+  @override
+  State<_PhotoDestinationSheet> createState() => _PhotoDestinationSheetState();
+}
+
+class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
+  late bool _toPairWidget = widget.initialToPairWidget;
+  late bool _toPartnerWidget = widget.initialToPartnerWidget;
+  late bool _toMemories = widget.initialToMemories;
+
+  AppTheme get _t => widget.theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final partner = widget.partnerName.isNotEmpty
+        ? widget.partnerName
+        : 'партнёр';
+    final nothingSelected =
+        !_toPairWidget && !_toPartnerWidget && !_toMemories;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Куда отправить фото?',
+            style: GoogleFonts.rubik(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.grey.shade900,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _destTile(
+            icon: Icons.dashboard_customize_rounded,
+            title: 'Парный виджет',
+            subtitle: 'Фото в «Моём виджете» — видно тебе и $partner',
+            value: _toPairWidget,
+            onChanged: (v) => setState(() => _toPairWidget = v),
+          ),
+          _destTile(
+            icon: Icons.favorite_rounded,
+            title: 'Виджет «Фото партнёра»',
+            subtitle: 'Отдельный виджет с фото для $partner',
+            value: _toPartnerWidget,
+            onChanged: (v) => setState(() => _toPartnerWidget = v),
+          ),
+          _destTile(
+            icon: Icons.photo_album_rounded,
+            title: 'Воспоминания',
+            subtitle: 'Добавить фото в ленту воспоминаний',
+            value: _toMemories,
+            onChanged: (v) => setState(() => _toMemories = v),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: nothingSelected
+                  ? null
+                  : () => Navigator.pop(
+                      context,
+                      _PhotoDestinations(
+                        toPairWidget: _toPairWidget,
+                        toPartnerWidget: _toPartnerWidget,
+                        toMemories: _toMemories,
+                      ),
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _t.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Отправить',
+                style: GoogleFonts.rubik(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _destTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _t.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: _t.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.rubik(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.rubik(
+                    fontSize: 11.5,
+                    color: Colors.grey.shade500,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Switch.adaptive(
+            value: value,
+            activeColor: _t.primary,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
