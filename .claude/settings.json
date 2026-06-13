@@ -38,7 +38,12 @@
       "Bash(python3 -c \"import yaml,sys; yaml.safe_load\\(open\\('.github/workflows/release-apk.yml'\\)\\); print\\('YAML OK'\\)\")",
       "Bash(gh auth *)",
       "Bash(curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/THET1ME-1/togetherly_app_releases)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://api.github.com/repos/THET1ME-1/togetherly_app_releases/releases/latest)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://api.github.com/repos/THET1ME-1/togetherly_app_releases/releases/latest)",
+      "Bash(git check-ignore *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(open\\('togetherly-d4856-19cf1c4a4c5c.json'\\)\\); print\\('valid JSON OK'\\); print\\('type   :', d.get\\('type'\\)\\); print\\('project:', d.get\\('project_id'\\)\\); print\\('email  :', d.get\\('client_email'\\)\\)\")",
+      "Bash(python -c \"import nacl; print\\('pynacl', nacl.__version__\\)\")",
+      "Bash(python -m pip install --quiet pynacl)",
+      "Bash(python -c \"import nacl; print\\('pynacl ready', nacl.__version__\\)\")"
     ]
   }
 }
