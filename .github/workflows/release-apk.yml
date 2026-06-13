@@ -36,6 +36,21 @@ jobs:
           channel: stable
           cache: true
 
+      # Кэш pub-пакетов и Gradle-зависимостей/wrapper. На первом прогоне пусто,
+      # со второго — Android-зависимости и Gradle не качаются заново (сборка
+      # ускоряется в разы). Ключ инвалидируется при смене pubspec.lock или
+      # gradle-файлов; restore-keys позволяет переиспользовать частичный кэш.
+      - name: Cache pub & Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-flutterbuild-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-flutterbuild-
+
       - name: Restore signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
