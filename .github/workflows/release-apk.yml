@@ -93,7 +93,7 @@ jobs:
       - name: Stage artifacts
         run: |
           mkdir -p dist
-          APK="love-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk"
+          APK="togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "dist/$APK"
           cat > dist/version.json <<EOF
           {
@@ -135,5 +135,5 @@ jobs:
           body_path: dist/notes.md
           make_latest: true
           files: |
-            dist/love-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk
+            dist/togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}.apk
             dist/version.json
