@@ -1818,6 +1818,35 @@ class SupabaseService {
     }
   }
 
+  /// RPC: атомарно ставит/снимает реакцию uid на сообщение (emoji==null/'' — снять).
+  Future<bool> setChatReaction(String id, String uid, String? emoji) async {
+    if (!isReady || id.isEmpty || uid.isEmpty) return false;
+    return _write('setChatReaction', () async {
+      await _client.rpc('chat_set_reaction', params: {
+        'p_id': id,
+        'p_uid': uid,
+        'p_emoji': (emoji == null || emoji.isEmpty) ? null : emoji,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Live-поток последнего сообщения группы (для индикатора непрочитанного).
+  Stream<ChatMsg?> watchLastMessage(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('chat_messages')
+          .stream(primaryKey: ['id'])
+          .eq('group_id', groupId)
+          .order('ts', ascending: false)
+          .limit(1)
+          .map((rows) => rows.isEmpty ? null : _chatRowToMsg(rows.first));
+    } catch (e) {
+      debugPrint('SupabaseService.watchLastMessage failed: $e');
+      return const Stream.empty();
+    }
+  }
+
   /// Проверка соединения (для диагностики).
   Future<bool> checkConnection() async {
     if (!isReady) return false;
