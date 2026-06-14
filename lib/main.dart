@@ -222,6 +222,18 @@ void main() async {
     await Supabase.initialize(
       url: MigrationConfig.supabaseUrl,
       publishableKey: MigrationConfig.supabasePublishableKey,
+      // Личность для Supabase = Firebase ID-токен. Supabase проверяет его
+      // через Third-Party Auth (Firebase) и кладёт Firebase UID в
+      // auth.jwt()->>'sub' — на этом стоит вся защита RLS (см. supabase/
+      // security.sql). Callback зовётся на каждый запрос → токен всегда свежий;
+      // null до логина → анонимный доступ (RLS вернёт пусто).
+      // ВАЖНО: работает ТОЛЬКО если в панели Supabase включён Third-Party Auth
+      // → Firebase. Иначе токен отвергается и все Supabase-вызовы падают.
+      accessToken: () async {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) return null;
+        return await user.getIdToken();
+      },
     );
   }
 
