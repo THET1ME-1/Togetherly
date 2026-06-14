@@ -50,6 +50,9 @@ class ChatService {
   /// перед первой отправкой. Идемпотентно.
   Future<void> ensureMember(String groupId) async {
     if (groupId.isEmpty || _uid.isEmpty) return;
+    // Под _mig чат полностью в Supabase (RLS off) — RTDB-members (нужны были
+    // только для security-rules RTDB) больше не требуются.
+    if (_mig) return;
     try {
       await _db.ref('chats/$groupId/members/$_uid').set(true);
     } catch (e) {
@@ -144,6 +147,30 @@ class ChatService {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
     try {
+      if (_mig) {
+        // Чат полностью на Supabase: id генерим локально (push().key — без
+        // записи в RTDB), пишем ТОЛЬКО в Supabase (awaited — это единственное
+        // хранилище), затем шлём push. ts — клиентский ms (для сортировки).
+        final id = _messagesRef(groupId).push().key ??
+            DateTime.now().microsecondsSinceEpoch.toString();
+        await _sb.mirrorChatSend(
+          groupId: groupId,
+          id: id,
+          uid: _uid,
+          name: senderName,
+          text: trimmed,
+          ts: DateTime.now().millisecondsSinceEpoch,
+          pinId: pinId,
+          pinTitle: pinTitle,
+          pinThumb: pinThumb,
+        );
+        unawaited(_fb.sendChatPush(
+          groupId: groupId,
+          senderName: senderName,
+          text: trimmed,
+        ));
+        return;
+      }
       await ensureMember(groupId);
       final ref = _messagesRef(groupId).push();
       await ref.set({
@@ -155,21 +182,6 @@ class ChatService {
         if (pinTitle != null) 'pinTitle': pinTitle,
         if (pinThumb != null) 'pinThumb': pinThumb,
       });
-      // Двойная запись в Supabase. ts — клиентское now (RTDB ставит серверный,
-      // в Supabase достаточно близкого порядкового значения для сортировки).
-      if (_mig) {
-        unawaited(_sb.mirrorChatSend(
-          groupId: groupId,
-          id: ref.key ?? DateTime.now().microsecondsSinceEpoch.toString(),
-          uid: _uid,
-          name: senderName,
-          text: trimmed,
-          ts: DateTime.now().millisecondsSinceEpoch,
-          pinId: pinId,
-          pinTitle: pinTitle,
-          pinThumb: pinThumb,
-        ));
-      }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
       unawaited(_fb.sendChatPush(
         groupId: groupId,
@@ -190,16 +202,17 @@ class ChatService {
     final trimmed = newText.trim();
     if (groupId.isEmpty || messageId.isEmpty || trimmed.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.mirrorChatUpdate(messageId, {
+          'text': trimmed,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        });
+        return;
+      }
       await _messagesRef(groupId).child(messageId).update({
         'text': trimmed,
         'editedTs': ServerValue.timestamp,
       });
-      if (_mig) {
-        unawaited(_sb.mirrorChatUpdate(messageId, {
-          'text': trimmed,
-          'edited_ts': DateTime.now().millisecondsSinceEpoch,
-        }));
-      }
     } catch (e) {
       debugPrint('ChatService.edit failed: $e');
     }
@@ -212,6 +225,16 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty) return;
     try {
+      if (_mig) {
+        await _sb.mirrorChatUpdate(messageId, {
+          'deleted': true,
+          'text': '',
+          'pin_id': null,
+          'pin_title': null,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        });
+        return;
+      }
       await _messagesRef(groupId).child(messageId).update({
         'deleted': true,
         'text': '',
@@ -219,15 +242,6 @@ class ChatService {
         'pinTitle': null,
         'editedTs': ServerValue.timestamp,
       });
-      if (_mig) {
-        unawaited(_sb.mirrorChatUpdate(messageId, {
-          'deleted': true,
-          'text': '',
-          'pin_id': null,
-          'pin_title': null,
-          'edited_ts': DateTime.now().millisecondsSinceEpoch,
-        }));
-      }
     } catch (e) {
       debugPrint('ChatService.delete failed: $e');
     }
@@ -244,6 +258,12 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
     try {
+      if (_mig) {
+        // Атомарно через RPC (jsonb_set/minus): один эмодзи на uid, без
+        // read-modify-write — параллельная реакция партнёра не теряется.
+        await _sb.setChatReaction(messageId, _uid, emoji);
+        return;
+      }
       final reactionsRef =
           _messagesRef(groupId).child(messageId).child('reactions');
       final ref = reactionsRef.child(_uid);
@@ -251,19 +271,6 @@ class ChatService {
         await ref.remove();
       } else {
         await ref.set(emoji);
-      }
-      // Двойная запись: зеркалим полный набор реакций сообщения в Supabase
-      // (читаем обратно из RTDB — это дёшево, не Firestore).
-      if (_mig) {
-        final snap = await reactionsRef.get();
-        final map = <String, String>{};
-        final v = snap.value;
-        if (v is Map) {
-          v.forEach((k, val) {
-            if (val is String && val.isNotEmpty) map[k.toString()] = val;
-          });
-        }
-        unawaited(_sb.mirrorChatUpdate(messageId, {'reactions': map}));
       }
     } catch (e) {
       debugPrint('ChatService.setReaction failed: $e');
@@ -346,6 +353,16 @@ class ChatService {
   /// Слушает только последнее сообщение — минимальный трафик RTDB.
   Stream<bool> watchHasUnread(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
+    if (_mig) {
+      // Последнее сообщение из Supabase (chat_messages, ts DESC limit 1).
+      return _sb.watchLastMessage(groupId).asyncMap((last) async {
+        if (last == null) return false;
+        if (last.uid == _uid) return false; // своё сообщение
+        if (last.deleted) return false;
+        final lastRead = await _lastRead(groupId);
+        return last.ts > lastRead;
+      });
+    }
     return _messagesRef(groupId).orderByChild('ts').limitToLast(1).onValue.asyncMap(
       (event) async {
         if (event.snapshot.children.isEmpty) return false;
