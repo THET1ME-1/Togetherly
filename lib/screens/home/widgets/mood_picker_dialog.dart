@@ -132,6 +132,21 @@ void showMoodPickerForDate({
                 await moodService.clearMoodForDate(date);
               }
             : null,
+        // Самочувствие — текущий статус, не история: вкладка только для сегодня.
+        showAilmentTab: isToday,
+        currentAilmentId: isToday ? pairData.myAilment.id : '',
+        onSelectAilment: isToday
+            ? (a) {
+                Navigator.pop(ctx);
+                pairData.setAilment(a.id, a.localizedLabel, a.emoji);
+              }
+            : null,
+        onClearAilment: (isToday && pairData.myAilment.isNotEmpty)
+            ? () async {
+                Navigator.pop(ctx);
+                await pairData.clearAilment();
+              }
+            : null,
       ),
     ),
   );
