@@ -34,8 +34,10 @@ class WidgetService extends ChangeNotifier {
   /// Stage 2: пишем widgetData в оба склада (Firebase источник + зеркало).
   bool get _dualWrite => _mig;
 
-  /// Stage 2: читаем widgetData из Firebase (общий источник). Stage 3 — Supabase.
-  bool get _readSb => false;
+  /// Можно ли ЧИТАТЬ widgetData из Supabase. ВРЕМЕННО _mig (как до Stage 2):
+  /// у тест-аккаунтов данные только в Supabase. Вернуть false после бэкфилла
+  /// Supabase→Firebase или на свежей паре. См. _readSb в FirebaseService.
+  bool get _readSb => _mig;
   int _bindGeneration = 0;
 
   @override

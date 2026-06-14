@@ -40,9 +40,10 @@ class HomeWidgetService {
   /// Supabase инициализирован.
   bool get _mig => FirebaseService().isMigrationUser;
 
-  /// Stage 2: widget-данные читаются из Firebase (общий источник, его пишет и
-  /// партнёр на старой версии). Stage 3 — вернуть _mig (чтение из Supabase).
-  bool get _readSb => false;
+  /// Можно ли ЧИТАТЬ widget-данные из Supabase. ВРЕМЕННО _mig (как до Stage 2):
+  /// у тест-аккаунтов данные только в Supabase. Вернуть false после бэкфилла
+  /// Supabase→Firebase или на свежей паре. См. _readSb в FirebaseService.
+  bool get _readSb => _mig;
 
   /// Читает widget_data одного участника (firestore-формат: те же ключи, что в
   /// Firestore-доке) — из Supabase под [_mig], иначе из Firestore. null если

@@ -1018,11 +1018,17 @@ class FirebaseService {
   /// Дублировать запись в Supabase (поверх обязательной записи в Firebase).
   bool get _dualWrite => _mig;
 
-  /// Можно ли ЧИТАТЬ группу из Supabase. Stage 2: всегда false (читаем Firebase
-  /// — общий источник для смешанных пар). Stage 3: вернуть migGroupFull(groupId)
-  /// (вся группа на новой сборке), только после валидации на устройстве.
+  /// Можно ли ЧИТАТЬ группу/данные из Supabase.
+  ///
+  /// ВРЕМЕННО возвращает `_mig` (как было до Stage 2). Причина: у действующих
+  /// тест-аккаунтов исторические данные лежат ТОЛЬКО в Supabase (наследие
+  /// Этапа-4), и чтение из Firebase давало «нет групп». Двойная запись уже
+  /// наполняет Firebase; когда Firebase станет полным источником (бэкфилл
+  /// Supabase→Firebase ИЛИ свежая пара аккаунтов) — вернуть `false`, чтобы
+  /// включить кросс-версионное чтение из общего источника. Stage 3 —
+  /// migGroupFull(groupId).
   // ignore: avoid_unused_parameters
-  bool _readSb(String groupId) => false;
+  bool _readSb(String groupId) => _mig;
 
   /// Публичный гейт миграции — нужен другим сервисам (WidgetService /
   /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
