@@ -1005,6 +1005,25 @@ class FirebaseService {
       MigrationConfig.isConfigured &&
       MigrationConfig.isPhase1User(_auth.currentUser?.email);
 
+  // ── Гейты постепенного переезда (Stage 2) ────────────────────────────────
+  // Старые версии партнёра продолжают работать. Принцип:
+  //   • ЗАПИСЬ — в ОБА склада: Firebase (источник истины) + зеркало в Supabase.
+  //     Так старый билд партнёра (читает Firebase) видит данные, а Supabase
+  //     копит полную копию без риска потери.
+  //   • ЧТЕНИЕ — из Firebase, пока вся группа не на новой сборке. Иначе новый
+  //     билд не увидит записи партнёра со старой версии (тот пишет в Firebase).
+  // Переключение чтения на Supabase (экономия) — Stage 3, отдельно и после
+  // прогона на устройстве, см. _readSb.
+
+  /// Дублировать запись в Supabase (поверх обязательной записи в Firebase).
+  bool get _dualWrite => _mig;
+
+  /// Можно ли ЧИТАТЬ группу из Supabase. Stage 2: всегда false (читаем Firebase
+  /// — общий источник для смешанных пар). Stage 3: вернуть migGroupFull(groupId)
+  /// (вся группа на новой сборке), только после валидации на устройстве.
+  // ignore: avoid_unused_parameters
+  bool _readSb(String groupId) => false;
+
   /// Публичный гейт миграции — нужен другим сервисам (WidgetService /
   /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
   bool get isMigrationUser => _mig;
@@ -5714,8 +5733,9 @@ class FirebaseService {
     required String groupId,
     String canvasId = 'main',
   }) {
-    // Миграция: штрихи читаются из Supabase (realtime, порядок по order_index).
-    if (_mig) {
+    // Stage 2: штрихи читаются из Firebase (общий источник). Stage 3 включит
+    // Supabase-чтение через _readSb, когда вся группа на новой сборке.
+    if (_readSb(groupId)) {
       return _sb.watchCanvasStrokes(groupId, canvasId).map(
             (rows) => rows
                 .map((r) => _DrawStrokeRaw(
@@ -5747,14 +5767,14 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      // Этап 4: штрих живёт только в Supabase; id генерим локально (doc()).
-      if (_mig) {
-        final id = _strokesRef(groupId, canvasId).doc().id;
-        final ok = await _sb.mirrorStroke(groupId, canvasId, id, strokeData);
-        return ok ? id : '';
+      // Двойная запись: Firebase (источник) + зеркало в Supabase под ОДНИМ id,
+      // чтобы при будущем переключении чтения на Supabase ничего не задвоилось.
+      final id = _strokesRef(groupId, canvasId).doc().id;
+      await _strokesRef(groupId, canvasId).doc(id).set(strokeData);
+      if (_dualWrite) {
+        unawaited(_sb.mirrorStroke(groupId, canvasId, id, strokeData));
       }
-      final ref = await _strokesRef(groupId, canvasId).add(strokeData);
-      return ref.id;
+      return id;
     } catch (e) {
       debugPrint('addDrawingStroke failed: $e');
       return '';
@@ -5769,11 +5789,8 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorStrokePatch(strokeId, updates);
-        return;
-      }
       await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
+      if (_dualWrite) unawaited(_sb.mirrorStrokePatch(strokeId, updates));
     } catch (e) {
       debugPrint('updateDrawingStroke failed: $e');
     }
@@ -5786,11 +5803,8 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorStrokeDelete(strokeId);
-        return;
-      }
       await _strokesRef(groupId, canvasId).doc(strokeId).delete();
+      if (_dualWrite) unawaited(_sb.mirrorStrokeDelete(strokeId));
     } catch (e) {
       debugPrint('deleteDrawingStroke failed: $e');
     }
@@ -5849,25 +5863,7 @@ class FirebaseService {
   }) async {
     final version = clearVersion ?? DateTime.now().millisecondsSinceEpoch;
     try {
-      // Этап 4: штрихи и мета живут в Supabase. Live-курсоры остаются
-      // эфемерными Firestore-доками (этап 5) — их чистим в обоих режимах.
-      if (_mig) {
-        await _sb.mirrorCanvasClear(
-          groupId,
-          canvasId,
-          version,
-          bgColor: bgColorValue,
-        );
-        try {
-          final liveSnap = await _liveRef(groupId, canvasId).get();
-          for (final doc in liveSnap.docs) {
-            await doc.reference.delete();
-          }
-        } catch (e) {
-          debugPrint('clearDrawingCanvas: live cleanup failed: $e');
-        }
-        return;
-      }
+      // Firebase (источник): чистим штрихи, live-курсоры и пишем clearVersion/bg.
       final strokesSnap = await _strokesRef(groupId, canvasId).get();
       final liveSnap = await _liveRef(groupId, canvasId).get();
       final batch = _db.batch();
@@ -5887,6 +5883,15 @@ class FirebaseService {
         SetOptions(merge: true),
       );
       await batch.commit();
+      // Зеркало в Supabase.
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasClear(
+          groupId,
+          canvasId,
+          version,
+          bgColor: bgColorValue,
+        ));
+      }
     } catch (e) {
       debugPrint('clearDrawingCanvas failed: $e');
     }
@@ -5900,14 +5905,13 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue);
-        return;
-      }
       await _canvasMainRef(
         groupId,
         canvasId,
       ).set({'bgColor': colorValue}, SetOptions(merge: true));
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue));
+      }
     } catch (e) {
       debugPrint('setCanvasBgColor failed: $e');
     }
@@ -5921,8 +5925,8 @@ class FirebaseService {
     required String groupId,
     String canvasId = 'main',
   }) {
-    // Миграция: мета холста читается из Supabase (realtime).
-    if (_mig) {
+    // Stage 2: мета холста читается из Firebase. Stage 3 — из Supabase (_readSb).
+    if (_readSb(groupId)) {
       return _sb.watchCanvasMeta(groupId, canvasId).map(
             (m) => RemoteCanvasMeta(
               bgColor: m['bgColor'],
@@ -5949,18 +5953,17 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorCanvasMeta(
-          groupId,
-          canvasId,
-          rotation: rotationQuarterTurns,
-        );
-        return;
-      }
       await _canvasMainRef(
         groupId,
         canvasId,
       ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasMeta(
+          groupId,
+          canvasId,
+          rotation: rotationQuarterTurns,
+        ));
+      }
     } catch (e) {
       debugPrint('setCanvasRotation failed: $e');
     }
@@ -5995,16 +5998,15 @@ class FirebaseService {
         'updatedAt': updatedAt,
       };
       if (createdBy != null) data['createdBy'] = createdBy;
-      if (_mig) {
-        await _sb.mirrorCanvasCatalogue(groupId, canvasId, data);
-        return;
-      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .set(data, SetOptions(merge: true));
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, data));
+      }
     } catch (e) {
       debugPrint('upsertCanvasMeta failed: $e');
     }
@@ -6021,16 +6023,15 @@ class FirebaseService {
         'name': newName,
         'updatedAt': DateTime.now().millisecondsSinceEpoch,
       };
-      if (_mig) {
-        await _sb.mirrorCanvasCatalogue(groupId, canvasId, updates);
-        return;
-      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .update(updates);
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasCatalogue(groupId, canvasId, updates));
+      }
     } catch (e) {
       debugPrint('renameCanvasMeta failed: $e');
     }
@@ -6042,16 +6043,15 @@ class FirebaseService {
     required String canvasId,
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorCanvasCatalogueDelete(groupId, canvasId);
-        return;
-      }
       await _db
           .collection('groups')
           .doc(groupId)
           .collection('canvasCatalogue')
           .doc(canvasId)
           .delete();
+      if (_dualWrite) {
+        unawaited(_sb.mirrorCanvasCatalogueDelete(groupId, canvasId));
+      }
     } catch (e) {
       debugPrint('deleteCanvasMeta failed: $e');
     }
@@ -6061,8 +6061,8 @@ class FirebaseService {
   Stream<List<Map<String, dynamic>>> listenToCanvasCatalogue({
     required String groupId,
   }) {
-    // Миграция: каталог холстов читается из Supabase (realtime).
-    if (_mig) return _sb.watchCanvasCatalogue(groupId);
+    // Stage 2: каталог холстов читается из Firebase. Stage 3 — Supabase (_readSb).
+    if (_readSb(groupId)) return _sb.watchCanvasCatalogue(groupId);
     return _db
         .collection('groups')
         .doc(groupId)
