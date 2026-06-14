@@ -96,6 +96,17 @@ class ChatService {
           if (!ok2) failures++;
         }
       }
+      // ── Статусы прочтения (галочки) RTDB reads/{uid} → chat_reads ──
+      final reads = await _readsRef(groupId).get();
+      final rv = reads.value;
+      if (rv is Map) {
+        for (final entry in rv.entries) {
+          final ruid = entry.key.toString();
+          final rts = (entry.value as num?)?.toInt() ?? 0;
+          if (ruid.isEmpty || rts <= 0) continue;
+          if (!await _sb.mirrorChatRead(groupId, ruid, rts)) failures++;
+        }
+      }
     } catch (e) {
       debugPrint('ChatService.backfillToSupabase($groupId) failed: $e');
       failures++; // не вышло прочитать RTDB — повторим позже
@@ -277,6 +288,11 @@ class ChatService {
     if ((_syncedReadTs[groupId] ?? 0) >= lastMessageTs) return;
     _syncedReadTs[groupId] = lastMessageTs;
     try {
+      if (_mig) {
+        final ok = await _sb.mirrorChatRead(groupId, _uid, lastMessageTs);
+        if (!ok) _syncedReadTs.remove(groupId); // позволим повторить позже
+        return;
+      }
       await _readsRef(groupId).child(_uid).set(lastMessageTs);
     } catch (e) {
       _syncedReadTs.remove(groupId); // не вышло — позволим повторить позже
@@ -288,6 +304,7 @@ class ChatService {
   /// своё сообщение прочитано, если его ts ≤ минимального ts среди остальных.
   Stream<Map<String, int>> watchReads(String groupId) {
     if (groupId.isEmpty) return const Stream.empty();
+    if (_mig) return _sb.watchChatReads(groupId);
     return _readsRef(groupId).onValue.map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return <String, int>{};

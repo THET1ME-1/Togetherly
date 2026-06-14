@@ -8,6 +8,7 @@ import '../config/migration_config.dart';
 import '../models/chat_msg.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
+import '../models/mascot.dart';
 
 /// Зеркало + чтение данных в Supabase для миграции (Фаза 1).
 ///
@@ -1251,6 +1252,192 @@ class SupabaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  МАСКОТЫ (галерея + floating + streak)
+  // ══════════════════════════════════════════════
+
+  /// Mascot.toFirestore() → строка таблицы mascots (snake_case + ISO даты).
+  Map<String, dynamic> _mascotRow(String groupId, Map<String, dynamic> m) => {
+        'group_id': groupId,
+        'id': m['id'],
+        'name': m['name'],
+        'image_url': m['imageUrl'],
+        'default_asset': m['defaultAsset'],
+        'created_by': m['createdBy'],
+        'created_at': _isoTs(m['createdAt']),
+        'is_default': m['isDefault'] ?? false,
+        'record_streak': m['recordStreak'] ?? 0,
+      };
+
+  Mascot _mascotFromRow(Map<String, dynamic> r) => Mascot(
+        id: (r['id'] ?? '').toString(),
+        name: (r['name'] ?? '').toString(),
+        imageUrl: r['image_url'] as String?,
+        defaultAsset: r['default_asset'] as String?,
+        createdBy: (r['created_by'] ?? '').toString(),
+        createdAt: _toDate(r['created_at']) ?? DateTime.now(),
+        isDefault: r['is_default'] == true,
+        recordStreak: (r['record_streak'] as num?)?.toInt() ?? 0,
+      );
+
+  /// Зеркалит один маскот (вставка/перезапись по PK group_id+id).
+  Future<bool> mirrorMascot(String groupId, Map<String, dynamic> m) async {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('mirrorMascot', () async {
+      await _client
+          .from('mascots')
+          .upsert(_mascotRow(groupId, m), onConflict: 'group_id,id')
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Зеркалит несколько маскотов одним upsert (сидирование дефолтов / бэкфилл).
+  Future<bool> mirrorMascotsBatch(
+    String groupId,
+    List<Map<String, dynamic>> mascots,
+  ) async {
+    if (!isReady || groupId.isEmpty || mascots.isEmpty) return false;
+    return _write('mirrorMascotsBatch', () async {
+      await _client
+          .from('mascots')
+          .upsert(
+            mascots.map((m) => _mascotRow(groupId, m)).toList(),
+            onConflict: 'group_id,id',
+          )
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> deleteMascotRow(String groupId, String mascotId) async {
+    if (!isReady || groupId.isEmpty || mascotId.isEmpty) return false;
+    return _write('deleteMascotRow', () async {
+      await _client
+          .from('mascots')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('id', mascotId)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> renameMascot(
+    String groupId,
+    String mascotId,
+    String name,
+  ) async {
+    if (!isReady || groupId.isEmpty || mascotId.isEmpty) return false;
+    return _write('renameMascot', () async {
+      await _client
+          .from('mascots')
+          .update({'name': name})
+          .eq('group_id', groupId)
+          .eq('id', mascotId)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  Future<bool> updateMascotRecord(
+    String groupId,
+    String mascotId,
+    int recordStreak,
+  ) async {
+    if (!isReady || groupId.isEmpty || mascotId.isEmpty) return false;
+    return _write('updateMascotRecord', () async {
+      await _client
+          .from('mascots')
+          .update({'record_streak': recordStreak})
+          .eq('group_id', groupId)
+          .eq('id', mascotId)
+          .timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Live-поток галереи маскотов (realtime). Дефолты первыми, затем по дате —
+  /// тот же порядок, что отдаёт FirebaseService.listenToMascots.
+  Stream<List<Mascot>> watchMascots(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('mascots')
+          .stream(primaryKey: ['group_id', 'id'])
+          .eq('group_id', groupId)
+          .map((rows) => rows
+              .map(_mascotFromRow)
+              .where((m) => m.id.isNotEmpty)
+              .toList()
+            ..sort((a, b) {
+              if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+              return a.createdAt.compareTo(b.createdAt);
+            }));
+    } catch (e) {
+      debugPrint('SupabaseService.watchMascots failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  Future<int> getMascotCount(String groupId) async {
+    if (!isReady || groupId.isEmpty) return 0;
+    try {
+      final rows = await _client
+          .from('mascots')
+          .select('id')
+          .eq('group_id', groupId)
+          .timeout(const Duration(seconds: 10));
+      return rows.length;
+    } catch (e) {
+      debugPrint('SupabaseService.getMascotCount failed: $e');
+      return 0;
+    }
+  }
+
+  /// Live-поток floating-маскота + streak из group-row → GroupMascotState
+  /// (замена listenToGroupMascotState при чтении из Supabase). Де-дуп по
+  /// сигнатуре, чтобы не дёргать виджет на не-маскотных апдейтах группы.
+  Stream<GroupMascotState> watchGroupMascotState(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      String? prevSig;
+      return _client
+          .from('groups')
+          .stream(primaryKey: ['id'])
+          .eq('id', groupId)
+          .map((rows) {
+            if (rows.isEmpty) return const GroupMascotState();
+            final r = rows.first;
+            return GroupMascotState(
+              activeMascotId: r['active_mascot_id'] as String?,
+              positionX: (r['mascot_position_x'] as num?)?.toDouble() ?? 0.8,
+              positionY: (r['mascot_position_y'] as num?)?.toDouble() ?? 0.7,
+              scale: (r['mascot_scale'] as num?)?.toDouble() ?? 1.0,
+              streakDays: (r['streak_days'] as num?)?.toInt() ?? 0,
+              streakLastOpenedDate: r['streak_last_opened_date'] as String?,
+            );
+          })
+          .where((state) {
+            final sig =
+                '${state.activeMascotId}|${state.positionX}|${state.positionY}|'
+                '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}';
+            if (sig == prevSig) return false;
+            prevSig = sig;
+            return true;
+          });
+    } catch (e) {
+      debugPrint('SupabaseService.watchGroupMascotState failed: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Атомарный учёт ежедневной активности (streak). today = 'YYYY-MM-DD'.
+  Future<bool> recordGroupActivity(String groupId, String today) async {
+    if (!isReady || groupId.isEmpty) return false;
+    return _write('recordGroupActivity', () async {
+      await _client.rpc('group_record_activity', params: {
+        'p_group_id': groupId,
+        'p_today': today,
+      }).timeout(const Duration(seconds: 10));
+    });
+  }
+
+  // ══════════════════════════════════════════════
   //  MISS YOU
   // ══════════════════════════════════════════════
 
@@ -1591,6 +1778,44 @@ class SupabaseService {
           .eq('id', id)
           .timeout(const Duration(seconds: 10));
     });
+  }
+
+  // ── Статусы прочтения (галочки «прочитано») ──────────────────
+
+  /// Публикует ts последнего прочитанного сообщения текущего пользователя.
+  /// Монотонность (только рост) гарантирует клиент (ChatService._syncedReadTs).
+  Future<bool> mirrorChatRead(String groupId, String uid, int ts) async {
+    if (!isReady || groupId.isEmpty || uid.isEmpty) return false;
+    return _write('mirrorChatRead', () async {
+      await _client.from('chat_reads').upsert({
+        'group_id': groupId,
+        'user_uid': uid,
+        'last_read_ts': ts,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'group_id,user_uid').timeout(const Duration(seconds: 10));
+    });
+  }
+
+  /// Live-поток статусов прочтения {uid: lastReadTs} (замена RTDB watchReads).
+  Stream<Map<String, int>> watchChatReads(String groupId) {
+    if (!isReady || groupId.isEmpty) return const Stream.empty();
+    try {
+      return _client
+          .from('chat_reads')
+          .stream(primaryKey: ['group_id', 'user_uid'])
+          .eq('group_id', groupId)
+          .map((rows) {
+        final out = <String, int>{};
+        for (final r in rows) {
+          out[(r['user_uid'] ?? '').toString()] =
+              (r['last_read_ts'] as num?)?.toInt() ?? 0;
+        }
+        return out;
+      });
+    } catch (e) {
+      debugPrint('SupabaseService.watchChatReads failed: $e');
+      return const Stream.empty();
+    }
   }
 
   /// Проверка соединения (для диагностики).
