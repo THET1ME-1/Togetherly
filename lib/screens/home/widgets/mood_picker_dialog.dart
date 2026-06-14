@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../models/ailment.dart';
 import '../../../models/mood_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
@@ -51,6 +52,19 @@ void showMoodPicker({
             ? () async {
                 Navigator.pop(ctx);
                 await moodService.clearMoodForToday();
+              }
+            : null,
+        // ── Вкладка «Самочувствие» (болячки) ──
+        showAilmentTab: true,
+        currentAilmentId: pairData.myAilment.id,
+        onSelectAilment: (a) {
+          Navigator.pop(ctx);
+          pairData.setAilment(a.id, a.localizedLabel, a.emoji);
+        },
+        onClearAilment: pairData.myAilment.isNotEmpty
+            ? () async {
+                Navigator.pop(ctx);
+                await pairData.clearAilment();
               }
             : null,
       ),
@@ -136,6 +150,12 @@ class _MoodPickerSheet extends StatefulWidget {
   final void Function(MoodOption) onSelect;
   final Future<void> Function()? onClear;
 
+  // ── Вкладка «Самочувствие» (опционально) ──
+  final bool showAilmentTab;
+  final String currentAilmentId;
+  final void Function(Ailment)? onSelectAilment;
+  final Future<void> Function()? onClearAilment;
+
   const _MoodPickerSheet({
     required this.scrollController,
     required this.currentEmoji,
@@ -144,6 +164,10 @@ class _MoodPickerSheet extends StatefulWidget {
     required this.subtitle,
     required this.onSelect,
     required this.onClear,
+    this.showAilmentTab = false,
+    this.currentAilmentId = '',
+    this.onSelectAilment,
+    this.onClearAilment,
   });
 
   @override
@@ -151,6 +175,8 @@ class _MoodPickerSheet extends StatefulWidget {
 }
 
 class _MoodPickerSheetState extends State<_MoodPickerSheet> {
+  int _tab = 0; // 0 — настроение, 1 — самочувствие
+
   @override
   void initState() {
     super.initState();
@@ -161,6 +187,8 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final s = LocaleService.current;
+    final onAilment = widget.showAilmentTab && _tab == 1;
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -178,84 +206,185 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 18),
-          Text(
-            widget.title,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.subtitle,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-          ),
           const SizedBox(height: 14),
-          // Pack selector
-          MoodPackSelector(
-            primary: widget.primary,
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 12),
-          // Grid (перестраивается при смене пака)
-          Expanded(
-            child: AnimatedBuilder(
-              animation: MoodPackService.instance,
-              builder: (context, _) {
-                final pack = MoodPackService.instance.selectedPack;
-                return GridView.builder(
-                  controller: widget.scrollController,
-                  padding: const EdgeInsets.only(bottom: 16),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.68,
-                  ),
-                  itemCount: pack.moods.length,
-                  itemBuilder: (_, i) {
-                    final mood = pack.moods[i];
-                    final isSelected = widget.currentEmoji == mood.imagePath;
-                    return _MoodTile(
-                      mood: mood,
-                      isSelected: isSelected,
-                      primary: widget.primary,
-                      tileGradient: pack.tileGradient,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        widget.onSelect(mood);
-                      },
-                    );
-                  },
-                );
-              },
+          if (widget.showAilmentTab) ...[
+            _segmented(s),
+            const SizedBox(height: 10),
+            Text(
+              onAilment ? s.ailmentPickerSubtitle : widget.subtitle,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              textAlign: TextAlign.center,
             ),
-          ),
-          // Clear button
-          if (widget.onClear != null) ...[
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextButton(
-                  onPressed: widget.onClear,
-                  child: Text(
-                    LocaleService.current.clearMood,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade400,
-                    ),
-                  ),
-                ),
+            const SizedBox(height: 12),
+          ] else ...[
+            const SizedBox(height: 4),
+            Text(
+              widget.title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900,
               ),
             ),
-          ] else
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Text(
+              widget.subtitle,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 14),
+          ],
+          // Body
+          Expanded(child: onAilment ? _ailmentGrid() : _moodBody()),
+          // Clear button (зависит от вкладки)
+          _clearButton(s, onAilment),
         ],
+      ),
+    );
+  }
+
+  Widget _segmented(AppStrings s) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          _segBtn(s.moodTabLabel, 0),
+          _segBtn(s.ailmentTabLabel, 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _segBtn(String label, int idx) {
+    final active = _tab == idx;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tab = idx),
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 6,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: active ? widget.primary : Colors.grey.shade500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _moodBody() {
+    return Column(
+      children: [
+        MoodPackSelector(
+          primary: widget.primary,
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: AnimatedBuilder(
+            animation: MoodPackService.instance,
+            builder: (context, _) {
+              final pack = MoodPackService.instance.selectedPack;
+              return GridView.builder(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.only(bottom: 16),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 0.68,
+                ),
+                itemCount: pack.moods.length,
+                itemBuilder: (_, i) {
+                  final mood = pack.moods[i];
+                  final isSelected = widget.currentEmoji == mood.imagePath;
+                  return _MoodTile(
+                    mood: mood,
+                    isSelected: isSelected,
+                    primary: widget.primary,
+                    tileGradient: pack.tileGradient,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onSelect(mood);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _ailmentGrid() {
+    return GridView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.only(bottom: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.82,
+      ),
+      itemCount: kAilments.length,
+      itemBuilder: (_, i) {
+        final a = kAilments[i];
+        final isSelected = widget.currentAilmentId == a.id;
+        return _AilmentTile(
+          ailment: a,
+          isSelected: isSelected,
+          primary: widget.primary,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            widget.onSelectAilment?.call(a);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _clearButton(AppStrings s, bool onAilment) {
+    final onClear = onAilment ? widget.onClearAilment : widget.onClear;
+    if (onClear == null) return const SizedBox(height: 16);
+    final label = onAilment ? s.clearAilment : s.clearMood;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: TextButton(
+          onPressed: onClear,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade400,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -346,6 +475,71 @@ class _MoodTile extends StatelessWidget {
               fontSize: 10,
               fontWeight:
                   isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? primary : Colors.grey.shade600,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.visible,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Single ailment tile (emoji-based, no asset pipeline)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AilmentTile extends StatelessWidget {
+  final Ailment ailment;
+  final bool isSelected;
+  final Color primary;
+  final VoidCallback onTap;
+
+  const _AilmentTile({
+    required this.ailment,
+    required this.isSelected,
+    required this.primary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primary.withValues(alpha: 0.14)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? primary : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  ailment.emoji,
+                  style: const TextStyle(fontSize: 28),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            ailment.localizedLabel,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               color: isSelected ? primary : Colors.grey.shade600,
               height: 1.2,
             ),

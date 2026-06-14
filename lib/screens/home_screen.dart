@@ -685,6 +685,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onRelationshipTap: _showRelationshipTypeDialog,
                   pairId: _pairData.pairId,
                 ),
+                _buildPartnerAilmentBanner(),
                 Expanded(child: _buildBody()),
               ],
             ),
@@ -1286,6 +1287,49 @@ class _HomeScreenState extends State<HomeScreen> {
       primary: primary,
       navActiveIcon: _t.navActiveIcon, // добавлено
     );
+  }
+
+  /// Баннер под шапкой: показывается, когда партнёру нездоровится
+  /// (он выбрал «болячку» в пикере «Самочувствие»).
+  Widget _buildPartnerAilmentBanner() {
+    if (!_pairData.isPaired) return const SizedBox.shrink();
+    for (final p in _pairData.partners) {
+      final a = _pairData.ailmentOf(p.uid);
+      if (a.isNotEmpty) {
+        final name = p.name.isNotEmpty ? p.name : LocaleService.current.partner;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _t.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _t.primary.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Text(a.emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    LocaleService.current.partnerAilmentBanner(name, a.label),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _t.primary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return const SizedBox.shrink();
   }
 
   void _showMoodPicker() {

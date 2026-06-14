@@ -197,6 +197,12 @@ abstract class AppStrings {
   String get partnerWillSeeMood;
   String moodDateLabel(String dateLabel);
   String get indicateMoodForDay;
+  // ── Самочувствие («болячки») ──
+  String get moodTabLabel;
+  String get ailmentTabLabel;
+  String get ailmentPickerSubtitle;
+  String get clearAilment;
+  String partnerAilmentBanner(String name, String label);
   String get relationshipStatus;
   String get chooseHowToConnect;
   String get inLoveStatus;
@@ -1205,6 +1211,17 @@ class _RuStrings extends AppStrings {
   String get howAreYouFeeling => 'Как вы себя чувствуете?';
   @override
   String get partnerWillSeeMood => 'Партнёр увидит ваше настроение';
+  @override
+  String get moodTabLabel => 'Настроение';
+  @override
+  String get ailmentTabLabel => 'Самочувствие';
+  @override
+  String get ailmentPickerSubtitle => 'Партнёр увидит, что вам нездоровится';
+  @override
+  String get clearAilment => 'Я здоров(а)';
+  @override
+  String partnerAilmentBanner(String name, String label) =>
+      '$name приболел(а): $label';
   @override
   String moodDateLabel(String dateLabel) => 'Настроение — $dateLabel';
   @override
@@ -3045,6 +3062,17 @@ class _EnStrings extends AppStrings {
   String get howAreYouFeeling => 'How are you feeling?';
   @override
   String get partnerWillSeeMood => 'Your partner will see your mood';
+  @override
+  String get moodTabLabel => 'Mood';
+  @override
+  String get ailmentTabLabel => 'Health';
+  @override
+  String get ailmentPickerSubtitle => "Your partner will see you're unwell";
+  @override
+  String get clearAilment => "I'm fine";
+  @override
+  String partnerAilmentBanner(String name, String label) =>
+      '$name is unwell: $label';
   @override
   String moodDateLabel(String dateLabel) => 'Mood — $dateLabel';
   @override

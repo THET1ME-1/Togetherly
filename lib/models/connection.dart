@@ -63,6 +63,44 @@ class MemberMood {
   }
 }
 
+/// Самочувствие участника («болячки») — что у него болит/нездоровится.
+/// В отличие от настроения (которое сбрасывается ежедневно) статус держится,
+/// пока его не снимут вручную, но партнёру показывается только пока он
+/// «свежий» ([_freshness]) — чтобы забытый статус не висел вечно.
+class MemberAilment {
+  final String id;
+  final String label;
+  final String emoji;
+  final DateTime? updatedAt;
+
+  const MemberAilment({
+    this.id = '',
+    this.label = '',
+    this.emoji = '',
+    this.updatedAt,
+  });
+
+  static const Duration _freshness = Duration(days: 7);
+
+  bool get isFresh {
+    if (updatedAt == null) return false;
+    return DateTime.now().difference(updatedAt!) < _freshness;
+  }
+
+  bool get isEmpty => id.isEmpty || !isFresh;
+  bool get isNotEmpty => id.isNotEmpty && isFresh;
+
+  factory MemberAilment.fromJson(Map<String, dynamic> json) {
+    final ts = json['updatedAt'];
+    return MemberAilment(
+      id: json['id'] ?? '',
+      label: json['label'] ?? '',
+      emoji: json['emoji'] ?? '',
+      updatedAt: ts is DateTime ? ts : null,
+    );
+  }
+}
+
 /// Represents a single connection/group with 1-9 partners
 class Connection {
   final String id;
@@ -99,6 +137,9 @@ class Connection {
 
   // Mood data: uid -> MemberMood
   Map<String, MemberMood> memberMoods = {};
+
+  // Ailment ("болячки") data: uid -> MemberAilment
+  Map<String, MemberAilment> memberAilments = {};
 
   // Relationship status
   RelationshipStatus? currentStatus;
@@ -248,6 +289,52 @@ class Connection {
     memberMoods.remove(myUid);
     onChanged?.call();
     await _fb.clearMood(groupId: pairId);
+  }
+
+  /// Моё самочувствие (актуальное).
+  MemberAilment get myAilment {
+    final a = memberAilments[_fb.uid ?? ''];
+    if (a == null || !a.isFresh) return const MemberAilment();
+    return a;
+  }
+
+  /// Самочувствие конкретного участника.
+  MemberAilment ailmentOf(String uid) {
+    final a = memberAilments[uid];
+    if (a == null || !a.isFresh) return const MemberAilment();
+    return a;
+  }
+
+  /// Самочувствие первого партнёра, у которого статус актуален.
+  MemberAilment get partnerAilment {
+    final myUid = _fb.uid ?? '';
+    for (final entry in memberAilments.entries) {
+      if (entry.key != myUid && entry.value.isFresh) return entry.value;
+    }
+    return const MemberAilment();
+  }
+
+  /// Поставить своё самочувствие.
+  Future<void> setAilment(String id, String label, String emoji) async {
+    if (pairId.isEmpty) return;
+    final myUid = _fb.uid ?? '';
+    memberAilments[myUid] = MemberAilment(
+      id: id,
+      label: label,
+      emoji: emoji,
+      updatedAt: DateTime.now(),
+    );
+    onChanged?.call();
+    await _fb.setAilment(groupId: pairId, id: id, label: label, emoji: emoji);
+  }
+
+  /// Снять своё самочувствие («Здоров(а)»).
+  Future<void> clearAilment() async {
+    if (pairId.isEmpty) return;
+    final myUid = _fb.uid ?? '';
+    memberAilments.remove(myUid);
+    onChanged?.call();
+    await _fb.clearAilment(groupId: pairId);
   }
 
   void setRelationshipType(
@@ -693,6 +780,19 @@ class Connection {
       memberMoods = {};
     }
 
+    // Parse ailments
+    final ailmentsMap = data['memberAilments'] as Map<String, dynamic>?;
+    if (ailmentsMap != null) {
+      memberAilments = ailmentsMap.map(
+        (uid, value) => MapEntry(
+          uid,
+          MemberAilment.fromJson(Map<String, dynamic>.from(value as Map)),
+        ),
+      );
+    } else {
+      memberAilments = {};
+    }
+
     // Parse current status
     final statusData = data['currentStatus'] as Map<String, dynamic>?;
     if (statusData != null) {
@@ -863,6 +963,19 @@ class Connection {
           );
         } else {
           memberMoods = {};
+        }
+
+        // Update ailments
+        final ailmentsMap = data['memberAilments'] as Map<String, dynamic>?;
+        if (ailmentsMap != null) {
+          memberAilments = ailmentsMap.map(
+            (uid, value) => MapEntry(
+              uid,
+              MemberAilment.fromJson(Map<String, dynamic>.from(value as Map)),
+            ),
+          );
+        } else {
+          memberAilments = {};
         }
 
         // Update status
