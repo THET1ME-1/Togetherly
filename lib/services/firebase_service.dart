@@ -5771,12 +5771,13 @@ class FirebaseService {
       // чтобы при будущем переключении чтения на Supabase ничего не задвоилось.
       final id = _strokesRef(groupId, canvasId).doc().id;
       await _strokesRef(groupId, canvasId).doc(id).set(strokeData);
+      debugPrint('[DRAWDBG] FB stroke OK group=$groupId canvas=$canvasId id=$id mig=$_mig');
       if (_dualWrite) {
         unawaited(_sb.mirrorStroke(groupId, canvasId, id, strokeData));
       }
       return id;
     } catch (e) {
-      debugPrint('addDrawingStroke failed: $e');
+      debugPrint('[DRAWDBG] FB stroke FAILED group=$groupId canvas=$canvasId err=$e');
       return '';
     }
   }
