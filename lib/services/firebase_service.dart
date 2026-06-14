@@ -371,6 +371,14 @@ class FirebaseService {
     }
   }
 
+  /// Отправляет письмо для сброса пароля на указанный email.
+  /// Бросает исключение при ошибке (вызывающий показывает текст пользователю).
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth
+        .sendPasswordResetEmail(email: email)
+        .timeout(const Duration(seconds: 15));
+  }
+
   Future<void> signOut() async {
     try {
       await setOnlineStatus(false);
