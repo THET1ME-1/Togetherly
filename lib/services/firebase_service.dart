@@ -6024,16 +6024,25 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> _mascotsRef(String groupId) =>
       _db.collection('groups').doc(groupId).collection('mascots');
 
-  /// Upload raw PNG bytes to Storage and return the download URL.
+  /// Upload raw PNG bytes to Storage and return a media ref (sb:// под _mig,
+  /// иначе download URL). Резолвится через resolveMediaUrl/StorageImage.
   Future<String?> uploadMascotImage({
     required String groupId,
     required List<int> pngBytes,
   }) async {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final ref = _storage.ref().child(
-        'groups/$groupId/mascots/mascot_$ts.png',
-      );
+      final path = 'groups/$groupId/mascots/mascot_$ts.png';
+      // Этап 5: новые медиа идут в Supabase Storage (как uploadFile). Путь
+      // приватный (groups/) → uploadStorageFile вернёт sb://media/{path}.
+      if (_mig) {
+        return _sb.uploadStorageFile(
+          Uint8List.fromList(pngBytes),
+          path,
+          contentType: 'image/png',
+        );
+      }
+      final ref = _storage.ref().child(path);
       final metadata = SettableMetadata(contentType: 'image/png');
       final task = ref.putData(Uint8List.fromList(pngBytes), metadata);
       final snapshot = await task;
@@ -6101,13 +6110,10 @@ class FirebaseService {
       } else {
         await _mascotsRef(groupId).doc(mascotId).delete();
       }
-      // Картинку рисованного маскота всё ещё держит Firebase Storage (новые
-      // загрузки идут туда, историч. URL мигрируют в sb:// медиа-проходом) —
-      // sb:// бросит в refFromURL и проглотится (осиротевший файл, не потеря).
+      // Удаляем картинку из её хранилища: deleteFileByUrl роутит sb://→Supabase
+      // Storage, иначе → Firebase Storage (historic download URL).
       if (imageUrl != null && imageUrl.isNotEmpty) {
-        try {
-          await _storage.refFromURL(imageUrl).delete();
-        } catch (_) {}
+        await deleteFileByUrl(imageUrl);
       }
     } catch (e) {
       debugPrint('deleteMascot failed: $e');
