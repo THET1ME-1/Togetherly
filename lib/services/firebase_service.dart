@@ -4175,22 +4175,18 @@ class FirebaseService {
         isAdult: isAdult,
       );
 
-      // Этап 4: воспоминание пишется только в Supabase (ref.id используется как
-      // локально сгенерированный id — doc() не ходит в сеть). Запись awaited:
-      // вызывающий код должен знать, что воспоминание реально сохранено.
-      if (_mig) {
-        final ok = await _sb.mirrorMemory(groupId, ref.id, memory.toFirestore());
-        if (!ok) return null;
+      // Двойная запись: Firebase (источник) + зеркало в Supabase под тем же id.
+      await ref.set(memory.toFirestore());
+      unawaited(
+        _db
+            .collection('groups')
+            .doc(groupId)
+            .update({'memoriesCount': FieldValue.increment(1)})
+            .catchError((_) {}),
+      );
+      if (_dualWrite) {
+        unawaited(_sb.mirrorMemory(groupId, ref.id, memory.toFirestore()));
         unawaited(_sb.incrementGroupCounters(groupId, memories: 1));
-      } else {
-        await ref.set(memory.toFirestore());
-        unawaited(
-          _db
-              .collection('groups')
-              .doc(groupId)
-              .update({'memoriesCount': FieldValue.increment(1)})
-              .catchError((_) {}),
-        );
       }
       unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
       return memory;
@@ -4237,16 +4233,10 @@ class FirebaseService {
         updates['createdAt'] = Timestamp.fromDate(customDate);
       }
 
-      // Этап 4: правка идёт только в Supabase через RPC memory_patch
-      // (data || patch атомарно + синк edited_at/created_at/is_pinned).
-      // Раньше mirrorMemoryPatch обновлял ТОЛЬКО типизированные колонки —
-      // title/caption/rating не доезжали до data JSONB и партнёр не видел
-      // правок; memory_patch это закрывает. captionHistory (Firestore
-      // arrayUnion) в Supabase-пути не ведём.
-      if (_mig) {
-        await _sb.patchMemory(memoryId, updates);
-        return;
-      }
+      // Зеркало в Supabase шлём БЕЗ captionHistory (Firestore arrayUnion —
+      // сентинел, в Supabase его нет). memory_patch атомарно делает data||patch
+      // + синк edited_at/created_at/is_pinned.
+      final sbUpdates = Map<String, dynamic>.from(updates);
 
       // Offline Conflict Resolution: Keep history of caption edits using arrayUnion
       // This prevents data loss if both partners edit the caption offline simultaneously.
@@ -4262,6 +4252,7 @@ class FirebaseService {
           .collection('memories')
           .doc(memoryId)
           .update(updates);
+      if (_dualWrite) unawaited(_sb.patchMemory(memoryId, sbUpdates));
     } catch (e) {
       debugPrint('updateMemory failed: $e');
     }
@@ -4292,14 +4283,7 @@ class FirebaseService {
         }
       }
 
-      // Этап 4: документ воспоминания живёт только в Supabase.
-      if (_mig) {
-        await _sb.mirrorMemoryDelete(memoryId, hard: true);
-        unawaited(_sb.incrementGroupCounters(groupId, memories: -1));
-        return;
-      }
-
-      // Delete Firestore document
+      // Delete Firestore document (источник) + зеркало удаления в Supabase.
       await _db
           .collection('groups')
           .doc(groupId)
@@ -4313,6 +4297,10 @@ class FirebaseService {
             .update({'memoriesCount': FieldValue.increment(-1)})
             .catchError((_) {}),
       );
+      if (_dualWrite) {
+        unawaited(_sb.mirrorMemoryDelete(memoryId, hard: true));
+        unawaited(_sb.incrementGroupCounters(groupId, memories: -1));
+      }
     } catch (e) {
       debugPrint('deleteMemory failed: $e');
     }
@@ -4339,8 +4327,8 @@ class FirebaseService {
     Memory? startAfter,
     bool cacheFirst = false,
   }) async {
-    // Миграция: лента читается из Supabase. Курсор — created_at < beforeIso.
-    if (_mig) {
+    // Stage 2: лента читается из Firebase. Stage 3 — Supabase (_readSb).
+    if (_readSb(groupId)) {
       final memories = await _sb.loadMemories(
         groupId,
         limit: limit,
@@ -4408,7 +4396,7 @@ class FirebaseService {
   }) async {
     if (groupId.isEmpty || memoryId.isEmpty) return null;
     try {
-      if (_mig) return await _sb.loadMemoryById(memoryId);
+      if (_readSb(groupId)) return await _sb.loadMemoryById(memoryId);
       final doc = await _db
           .collection('groups')
           .doc(groupId)
@@ -4428,8 +4416,8 @@ class FirebaseService {
     required void Function(List<Memory> memories) onData,
     int limit = 20,
   }) {
-    // Миграция: лента читается из Supabase (realtime на таблице memories).
-    if (_mig) {
+    // Stage 2: лента читается из Firebase (realtime). Stage 3 — Supabase.
+    if (_readSb(groupId)) {
       return _sb.watchMemories(groupId, limit: limit).listen(
             onData,
             onError: (e) => debugPrint('listenToMemories(SB) error: $e'),
@@ -4483,14 +4471,10 @@ class FirebaseService {
     );
     try {
       final fb = comment.toFirestore();
-      // Этап 4: комментарий пишется только в Supabase; id генерируем локально
-      // (doc() без сети) — формат тот же, что у Firestore-автогенерации.
-      if (_mig) {
-        final id = _commentsRef(groupId, memoryId).doc().id;
-        await _sb.mirrorComment(groupId, memoryId, id, fb);
-        return;
-      }
-      await _commentsRef(groupId, memoryId).add(fb);
+      // Двойная запись: Firebase (источник) + зеркало в Supabase под тем же id.
+      final id = _commentsRef(groupId, memoryId).doc().id;
+      await _commentsRef(groupId, memoryId).doc(id).set(fb);
+      if (_dualWrite) unawaited(_sb.mirrorComment(groupId, memoryId, id, fb));
     } catch (e) {
       debugPrint('addComment failed: $e');
     }
@@ -4502,11 +4486,8 @@ class FirebaseService {
     required String commentId,
   }) async {
     try {
-      if (_mig) {
-        await _sb.mirrorCommentDelete(commentId);
-        return;
-      }
       await _commentsRef(groupId, memoryId).doc(commentId).delete();
+      if (_dualWrite) unawaited(_sb.mirrorCommentDelete(commentId));
     } catch (e) {
       debugPrint('deleteComment failed: $e');
     }
@@ -4516,8 +4497,8 @@ class FirebaseService {
     required String groupId,
     required String memoryId,
   }) {
-    // Миграция: комментарии читаются из Supabase (realtime).
-    if (_mig) return _sb.watchComments(groupId, memoryId);
+    // Stage 2: комментарии читаются из Firebase (realtime). Stage 3 — Supabase.
+    if (_readSb(groupId)) return _sb.watchComments(groupId, memoryId);
     return _commentsRef(groupId, memoryId)
         .orderBy('createdAt', descending: false)
         .snapshots()
@@ -5046,16 +5027,13 @@ class FirebaseService {
     final ts = (entry['timestamp'] as Timestamp?)?.toDate();
     if (id == null || ts == null) return;
     try {
-      // Этап 4: запись настроения живёт только в Supabase (mood_entries).
-      if (_mig) {
-        await _sb.mirrorMoodEntry(groupId, u.uid, entry);
-        return;
-      }
+      // Двойная запись: Firebase month-документ (источник) + зеркало в Supabase.
       // merge:true сохраняет остальные записи месяца — дописываем только свою.
       await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).set({
         'entries': {id: entry},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      if (_dualWrite) unawaited(_sb.mirrorMoodEntry(groupId, u.uid, entry));
     } catch (e) {
       debugPrint('addMoodEntry failed: $e');
     }
@@ -5070,11 +5048,8 @@ class FirebaseService {
   }) async {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
-    // Этап 4: в Supabase запись адресуется по id — месяц не нужен.
-    if (_mig) {
-      await _sb.mirrorMoodDelete(entryId);
-      return;
-    }
+    // Зеркалим удаление в Supabase (адресуется по id); Firebase-удаление ниже.
+    if (_dualWrite) unawaited(_sb.mirrorMoodDelete(entryId));
     var ts = timestamp;
     if (ts == null) {
       final ms = int.tryParse(entryId.split('_').last);
@@ -5102,9 +5077,8 @@ class FirebaseService {
     required String monthKey,
     required void Function(List<Map<String, dynamic>> entries) onData,
   }) {
-    // Фаза 1: записи настроений пользователя из Supabase (monthKey неважен —
-    // MoodService дедупит по id).
-    if (_mig) {
+    // Stage 2: записи настроений читаются из Firebase. Stage 3 — Supabase.
+    if (_readSb(groupId)) {
       debugPrint('[SB] listenMoodMonth: subscribing to Supabase mood entries');
       return _sb.listenMoodEntries(groupId, uid, onData);
     }
@@ -5127,8 +5101,8 @@ class FirebaseService {
     int months = 14,
     bool cacheFirst = true,
   }) async {
-    // Фаза 1: вся история настроений пользователя — из Supabase одним запросом.
-    if (_mig) {
+    // Stage 2: вся история настроений — из Firebase. Stage 3 — Supabase.
+    if (_readSb(groupId)) {
       debugPrint('[SB] loadMoodMonths: reading from Supabase');
       return _sb.loadMoodEntries(groupId, uid);
     }
@@ -5176,8 +5150,8 @@ class FirebaseService {
     required DateTime since,
     bool cacheFirst = true,
   }) async {
-    // Фаза 1: в Supabase нет legacy-формата — записи приходят через loadMoodMonths.
-    if (_mig) return const [];
+    // Stage 2: читаем legacy из Firebase (источник). Stage 3 (_readSb) — пропуск.
+    if (_readSb(groupId)) return const [];
     final q = _moodEntriesCol(
       groupId,
       uid,
@@ -5210,8 +5184,8 @@ class FirebaseService {
     required String uid,
     required DateTime since,
   }) async {
-    // Фаза 1: миграция legacy→month неактуальна для Supabase-чтения.
-    if (_mig) return true;
+    // Stage 2: читаем из Firebase → legacy→month миграция актуальна. Stage 3 — пропуск.
+    if (_readSb(groupId)) return true;
     try {
       final snap = await _moodEntriesCol(groupId, uid)
           .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
@@ -5425,7 +5399,7 @@ class FirebaseService {
     // Оба партнёра на сборке dual-write'ят в Supabase, поэтому счётчики сходятся.
     // _seedSupabaseMissYou заранее подтягивает исторические RTDB-тапы (max).
     // RTDB-запись остаётся (дешёвый триггер пуша + фолбэк), но НЕ источник чтения.
-    if (_mig) {
+    if (_readSb(groupId)) {
       _seedSupabaseMissYou(groupId);
       final sub = _sb.listenMissYouCounts(groupId, (counts) {
         final total = counts.values.fold<int>(0, (s, v) => s + v);
@@ -5471,8 +5445,8 @@ class FirebaseService {
     required String groupId,
     required void Function(Map<String, int> counts) onData,
   }) {
-    // Фаза 2: per-user счётчики из Supabase (realtime). См. listenToMissYouCount.
-    if (_mig) {
+    // Stage 2: per-user счётчики из RTDB (общий источник). Stage 3 — Supabase.
+    if (_readSb(groupId)) {
       _seedSupabaseMissYou(groupId);
       final sub = _sb.listenMissYouCounts(groupId, (counts) {
         debugPrint('[SB] listenToMissYouCounts($groupId): counts=$counts');
@@ -5492,7 +5466,7 @@ class FirebaseService {
   Future<int> getMissYouTotal(String groupId) async {
     if (groupId.isEmpty) return 0;
     try {
-      if (_mig) {
+      if (_readSb(groupId)) {
         final counts = await _sb.getMissYouCounts(groupId);
         if (counts.isNotEmpty) {
           return counts.values.fold<int>(0, (s, v) => s + v);
