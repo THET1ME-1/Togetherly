@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart' show Share, XFile;
 import 'dart:io';
 
 import '../models/mascot.dart';
+import '../services/firebase_service.dart';
 import '../services/mascot_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
@@ -955,8 +956,10 @@ Future<File> fetchCachedImageFile(String url) async {
   final cached = File('${tmp.path}/$fileName.png');
   if (await cached.exists()) return cached;
 
+  // sb://media/... (и gs://) — приватные пути: резолвим в подписанный https URL.
+  final resolved = await FirebaseService().resolveMediaUrl(url);
   final client = HttpClient();
-  final req = await client.getUrl(Uri.parse(url));
+  final req = await client.getUrl(Uri.parse(resolved));
   final res = await req.close();
   final bytes = await res.fold<List<int>>([], (a, b) => a..addAll(b));
   await cached.writeAsBytes(bytes);
