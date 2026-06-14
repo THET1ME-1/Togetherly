@@ -47,7 +47,9 @@
       "PowerShell(git push origin feature/supabase-migration)",
       "Bash(grep -n \"publication\\\\|supabase_realtime\\\\|DO \\\\$\\\\$\\\\|ALTER PUBLICATION\\\\|GENERATED\" supabase/canvas.sql)",
       "Bash(git --no-pager diff --stat)",
-      "Bash(git --no-pager diff .claude/settings.json)"
+      "Bash(git --no-pager diff .claude/settings.json)",
+      "PowerShell($ErrorActionPreference='Continue'; \"=== ANALYZE ===\"; $a = flutter analyze 2>&1; $errs = $a | Select-String -Pattern \"error -\"; if \\($errs\\) { \"ERRORS:\"; $errs } else { \"analyze: NO COMPILE ERRORS\" }; \\($a | Select-String -Pattern \"issues found\"\\)[-1]; \"=== TEST ===\"; $t = flutter test 2>&1; \\($t | Select-Object -Last 1\\))",
+      "PowerShell($a = flutter analyze 2>&1; $errs = $a | Select-String -Pattern \"error -\"; if \\($errs\\) { \"ERRORS:\"; $errs } else { \"analyze: NO COMPILE ERRORS\" }; $t = flutter test 2>&1; \\($t | Select-Object -Last 1\\))"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

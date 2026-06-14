@@ -1009,6 +1009,87 @@ class FirebaseService {
   /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
   bool get isMigrationUser => _mig;
 
+  // ── Совместимость со старым билдом партнёра (смешанные пары) ──────────────
+  // Группа использует Supabase как источник правды ТОЛЬКО когда ОБА партнёра
+  // на новой сборке. Пока партнёр на старой версии — группа держится на
+  // Firebase (старый билд её там читает/пишет), чтобы пара видела друг друга и
+  // ничего не терялось; как только партнёр обновится — на следующей сессии
+  // группа докатывается в Supabase и переключается.
+  //
+  // Маркер новой сборки: group-doc.sbMig[uid] = serverTimestamp, обновляется
+  // при каждом listenToPair. Старый билд маркер не пишет → его отсутствие или
+  // устаревание = «партнёр на старой версии». Маркер живёт в group-doc, т.к.
+  // его читают ОБА участника (users/{uid} партнёра читать нельзя по правилам).
+  static const int _kMarkerFreshDays = 21;
+  // groupId → партнёр на старом билде (true = смешанная пара, держим Firebase).
+  // Безопасный дефолт — отсутствие записи (== не смешанная) равно текущему
+  // поведению (_mig), поэтому существующие пары НЕ регрессируют.
+  final Map<String, bool> _groupMixed = {};
+  final Set<String> _groupCompatResolving = {};
+
+  /// Группа полностью на новой сборке — можно Supabase как источник.
+  /// Дефолт безопасный: пока НЕ доказано, что партнёр на старом билде, ведём
+  /// себя как раньше (== `_mig`). НЕ используется для маршрутизации, пока не
+  /// будет провалидирован флип на запущенном приложении (см. _resolveGroupCompat).
+  bool migGroupFull(String groupId) => _mig && !(_groupMixed[groupId] ?? false);
+
+  /// Пишет свой маркер «я на новой сборке» в group-doc и определяет, на новой
+  /// ли сборке партнёр (по свежести маркеров всех участников). Раз за сессию на
+  /// группу. Когда смешанная пара становится полной (партнёр обновился) —
+  /// докатывает миграцию (_runSupabaseMigration) для следующей сессии.
+  Future<void> _resolveGroupCompat(String groupId) async {
+    if (!_mig || groupId.isEmpty) return;
+    if (_groupCompatResolving.contains(groupId)) return;
+    _groupCompatResolving.add(groupId);
+    try {
+      final uid = _auth.currentUser?.uid;
+      if (uid == null) return;
+      // 1. Помечаем себя «на новой сборке».
+      await _db.collection('groups').doc(groupId).set({
+        'sbMig': {uid: FieldValue.serverTimestamp()},
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
+      // 2. Читаем маркеры всех участников.
+      final doc = await _db
+          .collection('groups')
+          .doc(groupId)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      final data = doc.data();
+      if (data == null) return;
+      final members = (data['members'] as List?)
+              ?.map((e) => e.toString())
+              .where((s) => s.isNotEmpty)
+              .toList() ??
+          const <String>[];
+      final sbMig = Map<String, dynamic>.from(data['sbMig'] ?? {});
+      final now = DateTime.now();
+      var allFresh = members.isNotEmpty;
+      for (final m in members) {
+        final ts = sbMig[m];
+        final dt = ts is Timestamp ? ts.toDate() : null;
+        if (dt == null || now.difference(dt).inDays > _kMarkerFreshDays) {
+          allFresh = false;
+          break;
+        }
+      }
+      final wasMixed = _groupMixed[groupId] ?? false;
+      _groupMixed[groupId] = !allFresh;
+      if (allFresh && wasMixed) {
+        // Партнёр обновился → докатываем его данные в Supabase, переключение
+        // источника применится на следующей сессии (без mid-session ребинда).
+        debugPrint('[COMPAT] $groupId: партнёр обновился → докат миграции');
+        unawaited(_runSupabaseMigration(groupId));
+      }
+      debugPrint(
+        '[COMPAT] $groupId: ${allFresh ? "оба на новой сборке" : "партнёр на старой → bridge"}',
+      );
+    } catch (e) {
+      debugPrint('_resolveGroupCompat($groupId) failed: $e');
+    } finally {
+      _groupCompatResolving.remove(groupId);
+    }
+  }
+
   /// Cached display name — use this instead of reading users/{uid} from Firestore.
   String get displayName =>
       _cachedDisplayName ?? _auth.currentUser?.displayName ?? '';
