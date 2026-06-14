@@ -73,32 +73,44 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
 -- ──────────────────────────────────────────────
 -- 2. USERS — только своя строка (+ чтение co-member'а группы)
 -- ──────────────────────────────────────────────
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS users_self_rw       ON public.users;
-DROP POLICY IF EXISTS users_comember_read ON public.users;
-CREATE POLICY users_self_rw ON public.users
-  FOR ALL TO authenticated
-  USING (uid = public.app_uid())
-  WITH CHECK (uid = public.app_uid());
--- Партнёра по группе можно ТОЛЬКО читать (для флоу, где нужен его профиль).
-CREATE POLICY users_comember_read ON public.users
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.groups g
-    WHERE g.members ? public.app_uid()
-      AND g.members ? public.users.uid
-  ));
+DO $$
+BEGIN
+  IF to_regclass('public.users') IS NULL THEN
+    RAISE NOTICE 'skip RLS: public.users not found'; RETURN;
+  END IF;
+  ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS users_self_rw       ON public.users;
+  DROP POLICY IF EXISTS users_comember_read ON public.users;
+  CREATE POLICY users_self_rw ON public.users
+    FOR ALL TO authenticated
+    USING (uid = public.app_uid())
+    WITH CHECK (uid = public.app_uid());
+  -- Партнёра по группе можно ТОЛЬКО читать (для флоу, где нужен его профиль).
+  CREATE POLICY users_comember_read ON public.users
+    FOR SELECT TO authenticated
+    USING (EXISTS (
+      SELECT 1 FROM public.groups g
+      WHERE g.members ? public.app_uid()
+        AND g.members ? public.users.uid
+    ));
+END $$;
 
 -- ──────────────────────────────────────────────
 -- 3. GROUPS — только свои группы.
 -- INSERT: новый участник должен быть в members нового документа.
 -- ──────────────────────────────────────────────
-ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS groups_member_all ON public.groups;
-CREATE POLICY groups_member_all ON public.groups
-  FOR ALL TO authenticated
-  USING (public.is_group_member(id))
-  WITH CHECK (public.is_group_member(id) OR (members ? public.app_uid()));
+DO $$
+BEGIN
+  IF to_regclass('public.groups') IS NULL THEN
+    RAISE NOTICE 'skip RLS: public.groups not found'; RETURN;
+  END IF;
+  ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS groups_member_all ON public.groups;
+  CREATE POLICY groups_member_all ON public.groups
+    FOR ALL TO authenticated
+    USING (public.is_group_member(id))
+    WITH CHECK (public.is_group_member(id) OR (members ? public.app_uid()));
+END $$;
 
 -- ──────────────────────────────────────────────
 -- 4. Таблицы, привязанные к группе через колонку group_id — членство группы.
@@ -112,6 +124,11 @@ BEGIN
     'memory_comments','mascots','migration_flags'
   ]
   LOOP
+    -- Пропускаем таблицы, которых ещё нет (не все *.sql могли быть выполнены).
+    IF to_regclass(format('public.%I', t)) IS NULL THEN
+      RAISE NOTICE 'skip RLS: table public.% not found', t;
+      CONTINUE;
+    END IF;
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS app_group_rw ON public.%I', t);
     EXECUTE format(
@@ -124,12 +141,18 @@ END $$;
 -- ──────────────────────────────────────────────
 -- 5. IAP_PURCHASES — только свои покупки.
 -- ──────────────────────────────────────────────
-ALTER TABLE public.iap_purchases ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS iap_self ON public.iap_purchases;
-CREATE POLICY iap_self ON public.iap_purchases
-  FOR ALL TO authenticated
-  USING (user_uid = public.app_uid())
-  WITH CHECK (user_uid = public.app_uid());
+DO $$
+BEGIN
+  IF to_regclass('public.iap_purchases') IS NULL THEN
+    RAISE NOTICE 'skip RLS: public.iap_purchases not found'; RETURN;
+  END IF;
+  ALTER TABLE public.iap_purchases ENABLE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS iap_self ON public.iap_purchases;
+  CREATE POLICY iap_self ON public.iap_purchases
+    FOR ALL TO authenticated
+    USING (user_uid = public.app_uid())
+    WITH CHECK (user_uid = public.app_uid());
+END $$;
 
 -- ──────────────────────────────────────────────
 -- 6. STORAGE — закрыть anon, требовать аутентификацию.
