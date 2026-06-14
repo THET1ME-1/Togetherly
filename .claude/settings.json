@@ -43,7 +43,8 @@
       "Bash(python -c \"import json,sys; d=json.load\\(open\\('togetherly-d4856-19cf1c4a4c5c.json'\\)\\); print\\('valid JSON OK'\\); print\\('type   :', d.get\\('type'\\)\\); print\\('project:', d.get\\('project_id'\\)\\); print\\('email  :', d.get\\('client_email'\\)\\)\")",
       "Bash(python -c \"import nacl; print\\('pynacl', nacl.__version__\\)\")",
       "Bash(python -m pip install --quiet pynacl)",
-      "Bash(python -c \"import nacl; print\\('pynacl ready', nacl.__version__\\)\")"
+      "Bash(python -c \"import nacl; print\\('pynacl ready', nacl.__version__\\)\")",
+      "PowerShell(flutter analyze lib/screens/memory_lane_screen.dart 2>&1)"
     ]
   }
 }
