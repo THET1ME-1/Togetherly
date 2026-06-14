@@ -22,16 +22,15 @@ import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_notification_service.dart';
-import '../services/mood_pack_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/ad_banner.dart';
 import '../widgets/common/m3_loading.dart';
-import '../widgets/mood_pack_selector.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/mood_hearts_preview.dart';
+import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 import 'home/widgets/memory_photo_picker.dart';
 import 'postcard/postcard_editor_screen.dart';
@@ -4830,24 +4829,15 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ════════════════════════════════════════════════════════════════════════════
 
   void _showMoodPicker() {
-    showModalBottomSheet(
+    // Единый общий пикер (с вкладкой «Самочувствие»). setMoodForToday внутри
+    // него атомарно обновляет календарь, group memberMoods и widgetData.
+    showMoodPicker(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _MoodPickerSheet(
-        theme: _t,
-        onSelect: (option) async {
-          Navigator.pop(ctx);
-          // Единая точка входа — атомарно обновляет календарь, group memberMoods
-          // и widgetData. Без этого пикер в виджет-настройках не очищал старые
-          // записи календаря и mini_mood_calendar циклил между разными эмодзи.
-          await _moodService.setMoodForToday(
-            moodId: option.id,
-            imagePath: option.imagePath,
-            label: option.localizedLabel,
-          );
-        },
-      ),
+      pairData: _pair,
+      moodService: _moodService,
+      widgetService: _ws,
+      primary: _t.primary,
+      navActiveIcon: _t.navActiveIcon,
     );
   }
 
@@ -5144,141 +5134,6 @@ class _MD3PhotoLoaderState extends State<_MD3PhotoLoader>
           ],
         );
       },
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MOOD PICKER SHEET
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _MoodPickerSheet extends StatefulWidget {
-  final AppTheme theme;
-  final ValueChanged<MoodOption> onSelect;
-
-  const _MoodPickerSheet({required this.theme, required this.onSelect});
-
-  @override
-  State<_MoodPickerSheet> createState() => _MoodPickerSheetState();
-}
-
-class _MoodPickerSheetState extends State<_MoodPickerSheet> {
-  @override
-  void initState() {
-    super.initState();
-    MoodPackService.instance.load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = widget.theme.primary;
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.65,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            LocaleService.current.chooseMood,
-            style: GoogleFonts.rubik(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: MoodPackSelector(
-              primary: accent,
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Flexible(
-            child: AnimatedBuilder(
-              animation: MoodPackService.instance,
-              builder: (context, _) {
-                final pack = MoodPackService.instance.selectedPack;
-                final gradient = pack.tileGradient;
-                return GridView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: pack.moods.length,
-                  itemBuilder: (_, i) {
-                    final mood = pack.moods[i];
-                    return GestureDetector(
-                      onTap: () => widget.onSelect(mood),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: gradient != null
-                              ? LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: gradient,
-                                )
-                              : null,
-                          color: gradient == null
-                              ? mood.color.withValues(alpha: 0.08)
-                              : null,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: mood.color.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(mood.imagePath, width: 36, height: 36),
-                            const SizedBox(height: 6),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              child: Text(
-                                mood.localizedLabel,
-                                style: GoogleFonts.rubik(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: mood.color,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
