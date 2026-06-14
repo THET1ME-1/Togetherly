@@ -40,6 +40,10 @@ class HomeWidgetService {
   /// Supabase инициализирован.
   bool get _mig => FirebaseService().isMigrationUser;
 
+  /// Stage 2: widget-данные читаются из Firebase (общий источник, его пишет и
+  /// партнёр на старой версии). Stage 3 — вернуть _mig (чтение из Supabase).
+  bool get _readSb => false;
+
   /// Читает widget_data одного участника (firestore-формат: те же ключи, что в
   /// Firestore-доке) — из Supabase под [_mig], иначе из Firestore. null если
   /// строки/документа нет.
@@ -48,7 +52,7 @@ class HomeWidgetService {
     String userUid,
   ) async {
     if (groupId.isEmpty || userUid.isEmpty) return null;
-    if (_mig) return _sb.loadWidgetData(groupId, userUid);
+    if (_readSb) return _sb.loadWidgetData(groupId, userUid);
     final doc = await _db
         .collection('groups')
         .doc(groupId)
@@ -67,7 +71,7 @@ class HomeWidgetService {
     String currentUserUid,
   ) async {
     try {
-      if (_mig) {
+      if (_readSb) {
         final parsed = await _sb.loadPairById(groupId, currentUserUid);
         if (parsed == null) return null;
         final members = (parsed['members'] as List?) ?? const [];

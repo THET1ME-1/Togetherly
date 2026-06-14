@@ -31,6 +31,15 @@ class ChatService {
       MigrationConfig.isConfigured &&
       MigrationConfig.isPhase1User(_fb.currentUser?.email);
 
+  /// Stage 2 (постепенный переезд): пишем в оба склада (RTDB — источник, его
+  /// читают обе версии + зеркало в Supabase), читаем из RTDB пока вся группа не
+  /// на новой сборке.
+  bool get _dualWrite => _mig;
+
+  /// Можно ли ЧИТАТЬ чат из Supabase. Stage 2: всегда false (RTDB — общий
+  /// источник). Stage 3 (после теста на устройстве): вернуть _mig.
+  bool get _readSb => false;
+
   FirebaseDatabase get _db => FirebaseDatabase.instanceFor(
         app: Firebase.app(),
         databaseURL: _kChatRtdbUrl,
@@ -50,9 +59,7 @@ class ChatService {
   /// перед первой отправкой. Идемпотентно.
   Future<void> ensureMember(String groupId) async {
     if (groupId.isEmpty || _uid.isEmpty) return;
-    // Под _mig чат полностью в Supabase (RLS off) — RTDB-members (нужны были
-    // только для security-rules RTDB) больше не требуются.
-    if (_mig) return;
+    // Stage 2: пишем в RTDB (источник) → членство в RTDB снова нужно для правил.
     try {
       await _db.ref('chats/$groupId/members/$_uid').set(true);
     } catch (e) {
@@ -120,8 +127,8 @@ class ChatService {
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
-    // Фаза 1: читаем сообщения из Supabase (chat_messages).
-    if (_mig) return _sb.watchMessages(groupId, limit: limit);
+    // Stage 2: читаем сообщения из RTDB (общий источник). Stage 3 — Supabase.
+    if (_readSb) return _sb.watchMessages(groupId, limit: limit);
     return _messagesRef(groupId)
         .orderByChild('ts')
         .limitToLast(limit)
@@ -147,32 +154,11 @@ class ChatService {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
     try {
-      if (_mig) {
-        // Чат полностью на Supabase: id генерим локально (push().key — без
-        // записи в RTDB), пишем ТОЛЬКО в Supabase (awaited — это единственное
-        // хранилище), затем шлём push. ts — клиентский ms (для сортировки).
-        final id = _messagesRef(groupId).push().key ??
-            DateTime.now().microsecondsSinceEpoch.toString();
-        await _sb.mirrorChatSend(
-          groupId: groupId,
-          id: id,
-          uid: _uid,
-          name: senderName,
-          text: trimmed,
-          ts: DateTime.now().millisecondsSinceEpoch,
-          pinId: pinId,
-          pinTitle: pinTitle,
-          pinThumb: pinThumb,
-        );
-        unawaited(_fb.sendChatPush(
-          groupId: groupId,
-          senderName: senderName,
-          text: trimmed,
-        ));
-        return;
-      }
+      // Двойная запись: RTDB (источник, читают обе версии) + зеркало в Supabase
+      // под ОДНИМ id (RTDB push-key), чтобы Stage 3 не задвоил.
       await ensureMember(groupId);
       final ref = _messagesRef(groupId).push();
+      final id = ref.key ?? DateTime.now().microsecondsSinceEpoch.toString();
       await ref.set({
         'uid': _uid,
         'name': senderName,
@@ -182,6 +168,19 @@ class ChatService {
         if (pinTitle != null) 'pinTitle': pinTitle,
         if (pinThumb != null) 'pinThumb': pinThumb,
       });
+      if (_dualWrite) {
+        unawaited(_sb.mirrorChatSend(
+          groupId: groupId,
+          id: id,
+          uid: _uid,
+          name: senderName,
+          text: trimmed,
+          ts: DateTime.now().millisecondsSinceEpoch,
+          pinId: pinId,
+          pinTitle: pinTitle,
+          pinThumb: pinThumb,
+        ));
+      }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
       unawaited(_fb.sendChatPush(
         groupId: groupId,
@@ -202,17 +201,16 @@ class ChatService {
     final trimmed = newText.trim();
     if (groupId.isEmpty || messageId.isEmpty || trimmed.isEmpty) return;
     try {
-      if (_mig) {
-        await _sb.mirrorChatUpdate(messageId, {
-          'text': trimmed,
-          'edited_ts': DateTime.now().millisecondsSinceEpoch,
-        });
-        return;
-      }
       await _messagesRef(groupId).child(messageId).update({
         'text': trimmed,
         'editedTs': ServerValue.timestamp,
       });
+      if (_dualWrite) {
+        unawaited(_sb.mirrorChatUpdate(messageId, {
+          'text': trimmed,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        }));
+      }
     } catch (e) {
       debugPrint('ChatService.edit failed: $e');
     }
@@ -225,16 +223,6 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty) return;
     try {
-      if (_mig) {
-        await _sb.mirrorChatUpdate(messageId, {
-          'deleted': true,
-          'text': '',
-          'pin_id': null,
-          'pin_title': null,
-          'edited_ts': DateTime.now().millisecondsSinceEpoch,
-        });
-        return;
-      }
       await _messagesRef(groupId).child(messageId).update({
         'deleted': true,
         'text': '',
@@ -242,6 +230,15 @@ class ChatService {
         'pinTitle': null,
         'editedTs': ServerValue.timestamp,
       });
+      if (_dualWrite) {
+        unawaited(_sb.mirrorChatUpdate(messageId, {
+          'deleted': true,
+          'text': '',
+          'pin_id': null,
+          'pin_title': null,
+          'edited_ts': DateTime.now().millisecondsSinceEpoch,
+        }));
+      }
     } catch (e) {
       debugPrint('ChatService.delete failed: $e');
     }
@@ -258,12 +255,6 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
     try {
-      if (_mig) {
-        // Атомарно через RPC (jsonb_set/minus): один эмодзи на uid, без
-        // read-modify-write — параллельная реакция партнёра не теряется.
-        await _sb.setChatReaction(messageId, _uid, emoji);
-        return;
-      }
       final reactionsRef =
           _messagesRef(groupId).child(messageId).child('reactions');
       final ref = reactionsRef.child(_uid);
@@ -272,6 +263,8 @@ class ChatService {
       } else {
         await ref.set(emoji);
       }
+      // Зеркало в Supabase: атомарный RPC (jsonb_set/minus), один эмодзи на uid.
+      if (_dualWrite) unawaited(_sb.setChatReaction(messageId, _uid, emoji));
     } catch (e) {
       debugPrint('ChatService.setReaction failed: $e');
     }
@@ -295,12 +288,10 @@ class ChatService {
     if ((_syncedReadTs[groupId] ?? 0) >= lastMessageTs) return;
     _syncedReadTs[groupId] = lastMessageTs;
     try {
-      if (_mig) {
-        final ok = await _sb.mirrorChatRead(groupId, _uid, lastMessageTs);
-        if (!ok) _syncedReadTs.remove(groupId); // позволим повторить позже
-        return;
-      }
       await _readsRef(groupId).child(_uid).set(lastMessageTs);
+      if (_dualWrite) {
+        unawaited(_sb.mirrorChatRead(groupId, _uid, lastMessageTs));
+      }
     } catch (e) {
       _syncedReadTs.remove(groupId); // не вышло — позволим повторить позже
       debugPrint('ChatService.markRead publish failed: $e');
@@ -311,7 +302,7 @@ class ChatService {
   /// своё сообщение прочитано, если его ts ≤ минимального ts среди остальных.
   Stream<Map<String, int>> watchReads(String groupId) {
     if (groupId.isEmpty) return const Stream.empty();
-    if (_mig) return _sb.watchChatReads(groupId);
+    if (_readSb) return _sb.watchChatReads(groupId);
     return _readsRef(groupId).onValue.map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return <String, int>{};
@@ -353,7 +344,7 @@ class ChatService {
   /// Слушает только последнее сообщение — минимальный трафик RTDB.
   Stream<bool> watchHasUnread(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
-    if (_mig) {
+    if (_readSb) {
       // Последнее сообщение из Supabase (chat_messages, ts DESC limit 1).
       return _sb.watchLastMessage(groupId).asyncMap((last) async {
         if (last == null) return false;

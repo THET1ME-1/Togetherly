@@ -30,6 +30,12 @@ class WidgetService extends ChangeNotifier {
   bool get _mig =>
       MigrationConfig.isConfigured &&
       MigrationConfig.isPhase1User(_fb.currentUser?.email);
+
+  /// Stage 2: пишем widgetData в оба склада (Firebase источник + зеркало).
+  bool get _dualWrite => _mig;
+
+  /// Stage 2: читаем widgetData из Firebase (общий источник). Stage 3 — Supabase.
+  bool get _readSb => false;
   int _bindGeneration = 0;
 
   @override
@@ -148,8 +154,8 @@ class WidgetService extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Фаза 1: читаем widget_data партнёра из Supabase realtime.
-    if (_mig) {
+    // Stage 2: читаем widget_data партнёра из Firebase. Stage 3 — Supabase.
+    if (_readSb) {
       final sub = _sb.listenWidgetData(_groupId, partnerUid, handle);
       if (sub != null) _partnerSubs[partnerUid] = sub;
       return;
@@ -217,8 +223,8 @@ class WidgetService extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Фаза 1: читаем свой widget_data из Supabase realtime.
-    if (_mig) {
+    // Stage 2: читаем свой widget_data из Firebase. Stage 3 — Supabase.
+    if (_readSb) {
       _mySub = _sb.listenWidgetData(_groupId, uid, handle);
       return;
     }
@@ -248,23 +254,18 @@ class WidgetService extends ChangeNotifier {
         'avatarUrl': d['avatarUrl'] ?? '',
         'gender': d['gender'] ?? '',
       };
-      // Этап 4: bootstrap-строка создаётся только в Supabase (оттуда читают
-      // оба листенера); без неё новый юзер бесконечно падал бы в ветку
-      // «строки нет».
-      if (_mig) {
-        await _sb.mirrorWidgetData(gid, uid, bootstrap);
-      } else {
-        await _db
-            .collection('groups')
-            .doc(gid)
-            .collection('widgetData')
-            .doc(uid)
-            .set({
-          'uid': uid,
-          ...bootstrap,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+      // Двойная запись: Firebase (источник, его читают оба листенера) + зеркало.
+      await _db
+          .collection('groups')
+          .doc(gid)
+          .collection('widgetData')
+          .doc(uid)
+          .set({
+        'uid': uid,
+        ...bootstrap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      if (_dualWrite) unawaited(_sb.mirrorWidgetData(gid, uid, bootstrap));
       debugPrint('WidgetService: widgetData initialized for $uid');
     } catch (e) {
       debugPrint('WidgetService._initializeMyWidgetData failed: $e');
@@ -277,8 +278,8 @@ class WidgetService extends ChangeNotifier {
     final gid = _groupId;
     if (gid.isEmpty) return;
 
-    // Фаза 1: имя/аватар партнёра берём из группы в Supabase, а не из Firestore.
-    if (_mig) {
+    // Stage 2: имя/аватар партнёра берём из группы Firebase. Stage 3 — Supabase.
+    if (_readSb) {
       final myUid = _fb.currentUser?.uid ?? '';
       _sb.loadPairById(gid, myUid).then((parsed) {
         if (_isDisposed || _groupId != gid || parsed == null) return;
@@ -547,31 +548,29 @@ class WidgetService extends ChangeNotifier {
       final avatar = _cachedProfileAvatar!;
       final gender = _cachedProfileGender!;
 
-      // Этап 4: widget_data живёт только в Supabase (свой и партнёрский
-      // листенеры читают оттуда). Firestore-док больше не пишем; событие
-      // widgetDataEvents ниже остаётся — это триггер FCM-пуша.
-      if (_mig) {
-        await _sb.mirrorWidgetData(targetGroupId, uid, {
-          'displayName': name,
-          'avatarUrl': avatar,
-          'gender': gender,
-          ...fields,
-        });
-      } else {
-        final ref = _db
-            .collection('groups')
-            .doc(targetGroupId)
-            .collection('widgetData')
-            .doc(uid);
+      // Двойная запись: Firebase (источник, его читают оба листенера) + зеркало
+      // в Supabase. Событие widgetDataEvents ниже — триггер FCM-пуша.
+      final ref = _db
+          .collection('groups')
+          .doc(targetGroupId)
+          .collection('widgetData')
+          .doc(uid);
 
-        await ref.set({
-          'uid': uid,
+      await ref.set({
+        'uid': uid,
+        'displayName': name,
+        'avatarUrl': avatar,
+        'gender': gender,
+        'updatedAt': FieldValue.serverTimestamp(),
+        ...fields,
+      }, SetOptions(merge: true));
+      if (_dualWrite) {
+        unawaited(_sb.mirrorWidgetData(targetGroupId, uid, {
           'displayName': name,
           'avatarUrl': avatar,
           'gender': gender,
-          'updatedAt': FieldValue.serverTimestamp(),
           ...fields,
-        }, SetOptions(merge: true));
+        }));
       }
 
       if (targetGroupId != _groupId) return;
