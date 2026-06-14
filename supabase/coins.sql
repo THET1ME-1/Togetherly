@@ -95,6 +95,7 @@ DECLARE
   v_coins INT;
   v_owned JSONB;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF v_price IS NULL THEN
     RAISE EXCEPTION 'Тема не продаётся или не существует' USING ERRCODE = 'check_violation';
   END IF;
@@ -125,6 +126,7 @@ DECLARE
   v_coins INT;
   v_owned JSONB;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF v_price IS NULL THEN
     RAISE EXCEPTION 'Иконка не продаётся или не существует' USING ERRCODE = 'check_violation';
   END IF;
@@ -155,6 +157,7 @@ DECLARE
   v_coins INT;
   v_owned JSONB;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF v_price IS NULL THEN
     RAISE EXCEPTION 'Фича не продаётся или не существует' USING ERRCODE = 'check_violation';
   END IF;
@@ -184,6 +187,7 @@ DECLARE
   v_price INT := public._consumable_price(p_action_id);
   v_coins INT;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF v_price IS NULL THEN
     RAISE EXCEPTION 'Действие не существует' USING ERRCODE = 'check_violation';
   END IF;
@@ -207,6 +211,7 @@ DECLARE
   v_coins INT;
   v_last  TIMESTAMPTZ;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   SELECT coins, last_daily_bonus_at INTO v_coins, v_last FROM public.users WHERE uid = p_uid FOR UPDATE;
   IF NOT FOUND THEN v_coins := 0; INSERT INTO public.users (uid, coins) VALUES (p_uid, 0); END IF;
   IF v_last IS NOT NULL AND v_last > NOW() - INTERVAL '20 hours' THEN
@@ -229,6 +234,7 @@ DECLARE
   v_amount INT := public._coin_pack(p_product_id);
   v_coins  INT;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF v_amount IS NULL THEN
     RAISE EXCEPTION 'Неизвестный productId: %', p_product_id USING ERRCODE = 'check_violation';
   END IF;
@@ -257,6 +263,7 @@ DECLARE
   v_email   TEXT;
   v_granted BOOLEAN;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   SELECT coins, email, dev_coins_granted INTO v_coins, v_email, v_granted
     FROM public.users WHERE uid = p_uid FOR UPDATE;
   IF NOT FOUND THEN
@@ -283,6 +290,7 @@ DECLARE
   v_coins INT;
   v_last  TIMESTAMPTZ;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   SELECT coins, last_memory_reward_at INTO v_coins, v_last FROM public.users WHERE uid = p_uid FOR UPDATE;
   IF NOT FOUND THEN v_coins := 0; INSERT INTO public.users (uid, coins) VALUES (p_uid, 0); END IF;
   IF v_last IS NOT NULL AND v_last > NOW() - INTERVAL '20 hours' THEN
@@ -305,6 +313,7 @@ DECLARE
   v_today INT;
   v_now   TEXT := to_char((NOW() AT TIME ZONE 'utc'), 'YYYY-MM-DD');
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   SELECT coins, ad_rewards_date, ad_rewards_today INTO v_coins, v_date, v_today
     FROM public.users WHERE uid = p_uid FOR UPDATE;
   IF NOT FOUND THEN v_coins := 0; v_today := 0; INSERT INTO public.users (uid, coins) VALUES (p_uid, 0); END IF;
@@ -328,6 +337,7 @@ DECLARE
   v_coins   INT;
   v_granted BOOLEAN;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   SELECT coins, partner_invite_reward_granted INTO v_coins, v_granted
     FROM public.users WHERE uid = p_uid FOR UPDATE;
   IF NOT FOUND THEN v_coins := 0; v_granted := FALSE; INSERT INTO public.users (uid, coins) VALUES (p_uid, 0); END IF;
@@ -351,6 +361,7 @@ DECLARE
   v_map   JSONB;
   v_last  TIMESTAMPTZ;
 BEGIN
+  PERFORM public.app_require_uid(p_uid);
   IF p_group_id IS NULL OR p_group_id = '' THEN
     RAISE EXCEPTION 'groupId обязателен' USING ERRCODE = 'check_violation';
   END IF;

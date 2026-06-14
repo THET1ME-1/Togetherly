@@ -56,6 +56,9 @@ DECLARE
   v_active TEXT;
   v_new    INTEGER;
 BEGIN
+  IF NOT public.is_group_member(p_group_id) THEN
+    RAISE EXCEPTION 'forbidden: not a group member' USING ERRCODE = 'insufficient_privilege';
+  END IF;
   SELECT streak_last_opened_date, COALESCE(streak_days, 0), active_mascot_id
     INTO v_last, v_cur, v_active
     FROM public.groups
