@@ -36,10 +36,9 @@ class ChatService {
   /// на новой сборке.
   bool get _dualWrite => _mig;
 
-  /// Можно ли ЧИТАТЬ чат из Supabase. ВРЕМЕННО _mig (как до Stage 2): у
-  /// тест-аккаунтов история чата только в Supabase. Вернуть false после
-  /// бэкфилла Supabase→RTDB или на свежей паре. См. _readSb в FirebaseService.
-  bool get _readSb => _mig;
+  /// Можно ли ЧИТАТЬ чат из Supabase. Stage 2: false — читаем из RTDB (общий
+  /// источник, его пишут обе версии). Stage 3 — вернуть _mig после теста.
+  bool get _readSb => false;
 
   FirebaseDatabase get _db => FirebaseDatabase.instanceFor(
         app: Firebase.app(),
