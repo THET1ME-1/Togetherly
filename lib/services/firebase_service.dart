@@ -2263,6 +2263,18 @@ class FirebaseService {
         }
         return MapEntry(uid, moodMap);
       }),
+      'memberAilments':
+          (data['memberAilments'] as Map<String, dynamic>? ?? {}).map((
+        uid,
+        ailData,
+      ) {
+        final ailMap = Map<String, dynamic>.from(ailData as Map);
+        final ts = ailMap['updatedAt'];
+        if (ts is Timestamp) {
+          ailMap['updatedAt'] = ts.toDate();
+        }
+        return MapEntry(uid, ailMap);
+      }),
       'currentStatus': data['currentStatus'] as Map<String, dynamic>?,
       'customStatuses': data['customStatuses'] as List<dynamic>?,
       'relationshipType': data['relationshipType'] as String?,
@@ -3536,6 +3548,47 @@ class FirebaseService {
       });
     } catch (e) {
       debugPrint('clearMood failed: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  //  AILMENT («болячки») — самочувствие участника
+  //  Firestore: groups/{groupId} → memberAilments.{uid}: {id, label, emoji, updatedAt}
+  // ══════════════════════════════════════════════
+
+  /// Save the current user's ailment to the group document
+  Future<void> setAilment({
+    required String groupId,
+    required String id,
+    required String label,
+    required String emoji,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberAilments.${u.uid}': {
+          'id': id,
+          'label': label,
+          'emoji': emoji,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      });
+    } catch (e) {
+      debugPrint('setAilment failed: $e');
+    }
+  }
+
+  /// Clear the current user's ailment («Здоров(а)»)
+  Future<void> clearAilment({required String groupId}) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberAilments.${u.uid}': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('clearAilment failed: $e');
     }
   }
 
