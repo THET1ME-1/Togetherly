@@ -97,12 +97,14 @@ class FirebaseService {
   static const _kMediaMigrationDone = 'supabase_media_migration_v6';
   // Ключ одноразового бэкфилла исторических ДАННЫХ (профиль/группа/воспоминания/
   // настроения/чат/комментарии/холсты), созданных ДО установки dual-write сборки.
-  // v2: + комментарии; v3: + холсты (штрихи/мета/каталог) → форс повтора.
-  static const _kDataBackfillDone = 'supabase_data_backfill_v3';
+  // v2: + комментарии; v3: + холсты (штрихи/мета/каталог); v4: + маскоты
+  // (галерея + floating/streak group-поля) + статусы прочтения чата
+  // (chat_reads) → форс повтора.
+  static const _kDataBackfillDone = 'supabase_data_backfill_v4';
   // Числовые версии проходов — для СЕРВЕРНЫХ флагов (migration_flags в
   // Supabase). Должны совпадать с vN в ключах выше; при бампе ключа бампать
   // и константу — иначе серверный флаг подавит повторный проход.
-  static const _kDataBackfillVersion = 3;
+  static const _kDataBackfillVersion = 4;
   static const _kMediaMigrationVersion = 6;
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
@@ -157,6 +159,8 @@ class FirebaseService {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   AppLifecycleListener? _migrationLifecycleListener;
   bool _migrationWatchersStarted = false;
+  // Маркер «я мигрировал» уже записан в свой users-doc в этой сессии.
+  bool _sbMigratedFlagWritten = false;
 
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
@@ -251,6 +255,27 @@ class FirebaseService {
       _scheduleMigrationRetry(groupId);
     } finally {
       _migrationInProgress.remove(groupId);
+    }
+  }
+
+  /// Помечает текущего пользователя «мигрировавшим» — пишет `sbMigrated` в свой
+  /// users-doc (users-doc остаётся в Firestore при dual-write). По этому маркеру
+  /// сборка партнёра в будущем решает, нужен ли «мост совместимости» (зеркалить
+  /// его Firestore-записи в Supabase, пока он на старой сборке). Идемпотентно —
+  /// пишем один раз за сессию; при сбое сбрасываем флаг для повтора.
+  Future<void> _ensureSbMigratedFlag() async {
+    if (_sbMigratedFlagWritten) return;
+    final u = _auth.currentUser;
+    if (u == null) return;
+    _sbMigratedFlagWritten = true;
+    try {
+      await _db.collection('users').doc(u.uid).set(
+        {'sbMigrated': true, 'sbMigratedAt': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      _sbMigratedFlagWritten = false; // дать шанс повторить в следующий проход
+      debugPrint('_ensureSbMigratedFlag failed: $e');
     }
   }
 
@@ -377,8 +402,56 @@ class FirebaseService {
 
       // ── Холсты (штрихи + мета + каталог) ──
       failures += await _backfillCanvas(groupId);
+
+      // ── Маскоты (галерея + floating/streak group-поля) ──
+      failures += await _backfillMascots(groupId, groupData);
     } catch (e) {
       debugPrint('_backfillDataToSupabase($groupId) failed: $e');
+      failures++;
+    }
+    return failures;
+  }
+
+  /// Переносит галерею маскотов (subcollection groups/{g}/mascots) и floating/
+  /// streak-поля group-doc в Supabase. [groupData] — уже прочитанный Firestore
+  /// group-doc. Возвращает число неудач.
+  Future<int> _backfillMascots(
+    String groupId,
+    Map<String, dynamic> groupData,
+  ) async {
+    var failures = 0;
+    try {
+      // Галерея: subcollection → таблица mascots (docs хранят Mascot.toFirestore).
+      final snap =
+          await _mascotsRef(groupId).get().timeout(const Duration(seconds: 20));
+      final rows = snap.docs
+          .map((d) => Map<String, dynamic>.from(d.data())..['id'] = d.id)
+          .where((m) => (m['id'] as String).isNotEmpty)
+          .toList();
+      if (rows.isNotEmpty && !await _sb.mirrorMascotsBatch(groupId, rows)) {
+        failures++;
+      }
+      // Floating-маскот + streak: group-doc → колонки groups. ТОЧЕЧНЫЙ
+      // mirrorGroupFields (НЕ mirrorGroupRaw — он затёр бы свежие горячие поля).
+      final fields = <String, dynamic>{};
+      if (groupData['activeMascotId'] != null) {
+        fields['active_mascot_id'] = groupData['activeMascotId'];
+      }
+      final px = (groupData['mascotPositionX'] as num?)?.toDouble();
+      final py = (groupData['mascotPositionY'] as num?)?.toDouble();
+      final sc = (groupData['mascotScale'] as num?)?.toDouble();
+      if (px != null) fields['mascot_position_x'] = px;
+      if (py != null) fields['mascot_position_y'] = py;
+      if (sc != null) fields['mascot_scale'] = sc;
+      final sd = (groupData['streakDays'] as num?)?.toInt();
+      if (sd != null) fields['streak_days'] = sd;
+      final slod = groupData['streakLastOpenedDate'] as String?;
+      if (slod != null) fields['streak_last_opened_date'] = slod;
+      if (fields.isNotEmpty && !await _sb.mirrorGroupFields(groupId, fields)) {
+        failures++;
+      }
+    } catch (e) {
+      debugPrint('_backfillMascots($groupId) failed: $e');
       failures++;
     }
     return failures;
@@ -5977,6 +6050,10 @@ class FirebaseService {
     required Mascot mascot,
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorMascot(groupId, mascot.toFirestore());
+        return;
+      }
       await _mascotsRef(
         groupId,
       ).doc(mascot.id).set(mascot.toFirestore(), SetOptions(merge: true));
@@ -5991,6 +6068,13 @@ class FirebaseService {
     required List<Mascot> mascots,
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorMascotsBatch(
+          groupId,
+          mascots.map((m) => m.toFirestore()).toList(),
+        );
+        return;
+      }
       final batch = _db.batch();
       for (final m in mascots) {
         batch.set(
@@ -6012,7 +6096,14 @@ class FirebaseService {
     String? imageUrl,
   }) async {
     try {
-      await _mascotsRef(groupId).doc(mascotId).delete();
+      if (_mig) {
+        await _sb.deleteMascotRow(groupId, mascotId);
+      } else {
+        await _mascotsRef(groupId).doc(mascotId).delete();
+      }
+      // Картинку рисованного маскота всё ещё держит Firebase Storage (новые
+      // загрузки идут туда, историч. URL мигрируют в sb:// медиа-проходом) —
+      // sb:// бросит в refFromURL и проглотится (осиротевший файл, не потеря).
       if (imageUrl != null && imageUrl.isNotEmpty) {
         try {
           await _storage.refFromURL(imageUrl).delete();
@@ -6030,6 +6121,10 @@ class FirebaseService {
     required String newName,
   }) async {
     try {
+      if (_mig) {
+        await _sb.renameMascot(groupId, mascotId, newName);
+        return;
+      }
       await _mascotsRef(groupId).doc(mascotId).update({'name': newName});
     } catch (e) {
       debugPrint('renameMascot failed: $e');
@@ -6043,6 +6138,10 @@ class FirebaseService {
     required int recordStreak,
   }) async {
     try {
+      if (_mig) {
+        await _sb.updateMascotRecord(groupId, mascotId, recordStreak);
+        return;
+      }
       await _mascotsRef(
         groupId,
       ).doc(mascotId).update({'recordStreak': recordStreak});
@@ -6057,6 +6156,12 @@ class FirebaseService {
     required String? mascotId,
   }) async {
     try {
+      if (_mig) {
+        // mirrorGroupFields = update (не upsert) и пропускает null → годится и
+        // для очистки активного маскота (mascotId == null).
+        await _sb.mirrorGroupFields(groupId, {'active_mascot_id': mascotId});
+        return;
+      }
       await _db.collection('groups').doc(groupId).set({
         'activeMascotId': mascotId,
       }, SetOptions(merge: true));
@@ -6073,6 +6178,14 @@ class FirebaseService {
     required double scale,
   }) async {
     try {
+      if (_mig) {
+        await _sb.mirrorGroupFields(groupId, {
+          'mascot_position_x': x,
+          'mascot_position_y': y,
+          'mascot_scale': scale,
+        });
+        return;
+      }
       await _db.collection('groups').doc(groupId).set({
         'mascotPositionX': x,
         'mascotPositionY': y,
@@ -6091,6 +6204,14 @@ class FirebaseService {
       final now = DateTime.now();
       final today =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      if (_mig) {
+        // Под _mig group-doc заморожен → читаем/пишем streak в Supabase. RPC
+        // group_record_activity атомарно считает день, инкремент и рекорд
+        // активного маскота (аналог логики ниже, но без гонки партнёров).
+        await _sb.recordGroupActivity(groupId, today);
+        return;
+      }
 
       // Read from local cache only — the group doc is already being listened to
       // via _listenToPair, so Firestore SDK always has fresh data in cache.
@@ -6154,6 +6275,7 @@ class FirebaseService {
 
   /// Real-time stream of group mascot state (active id, position, scale, streak).
   Stream<GroupMascotState> listenToGroupMascotState({required String groupId}) {
+    if (_mig) return _sb.watchGroupMascotState(groupId);
     String? prevSig;
     return _groupDocStream(groupId)
         .map(
@@ -6176,6 +6298,7 @@ class FirebaseService {
 
   /// Real-time stream of mascots in the group gallery.
   Stream<List<Mascot>> listenToMascots({required String groupId}) {
+    if (_mig) return _sb.watchMascots(groupId);
     return _mascotsRef(groupId).snapshots().map(
       (snap) =>
           snap.docs
@@ -6193,6 +6316,7 @@ class FirebaseService {
   /// Count of mascots in the group.
   Future<int> getMascotCount(String groupId) async {
     try {
+      if (_mig) return await _sb.getMascotCount(groupId);
       final snap = await _mascotsRef(groupId).count().get();
       return snap.count ?? 0;
     } catch (e) {

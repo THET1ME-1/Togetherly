@@ -44,7 +44,10 @@
       "PowerShell(flutter analyze 2>&1)",
       "PowerShell(flutter test 2>&1)",
       "PowerShell(git add supabase/group_ops.sql lib/services/supabase_service.dart lib/services/firebase_service.dart lib/services/widget_service.dart lib/services/home_widget_service.dart lib/screens/memory_lane_screen.dart)",
-      "PowerShell(git push origin feature/supabase-migration)"
+      "PowerShell(git push origin feature/supabase-migration)",
+      "Bash(grep -n \"publication\\\\|supabase_realtime\\\\|DO \\\\$\\\\$\\\\|ALTER PUBLICATION\\\\|GENERATED\" supabase/canvas.sql)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff .claude/settings.json)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
