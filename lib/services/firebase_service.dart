@@ -1813,9 +1813,9 @@ class FirebaseService {
   ]) async {
     final u = currentUser;
     if (u == null) return null;
-    // Миграция: коины через Supabase RPC. Источник правды по балансу — таблица
-    // public.users в Supabase (профиль тоже читается оттуда — см. loadUserProfile).
-    if (_mig) {
+    // Stage 2: коины через Firebase Cloud Functions (баланс — Firebase, как у
+    // старой версии). Stage 3 (_readSb) — через Supabase RPC.
+    if (_readSb('')) {
       return _sb.callCoinRpc(name, u.uid, data ?? const {});
     }
     try {
@@ -1995,12 +1995,9 @@ class FirebaseService {
     final u = currentUser;
     if (u == null) return null;
 
-    // ── Миграция: профиль (включая coins/owned*) ЧИТАЕМ из Supabase — он
-    //    источник правды (коины пишет Postgres RPC). НЕ зеркалим Firebase→
-    //    Supabase здесь, иначе затрём свежие коины старым значением из Firestore.
-    //    Фолбэк на Firebase + сидирование, если в Supabase ещё пусто (первый
-    //    запуск до бэкфилла). ──
-    if (_mig) {
+    // Stage 2: профиль (включая coins/owned*) читаем из Firebase (источник, как
+    // у старой версии). Stage 3 (_readSb) — из Supabase.
+    if (_readSb('')) {
       final sb = await _sb.loadUserProfile(u.uid);
       if (sb != null) {
         _cachedDisplayName = sb['displayName'] as String?;
@@ -2448,15 +2445,6 @@ class FirebaseService {
     if (myUid != null) unawaited(_sb.mirrorUser(myUid, myData));
   }
 
-  /// JSONB-список из Supabase → изменяемый `List<Map<String, dynamic>>`
-  /// (для read-modify-write редких списков: customStatuses, timers и т.п.).
-  static List<Map<String, dynamic>> _jsonMapList(dynamic raw) {
-    if (raw is! List) return <Map<String, dynamic>>[];
-    return raw
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-  }
 
   /// Полный mirror группы — только если строки в Supabase ещё нет
   /// (сидирование исторической группы; существующую не перезаписываем).
@@ -3993,8 +3981,9 @@ class FirebaseService {
         }
       }
 
-      // Фаза 1: для тестовых пользователей загружаем в Supabase Storage.
-      if (_mig) {
+      // Stage 2: грузим в Firebase Storage (https://-URL читают обе версии).
+      // Stage 3 (_readSb) — в Supabase Storage (sb://).
+      if (_readSb('')) {
         final bytes = await fileToUpload.readAsBytes();
         final sbRef = await _sb.uploadStorageFile(
           bytes,
@@ -4791,30 +4780,15 @@ class FirebaseService {
     }
   }
 
-  /// Этап 4: читает timers из Supabase, применяет [mutate] и пишет обратно.
-  Future<void> _mutateSupabaseTimers(
-    String groupId,
-    void Function(List<Map<String, dynamic>> timers) mutate,
-  ) async {
-    final row = await _sb.fetchGroupColumns(groupId, ['timers']);
-    final timers = _jsonMapList(row?['timers']);
-    mutate(timers);
-    await _sb.mirrorTimers(groupId, timers);
-  }
 
   Future<void> upsertGroupTimer({
     required String groupId,
     required Map<String, dynamic> timer,
   }) async {
     try {
-      if (_mig) {
-        await _mutateSupabaseTimers(
-          groupId,
-          (timers) => _applyTimerUpsert(timers, timer),
-        );
-        return;
-      }
-      await _db.runTransaction((tx) async {
+      final newTimers = await _db.runTransaction<List<Map<String, dynamic>>>((
+        tx,
+      ) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
         final data = snap.data() ?? <String, dynamic>{};
@@ -4826,7 +4800,9 @@ class FirebaseService {
 
         _applyTimerUpsert(timers, timer);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+        return timers;
       });
+      if (_dualWrite) unawaited(_sb.mirrorTimers(groupId, newTimers));
     } catch (e) {
       debugPrint('upsertGroupTimer failed: $e');
     }
@@ -4837,14 +4813,9 @@ class FirebaseService {
     required String timerId,
   }) async {
     try {
-      if (_mig) {
-        await _mutateSupabaseTimers(groupId, (timers) {
-          timers.removeWhere((t) => t['id'] == timerId);
-          _ensureDefaultTimer(timers);
-        });
-        return;
-      }
-      await _db.runTransaction((tx) async {
+      final newTimers = await _db.runTransaction<List<Map<String, dynamic>>>((
+        tx,
+      ) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
         final data = snap.data() ?? <String, dynamic>{};
@@ -4857,7 +4828,9 @@ class FirebaseService {
         timers.removeWhere((t) => t['id'] == timerId);
         _ensureDefaultTimer(timers);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+        return timers;
       });
+      if (_dualWrite) unawaited(_sb.mirrorTimers(groupId, newTimers));
     } catch (e) {
       debugPrint('deleteGroupTimer failed: $e');
     }
@@ -4868,16 +4841,9 @@ class FirebaseService {
     required String timerId,
   }) async {
     try {
-      if (_mig) {
-        await _mutateSupabaseTimers(groupId, (timers) {
-          for (final timer in timers) {
-            timer['isDefault'] = timer['id'] == timerId;
-          }
-          _ensureDefaultTimer(timers);
-        });
-        return;
-      }
-      await _db.runTransaction((tx) async {
+      final newTimers = await _db.runTransaction<List<Map<String, dynamic>>>((
+        tx,
+      ) async {
         final ref = _db.collection('groups').doc(groupId);
         final snap = await tx.get(ref);
         final data = snap.data() ?? <String, dynamic>{};
@@ -4892,7 +4858,9 @@ class FirebaseService {
         }
         _ensureDefaultTimer(timers);
         tx.set(ref, {'timers': timers}, SetOptions(merge: true));
+        return timers;
       });
+      if (_dualWrite) unawaited(_sb.mirrorTimers(groupId, newTimers));
     } catch (e) {
       debugPrint('setDefaultGroupTimer failed: $e');
     }
@@ -6015,9 +5983,9 @@ class FirebaseService {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
       final path = 'groups/$groupId/mascots/mascot_$ts.png';
-      // Этап 5: новые медиа идут в Supabase Storage (как uploadFile). Путь
-      // приватный (groups/) → uploadStorageFile вернёт sb://media/{path}.
-      if (_mig) {
+      // Stage 2: грузим в Firebase Storage (https://-URL читают обе версии).
+      // Stage 3 (_readSb) — в Supabase Storage (sb://).
+      if (_readSb('')) {
         return _sb.uploadStorageFile(
           Uint8List.fromList(pngBytes),
           path,
