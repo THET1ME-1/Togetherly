@@ -44,7 +44,10 @@
       "Bash(python -c \"import nacl; print\\('pynacl', nacl.__version__\\)\")",
       "Bash(python -m pip install --quiet pynacl)",
       "Bash(python -c \"import nacl; print\\('pynacl ready', nacl.__version__\\)\")",
-      "PowerShell(flutter analyze lib/screens/memory_lane_screen.dart 2>&1)"
+      "PowerShell(flutter analyze lib/screens/memory_lane_screen.dart 2>&1)",
+      "Bash(node tools/admin_groups.js lookup miragge74@gmail.com)",
+      "Bash(node tools/admin_groups.js group CjwfE4589qLKftUrq15K aVeBi0zYcIxOGuamOxaw)",
+      "Bash(node tools/_inspect_tmp.js CjwfE4589qLKftUrq15K aVeBi0zYcIxOGuamOxaw)"
     ]
   }
 }
