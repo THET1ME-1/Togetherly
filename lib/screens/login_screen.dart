@@ -200,6 +200,40 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _sendPasswordReset() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showError(LocaleService.current.invalidEmail);
+      return;
+    }
+    try {
+      await FirebaseService().sendPasswordResetEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.current.passwordResetSent(email)),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF4CAF50),
+          duration: const Duration(seconds: 5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final errorMsg = e.toString();
+      if (errorMsg.contains('invalid-email')) {
+        _showError(LocaleService.current.invalidEmailFormat);
+      } else if (errorMsg.contains('too-many-requests')) {
+        _showError(LocaleService.current.tooManyAttempts);
+      } else {
+        _showError(LocaleService.current.passwordResetError);
+      }
+    }
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -439,12 +473,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                   // Forgot password
-                  Text(
-                    _s.forgotPassword,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
+                  GestureDetector(
+                    onTap: _isLoading ? null : _sendPasswordReset,
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 12,
+                      ),
+                      child: Text(
+                        _s.forgotPassword,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _accent,
+                          decoration: TextDecoration.underline,
+                          decorationColor: _accent,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),

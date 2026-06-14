@@ -151,6 +151,8 @@ abstract class AppStrings {
   String registrationError(String e);
   String get agreeToTerms;
   String get forgotPassword;
+  String passwordResetSent(String email);
+  String get passwordResetError;
   String get showPassword;
   String get hidePassword;
   String get min8Chars;
@@ -1114,6 +1116,13 @@ class _RuStrings extends AppStrings {
   String get agreeToTerms => 'Я принимаю условия использования';
   @override
   String get forgotPassword => 'Забыли пароль?';
+  @override
+  String passwordResetSent(String email) =>
+      'Письмо для сброса пароля отправлено на $email. '
+      'Проверьте почту и папку «Спам».';
+  @override
+  String get passwordResetError =>
+      'Не удалось отправить письмо. Проверьте email и попробуйте позже.';
   @override
   String get showPassword => 'Показать';
   @override
@@ -2947,6 +2956,13 @@ class _EnStrings extends AppStrings {
   String get agreeToTerms => 'I agree to the terms & conditions';
   @override
   String get forgotPassword => 'Forgot password?';
+  @override
+  String passwordResetSent(String email) =>
+      'Password reset email sent to $email. '
+      'Check your inbox and spam folder.';
+  @override
+  String get passwordResetError =>
+      "Couldn't send the email. Check the address and try again later.";
   @override
   String get showPassword => 'Show';
   @override
