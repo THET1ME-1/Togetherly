@@ -3574,6 +3574,11 @@ class FirebaseService {
     required String pairId,
     required void Function(Map<String, dynamic>? data) onData,
   }) {
+    // Совместимость смешанных пар: пишем свой маркер «я на новой сборке» в
+    // group-doc и резолвим, на новой ли сборке партнёр. Fire-and-forget —
+    // НЕ влияет на маршрутизацию ниже (источник переключается на следующей
+    // сессии), поэтому регрессии нет; цель — наполнить маркеры/_groupMixed.
+    if (_mig) unawaited(_resolveGroupCompat(pairId));
     // Миграция: живая группа читается из Supabase (realtime на таблице groups).
     if (_mig) {
       final uid = _auth.currentUser?.uid ?? '';
