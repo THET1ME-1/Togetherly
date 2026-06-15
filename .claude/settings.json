@@ -75,7 +75,11 @@
       "PowerShell(flutter analyze lib/screens/memory_lane_screen.dart 2>&1)",
       "Bash(node tools/admin_groups.js lookup miragge74@gmail.com)",
       "Bash(node tools/admin_groups.js group CjwfE4589qLKftUrq15K aVeBi0zYcIxOGuamOxaw)",
-      "Bash(node tools/_inspect_tmp.js CjwfE4589qLKftUrq15K aVeBi0zYcIxOGuamOxaw)"
+      "Bash(node tools/_inspect_tmp.js CjwfE4589qLKftUrq15K aVeBi0zYcIxOGuamOxaw)",
+      "PowerShell(flutter pub get 2>&1)",
+      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_migration_test.js)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_migrated_pair_test.js)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
