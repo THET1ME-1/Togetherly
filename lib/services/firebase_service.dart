@@ -47,7 +47,18 @@ const String _kRtdbUrl =
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._();
   factory FirebaseService() => _instance;
-  FirebaseService._();
+  FirebaseService._() {
+    // Как только появляется авторизованный пользователь (восстановление сессии
+    // при старте ИЛИ свежий вход) — гарантируем Supabase-claim role=authenticated.
+    // Без него RLS отклоняет все dual-write (см. ensureSupabaseRole).
+    _auth.authStateChanges().listen((user) {
+      if (user == null) {
+        _supabaseRoleEnsured = false;
+      } else {
+        unawaited(ensureSupabaseRole());
+      }
+    });
+  }
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -164,6 +175,9 @@ class FirebaseService {
   bool _migrationWatchersStarted = false;
   // Маркер «я мигрировал» уже записан в свой users-doc в этой сессии.
   bool _sbMigratedFlagWritten = false;
+  // В этой сессии уже гарантировали claim role=authenticated (см.
+  // ensureSupabaseRole) — повторно не дёргаем Cloud Function.
+  bool _supabaseRoleEnsured = false;
 
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
@@ -1346,6 +1360,8 @@ class FirebaseService {
       }
     } catch (_) {}
     await _auth.signOut();
+    // Следующий пользователь должен заново гарантировать свой claim role.
+    _supabaseRoleEnsured = false;
   }
 
   /// Тихий вход без показа диалога Google.
@@ -1923,6 +1939,41 @@ class FirebaseService {
   //   • остальные → Firebase Cloud Functions (functions/index.js).
 
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
+
+  /// Гарантирует, что Firebase ID-токен несёт claim `role: authenticated`.
+  ///
+  /// Без него Supabase (Third-Party Auth) даёт запросу роль `anon`, а все RLS-
+  /// политики выданы `TO authenticated` → ЛЮБОЙ dual-write в Supabase отклоняется
+  /// (42501), причём `_write` глотает ошибку → зеркало молча пустеет. Идемпотентно
+  /// и дёшево: если claim уже в токене — выходим сразу (без сети). Иначе один раз
+  /// зовём callable `ensureSupabaseRole` и форс-рефрешим токен, чтобы claim попал
+  /// в активную сессию (и в accessToken-колбэк Supabase в main.dart).
+  ///
+  /// Вызывать один раз за сессию ПЕРЕД работой с Supabase: на старте (если есть
+  /// сессия) и после каждого входа. Гонок не боится — dual-write fire-and-forget
+  /// с ретраями, источник истины — Firebase.
+  Future<void> ensureSupabaseRole() async {
+    if (!_mig || _supabaseRoleEnsured) return;
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await user.getIdTokenResult();
+      if (res.claims?['role'] == 'authenticated') {
+        _supabaseRoleEnsured = true;
+        return;
+      }
+      await _functions
+          .httpsCallable('ensureSupabaseRole')
+          .call()
+          .timeout(const Duration(seconds: 15));
+      // Форс-рефреш: новый claim попадает в токен (иначе ждать до ~1ч/истечения).
+      await user.getIdToken(true);
+      _supabaseRoleEnsured = true;
+      debugPrint('[SB] role=authenticated выдан, токен обновлён');
+    } catch (e) {
+      debugPrint('ensureSupabaseRole failed: $e');
+    }
+  }
 
   Future<Map<String, dynamic>?> _callCoinFn(
     String name, [

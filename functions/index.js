@@ -17,6 +17,7 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const { getDatabaseWithUrl, ServerValue } = require("firebase-admin/database");
+const { getAuth } = require("firebase-admin/auth");
 const crypto = require("crypto");
 const https = require("https");
 const { google } = require("googleapis");
@@ -796,6 +797,30 @@ exports.grantDailyBonus = onCall(async (request) => {
     }, { merge: true });
     return { ok: true, coins, awarded: DAILY_BONUS_AMOUNT };
   });
+});
+
+/**
+ * ensureSupabaseRole — выдаёт пользователю custom claim `role: authenticated`.
+ *
+ * Зачем: Firebase ID-токены НЕ несут claim `role`. Supabase (Third-Party Auth)
+ * валидирует токен, но без `role` назначает запросу роль `anon`, а все RLS-
+ * политики выданы `TO authenticated` → ЛЮБАЯ запись в Supabase отклоняется
+ * (42501). С этим claim токен получает роль `authenticated` и dual-write
+ * проходит. Идемпотентно: если claim уже стоит — ничего не делает.
+ *
+ * Приложение зовёт это один раз за сессию (см. FirebaseService.ensureSupabaseRole)
+ * и затем форс-рефрешит токен, чтобы claim попал в активную сессию.
+ */
+exports.ensureSupabaseRole = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const user = await getAuth().getUser(auth.uid);
+  const claims = user.customClaims || {};
+  if (claims.role === "authenticated") {
+    return { ok: true, alreadySet: true };
+  }
+  // Сохраняем существующие claims, добавляем role.
+  await getAuth().setCustomUserClaims(auth.uid, { ...claims, role: "authenticated" });
+  return { ok: true, alreadySet: false };
 });
 
 /**
