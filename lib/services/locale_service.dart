@@ -151,6 +151,8 @@ abstract class AppStrings {
   String registrationError(String e);
   String get agreeToTerms;
   String get forgotPassword;
+  String passwordResetSent(String email);
+  String get passwordResetError;
   String get showPassword;
   String get hidePassword;
   String get min8Chars;
@@ -195,6 +197,12 @@ abstract class AppStrings {
   String get partnerWillSeeMood;
   String moodDateLabel(String dateLabel);
   String get indicateMoodForDay;
+  // ── Самочувствие («болячки») ──
+  String get moodTabLabel;
+  String get ailmentTabLabel;
+  String get ailmentPickerSubtitle;
+  String get clearAilment;
+  String partnerAilmentBanner(String name, String label);
   String get relationshipStatus;
   String get chooseHowToConnect;
   String get inLoveStatus;
@@ -898,6 +906,10 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get notifChat;
   String get notifChatSub;
+  String get notifDaysTogether;
+  String get notifDaysTogetherSub;
+  String daysTogetherNotifBody(int days);
+  String get daysTogetherNotifTagline;
   String get openSystemSettings;
   String get notifSystemSettingsHint;
 
@@ -1111,6 +1123,13 @@ class _RuStrings extends AppStrings {
   @override
   String get forgotPassword => 'Забыли пароль?';
   @override
+  String passwordResetSent(String email) =>
+      'Письмо для сброса пароля отправлено на $email. '
+      'Проверьте почту и папку «Спам».';
+  @override
+  String get passwordResetError =>
+      'Не удалось отправить письмо. Проверьте email и попробуйте позже.';
+  @override
   String get showPassword => 'Показать';
   @override
   String get hidePassword => 'Скрыть';
@@ -1192,6 +1211,17 @@ class _RuStrings extends AppStrings {
   String get howAreYouFeeling => 'Как вы себя чувствуете?';
   @override
   String get partnerWillSeeMood => 'Партнёр увидит ваше настроение';
+  @override
+  String get moodTabLabel => 'Настроение';
+  @override
+  String get ailmentTabLabel => 'Самочувствие';
+  @override
+  String get ailmentPickerSubtitle => 'Партнёр увидит, что вам нездоровится';
+  @override
+  String get clearAilment => 'Я здоров(а)';
+  @override
+  String partnerAilmentBanner(String name, String label) =>
+      '$name приболел(а): $label';
   @override
   String moodDateLabel(String dateLabel) => 'Настроение — $dateLabel';
   @override
@@ -1284,7 +1314,7 @@ class _RuStrings extends AppStrings {
   String get photoUploaded => 'Фото загружено';
   @override
   String get widgetPhotoOwnerOnlyHint =>
-      'Видно только тебе. Чтобы показать партнёру — «Фото партнёра»';
+      'При добавлении выбери, куда отправить: парный виджет, «Фото партнёра», воспоминания';
   @override
   String get music => 'Музыка';
   @override
@@ -2282,10 +2312,10 @@ class _RuStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew =>
-      '— Исправили баг с отсувствием таймеров у новых пар.\n'
-      '— Исправили баг с фото на виджетах.\n'
-      '— Исправили баг с синхрониацией счетчика «Я скучаю».\n'
-      '— Должны были исправить уведомления о настроении партнера.';
+      '— Надеемся, что исправили ВСЕ расхождения в группах:\n'
+      'Открыли приложение → несколько секунд фоновой работы → у обоих снова одна общая группа.\n\n'
+      '‼️ Пока один партнёр на старой версии, а второй уже обновился, старый клиент может временно «потерять» пару. Всё починится автоматически с обновлением. ‼️\n\n'
+      '— Исправили скачивание воспоминаний.';
   @override
   String get updateButton => 'Обновить';
   @override
@@ -2669,6 +2699,25 @@ class _RuStrings extends AppStrings {
   @override
   String get notifChatSub => 'Когда партнёр пишет тебе в чат';
   @override
+  String get notifDaysTogether => 'Счётчик дней вместе';
+  @override
+  String get notifDaysTogetherSub =>
+      'Постоянный счётчик в шторке уведомлений';
+  @override
+  String daysTogetherNotifBody(int days) {
+    final mod10 = days % 10;
+    final mod100 = days % 100;
+    final word = (mod10 == 1 && mod100 != 11)
+        ? 'день'
+        : (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14))
+            ? 'дня'
+            : 'дней';
+    return 'Вы вместе уже $days $word ❤️';
+  }
+
+  @override
+  String get daysTogetherNotifTagline => 'Каждый день вместе — особенный 💕';
+  @override
   String get openSystemSettings => 'Системные настройки';
   @override
   String get notifSystemSettingsHint => 'Настройки хранятся на устройстве';
@@ -2925,6 +2974,13 @@ class _EnStrings extends AppStrings {
   @override
   String get forgotPassword => 'Forgot password?';
   @override
+  String passwordResetSent(String email) =>
+      'Password reset email sent to $email. '
+      'Check your inbox and spam folder.';
+  @override
+  String get passwordResetError =>
+      "Couldn't send the email. Check the address and try again later.";
+  @override
   String get showPassword => 'Show';
   @override
   String get hidePassword => 'Hide';
@@ -3006,6 +3062,17 @@ class _EnStrings extends AppStrings {
   String get howAreYouFeeling => 'How are you feeling?';
   @override
   String get partnerWillSeeMood => 'Your partner will see your mood';
+  @override
+  String get moodTabLabel => 'Mood';
+  @override
+  String get ailmentTabLabel => 'Health';
+  @override
+  String get ailmentPickerSubtitle => "Your partner will see you're unwell";
+  @override
+  String get clearAilment => "I'm fine";
+  @override
+  String partnerAilmentBanner(String name, String label) =>
+      '$name is unwell: $label';
   @override
   String moodDateLabel(String dateLabel) => 'Mood — $dateLabel';
   @override
@@ -3098,7 +3165,7 @@ class _EnStrings extends AppStrings {
   String get photoUploaded => 'Photo uploaded';
   @override
   String get widgetPhotoOwnerOnlyHint =>
-      'Only you can see this. To show your partner — “Partner Photo”';
+      'When adding, choose where to send: paired widget, “Partner Photo”, memories';
   @override
   String get music => 'Music';
   @override
@@ -4098,10 +4165,10 @@ class _EnStrings extends AppStrings {
   String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew =>
-      '— Fixed a bug where new couples had no timers.\n'
-      '— Fixed a bug with photos on widgets.\n'
-      '— Fixed a bug with syncing the “I miss you” counter.\n'
-      '— We should have fixed partner mood notifications.';
+      '— We hope we\'ve fixed ALL group sync issues:\n'
+      'Open the app → a few seconds of background work → both partners are back in one shared group.\n\n'
+      '‼️ If one partner is still on the old version while the other has updated, the old client may temporarily “lose” the pair. Everything will fix itself automatically once both update. ‼️\n\n'
+      '— Fixed downloading memories.';
   @override
   String get updateButton => 'Update';
   @override
@@ -4469,6 +4536,16 @@ class _EnStrings extends AppStrings {
   String get notifChat => 'Chat Messages';
   @override
   String get notifChatSub => 'When your partner messages you';
+  @override
+  String get notifDaysTogether => 'Days-together counter';
+  @override
+  String get notifDaysTogetherSub =>
+      'Always-on counter in your notification shade';
+  @override
+  String daysTogetherNotifBody(int days) =>
+      "You've been together $days ${days == 1 ? 'day' : 'days'} ❤️";
+  @override
+  String get daysTogetherNotifTagline => 'Every day together counts 💕';
   @override
   String get openSystemSettings => 'System Settings';
   @override

@@ -44,10 +44,12 @@ class LoveWidgetProvider : HomeWidgetProvider() {
     private fun buildViews(context: Context, widgetData: SharedPreferences): RemoteViews {
         return RemoteViews(context.packageName, R.layout.love_widget).apply {
 
+            // Тап по парному виджету → открыть приложение сразу на его настройках
+            // (вкладка «Виджеты» + раскрытая карточка «Парный виджет»).
             val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                 context,
                 MainActivity::class.java,
-                Uri.parse("loveapp://widgets")
+                Uri.parse("loveapp://widgets/pair")
             )
             setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 

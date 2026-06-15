@@ -19,7 +19,9 @@ import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/update_service.dart';
 import '../theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/common/animations.dart';
 import '../widgets/common/m3_loading.dart';
 import 'home/widgets/mood_picker_dialog.dart';
@@ -51,6 +53,7 @@ import 'widget_screen.dart';
 import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 import '../services/celebration_notification_service.dart';
+import '../services/days_together_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -70,6 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
+  // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
+  // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
+  bool _openPairEditorOnWidgetsTab = false;
 
   StreamSubscription? _deepLinkSub;
 
@@ -163,6 +169,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Пересчёт расписания уведомлений о праздниках при каждом старте.
     Future.microtask(() async {
       await CelebrationNotificationService.instance.rescheduleOnAppStart();
+      // Постоянный счётчик «дней вместе» (если включён) — пересчитать число.
+      await DaysTogetherNotificationService.instance.rescheduleOnAppStart();
     });
 
     _appLifecycleListener = AppLifecycleListener(
@@ -174,6 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Re-sync the love widget so partner's latest status/mood appears
         // immediately when the user returns to the home screen.
         _widgetService.syncNow();
+        // Обновляем число в постоянном счётчике «дней вместе» (могла смениться
+        // дата за полночь). No-op, если фича выключена.
+        unawaited(DaysTogetherNotificationService.instance.refresh());
         // Попытка ежедневного бонуса при возврате в приложение
         _tryClaimDailyBonus();
       },
@@ -235,9 +246,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleWidgetUri(Uri uri) {
     // loveapp://widgets → вкладка виджетов (index 1)
+    // loveapp://widgets/pair → ещё и сразу раскрыть настройки парного виджета
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
+      final wantPairEditor = uri.pathSegments.contains('pair');
       if (mounted) {
-        setState(() => _selectedNavIndex = 1);
+        setState(() {
+          _selectedNavIndex = 1;
+          if (wantPairEditor) _openPairEditorOnWidgetsTab = true;
+        });
       }
     }
     // loveapp://home → главная (index 0)
@@ -374,6 +390,13 @@ class _HomeScreenState extends State<HomeScreen> {
         // Дальнейшие изменения статуса отношений не меняют название — пользователь
         // может свободно редактировать его через UI.
         // updateSystemTimerTitle был удалён, т.к. перезаписывал ручные правки.
+
+        // Постоянный счётчик «дней вместе»: сохраняем дату старта; если фича
+        // включена — обновляем число в шторке уведомлений.
+        unawaited(
+          DaysTogetherNotificationService.instance
+              .onStartDateChanged(_pairData.startDate),
+        );
       }
 
       // Синхронизируем виджеты рабочего стола с актуальными данными
@@ -395,6 +418,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _mascotService.unbind();
       // Sync widgets for single user mode (no group)
       _scheduleSyncHomeWidgets();
+    }
+
+    // Нет пары → убрать постоянный счётчик «дней вместе» из шторки.
+    if (!isPaired) {
+      unawaited(
+        DaysTogetherNotificationService.instance.onStartDateChanged(null),
+      );
     }
 
     // Auto-navigate to home tab when user just joined a group.
@@ -655,6 +685,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onRelationshipTap: _showRelationshipTypeDialog,
                   pairId: _pairData.pairId,
                 ),
+                _buildPartnerAilmentBanner(),
                 Expanded(child: _buildBody()),
               ],
             ),
@@ -897,6 +928,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // WIDGETS TAB
   // =============================================
   Widget _buildWidgetsTab() {
+    // Флаг открытия настроек парного виджета одноразовый — гасим сразу,
+    // чтобы при обычном переходе на вкладку карточка не раскрывалась снова.
+    final openPair = _openPairEditorOnWidgetsTab;
+    _openPairEditorOnWidgetsTab = false;
     return WidgetScreen(
       userData: widget.userData,
       pairData: _pairData,
@@ -904,6 +939,7 @@ class _HomeScreenState extends State<HomeScreen> {
       moodService: _moodService,
       timerService: _timerService,
       theme: _t,
+      openPairEditorOnStart: openPair,
     );
   }
 
@@ -1258,6 +1294,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Баннер под шапкой: показывается, когда партнёру нездоровится
+  /// (он выбрал «болячку» в пикере «Самочувствие»).
+  Widget _buildPartnerAilmentBanner() {
+    if (!_pairData.isPaired) return const SizedBox.shrink();
+    for (final p in _pairData.partners) {
+      final a = _pairData.ailmentOf(p.uid);
+      if (a.isNotEmpty) {
+        final name = p.name.isNotEmpty ? p.name : LocaleService.current.partner;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _t.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _t.primary.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Text(a.emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    LocaleService.current.partnerAilmentBanner(name, a.label),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _t.primary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return const SizedBox.shrink();
+  }
+
   void _showMoodPicker() {
     showMoodPicker(
       context: context,
@@ -1354,31 +1433,54 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Show caption dialog (with optional "set as widget photo" toggle)
-    final result = await _showCaptionDialog();
+    // Диалог: название/описание + три тумблера «куда отправить».
+    // Дефолты тумблеров запоминаются (общие ключи с виджет-экраном).
+    final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    // null means user cancelled
+    final result = await _showCaptionDialog(
+      initToMemories: _widgetService.autoSendPhotoToMemory,
+      initToPairWidget: prefs.getBool('widget_sendPhotoToPairWidget') ?? true,
+      initToPartnerWidget:
+          prefs.getBool('widget_sendPhotoToPartnerWidget') ?? true,
+      partnerName: _pairData.partnerName,
+    );
+    if (!mounted) return;
+    // null = отмена; ничего не выбрано — выходим.
     if (result == null) return;
-
-    // Check rate limit before uploading to avoid wasting bandwidth
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await RateLimiterService().checkMemory();
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      }
+    if (!result.toMemories &&
+        !result.toPairWidget &&
+        !result.toPartnerWidget) {
       return;
+    }
+    // Запоминаем выбор на следующий раз.
+    await _widgetService.setAutoSendPhotoToMemory(result.toMemories);
+    await prefs.setBool('widget_sendPhotoToPairWidget', result.toPairWidget);
+    await prefs.setBool(
+      'widget_sendPhotoToPartnerWidget',
+      result.toPartnerWidget,
+    );
+
+    // Лимит проверяем только если фото идёт в ленту воспоминаний.
+    final messenger = ScaffoldMessenger.of(context);
+    if (result.toMemories) {
+      try {
+        await RateLimiterService().checkMemory();
+      } on RateLimitException catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(e.message),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+        return;
+      }
     }
 
     // Show loading
@@ -1432,23 +1534,32 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Create memory
-      await _fb.addMemory(
-        groupId: _pairData.pairId,
-        type: MemoryType.photo,
-        imageUrl: downloadUrl,
-        title: result.title,
-        caption: result.caption,
-        locationName: photoLocationName,
-        latitude: photoLat,
-        longitude: photoLng,
-      );
+      // 1. Лента воспоминаний.
+      if (result.toMemories) {
+        await _fb.addMemory(
+          groupId: _pairData.pairId,
+          type: MemoryType.photo,
+          imageUrl: downloadUrl,
+          title: result.title,
+          caption: result.caption,
+          locationName: photoLocationName,
+          latitude: photoLat,
+          longitude: photoLng,
+        );
+      }
 
-      // Автоматически отправляем свежее фото в виджет «Фото партнёра».
-      // Переключатель остаётся как ручное отключение, но по умолчанию он включён.
-      if (_pairData.pairId.isNotEmpty && result.setAsWidget) {
+      // 2. Парный виджет (моя половина).
+      if (result.toPairWidget) {
         try {
-          final prefs = await SharedPreferences.getInstance();
+          await _widgetService.updatePhotoUrl(downloadUrl);
+        } catch (e) {
+          debugPrint('Failed to set pair widget photo: $e');
+        }
+      }
+
+      // 3. Виджет «Фото партнёра».
+      if (result.toPartnerWidget && _pairData.pairId.isNotEmpty) {
+        try {
           await _widgetService.updatePhotoForPartnerUrl(downloadUrl);
           await prefs.setString(
             'photo_day_path_${_pairData.pairId}',
@@ -1465,7 +1576,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LocaleService.current.postedToMemoryLane),
+            content: Text(
+              result.toMemories
+                  ? LocaleService.current.postedToMemoryLane
+                  : 'Фото отправлено',
+            ),
             backgroundColor: primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -1474,8 +1589,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-      // Награда за воспоминание (1 🪙 в день) — после успешного сохранения
-      _tryClaimMemoryReward();
+      // Награда (1 🪙 в день) — только если фото добавлено в ленту воспоминаний.
+      if (result.toMemories) _tryClaimMemoryReward();
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {
@@ -1486,16 +1601,42 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<({String? title, String? caption, bool setAsWidget})?>
-  _showCaptionDialog() async {
+  Future<
+    ({
+      String? title,
+      String? caption,
+      bool toMemories,
+      bool toPairWidget,
+      bool toPartnerWidget,
+    })?
+  >
+  _showCaptionDialog({
+    required bool initToMemories,
+    required bool initToPairWidget,
+    required bool initToPartnerWidget,
+    required String partnerName,
+  }) async {
     final titleController = TextEditingController();
     final controller = TextEditingController();
-    return showDialog<({String? title, String? caption, bool setAsWidget})>(
+    return showDialog<
+      ({
+        String? title,
+        String? caption,
+        bool toMemories,
+        bool toPairWidget,
+        bool toPartnerWidget,
+      })
+    >(
       context: context,
       builder: (ctx) {
-        bool setAsWidget = true;
+        bool toMemories = initToMemories;
+        bool toPairWidget = initToPairWidget;
+        bool toPartnerWidget = initToPartnerWidget;
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
+            final partner = partnerName.isNotEmpty ? partnerName : 'партнёр';
+            final nothingSelected =
+                !toMemories && !toPairWidget && !toPartnerWidget;
             return Dialog(
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
@@ -1579,25 +1720,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Опция: сразу показать это фото в виджете партнёра
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            LocaleService.current.setAsWidgetPhoto,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: setAsWidget,
-                          activeColor: primary,
-                          onChanged: (v) => setDlgState(() => setAsWidget = v),
-                        ),
-                      ],
+                    // Куда отправить фото — три независимых тумблера.
+                    _captionDestRow(
+                      title: 'Воспоминания',
+                      subtitle: 'Добавить фото в ленту воспоминаний',
+                      value: toMemories,
+                      onChanged: (v) => setDlgState(() => toMemories = v),
+                    ),
+                    _captionDestRow(
+                      title: 'Парный виджет',
+                      subtitle: 'Фото в «Моём виджете» — видно тебе и $partner',
+                      value: toPairWidget,
+                      onChanged: (v) => setDlgState(() => toPairWidget = v),
+                    ),
+                    _captionDestRow(
+                      title: 'Виджет «Фото партнёра»',
+                      subtitle: 'Отдельный виджет с фото для $partner',
+                      value: toPartnerWidget,
+                      onChanged: (v) => setDlgState(() => toPartnerWidget = v),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1617,18 +1757,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              final titleText = titleController.text.trim();
-                              final text = controller.text.trim();
-                              Navigator.pop(ctx, (
-                                title: titleText.isEmpty ? null : titleText,
-                                caption: text.isEmpty ? null : text,
-                                setAsWidget: setAsWidget,
-                              ));
-                            },
+                            onPressed: nothingSelected
+                                ? null
+                                : () {
+                                    final titleText = titleController.text
+                                        .trim();
+                                    final text = controller.text.trim();
+                                    Navigator.pop(ctx, (
+                                      title: titleText.isEmpty
+                                          ? null
+                                          : titleText,
+                                      caption: text.isEmpty ? null : text,
+                                      toMemories: toMemories,
+                                      toPairWidget: toPairWidget,
+                                      toPartnerWidget: toPartnerWidget,
+                                    ));
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade300,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -1649,6 +1797,47 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+
+  /// Строка-тумблер «куда отправить фото» в диалоге публикации.
+  Widget _captionDestRow({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeColor: primary,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1783,6 +1972,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkForUpdate() async {
     if (!mounted) return;
+    // Sideload-сборки (установленные из публичного GitHub-репо, а не из Play
+    // Store) не получают обновления через Google Play — проверяем version.json
+    // в релизах вручную и отдаём установку системному установщику.
+    if (await UpdateService.isSideloaded()) {
+      final upd = await UpdateService.checkForUpdate();
+      if (!mounted || upd == null) return;
+      _showGithubUpdateSheet(upd);
+      return;
+    }
     try {
       final info = await InAppUpdate.checkForUpdate();
       if (!mounted) return;
@@ -1792,6 +1990,125 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       debugPrint('HomeScreen._checkForUpdate failed: $e');
     }
+  }
+
+  /// Лист обновления для sideload-сборок: ведёт на скачивание APK из публичного
+  /// GitHub-репо (браузер докачивает файл и вызывает системный установщик).
+  void _showGithubUpdateSheet(GithubUpdate upd) {
+    final p = primary;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          12,
+          24,
+          MediaQuery.of(ctx).viewPadding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: p.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.system_update_rounded, color: p, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        LocaleService.current.updateAvailableTitle,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        upd.versionName.isNotEmpty
+                            ? '${LocaleService.current.updateAvailableSubtitle} · ${upd.versionName}'
+                            : LocaleService.current.updateAvailableSubtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.parse(upd.apkUrl);
+                  try {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint('GitHub update launch failed: $e');
+                  }
+                },
+                icon: const Icon(Icons.download_rounded),
+                label: Text(LocaleService.current.updateButton),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: p,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  LocaleService.current.updateLaterButton,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showUpdateSheet(AppUpdateInfo info) {
@@ -2304,8 +2621,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      '''— Поправили награду за рекламу.
-— Добавили новый тип пинов "Фильм/Сериал" (не совместный просмотр).''',
+                      LocaleService.current.updateWhatsNew,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,

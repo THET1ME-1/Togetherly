@@ -85,8 +85,11 @@ class FirebaseService {
   /// «Я скучаю» из Firestore в RTDB в этой сессии.
   final Set<String> _missYouSeeded = {};
 
-  // SharedPreferences-ключи одноразовых миграций «Я скучаю».
-  // При смене версии (v2→v3) миграция повторяется для всех пользователей.
+  // SharedPreferences-ключ аддитивной миграции v2 (история: v2 защищалась
+  // ТОЛЬКО этим локальным ключом — при переустановке, втором устройстве или
+  // смене версии ключа legacy прибавлялся ПОВТОРНО, отсюда жалобы вида
+  // «у партнёра счётчик за час вырос на 2к»). Оставлен только для чтения:
+  // если ключ стоит, v2 на этом устройстве уже прибавила legacy.
   static const _kMissYouLegacyMigrated = 'miss_you_legacy_additive_v2';
   // Ключ одноразового force-overwrite Supabase из RTDB (Фаза 1).
   static const _kMissYouSbResync = 'miss_you_sb_resync_v2';
@@ -921,34 +924,49 @@ class FirebaseService {
 
   /// Переносит старый Firestore-счётчик «Я скучаю» текущего пользователя в RTDB.
   ///
-  /// Проблема старой реализации: транзакция прерывалась если RTDB != null, т.е.
-  /// если пользователь хоть раз тапнул после обновления (RTDB=3), 50 legacy-тапов
-  /// из Firestore терялись навсегда. Результат: счётчик занижен у всех, у кого
-  /// была история в старом приложении.
+  /// История проблем:
+  /// 1. v1 (seed-if-empty): транзакция прерывалась если RTDB != null —
+  ///    legacy-тапы терялись, счётчик «сбрасывался» после обновления.
+  /// 2. v2 (аддитивная): RTDB += legacy, но guard — локальный ключ в
+  ///    SharedPreferences. Переустановка / второе устройство / новая версия
+  ///    ключа → legacy прибавлялся повторно, счётчик раздувался.
   ///
-  /// Новая реализация: аддитивная (RTDB += legacy), защищена ключом в
-  /// SharedPreferences чтобы не сложить дважды при следующем запуске.
+  /// v3: маркер миграции живёт в самой RTDB (missYou/{groupId}/seeded/{uid},
+  /// write-once по правилам базы) и пишется ОДНИМ атомарным multi-path update
+  /// вместе с инкрементом counts/{uid}. Если маркер уже стоит — правила
+  /// отклоняют весь update целиком, т.е. повторное прибавление невозможно ни
+  /// при каком сценарии (переустановка, несколько устройств, гонка, будущие
+  /// версии). Если на этом устройстве v2 уже прибавила legacy (стоит
+  /// prefs-ключ), записываем только маркер — без прибавления.
   Future<void> _seedMissYouCountsIfEmpty(String groupId, Map raw) async {
     final myUid = uid;
     if (myUid == null) return;
     final mine = (raw[myUid] as num?)?.toInt() ?? 0;
     if (mine <= 0) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final doneKey = '$_kMissYouLegacyMigrated.$groupId.$myUid';
-      if (prefs.getBool(doneKey) == true) return;
+      // Маркер уже стоит (поставлен любым устройством) — миграция завершена.
+      final seededSnap =
+          await _rtdb.ref('missYou/$groupId/seeded/$myUid').get();
+      if (seededSnap.exists) return;
 
-      await _missYouCountsRef(groupId).child(myUid).runTransaction((current) {
-        final rtdbNow = (current as num?)?.toInt() ?? 0;
-        // Прибавляем legacy к текущему RTDB: legacy-период + новый независимы.
-        return Transaction.success(rtdbNow + mine);
+      final prefs = await SharedPreferences.getInstance();
+      final v2AlreadyAdded =
+          prefs.getBool('$_kMissYouLegacyMigrated.$groupId.$myUid') == true;
+
+      // Атомарный multi-path update: маркер + инкремент применяются вместе
+      // или не применяются вовсе. seeded/{uid} write-once по правилам, поэтому
+      // проигравший гонку получит permission-denied на ВЕСЬ update.
+      await _rtdb.ref('missYou/$groupId').update({
+        'seeded/$myUid': mine,
+        if (!v2AlreadyAdded) 'counts/$myUid': ServerValue.increment(mine),
       });
-      await prefs.setBool(doneKey, true);
       debugPrint(
-        '_seedMissYouCountsIfEmpty($groupId): added legacy=$mine for $myUid',
+        '_seedMissYouCountsIfEmpty($groupId): legacy=$mine for $myUid, '
+        'addedNow=${!v2AlreadyAdded}',
       );
     } catch (e) {
-      debugPrint('_seedMissYouCountsIfEmpty failed: $e');
+      // permission-denied = гонка с другим устройством, уже мигрировано.
+      debugPrint('_seedMissYouCountsIfEmpty skipped/failed: $e');
     }
   }
 
@@ -1164,45 +1182,131 @@ class FirebaseService {
     }
   }
 
-  /// Создание аккаунта через email/пароль
+  /// Создание аккаунта через email/пароль.
+  ///
+  /// Устойчиво к медленным/нестабильным соединениям (частый кейс из России —
+  /// VPN, троттлинг, потери пакетов):
+  ///  • увеличенный таймаут;
+  ///  • повтор при временных сетевых сбоях (`network-request-failed` и т.п.);
+  ///  • если таймаут случился ПОСЛЕ фактического создания аккаунта на сервере —
+  ///    подхватываем уже залогиненного пользователя вместо падения;
+  ///  • если прошлая попытка успела создать аккаунт (`email-already-in-use`),
+  ///    а пользователь ввёл тот же пароль — молча входим в этот аккаунт,
+  ///    завершая «зависшую» регистрацию (раньше человек оставался заблокирован).
   Future<User?> signUpWithEmailPassword({
     required String email,
     required String password,
     required String displayName,
   }) async {
-    try {
-      debugPrint('Firebase Auth: creating account with email...');
-      final userCredential = await _auth
-          .createUserWithEmailAndPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 15));
-      final user = userCredential.user;
-      if (user == null) return null;
+    const transientCodes = {
+      'network-request-failed',
+      'internal-error',
+      'timeout',
+    };
+    FirebaseAuthException? lastTransient;
 
-      // Обновляем displayName
-      await user.updateDisplayName(displayName);
-      await user.reload();
-
-      debugPrint('Firebase Auth success: ${user.uid}');
-
-      try {
-        await _db
-            .collection('users')
-            .doc(user.uid)
-            .set({
-              'displayName': displayName,
-              'email': email,
-              'avatarUrl': '',
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true))
-            .timeout(const Duration(seconds: 10));
-      } catch (e) {
-        debugPrint('Firestore save failed: $e');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(Duration(seconds: attempt * 2));
       }
+      try {
+        debugPrint('Firebase Auth: creating account with email...');
+        User? user;
+        try {
+          final userCredential = await _auth
+              .createUserWithEmailAndPassword(email: email, password: password)
+              .timeout(const Duration(seconds: 30));
+          user = userCredential.user;
+        } on TimeoutException {
+          // Ответ сервера не успел прийти за таймаут, но аккаунт мог уже
+          // создаться, и SDK нередко уже обновил currentUser. Если это так —
+          // считаем регистрацию успешной, иначе пробуем ещё раз.
+          final current = _auth.currentUser;
+          if (current != null && current.email == email) {
+            user = current;
+          } else {
+            lastTransient = FirebaseAuthException(code: 'timeout');
+            continue;
+          }
+        }
 
-      return _auth.currentUser;
+        user ??= _auth.currentUser;
+        if (user == null) return null;
+
+        await _finishEmailSignUp(user, email: email, displayName: displayName);
+        debugPrint('Firebase Auth success: ${user.uid}');
+        return _auth.currentUser;
+      } on FirebaseAuthException catch (e) {
+        // Прошлая (возможно недозавершённая из-за обрыва) попытка уже создала
+        // аккаунт. Пользователь ввёл пароль — пробуем войти им же: успех = это
+        // его аккаунт, восстанавливаемся; неудача = чужой email, отдаём ошибку.
+        if (e.code == 'email-already-in-use') {
+          try {
+            final cred = await _auth
+                .signInWithEmailAndPassword(email: email, password: password)
+                .timeout(const Duration(seconds: 30));
+            final user = cred.user;
+            if (user != null) {
+              await _finishEmailSignUp(
+                user,
+                email: email,
+                displayName: displayName,
+              );
+              debugPrint('signUp recovered via sign-in: ${user.uid}');
+              return _auth.currentUser;
+            }
+          } catch (_) {
+            // Пароль не подошёл — это чужой аккаунт. Пробрасываем исходную
+            // ошибку, чтобы UI показал диалог «аккаунт уже существует».
+          }
+          rethrow;
+        }
+        if (transientCodes.contains(e.code)) {
+          lastTransient = e;
+          debugPrint('signUp transient error ${e.code}, retrying...');
+          continue;
+        }
+        debugPrint('signUpWithEmailPassword failed: $e');
+        rethrow;
+      } catch (e) {
+        debugPrint('signUpWithEmailPassword failed: $e');
+        rethrow;
+      }
+    }
+
+    // Все попытки исчерпаны на временных сетевых сбоях.
+    throw lastTransient ??
+        FirebaseAuthException(code: 'network-request-failed');
+  }
+
+  /// Дописывает профиль после успешного создания/входа email-аккаунта:
+  /// displayName в Firebase Auth + базовый user-документ. Ошибки записи в
+  /// Firestore не считаем фатальными — аккаунт уже создан.
+  Future<void> _finishEmailSignUp(
+    User user, {
+    required String email,
+    required String displayName,
+  }) async {
+    try {
+      if ((user.displayName ?? '') != displayName) {
+        await user.updateDisplayName(displayName);
+        await user.reload();
+      }
     } catch (e) {
-      debugPrint('signUpWithEmailPassword failed: $e');
-      rethrow;
+      debugPrint('updateDisplayName failed: $e');
+    }
+    try {
+      await _db
+          .collection('users')
+          .doc(user.uid)
+          .set({
+            'displayName': displayName,
+            'email': email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('Firestore save failed: $e');
     }
   }
 
@@ -1221,6 +1325,14 @@ class FirebaseService {
       debugPrint('signInWithEmailPassword failed: $e');
       rethrow;
     }
+  }
+
+  /// Отправляет письмо для сброса пароля на указанный email.
+  /// Бросает исключение при ошибке (вызывающий показывает текст пользователю).
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth
+        .sendPasswordResetEmail(email: email)
+        .timeout(const Duration(seconds: 15));
   }
 
   Future<void> signOut() async {
@@ -2506,6 +2618,72 @@ class FirebaseService {
     required Map<String, dynamic> myData,
   }) async {
     final u = currentUser!;
+
+    // Страховка от гонки взаимного коннекта: оба партнёра принимают коды друг
+    // друга почти одновременно, каждый читает user-doc партнёра ДО того, как
+    // первая группа записалась → создаются ДВЕ группы одной пары (симптом:
+    // пуши ходят, чат/данные «не синхронизируются»). Перед созданием ещё раз
+    // ищем живую группу с этой же парой — окно гонки сужается до секунд, а
+    // остаток добивает mergeDuplicateGroups при следующем старте.
+    try {
+      final existing = await _db
+          .collection('groups')
+          .where('members', arrayContains: u.uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      for (final doc in existing.docs) {
+        final data = doc.data();
+        if (data['disbanded'] == true) continue;
+        final members = List<String>.from(data['members'] ?? []);
+        if (members.contains(ownerUid)) {
+          debugPrint(
+            '_createNewGroup: live group ${doc.id} with $ownerUid already '
+            'exists (mutual-connect race) — joining it instead of creating',
+          );
+          // Гарантируем группу в своих pairIds (вдруг запись партнёра в наш
+          // user-doc не прошла) и гасим использованный код.
+          await _db.collection('users').doc(u.uid).set({
+            'pairId': doc.id,
+            'pairIds': FieldValue.arrayUnion([doc.id]),
+          }, SetOptions(merge: true));
+          unawaited(
+            _db.collection('inviteCodes').doc(code).delete().catchError((e) {
+              debugPrint('_createNewGroup: could not delete invite code: $e');
+            }),
+          );
+          return {
+            'success': true,
+            'message': 'Connected!',
+            'partnerName': ownerData['displayName'] ?? 'Partner',
+            'partnerAvatar': ownerData['avatarUrl'] ?? '',
+            'pairId': doc.id,
+            'startDate': (data['startDate'] as Timestamp?)?.toDate() ??
+                DateTime.now(),
+            'relationshipType': data['relationshipType'] ?? 'couple',
+            'customRelationshipLabel': data['customRelationshipLabel'] ?? '',
+            'customRelationshipEmoji': data['customRelationshipEmoji'] ?? '',
+            'customRelationshipTypes':
+                data['customRelationshipTypes'] ?? <Map<String, String>>[],
+            'members': [
+              {
+                'uid': ownerUid,
+                'name': ownerData['displayName'] ?? 'Partner',
+                'avatar': ownerData['avatarUrl'] ?? '',
+              },
+              {
+                'uid': u.uid,
+                'name': myData['displayName'] ?? u.displayName ?? 'You',
+                'avatar': myData['avatarUrl'] ?? u.photoURL ?? '',
+              },
+            ],
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('_createNewGroup: pre-create duplicate check failed: $e');
+      // Не критично — дубликат добьёт mergeDuplicateGroups на старте.
+    }
+
     final groupRef = _db.collection('groups').doc();
     final now = FieldValue.serverTimestamp();
 
@@ -2614,6 +2792,10 @@ class FirebaseService {
       for (final doc in snap.docs) {
         final data = doc.data();
         if (data['disbanded'] != true) continue;
+        // Группы, распущенные слиянием дубликатов (mergeDuplicateGroups),
+        // воскрешать нельзя — иначе пара раскололась бы заново. Их данные
+        // уже живут в канонической группе.
+        if (data['mergedInto'] != null) continue;
         final docMembers = List<String>.from(data['members'] ?? []);
         if (!docMembers.contains(ownerUid)) continue;
         final ts = data['disbandedAt'] as Timestamp?;
@@ -3235,6 +3417,18 @@ class FirebaseService {
         }
         return MapEntry(uid, moodMap);
       }),
+      'memberAilments':
+          (data['memberAilments'] as Map<String, dynamic>? ?? {}).map((
+        uid,
+        ailData,
+      ) {
+        final ailMap = Map<String, dynamic>.from(ailData as Map);
+        final ts = ailMap['updatedAt'];
+        if (ts is Timestamp) {
+          ailMap['updatedAt'] = ts.toDate();
+        }
+        return MapEntry(uid, ailMap);
+      }),
       'currentStatus': data['currentStatus'] as Map<String, dynamic>?,
       'customStatuses': data['customStatuses'] as List<dynamic>?,
       'relationshipType': data['relationshipType'] as String?,
@@ -3300,6 +3494,142 @@ class FirebaseService {
     } catch (e) {
       debugPrint('loadPairData failed: $e');
       return null;
+    }
+  }
+
+  /// Самолечение «потерянных» И РАСЩЕПЛЁННЫХ групп при старте.
+  ///
+  /// Чинит два симптома сразу, опираясь на реальное членство (`members[]`), а
+  /// не на `pairIds` (который мог обнулиться или потерять одну из групп):
+  ///
+  ///  1. «Потеряли группу»: какой-то путь (переустановка / повторный вход)
+  ///     обнулил `pairIds`, НЕ распуская группу. Возвращаем живые группы в
+  ///     `pairIds` — слушатель user-документа ([listenToUserDoc]) привяжет их.
+  ///
+  ///  2. «Расщеплённая пара» (симптом из отзывов: видно только свои настроения/
+  ///     «скучаю»/фото, данных партнёра нет): на одну и ту же пару оказалось
+  ///     ДВЕ живые группы (гонка взаимного коннекта + частично упавшие
+  ///     кросс-записи). Партнёр пишет в одну, ты читаешь из другой. Здесь мы
+  ///     ДЕТЕРМИНИРОВАННО сливаем такие дубли через сервер
+  ///     ([mergeDuplicateGroups]) прямо на старте — не полагаясь на отложенный
+  ///     цикл rebuild→cleanup, — и проверяем, что на каждого партнёра осталась
+  ///     ровно одна группа. Сервер сам выбирает канон (старейшую группу),
+  ///     переносит данные и чинит pairIds ОБОИХ участников; операция
+  ///     идемпотентна и безопасна при гонке двух устройств.
+  ///
+  /// Запрос по `members arrayContains uid` разрешён правилами (как и в
+  /// [_findDisbandedGroup]) и остаётся в рамках собственных групп пользователя.
+  /// Возвращает id выживших (канонических) групп — по одной на партнёра.
+  Future<List<String>> selfHealActiveGroups() async {
+    final u = currentUser;
+    if (u == null) return const [];
+    try {
+      // 1) Все живые группы (>=2 участника), где мы реально в members[].
+      final snap = await _db
+          .collection('groups')
+          .where('members', arrayContains: u.uid)
+          .get()
+          .timeout(const Duration(seconds: 15));
+
+      // groupId -> отсортированный список партнёров (members без меня) и дата
+      // создания (для группировки по паре и детерминированного выбора канона).
+      final partnersByGroup = <String, List<String>>{};
+      final createdAtByGroup = <String, Timestamp?>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if (data['disbanded'] == true) continue;
+        if (data['mergedInto'] != null) continue; // дубль, уже слитый ранее
+        final members = List<String>.from(data['members'] ?? [])
+            .where((m) => m.isNotEmpty)
+            .toSet();
+        // «Группа из одного» — мусор (остатки тестов/недозавершённых пар).
+        if (members.length < 2 || !members.contains(u.uid)) continue;
+        final partners = (members.toList()..remove(u.uid))..sort();
+        partnersByGroup[doc.id] = partners;
+        createdAtByGroup[doc.id] = data['createdAt'] as Timestamp?;
+      }
+      if (partnersByGroup.isEmpty) return const [];
+
+      // 2) Сгруппировать живые группы по набору партнёров.
+      final groupsByPartnerKey = <String, List<String>>{};
+      partnersByGroup.forEach((gid, partners) {
+        groupsByPartnerKey.putIfAbsent(partners.join(','), () => []).add(gid);
+      });
+
+      // 3) На каждого партнёра — ровно одна группа. Дубли сливаем через сервер
+      //    в детерминированном порядке (старейшая = канон), используя
+      //    возвращённый сервером канон для следующей итерации.
+      final survivors = <String>[];
+      for (final ids in groupsByPartnerKey.values) {
+        if (ids.length == 1) {
+          survivors.add(ids.first);
+          continue;
+        }
+        ids.sort((a, b) {
+          final ta = createdAtByGroup[a];
+          final tb = createdAtByGroup[b];
+          if (ta == null && tb == null) return a.compareTo(b);
+          if (ta == null) return 1; // без даты создания — в конец
+          if (tb == null) return -1;
+          return ta.compareTo(tb); // старейшая первой
+        });
+        debugPrint(
+          'selfHealActiveGroups: расщеплённая пара — ${ids.length} живых '
+          'групп(ы) на одного партнёра: $ids — сливаю',
+        );
+        var canonical = ids.first;
+        var allMerged = true;
+        for (var i = 1; i < ids.length; i++) {
+          final merged = await mergeDuplicateGroups(canonical, ids[i]);
+          if (merged != null) {
+            canonical = merged;
+          } else {
+            allMerged = false; // не удалось — повторим на следующем старте
+          }
+        }
+        survivors.add(canonical);
+        if (!allMerged) {
+          debugPrint(
+            'selfHealActiveGroups: не все дубли слиты для $ids — повтор позже',
+          );
+        }
+      }
+
+      // 4) Вернуть выжившие (канонические) группы в pairIds, если их там нет.
+      //    (Сервер при merge уже чинит pairIds, но недубликатные «потерянные»
+      //    группы тоже нужно вернуть — поэтому проверяем все survivors.)
+      final userDoc = await _db
+          .collection('users')
+          .doc(u.uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
+      final known = <String>{};
+      final pairIdsList = userDoc.data()?['pairIds'] as List<dynamic>?;
+      if (pairIdsList != null) {
+        known.addAll(
+          pairIdsList.whereType<String>().where((s) => s.isNotEmpty),
+        );
+      }
+      final legacy = userDoc.data()?['pairId'] as String?;
+      if (legacy != null && legacy.isNotEmpty) known.add(legacy);
+
+      final missing = survivors.where((id) => !known.contains(id)).toList();
+      if (missing.isNotEmpty) {
+        await _db
+            .collection('users')
+            .doc(u.uid)
+            .set({
+              'pairIds': FieldValue.arrayUnion(missing),
+            }, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 10));
+        debugPrint(
+          'selfHealActiveGroups: restored ${missing.length} group(s): $missing',
+        );
+      }
+      return survivors;
+    } catch (e) {
+      debugPrint('selfHealActiveGroups failed: $e');
+      return const [];
     }
   }
 
@@ -3512,6 +3842,38 @@ class FirebaseService {
       // Ошибка чтения (сеть/правила) — не рискуем расспариванием.
       debugPrint('_verifyPairGone($groupId) failed: $e');
       return false;
+    }
+  }
+
+  /// Слить две группы одной пары (раскол после «потерянной группы»).
+  ///
+  /// Сервер детерминированно выбирает канон (старейшая группа), переносит в
+  /// него данные дубликата (счётчики, воспоминания, чат, настроения, серию),
+  /// помечает дубликат disbanded и чинит pairIds обоих участников. Идемпотентно
+  /// и защищено от гонки устройств. Возвращает id канонической группы или
+  /// null при ошибке (тогда повторим на следующем старте).
+  Future<String?> mergeDuplicateGroups(
+    String groupIdA,
+    String groupIdB,
+  ) async {
+    try {
+      final res = await _functions
+          .httpsCallable('mergeDuplicateGroups')
+          .call<Map<dynamic, dynamic>>({
+            'groupIdA': groupIdA,
+            'groupIdB': groupIdB,
+          })
+          .timeout(const Duration(seconds: 120));
+      final data = Map<String, dynamic>.from(res.data);
+      final canonicalId = data['canonicalId'] as String?;
+      debugPrint(
+        'mergeDuplicateGroups($groupIdA, $groupIdB): canonical=$canonicalId, '
+        'merged=${data['merged']}',
+      );
+      return canonicalId;
+    } catch (e) {
+      debugPrint('mergeDuplicateGroups failed: $e');
+      return null;
     }
   }
 
@@ -4559,6 +4921,47 @@ class FirebaseService {
   }
 
   // ══════════════════════════════════════════════
+  //  AILMENT («болячки») — самочувствие участника
+  //  Firestore: groups/{groupId} → memberAilments.{uid}: {id, label, emoji, updatedAt}
+  // ══════════════════════════════════════════════
+
+  /// Save the current user's ailment to the group document
+  Future<void> setAilment({
+    required String groupId,
+    required String id,
+    required String label,
+    required String emoji,
+  }) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberAilments.${u.uid}': {
+          'id': id,
+          'label': label,
+          'emoji': emoji,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      });
+    } catch (e) {
+      debugPrint('setAilment failed: $e');
+    }
+  }
+
+  /// Clear the current user's ailment («Здоров(а)»)
+  Future<void> clearAilment({required String groupId}) async {
+    final u = currentUser;
+    if (u == null || groupId.isEmpty) return;
+    try {
+      await _db.collection('groups').doc(groupId).update({
+        'memberAilments.${u.uid}': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('clearAilment failed: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════
   //  RELATIONSHIP STATUS
   //  Firestore: groups/{groupId} → currentStatus: {...}, customStatuses: [...]
   // ══════════════════════════════════════════════
@@ -5417,6 +5820,7 @@ class FirebaseService {
   StreamSubscription listenToMissYouCounts({
     required String groupId,
     required void Function(Map<String, int> counts) onData,
+    void Function(Object error)? onError,
   }) {
     // Stage 2: per-user счётчики из RTDB (общий источник). Stage 3 — Supabase.
     if (_readSb(groupId)) {
@@ -5431,7 +5835,13 @@ class FirebaseService {
       final counts = _parseMissYouCounts(event.snapshot.value);
       debugPrint('listenToMissYouCounts($groupId): counts=$counts');
       onData(counts);
-    }, onError: (e) => debugPrint('listenToMissYouCounts error: $e'));
+    }, onError: (e) {
+      // permission-denied на холодном старте (auth-токен ещё не доехал до
+      // RTDB) НАВСЕГДА отменяет подписку — без ретрая счётчик висит на нулях
+      // до перезапуска приложения. Пробрасываем ошибку, чтобы UI переподнялся.
+      debugPrint('listenToMissYouCounts error: $e');
+      onError?.call(e);
+    });
   }
 
   /// Разовый снимок общего счётчика «Я скучаю» (для фонового апдейта виджета,
@@ -6157,34 +6567,58 @@ class FirebaseService {
       // день) + ведём streak в Firebase (источник) ниже.
       if (_dualWrite) unawaited(_sb.recordGroupActivity(groupId, today));
 
-      // Read from local cache only — the group doc is already being listened to
-      // via _listenToPair, so Firestore SDK always has fresh data in cache.
-      // Using serverAndCache here triggers a network round-trip on every call
-      // and causes a cascade: the streak write updates the group doc →
-      // _listenToPair fires → _handlePairChanged → recordDailyActivity again.
-      Map<String, dynamic> data;
+      // Read from local cache first — the group doc is already being listened
+      // to via _listenToPair, so the cache is usually fresh, and a cache read
+      // is free. Using serverAndCache on every call triggers a network
+      // round-trip and causes a cascade: the streak write updates the group
+      // doc → _listenToPair fires → _handlePairChanged → recordDailyActivity.
+      //
+      // НО кэшу нельзя верить, когда он говорит «серия прервана»: после
+      // обновления/переустановки кэш бывает устаревшим (старый
+      // streakLastOpenedDate), и слепая запись streakDays=1 затирала живую
+      // серию поверх актуального серверного значения — «серия сбрасывается
+      // после обновления». Поэтому сброс подтверждаем серверным чтением
+      // (максимум одно в день и только в этом редком сценарии).
+      Map<String, dynamic>? data;
       try {
         final doc = await _db
             .collection('groups')
             .doc(groupId)
             .get(const GetOptions(source: Source.cache));
-        data = doc.data() ?? {};
+        data = doc.data();
       } catch (_) {
-        // Cache miss (e.g. first launch before listener receives data) — skip.
-        return;
+        data = null; // cache miss — упадём на серверное чтение ниже
       }
-      final lastDate = data['streakLastOpenedDate'] as String?;
-      final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
 
-      if (lastDate == today) return; // already recorded today
-
-      int newStreak;
-      if (lastDate != null) {
-        final last = DateTime.tryParse(lastDate);
+      int computeNewStreak(Map<String, dynamic> d) {
+        final lastDate = d['streakLastOpenedDate'] as String?;
+        final currentStreak = (d['streakDays'] as num?)?.toInt() ?? 0;
+        if (lastDate == today) return 0; // 0 = уже записано сегодня
+        final last = lastDate != null ? DateTime.tryParse(lastDate) : null;
         final diff = last != null ? now.difference(last).inDays : 999;
-        newStreak = diff == 1 ? currentStreak + 1 : 1;
-      } else {
-        newStreak = 1;
+        return diff == 1 ? currentStreak + 1 : 1;
+      }
+
+      var newStreak = data != null ? computeNewStreak(data) : 1;
+      if (data != null && newStreak == 0) return; // already recorded today
+
+      // Кэш отсутствует или предлагает сброс — перепроверяем по серверу.
+      if (data == null || newStreak == 1) {
+        try {
+          final doc = await _db
+              .collection('groups')
+              .doc(groupId)
+              .get(const GetOptions(source: Source.server));
+          data = doc.data();
+        } catch (_) {
+          // Оффлайн — сброс без серверного подтверждения не пишем: запись по
+          // устаревшему кэшу затирает живую серию. Хуже не станет: если серия
+          // действительно прервана, завтрашний запуск это зафиксирует.
+          return;
+        }
+        if (data == null) return;
+        newStreak = computeNewStreak(data);
+        if (newStreak == 0) return; // already recorded today (on server)
       }
 
       // Also check if we should update mascot record streak.

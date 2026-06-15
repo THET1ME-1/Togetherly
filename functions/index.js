@@ -16,7 +16,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
-const { getDatabaseWithUrl } = require("firebase-admin/database");
+const { getDatabaseWithUrl, ServerValue } = require("firebase-admin/database");
 const crypto = require("crypto");
 const https = require("https");
 const { google } = require("googleapis");
@@ -1671,3 +1671,307 @@ exports.modBrowseMemories = onRequest(
   }
 );
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// mergeDuplicateGroups — слияние «расколовшейся» пары.
+//
+// Симптом: у одного партнёра обнулялись pairIds (не распуская группу), он
+// создавал новый инвайт → у пары появлялись ДВЕ группы с одинаковым составом.
+// Каждый жил в своей: счётчики «я скучаю», воспоминания, чат, серия — всё
+// расходилось. Клиентский _cleanupStaleConnections выбирал «лишнюю» группу по
+// ЛОКАЛЬНОМУ порядку устройства, поэтому партнёры стабильно держались разных
+// групп и не сходились.
+//
+// Решение: канон выбирается детерминированно (старейшая по createdAt; при
+// равенстве/отсутствии — меньший id), данные дубликата переносятся в канон,
+// дубликат помечается disbanded + mergedInto. Идемпотентно: повторный вызов
+// (вторым устройством, после сбоя) видит mergedInto и выходит. От гонки двух
+// устройств защищает mergeLock в транзакции.
+//
+// Переносится:
+//  - Firestore-сабколлекции: memories (+comments), reflections, mascots,
+//    widgetData, canvases, canvas (+strokes), moodCalendar/{uid}/months
+//    (merge полей-дней) и legacy entries. Коллизии id — канон побеждает.
+//  - Поля group-doc: streakDays = max, streakLastOpenedDate = поздняя,
+//    счётчики memoriesCount/drawingsCount += реально перенесённое.
+//  - RTDB: missYou counts дубликата прибавляются к канону (+ не-засеянный
+//    legacy из missYouCounts дубликата), chat-сообщения переносятся.
+//  - pairIds обоих участников: дубликат убирается, канон гарантируется.
+//
+// members[] дубликата НЕ трогаем: getSignedUrl проверяет членство по группе
+// из gs:// пути, а медиа перенесённых воспоминаний остаются в Storage под
+// путями старой группы.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const MERGE_LOCK_TTL_MS = 10 * 60 * 1000; // 10 минут
+
+// Копирует все документы коллекции; при совпадении id канон побеждает
+// (create → ALREADY_EXISTS пропускается). Возвращает число перенесённых.
+async function copyCollectionSkipExisting(srcCol, dstCol) {
+  const snap = await srcCol.get();
+  let copied = 0;
+  for (const doc of snap.docs) {
+    try {
+      await dstCol.doc(doc.id).create(doc.data());
+      copied++;
+    } catch (e) {
+      if (e.code !== 6 /* ALREADY_EXISTS */) throw e;
+    }
+  }
+  return { copied, docs: snap.docs };
+}
+
+exports.mergeDuplicateGroups = onCall(async (request) => {
+  const auth = requireAuth(request);
+  const idA = (request.data && request.data.groupIdA) || "";
+  const idB = (request.data && request.data.groupIdB) || "";
+  if (!idA || !idB || idA === idB) {
+    throw new HttpsError("invalid-argument", "Нужны два разных groupId");
+  }
+
+  const db = getFirestore();
+  const [docA, docB] = await Promise.all([
+    db.collection("groups").doc(idA).get(),
+    db.collection("groups").doc(idB).get(),
+  ]);
+  if (!docA.exists || !docB.exists) {
+    throw new HttpsError("not-found", "Группа не найдена");
+  }
+  const dataA = docA.data();
+  const dataB = docB.data();
+
+  // Идемпотентность: уже слиты (этим или другим устройством).
+  if (dataA.mergedInto === idB) return { canonicalId: idB, merged: false };
+  if (dataB.mergedInto === idA) return { canonicalId: idA, merged: false };
+  // Одна уже распущена по другой причине — сливать нечего.
+  if (dataA.disbanded === true) return { canonicalId: idB, merged: false };
+  if (dataB.disbanded === true) return { canonicalId: idA, merged: false };
+
+  // Право на мердж: вызывающий состоит в ОБЕИХ группах, составы совпадают.
+  const membersA = [...new Set((dataA.members || []).filter(Boolean))].sort();
+  const membersB = [...new Set((dataB.members || []).filter(Boolean))].sort();
+  if (!membersA.includes(auth.uid) || !membersB.includes(auth.uid)) {
+    throw new HttpsError("permission-denied", "Не участник групп");
+  }
+  if (membersA.length < 2 || membersA.join(",") !== membersB.join(",")) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Группы с разным составом не сливаются",
+    );
+  }
+
+  // Канон — старейшая группа (детерминированно на любом устройстве).
+  const tsOf = (d) =>
+    d.createdAt && typeof d.createdAt.toMillis === "function"
+      ? d.createdAt.toMillis()
+      : 0; // нет createdAt = очень старая группа
+  let canonDoc;
+  let dupDoc;
+  if (tsOf(dataA) !== tsOf(dataB)) {
+    [canonDoc, dupDoc] = tsOf(dataA) < tsOf(dataB) ? [docA, docB] : [docB, docA];
+  } else {
+    [canonDoc, dupDoc] = idA < idB ? [docA, docB] : [docB, docA];
+  }
+  const canonId = canonDoc.id;
+  const dupId = dupDoc.id;
+  const canonRef = db.collection("groups").doc(canonId);
+  const dupRef = db.collection("groups").doc(dupId);
+
+  // Захват mergeLock: одна попытка мерджа за раз (гонка устройств партнёров).
+  const lockTaken = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(dupRef);
+    const fd = fresh.data() || {};
+    if (fd.mergedInto) return false; // уже слили, пока мы читали
+    const lockMs =
+      fd.mergeLock && typeof fd.mergeLock.toMillis === "function"
+        ? fd.mergeLock.toMillis()
+        : 0;
+    if (lockMs && Date.now() - lockMs < MERGE_LOCK_TTL_MS) return false;
+    tx.update(dupRef, { mergeLock: FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!lockTaken) return { canonicalId: canonId, merged: false };
+
+  try {
+    const dupData = dupDoc.data();
+    const canonData = canonDoc.data();
+
+    // ── 1. Firestore-сабколлекции ────────────────────────────────────────────
+    let memoriesCopied = 0;
+    let drawingsCopied = 0;
+
+    // memories + вложенные comments
+    {
+      const { copied, docs } = await copyCollectionSkipExisting(
+        dupRef.collection("memories"),
+        canonRef.collection("memories"),
+      );
+      memoriesCopied = copied;
+      for (const m of docs) {
+        await copyCollectionSkipExisting(
+          dupRef.collection("memories").doc(m.id).collection("comments"),
+          canonRef.collection("memories").doc(m.id).collection("comments"),
+        );
+      }
+    }
+
+    for (const col of ["reflections", "mascots", "widgetData"]) {
+      await copyCollectionSkipExisting(
+        dupRef.collection(col),
+        canonRef.collection(col),
+      );
+    }
+
+    // canvases (сохранённые рисунки) — учитываем в drawingsCount
+    {
+      const { copied } = await copyCollectionSkipExisting(
+        dupRef.collection("canvases"),
+        canonRef.collection("canvases"),
+      );
+      drawingsCopied = copied;
+    }
+
+    // canvas (живое полотно) + strokes; live (presence) не переносим
+    {
+      const { docs } = await copyCollectionSkipExisting(
+        dupRef.collection("canvas"),
+        canonRef.collection("canvas"),
+      );
+      for (const c of docs) {
+        await copyCollectionSkipExisting(
+          dupRef.collection("canvas").doc(c.id).collection("strokes"),
+          canonRef.collection("canvas").doc(c.id).collection("strokes"),
+        );
+      }
+    }
+
+    // moodCalendar/{uid}: months мерджим по полям (дни за время раскола
+    // существуют только в дубликате), legacy entries — create-skip.
+    {
+      const moodDocs = await dupRef.collection("moodCalendar").get();
+      for (const md of moodDocs.docs) {
+        const dstMood = canonRef.collection("moodCalendar").doc(md.id);
+        const fields = md.data();
+        if (fields && Object.keys(fields).length > 0) {
+          await dstMood.set(fields, { merge: true });
+        }
+        const months = await md.ref.collection("months").get();
+        for (const mo of months.docs) {
+          await dstMood
+            .collection("months")
+            .doc(mo.id)
+            .set(mo.data(), { merge: true });
+        }
+        await copyCollectionSkipExisting(
+          md.ref.collection("entries"),
+          dstMood.collection("entries"),
+        );
+      }
+    }
+
+    // ── 2. Поля канонического group-doc ──────────────────────────────────────
+    const canonUpdates = {};
+    const dupStreak = Number(dupData.streakDays) || 0;
+    const canonStreak = Number(canonData.streakDays) || 0;
+    if (dupStreak > canonStreak) canonUpdates.streakDays = dupStreak;
+    const dupOpened = dupData.streakLastOpenedDate || "";
+    const canonOpened = canonData.streakLastOpenedDate || "";
+    if (dupOpened > canonOpened) canonUpdates.streakLastOpenedDate = dupOpened;
+    if (memoriesCopied > 0) {
+      canonUpdates.memoriesCount = FieldValue.increment(memoriesCopied);
+    }
+    if (drawingsCopied > 0) {
+      canonUpdates.drawingsCount = FieldValue.increment(drawingsCopied);
+    }
+    if (Object.keys(canonUpdates).length > 0) {
+      await canonRef.set(canonUpdates, { merge: true });
+    }
+
+    // ── 3. RTDB: счётчики «я скучаю» и чат ──────────────────────────────────
+    {
+      const missSnap = await rtdb().ref(`missYou/${dupId}`).get();
+      const miss = missSnap.val() || {};
+      const dupCounts = miss.counts || {};
+      const dupSeeded = miss.seeded || {};
+      const dupLegacy = dupData.missYouCounts || {};
+      const updates = {};
+      for (const uid of membersA) {
+        // Тапы из дубликата + его Firestore-legacy, если тот ещё не был
+        // засеян в RTDB дубликата (иначе он уже внутри counts).
+        const add =
+          (Number(dupCounts[uid]) || 0) +
+          (dupSeeded[uid] != null ? 0 : Number(dupLegacy[uid]) || 0);
+        if (add > 0) {
+          updates[`missYou/${canonId}/counts/${uid}`] =
+            ServerValue.increment(add);
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await rtdb().ref().update(updates);
+      }
+      await rtdb().ref(`missYou/${dupId}`).remove();
+    }
+
+    {
+      const chatSnap = await rtdb().ref(`chats/${dupId}/messages`).get();
+      const messages = chatSnap.val() || {};
+      const keys = Object.keys(messages);
+      if (keys.length > 0) {
+        const canonChatSnap = await rtdb()
+          .ref(`chats/${canonId}/messages`)
+          .get();
+        const existing = canonChatSnap.val() || {};
+        const updates = {};
+        for (const k of keys) {
+          if (existing[k] === undefined) {
+            updates[`chats/${canonId}/messages/${k}`] = messages[k];
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await rtdb().ref().update(updates);
+        }
+      }
+      await rtdb().ref(`chats/${dupId}`).remove();
+    }
+
+    // ── 4. Финализация: дубликат распущен, pairIds участников починены ──────
+    await dupRef.update({
+      disbanded: true,
+      mergedInto: canonId,
+      mergeLock: FieldValue.delete(),
+    });
+    for (const uid of membersA) {
+      await db
+        .collection("users")
+        .doc(uid)
+        .set(
+          {
+            pairIds: FieldValue.arrayRemove(dupId),
+          },
+          { merge: true },
+        );
+      await db
+        .collection("users")
+        .doc(uid)
+        .set(
+          {
+            pairIds: FieldValue.arrayUnion(canonId),
+          },
+          { merge: true },
+        );
+    }
+
+    console.log(
+      `mergeDuplicateGroups: ${dupId} → ${canonId} by ${auth.uid}, ` +
+        `memories=${memoriesCopied}, drawings=${drawingsCopied}`,
+    );
+    return { canonicalId: canonId, merged: true };
+  } catch (e) {
+    // Снимаем лок, чтобы можно было повторить (идемпотентные шаги докатятся).
+    await dupRef
+      .update({ mergeLock: FieldValue.delete() })
+      .catch(() => undefined);
+    console.error("mergeDuplicateGroups failed:", e && e.message);
+    throw new HttpsError("internal", "Мердж не удался, попробуйте ещё раз");
+  }
+});
