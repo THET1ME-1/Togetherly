@@ -42,6 +42,10 @@ class ChatService {
   /// (общий источник, его пишут обе версии) — безопасный дефолт.
   bool _readSb(String groupId) => _fb.readFromSupabase(groupId);
 
+  /// Stage 4: писать ли чат в RTDB (Firebase). Для полностью мигрированной группы
+  /// — нет: чат живёт только в Supabase. См. FirebaseService.writeToFirebase.
+  bool _writeFb(String groupId) => _fb.writeToFirebase(groupId);
+
   FirebaseDatabase get _db => FirebaseDatabase.instanceFor(
         app: Firebase.app(),
         databaseURL: _kChatRtdbUrl,
@@ -61,6 +65,7 @@ class ChatService {
   /// перед первой отправкой. Идемпотентно.
   Future<void> ensureMember(String groupId) async {
     if (groupId.isEmpty || _uid.isEmpty) return;
+    if (!_writeFb(groupId)) return; // Stage 4: мигрированная группа не пишет RTDB
     // Stage 2: пишем в RTDB (источник) → членство в RTDB снова нужно для правил.
     try {
       await _db.ref('chats/$groupId/members/$_uid').set(true);
@@ -157,19 +162,22 @@ class ChatService {
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
     try {
       // Двойная запись: RTDB (источник, читают обе версии) + зеркало в Supabase
-      // под ОДНИМ id (RTDB push-key), чтобы Stage 3 не задвоил.
-      await ensureMember(groupId);
+      // под ОДНИМ id (RTDB push-key — клиентский, доступен без записи), чтобы
+      // Stage 3 не задвоил. Stage 4: для мигрированной группы RTDB пропускаем.
       final ref = _messagesRef(groupId).push();
       final id = ref.key ?? DateTime.now().microsecondsSinceEpoch.toString();
-      await ref.set({
-        'uid': _uid,
-        'name': senderName,
-        'text': trimmed,
-        'ts': ServerValue.timestamp,
-        if (pinId != null) 'pinId': pinId,
-        if (pinTitle != null) 'pinTitle': pinTitle,
-        if (pinThumb != null) 'pinThumb': pinThumb,
-      });
+      if (_writeFb(groupId)) {
+        await ensureMember(groupId);
+        await ref.set({
+          'uid': _uid,
+          'name': senderName,
+          'text': trimmed,
+          'ts': ServerValue.timestamp,
+          if (pinId != null) 'pinId': pinId,
+          if (pinTitle != null) 'pinTitle': pinTitle,
+          if (pinThumb != null) 'pinThumb': pinThumb,
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorChatSend(
           groupId: groupId,
@@ -203,10 +211,12 @@ class ChatService {
     final trimmed = newText.trim();
     if (groupId.isEmpty || messageId.isEmpty || trimmed.isEmpty) return;
     try {
-      await _messagesRef(groupId).child(messageId).update({
-        'text': trimmed,
-        'editedTs': ServerValue.timestamp,
-      });
+      if (_writeFb(groupId)) {
+        await _messagesRef(groupId).child(messageId).update({
+          'text': trimmed,
+          'editedTs': ServerValue.timestamp,
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorChatUpdate(messageId, {
           'text': trimmed,
@@ -225,13 +235,15 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty) return;
     try {
-      await _messagesRef(groupId).child(messageId).update({
-        'deleted': true,
-        'text': '',
-        'pinId': null,
-        'pinTitle': null,
-        'editedTs': ServerValue.timestamp,
-      });
+      if (_writeFb(groupId)) {
+        await _messagesRef(groupId).child(messageId).update({
+          'deleted': true,
+          'text': '',
+          'pinId': null,
+          'pinTitle': null,
+          'editedTs': ServerValue.timestamp,
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorChatUpdate(messageId, {
           'deleted': true,
@@ -257,13 +269,15 @@ class ChatService {
   }) async {
     if (groupId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
     try {
-      final reactionsRef =
-          _messagesRef(groupId).child(messageId).child('reactions');
-      final ref = reactionsRef.child(_uid);
-      if (emoji == null || emoji.isEmpty) {
-        await ref.remove();
-      } else {
-        await ref.set(emoji);
+      if (_writeFb(groupId)) {
+        final reactionsRef =
+            _messagesRef(groupId).child(messageId).child('reactions');
+        final ref = reactionsRef.child(_uid);
+        if (emoji == null || emoji.isEmpty) {
+          await ref.remove();
+        } else {
+          await ref.set(emoji);
+        }
       }
       // Зеркало в Supabase: атомарный RPC (jsonb_set/minus), один эмодзи на uid.
       if (_dualWrite) unawaited(_sb.setChatReaction(messageId, _uid, emoji));
@@ -290,7 +304,9 @@ class ChatService {
     if ((_syncedReadTs[groupId] ?? 0) >= lastMessageTs) return;
     _syncedReadTs[groupId] = lastMessageTs;
     try {
-      await _readsRef(groupId).child(_uid).set(lastMessageTs);
+      if (_writeFb(groupId)) {
+        await _readsRef(groupId).child(_uid).set(lastMessageTs);
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorChatRead(groupId, _uid, lastMessageTs));
       }

@@ -1103,6 +1103,18 @@ class FirebaseService {
   /// HomeWidgetService): читать ли ресурс группы из Supabase. См. [_readSb].
   bool readFromSupabase(String groupId) => _readSb(groupId);
 
+  /// Нужно ли ПИСАТЬ данные группы в Firebase (Stage 4). По умолчанию да. Когда
+  /// мастер-флаг включён И группа уже читается из Supabase (полностью мигрирована)
+  /// — нет: данные пишутся только в Supabase, Firebase-запись избыточна.
+  /// Пустой groupId / не-мигрированная группа → всегда true (безопасный дефолт).
+  /// ВАЖНО: НЕ распространяется на членство/события/users-doc/RTDB — те пишутся
+  /// в Firebase безусловно (их читают пуш-функции и Auth).
+  bool _writeFb(String groupId) =>
+      !(MigrationConfig.stage4DropFirebaseWrites && _readSb(groupId));
+
+  /// Публично для сервисов (ChatService): писать ли данные группы в Firebase.
+  bool writeToFirebase(String groupId) => _writeFb(groupId);
+
   /// Помечает группу «со следующей сессии читать из Supabase» — ТОЛЬКО когда
   /// compat-резолв подтвердил, что оба партнёра на новой сборке
   /// (`_groupMixed[groupId] == false`, т.е. РАЗРЕШЕНО и не смешанная), И бэкфилл
@@ -4657,14 +4669,17 @@ class FirebaseService {
       );
 
       // Двойная запись: Firebase (источник) + зеркало в Supabase под тем же id.
-      await ref.set(memory.toFirestore());
-      unawaited(
-        _db
-            .collection('groups')
-            .doc(groupId)
-            .update({'memoriesCount': FieldValue.increment(1)})
-            .catchError((_) {}),
-      );
+      // Stage 4: для мигрированной группы Firebase пропускаем (id уже у memory).
+      if (_writeFb(groupId)) {
+        await ref.set(memory.toFirestore());
+        unawaited(
+          _db
+              .collection('groups')
+              .doc(groupId)
+              .update({'memoriesCount': FieldValue.increment(1)})
+              .catchError((_) {}),
+        );
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorMemory(groupId, ref.id, memory.toFirestore()));
         unawaited(_sb.incrementGroupCounters(groupId, memories: 1));
@@ -4727,12 +4742,14 @@ class FirebaseService {
         ]);
       }
 
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .doc(memoryId)
-          .update(updates);
+      if (_writeFb(groupId)) {
+        await _db
+            .collection('groups')
+            .doc(groupId)
+            .collection('memories')
+            .doc(memoryId)
+            .update(updates);
+      }
       if (_dualWrite) unawaited(_sb.patchMemory(memoryId, sbUpdates));
     } catch (e) {
       debugPrint('updateMemory failed: $e');
@@ -4765,19 +4782,22 @@ class FirebaseService {
       }
 
       // Delete Firestore document (источник) + зеркало удаления в Supabase.
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .collection('memories')
-          .doc(memoryId)
-          .delete();
-      unawaited(
-        _db
+      // Stage 4: для мигрированной группы Firebase пропускаем.
+      if (_writeFb(groupId)) {
+        await _db
             .collection('groups')
             .doc(groupId)
-            .update({'memoriesCount': FieldValue.increment(-1)})
-            .catchError((_) {}),
-      );
+            .collection('memories')
+            .doc(memoryId)
+            .delete();
+        unawaited(
+          _db
+              .collection('groups')
+              .doc(groupId)
+              .update({'memoriesCount': FieldValue.increment(-1)})
+              .catchError((_) {}),
+        );
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorMemoryDelete(memoryId, hard: true));
         unawaited(_sb.incrementGroupCounters(groupId, memories: -1));
@@ -4954,7 +4974,9 @@ class FirebaseService {
       final fb = comment.toFirestore();
       // Двойная запись: Firebase (источник) + зеркало в Supabase под тем же id.
       final id = _commentsRef(groupId, memoryId).doc().id;
-      await _commentsRef(groupId, memoryId).doc(id).set(fb);
+      if (_writeFb(groupId)) {
+        await _commentsRef(groupId, memoryId).doc(id).set(fb);
+      }
       if (_dualWrite) unawaited(_sb.mirrorComment(groupId, memoryId, id, fb));
     } catch (e) {
       debugPrint('addComment failed: $e');
@@ -4967,7 +4989,9 @@ class FirebaseService {
     required String commentId,
   }) async {
     try {
-      await _commentsRef(groupId, memoryId).doc(commentId).delete();
+      if (_writeFb(groupId)) {
+        await _commentsRef(groupId, memoryId).doc(commentId).delete();
+      }
       if (_dualWrite) unawaited(_sb.mirrorCommentDelete(commentId));
     } catch (e) {
       debugPrint('deleteComment failed: $e');
@@ -5010,14 +5034,16 @@ class FirebaseService {
     if (u == null || groupId.isEmpty) return;
     try {
       // Двойная запись: Firebase (источник, его читает партнёр на старой версии)
-      // + зеркало в Supabase.
-      await _db.collection('groups').doc(groupId).update({
-        'memberMoods.${u.uid}': {
-          'imagePath': imagePath,
-          'label': label,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      });
+      // + зеркало в Supabase. Stage 4: для мигрированной группы Firebase пропускаем.
+      if (_writeFb(groupId)) {
+        await _db.collection('groups').doc(groupId).update({
+          'memberMoods.${u.uid}': {
+            'imagePath': imagePath,
+            'label': label,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.setMemberMood(groupId, u.uid, {
           'imagePath': imagePath,
@@ -5036,9 +5062,11 @@ class FirebaseService {
     final u = currentUser;
     if (u == null || groupId.isEmpty) return;
     try {
-      await _db.collection('groups').doc(groupId).update({
-        'memberMoods.${u.uid}': FieldValue.delete(),
-      });
+      if (_writeFb(groupId)) {
+        await _db.collection('groups').doc(groupId).update({
+          'memberMoods.${u.uid}': FieldValue.delete(),
+        });
+      }
       if (_dualWrite) unawaited(_sb.clearMemberMood(groupId, u.uid));
     } catch (e) {
       debugPrint('clearMood failed: $e');
@@ -5098,10 +5126,12 @@ class FirebaseService {
       final statusData = status is Map<String, dynamic>
           ? status
           : (status as dynamic).toJson();
-      await _db.collection('groups').doc(groupId).update({
-        'currentStatus': statusData,
-        'statusUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      if (_writeFb(groupId)) {
+        await _db.collection('groups').doc(groupId).update({
+          'currentStatus': statusData,
+          'statusUpdatedAt': FieldValue.serverTimestamp(),
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorGroupFields(
           groupId,
@@ -5117,10 +5147,12 @@ class FirebaseService {
   Future<void> clearGroupStatus(String groupId) async {
     if (groupId.isEmpty) return;
     try {
-      await _db.collection('groups').doc(groupId).update({
-        'currentStatus': FieldValue.delete(),
-        'statusUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      if (_writeFb(groupId)) {
+        await _db.collection('groups').doc(groupId).update({
+          'currentStatus': FieldValue.delete(),
+          'statusUpdatedAt': FieldValue.serverTimestamp(),
+        });
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorGroupFields(groupId, {'current_status': null}));
       }
@@ -5530,10 +5562,12 @@ class FirebaseService {
     try {
       // Двойная запись: Firebase month-документ (источник) + зеркало в Supabase.
       // merge:true сохраняет остальные записи месяца — дописываем только свою.
-      await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).set({
-        'entries': {id: entry},
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      if (_writeFb(groupId)) {
+        await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).set({
+          'entries': {id: entry},
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
       if (_dualWrite) unawaited(_sb.mirrorMoodEntry(groupId, u.uid, entry));
     } catch (e) {
       debugPrint('addMoodEntry failed: $e');
@@ -5562,9 +5596,11 @@ class FirebaseService {
     }
     try {
       // entryId = `<uid>_<millis>` — без точек/слэшей, безопасно как field-path.
-      await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).update({
-        'entries.$entryId': FieldValue.delete(),
-      });
+      if (_writeFb(groupId)) {
+        await _moodMonthsCol(groupId, u.uid).doc(_moodMonthKey(ts)).update({
+          'entries.$entryId': FieldValue.delete(),
+        });
+      }
     } catch (e) {
       debugPrint('deleteMoodEntry failed: $e');
     }
@@ -6174,7 +6210,9 @@ class FirebaseService {
       // Двойная запись: Firebase (источник) + зеркало в Supabase под ОДНИМ id,
       // чтобы при будущем переключении чтения на Supabase ничего не задвоилось.
       final id = _strokesRef(groupId, canvasId).doc().id;
-      await _strokesRef(groupId, canvasId).doc(id).set(strokeData);
+      if (_writeFb(groupId)) {
+        await _strokesRef(groupId, canvasId).doc(id).set(strokeData);
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorStroke(groupId, canvasId, id, strokeData));
       }
@@ -6193,7 +6231,9 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
+      if (_writeFb(groupId)) {
+        await _strokesRef(groupId, canvasId).doc(strokeId).update(updates);
+      }
       if (_dualWrite) unawaited(_sb.mirrorStrokePatch(strokeId, updates));
     } catch (e) {
       debugPrint('updateDrawingStroke failed: $e');
@@ -6207,7 +6247,9 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      await _strokesRef(groupId, canvasId).doc(strokeId).delete();
+      if (_writeFb(groupId)) {
+        await _strokesRef(groupId, canvasId).doc(strokeId).delete();
+      }
       if (_dualWrite) unawaited(_sb.mirrorStrokeDelete(strokeId));
     } catch (e) {
       debugPrint('deleteDrawingStroke failed: $e');
@@ -6309,10 +6351,12 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      await _canvasMainRef(
-        groupId,
-        canvasId,
-      ).set({'bgColor': colorValue}, SetOptions(merge: true));
+      if (_writeFb(groupId)) {
+        await _canvasMainRef(
+          groupId,
+          canvasId,
+        ).set({'bgColor': colorValue}, SetOptions(merge: true));
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorCanvasMeta(groupId, canvasId, bgColor: colorValue));
       }
@@ -6357,10 +6401,12 @@ class FirebaseService {
     String canvasId = 'main',
   }) async {
     try {
-      await _canvasMainRef(
-        groupId,
-        canvasId,
-      ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
+      if (_writeFb(groupId)) {
+        await _canvasMainRef(
+          groupId,
+          canvasId,
+        ).set({'canvasRotation': rotationQuarterTurns}, SetOptions(merge: true));
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorCanvasMeta(
           groupId,

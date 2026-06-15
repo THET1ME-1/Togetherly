@@ -52,6 +52,26 @@ abstract final class MigrationConfig {
   // ──────────────────────────────────────────────────────────────
   static const bool stage3ReadFromSupabase = true;
 
+  // ──────────────────────────────────────────────────────────────
+  // STAGE 4 — убрать ИЗБЫТОЧНУЮ запись данных в Firebase для полностью
+  // мигрированных групп (тех, что читаются из Supabase — см.
+  // FirebaseService._writeFb). Срезает расходы на Firestore-ЗАПИСЬ.
+  //
+  // Под Stage 4 для такой группы данные (память/чат/комментарии/настроения/
+  // холст/виджет/групповые поля) пишутся ТОЛЬКО в Supabase. НАМЕРЕННО остаются
+  // в Firebase даже для мигрированных групп (их читают пуш-функции/Auth):
+  //   • членство группы — members/memberNames/memberAvatars (роутинг пушей);
+  //   • документы-события missYouEvents/widgetDataEvents/chatEvents (триггеры FCM);
+  //   • users-doc (fcmTokens/профиль) и RTDB presence/missYou/push-токены;
+  //   • Firebase Auth.
+  //
+  // ⚠️ ЭТО УБИРАЕТ СТРАХОВОЧНУЮ СЕТКУ: пока true, у мигрированной группы НЕТ
+  //    свежей Firebase-копии данных → откат Stage 3 (stage3ReadFromSupabase=false)
+  //    перестаёт быть безопасным для новых записей. ВКЛЮЧАТЬ только ПОСЛЕ того,
+  //    как Stage 3 проверен на 2 реальных устройствах. Дефолт false.
+  // ──────────────────────────────────────────────────────────────
+  static const bool stage4DropFirebaseWrites = false;
+
   static const Set<String> _phase1Emails = {
     'badzoff@gmail.com',
     'ashatilov2008@gmail.com',
