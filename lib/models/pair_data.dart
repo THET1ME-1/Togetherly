@@ -5,7 +5,8 @@ import 'connection.dart';
 import '../services/nickname_service.dart';
 
 // Re-export for convenience
-export 'connection.dart' show RelationshipType, GroupMember, MemberMood;
+export 'connection.dart'
+    show RelationshipType, GroupMember, MemberMood, MemberAilment;
 
 /// Wrapper around ConnectionsManager for backward compatibility
 /// Delegates to the active connection
@@ -86,6 +87,25 @@ class PairData extends ChangeNotifier {
   Future<void> clearMood() async {
     if (_active == null) return;
     await _active!.clearMood();
+    notifyListeners();
+  }
+
+  // ── Самочувствие («болячки») ──
+  MemberAilment get myAilment => _active?.myAilment ?? const MemberAilment();
+  MemberAilment get partnerAilment =>
+      _active?.partnerAilment ?? const MemberAilment();
+  MemberAilment ailmentOf(String uid) =>
+      _active?.ailmentOf(uid) ?? const MemberAilment();
+
+  Future<void> setAilment(String id, String label, String emoji) async {
+    if (_active == null) return;
+    await _active!.setAilment(id, label, emoji);
+    notifyListeners();
+  }
+
+  Future<void> clearAilment() async {
+    if (_active == null) return;
+    await _active!.clearAilment();
     notifyListeners();
   }
 

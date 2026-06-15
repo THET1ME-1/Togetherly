@@ -478,6 +478,18 @@ class UserData extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Публичная ре-синхронизация с сервером после восстановления сессии
+  /// (`signInSilently`). [loadFromPrefs] синкается только если на момент его
+  /// вызова уже была активная сессия; при тихом входе сессия поднимается позже,
+  /// поэтому без этого вызова приложение весь сеанс показывало бы устаревший
+  /// локальный баланс/темы, а серверные начисления молча применялись бы поверх
+  /// неактуального состояния.
+  Future<void> syncFromServer() async {
+    if (!_fb.isLoggedIn) return;
+    await _syncFromFirestore();
+    await _maybeGrantDevCoins();
+  }
+
   Future<void> _syncFromFirestore() async {
     try {
       final data = await _fb.loadUserProfile(fromServer: true);

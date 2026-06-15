@@ -28,6 +28,7 @@ import '../services/rewarded_ad_service.dart';
 import '../services/app_icon_service.dart';
 import '../services/iap_service.dart';
 import '../services/celebration_notification_service.dart';
+import '../services/days_together_notification_service.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -91,6 +92,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notifNewMemory = true;
   bool _notifMood = true;
   bool _notifChat = true;
+  // Постоянный счётчик «дней вместе» в шторке. Состояние хранит сам сервис
+  // (DaysTogetherNotificationService), здесь — только зеркало для тумблера.
+  bool _notifDaysTogether = false;
   static const _kNotifMissYou = 'notif_miss_you';
   static const _kNotifNewMemory = 'notif_new_memory';
   static const _kNotifMood = 'notif_mood';
@@ -142,12 +146,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadNotifPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final daysTogether =
+        await DaysTogetherNotificationService.instance.isEnabled();
     if (!mounted) return;
     setState(() {
       _notifMissYou = prefs.getBool(_kNotifMissYou) ?? true;
       _notifNewMemory = prefs.getBool(_kNotifNewMemory) ?? true;
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
+      _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
       _anniversaryHintDismissed =
           prefs.getBool(_kAnniversaryHintDismissed) ?? false;
@@ -2489,6 +2496,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onChanged: (v) {
                   setModal(() => _notifChat = v);
                   _saveNotifPref(_kNotifChat, v);
+                },
+              ),
+              const Divider(height: 1),
+              // Постоянный счётчик «дней вместе» — локальное уведомление,
+              // не FCM-пуш: состоянием управляет DaysTogetherNotificationService.
+              _notifToggle(
+                icon: Icons.favorite_border_rounded,
+                color: const Color(0xFFEF4444),
+                title: s.notifDaysTogether,
+                subtitle: s.notifDaysTogetherSub,
+                value: _notifDaysTogether,
+                onChanged: (v) {
+                  setModal(() => _notifDaysTogether = v);
+                  final start = widget.timerService.systemTimer?.startDate ??
+                      widget.pairData.startDate;
+                  DaysTogetherNotificationService.instance
+                      .setEnabled(v, startDate: start);
                 },
               ),
               const SizedBox(height: 20),
