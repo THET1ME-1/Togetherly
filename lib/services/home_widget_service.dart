@@ -40,9 +40,10 @@ class HomeWidgetService {
   /// Supabase инициализирован.
   bool get _mig => FirebaseService().isMigrationUser;
 
-  /// Можно ли ЧИТАТЬ widget-данные из Supabase. Stage 2: false — читаем из
-  /// Firebase (общий источник). Stage 3 — вернуть _mig после теста.
-  bool get _readSb => false;
+  /// Можно ли ЧИТАТЬ widget-данные этой группы из Supabase. Stage 3: true только
+  /// когда группа помечена в прошлой сессии (оба партнёра на новой сборке +
+  /// бэкфилл завершён, см. FirebaseService.readFromSupabase); иначе из Firebase.
+  bool _readSb(String groupId) => FirebaseService().readFromSupabase(groupId);
 
   /// Читает widget_data одного участника (firestore-формат: те же ключи, что в
   /// Firestore-доке) — из Supabase под [_mig], иначе из Firestore. null если
@@ -52,7 +53,7 @@ class HomeWidgetService {
     String userUid,
   ) async {
     if (groupId.isEmpty || userUid.isEmpty) return null;
-    if (_readSb) return _sb.loadWidgetData(groupId, userUid);
+    if (_readSb(groupId)) return _sb.loadWidgetData(groupId, userUid);
     final doc = await _db
         .collection('groups')
         .doc(groupId)
@@ -71,7 +72,7 @@ class HomeWidgetService {
     String currentUserUid,
   ) async {
     try {
-      if (_readSb) {
+      if (_readSb(groupId)) {
         final parsed = await _sb.loadPairById(groupId, currentUserUid);
         if (parsed == null) return null;
         final members = (parsed['members'] as List?) ?? const [];

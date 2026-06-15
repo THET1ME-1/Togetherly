@@ -48,6 +48,10 @@ class FirebaseService {
   static final FirebaseService _instance = FirebaseService._();
   factory FirebaseService() => _instance;
   FirebaseService._() {
+    // Stage 3: подтянуть per-group флаги «читать из Supabase» (поставлены в
+    // прошлой сессии). Грузим один раз на старте — набор стабилен в течение
+    // сессии, источник чтения не меняется в середине (без ребинда листенеров).
+    unawaited(_loadReadSbGroups());
     // Как только появляется авторизованный пользователь (восстановление сессии
     // при старте ИЛИ свежий вход) — гарантируем Supabase-claim role=authenticated.
     // Без него RLS отклоняет все dual-write (см. ensureSupabaseRole).
@@ -120,6 +124,11 @@ class FirebaseService {
   // и константу — иначе серверный флаг подавит повторный проход.
   static const _kDataBackfillVersion = 4;
   static const _kMediaMigrationVersion = 6;
+  // Ключ per-group флага Stage 3 «эту группу читаем из Supabase». Ставится в
+  // ПРОШЛОЙ сессии _maybeMarkReadFromSupabase, когда оба партнёра на новой
+  // сборке И бэкфилл (данные+медиа) завершён. Подхватывается на следующем
+  // холодном старте (_readSbGroups) — источник чтения стабилен в течение сессии.
+  static const _kReadFromSupabase = 'supabase_read_from_v1';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -264,6 +273,9 @@ class FirebaseService {
         _migrationRetryCount.remove(groupId);
         _migrationGroups.remove(groupId); // больше не возобновляем
         debugPrint('[MIG] $groupId: миграция полностью завершена');
+        // Бэкфилл завершён → если оба партнёра на новой сборке, разрешить чтение
+        // группы из Supabase со следующей сессии (Stage 3).
+        unawaited(_maybeMarkReadFromSupabase(groupId));
       } else {
         _scheduleMigrationRetry(groupId);
       }
@@ -1050,16 +1062,75 @@ class FirebaseService {
   /// Дублировать запись в Supabase (поверх обязательной записи в Firebase).
   bool get _dualWrite => _mig;
 
-  /// Можно ли ЧИТАТЬ группу/данные из Supabase. Stage 2: false — читаем из
-  /// Firebase (общий источник, там данные у всех; и старая, и новая версия
-  /// читают одно и то же). Двойная запись наполняет Supabase для Stage 3, когда
-  /// чтение переключится через migGroupFull(groupId) после теста на устройстве.
-  ///
-  /// ПРИМЕЧАНИЕ: исторические данные 3 старых тест-аккаунтов лежали только в
-  /// Supabase (наследие Этапа-4) — им нужно один раз пере-спариться, чтобы
-  /// группа создалась в Firebase. У реальных юзеров данные в Firebase — ок.
-  // ignore: avoid_unused_parameters
-  bool _readSb(String groupId) => false;
+  /// Группы, по которым в ПРОШЛОЙ сессии подтверждено: оба партнёра на новой
+  /// сборке + бэкфилл (данные+медиа) завершён → читаем из Supabase (Stage 3).
+  /// Загружается из prefs на старте ([_loadReadSbGroups]) и НЕ меняется в
+  /// течение сессии: источник чтения переключается только на следующей сессии,
+  /// без mid-session ребинда листенеров (защита от потери сообщений из рунбука).
+  final Set<String> _readSbGroups = {};
+
+  /// Подтягивает per-group флаги Stage 3 из prefs (ключи [_kReadFromSupabase]).
+  Future<void> _loadReadSbGroups() async {
+    if (!MigrationConfig.stage3ReadFromSupabase) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final prefix = '$_kReadFromSupabase.';
+      for (final key in prefs.getKeys()) {
+        if (key.startsWith(prefix) && prefs.getBool(key) == true) {
+          _readSbGroups.add(key.substring(prefix.length));
+        }
+      }
+      if (_readSbGroups.isNotEmpty) {
+        debugPrint('[STAGE3] чтение из Supabase: ${_readSbGroups.length} групп(ы)');
+      }
+    } catch (e) {
+      debugPrint('_loadReadSbGroups failed: $e');
+    }
+  }
+
+  /// Можно ли ЧИТАТЬ эту группу из Supabase (Stage 3). True ТОЛЬКО когда мастер-
+  /// флаг включён, юзер мигрирует и группа была помечена в ПРОШЛОЙ сессии
+  /// (_readSbGroups — оба партнёра на новой сборке + бэкфилл завершён). Иначе
+  /// читаем из Firebase (общий источник, дуал-райт держит его актуальным —
+  /// безопасный дефолт; пустой groupId/per-user чтения никогда не флипаются).
+  bool _readSb(String groupId) =>
+      MigrationConfig.stage3ReadFromSupabase &&
+      _mig &&
+      groupId.isNotEmpty &&
+      _readSbGroups.contains(groupId);
+
+  /// Публичный маршрутизатор чтения для сервисов (ChatService / WidgetService /
+  /// HomeWidgetService): читать ли ресурс группы из Supabase. См. [_readSb].
+  bool readFromSupabase(String groupId) => _readSb(groupId);
+
+  /// Помечает группу «со следующей сессии читать из Supabase» — ТОЛЬКО когда
+  /// compat-резолв подтвердил, что оба партнёра на новой сборке
+  /// (`_groupMixed[groupId] == false`, т.е. РАЗРЕШЕНО и не смешанная), И бэкфилл
+  /// данных+медиа завершён. Флаг персистится и подхватывается на следующем
+  /// холодном старте ([_readSbGroups]) — источник чтения не меняется в середине
+  /// сессии. Регресс (партнёр откатился/переустановил → снова смешанная) снимает
+  /// флаг, и следующая сессия безопасно вернётся на чтение из Firebase.
+  Future<void> _maybeMarkReadFromSupabase(String groupId) async {
+    if (!_mig || groupId.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = '$_kReadFromSupabase.$groupId';
+      final eligible = _groupMixed[groupId] == false &&
+          prefs.getBool('$_kDataBackfillDone.$groupId') == true &&
+          prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
+      if (eligible) {
+        if (prefs.getBool(key) != true) {
+          await prefs.setBool(key, true);
+          debugPrint('[STAGE3] $groupId: следующая сессия читает из Supabase');
+        }
+      } else if (prefs.getBool(key) == true) {
+        await prefs.remove(key);
+        debugPrint('[STAGE3] $groupId: чтение возвращено на Firebase (регресс)');
+      }
+    } catch (e) {
+      debugPrint('_maybeMarkReadFromSupabase($groupId) failed: $e');
+    }
+  }
 
   /// Публичный гейт миграции — нужен другим сервисам (WidgetService /
   /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
@@ -1130,6 +1201,9 @@ class FirebaseService {
       }
       final wasMixed = _groupMixed[groupId] ?? false;
       _groupMixed[groupId] = !allFresh;
+      // Compat подтверждён → пере-оценить право группы читать из Supabase
+      // (применится со следующей сессии). Снимет флаг, если пара снова смешанная.
+      unawaited(_maybeMarkReadFromSupabase(groupId));
       if (allFresh && wasMixed) {
         // Партнёр обновился → докатываем его данные в Supabase, переключение
         // источника применится на следующей сессии (без mid-session ребинда).

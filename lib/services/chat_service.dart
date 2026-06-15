@@ -36,9 +36,11 @@ class ChatService {
   /// на новой сборке.
   bool get _dualWrite => _mig;
 
-  /// Можно ли ЧИТАТЬ чат из Supabase. Stage 2: false — читаем из RTDB (общий
-  /// источник, его пишут обе версии). Stage 3 — вернуть _mig после теста.
-  bool get _readSb => false;
+  /// Можно ли ЧИТАТЬ чат этой группы из Supabase. Stage 3: true только когда
+  /// группа помечена в прошлой сессии (оба партнёра на новой сборке + бэкфилл
+  /// завершён, см. FirebaseService.readFromSupabase); иначе читаем из RTDB
+  /// (общий источник, его пишут обе версии) — безопасный дефолт.
+  bool _readSb(String groupId) => _fb.readFromSupabase(groupId);
 
   FirebaseDatabase get _db => FirebaseDatabase.instanceFor(
         app: Firebase.app(),
@@ -127,8 +129,8 @@ class ChatService {
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
-    // Stage 2: читаем сообщения из RTDB (общий источник). Stage 3 — Supabase.
-    if (_readSb) return _sb.watchMessages(groupId, limit: limit);
+    // Читаем сообщения из RTDB (общий источник); Stage 3 — из Supabase.
+    if (_readSb(groupId)) return _sb.watchMessages(groupId, limit: limit);
     return _messagesRef(groupId)
         .orderByChild('ts')
         .limitToLast(limit)
@@ -302,7 +304,7 @@ class ChatService {
   /// своё сообщение прочитано, если его ts ≤ минимального ts среди остальных.
   Stream<Map<String, int>> watchReads(String groupId) {
     if (groupId.isEmpty) return const Stream.empty();
-    if (_readSb) return _sb.watchChatReads(groupId);
+    if (_readSb(groupId)) return _sb.watchChatReads(groupId);
     return _readsRef(groupId).onValue.map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return <String, int>{};
@@ -344,7 +346,7 @@ class ChatService {
   /// Слушает только последнее сообщение — минимальный трафик RTDB.
   Stream<bool> watchHasUnread(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
-    if (_readSb) {
+    if (_readSb(groupId)) {
       // Последнее сообщение из Supabase (chat_messages, ts DESC limit 1).
       return _sb.watchLastMessage(groupId).asyncMap((last) async {
         if (last == null) return false;
