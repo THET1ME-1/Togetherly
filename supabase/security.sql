@@ -108,7 +108,12 @@ BEGIN
   DROP POLICY IF EXISTS groups_member_all ON public.groups;
   CREATE POLICY groups_member_all ON public.groups
     FOR ALL TO authenticated
-    USING (public.is_group_member(id))
+    -- USING обязан содержать `members ? app_uid()`, а НЕ только табличный
+    -- is_group_member(id): при upsert (INSERT ... ON CONFLICT DO UPDATE, как в
+    -- mirrorGroupRaw) Postgres проверяет USING UPDATE-политики, а строки группы
+    -- ещё нет в таблице → is_group_member(id) вернёт false и ПЕРВОЕ создание
+    -- группы упадёт с 42501. `members ? app_uid()` читает members новой строки.
+    USING (public.is_group_member(id) OR (members ? public.app_uid()))
     WITH CHECK (public.is_group_member(id) OR (members ? public.app_uid()));
 END $$;
 
