@@ -257,16 +257,19 @@ class WidgetService extends ChangeNotifier {
         'gender': d['gender'] ?? '',
       };
       // Двойная запись: Firebase (источник, его читают оба листенера) + зеркало.
-      await _db
-          .collection('groups')
-          .doc(gid)
-          .collection('widgetData')
-          .doc(uid)
-          .set({
-        'uid': uid,
-        ...bootstrap,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      // Stage 4: для мигрированной группы Firestore пропускаем (только Supabase).
+      if (_fb.writeToFirebase(gid)) {
+        await _db
+            .collection('groups')
+            .doc(gid)
+            .collection('widgetData')
+            .doc(uid)
+            .set({
+          'uid': uid,
+          ...bootstrap,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
       if (_dualWrite) unawaited(_sb.mirrorWidgetData(gid, uid, bootstrap));
       debugPrint('WidgetService: widgetData initialized for $uid');
     } catch (e) {
@@ -558,14 +561,17 @@ class WidgetService extends ChangeNotifier {
           .collection('widgetData')
           .doc(uid);
 
-      await ref.set({
-        'uid': uid,
-        'displayName': name,
-        'avatarUrl': avatar,
-        'gender': gender,
-        'updatedAt': FieldValue.serverTimestamp(),
-        ...fields,
-      }, SetOptions(merge: true));
+      // Stage 4: для мигрированной группы Firestore пропускаем (только Supabase).
+      if (_fb.writeToFirebase(targetGroupId)) {
+        await ref.set({
+          'uid': uid,
+          'displayName': name,
+          'avatarUrl': avatar,
+          'gender': gender,
+          'updatedAt': FieldValue.serverTimestamp(),
+          ...fields,
+        }, SetOptions(merge: true));
+      }
       if (_dualWrite) {
         unawaited(_sb.mirrorWidgetData(targetGroupId, uid, {
           'displayName': name,
