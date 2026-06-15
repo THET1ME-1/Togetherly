@@ -113,7 +113,8 @@ CREATE TABLE IF NOT EXISTS public.migration_flags (
   media_version INT         NOT NULL DEFAULT 0,
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-ALTER TABLE public.migration_flags DISABLE ROW LEVEL SECURITY;
+-- RLS on public.migration_flags is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ── Права (как у increment_miss_you) ──
 GRANT EXECUTE ON FUNCTION
