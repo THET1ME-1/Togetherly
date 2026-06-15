@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS public.mascots (
   record_streak INTEGER     NOT NULL DEFAULT 0,
   PRIMARY KEY (group_id, id)
 );
-ALTER TABLE public.mascots DISABLE ROW LEVEL SECURITY;
+-- RLS on public.mascots is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 CREATE INDEX IF NOT EXISTS idx_mascots_group ON public.mascots(group_id);
 
 -- ── Floating-маскот и streak в group-doc → колонки groups ─────

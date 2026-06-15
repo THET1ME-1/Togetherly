@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS public.canvas_strokes (
   data        JSONB       NOT NULL DEFAULT '{}'::JSONB,
   deleted     BOOLEAN     NOT NULL DEFAULT FALSE
 );
-ALTER TABLE public.canvas_strokes DISABLE ROW LEVEL SECURITY;
+-- RLS on public.canvas_strokes is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 CREATE INDEX IF NOT EXISTS idx_canvas_strokes ON public.canvas_strokes(gc, order_index ASC);
 
 -- ── Мета холста (фон / версия очистки / поворот) ──────────────
@@ -36,7 +37,8 @@ CREATE TABLE IF NOT EXISTS public.canvas_meta (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (group_id, canvas_id)
 );
-ALTER TABLE public.canvas_meta DISABLE ROW LEVEL SECURITY;
+-- RLS on public.canvas_meta is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 CREATE INDEX IF NOT EXISTS idx_canvas_meta_gc ON public.canvas_meta(gc);
 
 -- ── Каталог холстов (мультиканвас) ────────────────────────────
@@ -49,7 +51,8 @@ CREATE TABLE IF NOT EXISTS public.canvas_catalogue (
   created_by TEXT,
   PRIMARY KEY (group_id, canvas_id)
 );
-ALTER TABLE public.canvas_catalogue DISABLE ROW LEVEL SECURITY;
+-- RLS on public.canvas_catalogue is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 CREATE INDEX IF NOT EXISTS idx_canvas_cat_group ON public.canvas_catalogue(group_id);
 
 -- ── RPC: частичный патч штриха (перетаскивание картинки, sb://-URL) ──

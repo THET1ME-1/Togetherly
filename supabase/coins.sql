@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS public.iap_purchases (
   amount         INTEGER     NOT NULL,
   at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-ALTER TABLE public.iap_purchases DISABLE ROW LEVEL SECURITY;
+-- RLS on public.iap_purchases is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- Вспомогательные функции цен (зеркало констант в functions/index.js)

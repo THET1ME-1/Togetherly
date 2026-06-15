@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS public.memory_comments (
   created_at    TIMESTAMPTZ,
   deleted       BOOLEAN     NOT NULL DEFAULT FALSE
 );
-ALTER TABLE public.memory_comments DISABLE ROW LEVEL SECURITY;
+-- RLS on public.memory_comments is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 CREATE INDEX IF NOT EXISTS idx_comments_mem
   ON public.memory_comments(group_id, memory_id, created_at ASC);

@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS public.users (
   solo_timers        JSONB       NOT NULL DEFAULT '[]'::JSONB,
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+-- RLS on public.users is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 2. GROUPS
@@ -70,7 +71,8 @@ CREATE TABLE IF NOT EXISTS public.groups (
   timers                       JSONB       NOT NULL DEFAULT '[]'::JSONB,
   mascots                      JSONB       NOT NULL DEFAULT '[]'::JSONB
 );
-ALTER TABLE public.groups DISABLE ROW LEVEL SECURITY;
+-- RLS on public.groups is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 3. WIDGET DATA  (per user per group)
@@ -94,7 +96,8 @@ CREATE TABLE IF NOT EXISTS public.widget_data (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (group_id, user_uid)
 );
-ALTER TABLE public.widget_data DISABLE ROW LEVEL SECURITY;
+-- RLS on public.widget_data is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 4. MEMORIES
@@ -112,7 +115,8 @@ CREATE TABLE IF NOT EXISTS public.memories (
   is_pinned             BOOLEAN          NOT NULL DEFAULT FALSE,
   deleted               BOOLEAN          NOT NULL DEFAULT FALSE
 );
-ALTER TABLE public.memories DISABLE ROW LEVEL SECURITY;
+-- RLS on public.memories is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 5. MOOD ENTRIES
@@ -126,7 +130,8 @@ CREATE TABLE IF NOT EXISTS public.mood_entries (
   label       TEXT,
   timestamp   TIMESTAMPTZ NOT NULL
 );
-ALTER TABLE public.mood_entries DISABLE ROW LEVEL SECURITY;
+-- RLS on public.mood_entries is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 6. CHAT MESSAGES
@@ -145,7 +150,8 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
   pin_thumb   TEXT,
   deleted     BOOLEAN     NOT NULL DEFAULT FALSE
 );
-ALTER TABLE public.chat_messages DISABLE ROW LEVEL SECURITY;
+-- RLS on public.chat_messages is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- 7. MISS YOU COUNTS
@@ -157,7 +163,8 @@ CREATE TABLE IF NOT EXISTS public.miss_you (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (group_id, user_uid)
 );
-ALTER TABLE public.miss_you DISABLE ROW LEVEL SECURITY;
+-- RLS on public.miss_you is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ──────────────────────────────────────────────
 -- INDEXES

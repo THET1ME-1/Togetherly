@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS public.chat_reads (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (group_id, user_uid)
 );
-ALTER TABLE public.chat_reads DISABLE ROW LEVEL SECURITY;
+-- RLS on public.chat_reads is managed by supabase/security.sql (Stage 1); do NOT disable here
+-- (re-running this file must NOT strip RLS — was the cause of mascots/iap_purchases UNRESTRICTED).
 
 -- ── Реакция на сообщение (атомарно, без гонки партнёров) ──────
 -- Один эмодзи на uid: NULL/'' убирает ключ, иначе ставит. jsonb_set/minus
