@@ -1971,12 +1971,18 @@ class SupabaseService {
 
   /// Скачать файл по [httpUrl] и загрузить в Supabase Storage.
   /// Возвращает 'sb://' ссылку или null при ошибке.
-  Future<String?> migrateFileFromHttpUrl(
+  /// Возвращает запись: `ref` — 'sb://'/https-ссылка при успехе (иначе null);
+  /// `gone` — true, если файл удалён/недоступен НАВСЕГДА (HTTP 404/410), чтобы
+  /// вызывающий пропустил его, а не блокировал миграцию вечно. Прочие ошибки
+  /// (таймаут/5xx/сбой загрузки в Supabase) → gone=false (ретраить).
+  Future<({String? ref, bool gone})> migrateFileFromHttpUrl(
     String httpUrl,
     String storagePath, {
     String? contentType,
   }) async {
-    if (!isReady || httpUrl.isEmpty || storagePath.isEmpty) return null;
+    if (!isReady || httpUrl.isEmpty || storagePath.isEmpty) {
+      return (ref: null, gone: false);
+    }
     try {
       final response = await http
           .get(Uri.parse(httpUrl))
@@ -1985,13 +1991,16 @@ class SupabaseService {
         debugPrint(
           'migrateFileFromHttpUrl: HTTP ${response.statusCode} for $storagePath',
         );
-        return null;
+        final gone = response.statusCode == 404 || response.statusCode == 410;
+        return (ref: null, gone: gone);
       }
       final ct = contentType ?? _contentTypeFromPath(storagePath);
-      return uploadStorageFile(response.bodyBytes, storagePath, contentType: ct);
+      final ref =
+          await uploadStorageFile(response.bodyBytes, storagePath, contentType: ct);
+      return (ref: ref, gone: false);
     } catch (e) {
       debugPrint('SupabaseService.migrateFileFromHttpUrl($storagePath) failed: $e');
-      return null;
+      return (ref: null, gone: false);
     }
   }
 
