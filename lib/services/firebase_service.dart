@@ -891,11 +891,11 @@ class FirebaseService {
         if (url == null || !_isFirebaseMediaUrl(url)) continue;
         final storagePath = _fbUrlToStoragePath(url);
         if (storagePath == null) continue;
-        final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-        if (sbRef != null) {
-          updates[col] = sbRef;
-        } else {
-          failures++;
+        final res = await _migrateFbFileToSupabase(url, storagePath);
+        if (res.ref != null) {
+          updates[col] = res.ref!;
+        } else if (!res.gone) {
+          failures++; // мёртвый файл (gone) пропускаем — не блокируем группу
         }
       }
 
@@ -927,16 +927,16 @@ class FirebaseService {
           if (url == null || !_isFirebaseMediaUrl(url)) continue;
           final storagePath = _fbUrlToStoragePath(url);
           if (storagePath == null) continue;
-          final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-          if (sbRef != null) {
+          final res = await _migrateFbFileToSupabase(url, storagePath);
+          if (res.ref != null) {
             await updateDrawingStroke(
               groupId: groupId,
               strokeId: doc.id,
-              updates: {'imageUrl': sbRef},
+              updates: {'imageUrl': res.ref!},
               canvasId: canvasId,
             );
-          } else {
-            failures++;
+          } else if (!res.gone) {
+            failures++; // мёртвый файл (gone) пропускаем — не блокируем группу
           }
         }
       }
