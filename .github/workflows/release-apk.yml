@@ -238,7 +238,12 @@ jobs:
           packageName: com.togetherly.love
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: production
-          # status: completed = полный раскат. Для поэтапного — заменить на
-          # status: inProgress + userFraction: 0.2 (20% пользователей).
-          status: completed
+          # Поэтапный раскат: 20% пользователей. Долю поднимаем вручную в Play
+          # Console (или повторным запуском с большим userFraction); по достижении
+          # 100% — status: completed. inProgress + userFraction ОБЯЗАТЕЛЬНЫ вместе.
+          status: inProgress
+          userFraction: 0.2
+          # «Что нового» Google Play (≤500 символов на язык). Файлы named
+          # whatsnew-<lang>, напр. whatsnew-ru-RU.
+          whatsNewDirectory: distribution/whatsnew
           releaseName: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
