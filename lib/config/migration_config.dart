@@ -67,10 +67,14 @@ abstract final class MigrationConfig {
   //
   // ⚠️ ЭТО УБИРАЕТ СТРАХОВОЧНУЮ СЕТКУ: пока true, у мигрированной группы НЕТ
   //    свежей Firebase-копии данных → откат Stage 3 (stage3ReadFromSupabase=false)
-  //    перестаёт быть безопасным для новых записей. ВКЛЮЧАТЬ только ПОСЛЕ того,
-  //    как Stage 3 проверен на 2 реальных устройствах. Дефолт false.
+  //    перестаёт быть безопасным для НОВЫХ записей (старые данные целы в Supabase
+  //    и в Firebase-бэкфилле). ВКЛЮЧЕНО после проверки Stage 3 на 2 реальных
+  //    устройствах: полностью мигрированная пара пишет данные И медиа только в
+  //    Supabase (медиа роутится тем же гейтом — uploadFile/_uploadGroupMediaToSupabase).
+  //    Откат всё ещё возможен: stage3ReadFromSupabase=false вернёт чтения на
+  //    Firebase, но записи, сделанные под Stage 4, в Firebase не попадут.
   // ──────────────────────────────────────────────────────────────
-  static const bool stage4DropFirebaseWrites = false;
+  static const bool stage4DropFirebaseWrites = true;
 
   static const Set<String> _phase1Emails = {
     'badzoff@gmail.com',

@@ -81,7 +81,15 @@
       "Bash(echo \"=== exit: $? ===\")",
       "Bash(NODE_PATH=./functions/node_modules node scripts/cc_migrated_pair_test.js)",
       "PowerShell(flutter analyze lib/screens/home_screen.dart lib/screens/home/home_memory_preview.dart lib/screens/chat_screen.dart 2>&1)",
-      "PowerShell(if \\($?\\) { \"JS-SYNTAX-OK\" })"
+      "PowerShell(if \\($?\\) { \"JS-SYNTAX-OK\" })",
+      "PowerShell(git rev-list --left-right --count origin/main...HEAD 2>$null)",
+      "PowerShell(\"=== BRANCH ===\")",
+      "PowerShell(\"=== AHEAD/BEHIND main ===\")",
+      "PowerShell(\"=== LAST COMMITS ===\")",
+      "Bash(cp scripts/togetherly-d4856-firebase-adminsdk-*.json scripts/serviceAccountKey.json)",
+      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_storage_check.js)",
+      "Bash(rm -f scripts/serviceAccountKey.json)",
+      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_diag_group_media.js ADuqhCOwcZg89UyNzZ9D)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

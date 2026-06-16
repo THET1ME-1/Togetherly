@@ -678,13 +678,24 @@ class FirebaseService {
   ///    canvas/, которых нет в storage.rules → иначе getData = deny);
   ///  • gs:// или «голый» путь → через SDK getData (правила Storage разрешают
   ///    чтение участникам группы).
-  Future<String?> _migrateFbFileToSupabase(String fbUrl, String storagePath) async {
+  /// Переносит один файл Firebase→Supabase. Возвращает запись:
+  ///   `ref`  — 'sb://'/https-ссылка при успехе (иначе null);
+  ///   `gone` — true, если файл в Firebase Storage отсутствует НАВСЕГДА
+  ///            (object-not-found / HTTP 404). Тогда вызывающий ПРОПУСКАЕТ файл,
+  ///            а не блокирует флип всей группы вечно. Прочие сбои (таймаут,
+  ///            нет доступа, ошибка загрузки в Supabase) → gone=false (ретрай).
+  Future<({String? ref, bool gone})> _migrateFbFileToSupabase(
+    String fbUrl,
+    String storagePath,
+  ) async {
     try {
       // download-URL с токеном — самый надёжный путь (минует правила Storage).
       if (fbUrl.startsWith('http')) {
-        final sbRef = await _sb.migrateFileFromHttpUrl(fbUrl, storagePath);
-        debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"} (http)');
-        return sbRef;
+        final res = await _sb.migrateFileFromHttpUrl(fbUrl, storagePath);
+        debugPrint(
+          '[MIG] $storagePath → ${res.ref ?? (res.gone ? "GONE" : "FAILED")} (http)',
+        );
+        return res;
       }
       // gs:// или голый путь — через SDK (правила разрешают участникам группы).
       final ref = fbUrl.startsWith('gs://')
@@ -695,14 +706,22 @@ class FirebaseService {
           .timeout(const Duration(minutes: 3));
       if (bytes == null || bytes.isEmpty) {
         debugPrint('[MIG] download empty for $storagePath');
-        return null;
+        return (ref: null, gone: false);
       }
       final sbRef = await _sb.uploadStorageFile(bytes, storagePath);
       debugPrint('[MIG] $storagePath → ${sbRef ?? "FAILED"} (sdk)');
-      return sbRef;
+      return (ref: sbRef, gone: false);
+    } on FirebaseException catch (e) {
+      // Файл удалён в Firebase Storage → переносить нечего, не блокируем группу.
+      final gone = e.code == 'object-not-found';
+      debugPrint(
+        '[MIG] _migrateFbFileToSupabase($storagePath) '
+        '${gone ? "GONE (object-not-found) — пропуск" : "failed: ${e.code}"}',
+      );
+      return (ref: null, gone: gone);
     } catch (e) {
       debugPrint('[MIG] _migrateFbFileToSupabase($storagePath) failed: $e');
-      return null;
+      return (ref: null, gone: false);
     }
   }
 
@@ -737,12 +756,12 @@ class FirebaseService {
         if (url == null || !_isFirebaseMediaUrl(url)) continue;
         final storagePath = _fbUrlToStoragePath(url);
         if (storagePath == null) continue;
-        final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-        if (sbRef != null) {
-          data[field] = sbRef;
+        final res = await _migrateFbFileToSupabase(url, storagePath);
+        if (res.ref != null) {
+          data[field] = res.ref;
           changed = true;
-        } else {
-          failures++;
+        } else if (!res.gone) {
+          failures++; // мёртвый файл (gone) пропускаем — не блокируем группу
         }
       }
 
@@ -758,11 +777,11 @@ class FirebaseService {
           }
           final storagePath = _fbUrlToStoragePath(url);
           if (storagePath == null) { migratedUrls.add(url); continue; }
-          final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-          migratedUrls.add(sbRef ?? url);
-          if (sbRef != null) {
+          final res = await _migrateFbFileToSupabase(url, storagePath);
+          migratedUrls.add(res.ref ?? url);
+          if (res.ref != null) {
             changed = true;
-          } else {
+          } else if (!res.gone) {
             failures++;
           }
         }
@@ -775,11 +794,11 @@ class FirebaseService {
       if (authorAvatar != null && _isFirebaseMediaUrl(authorAvatar)) {
         final storagePath = _fbUrlToStoragePath(authorAvatar) ??
             'avatars/unknown/avatar_${id.hashCode.abs()}.jpg';
-        final sbRef = await _migrateFbFileToSupabase(authorAvatar, storagePath);
-        if (sbRef != null) {
-          newAuthorAvatar = sbRef;
+        final res = await _migrateFbFileToSupabase(authorAvatar, storagePath);
+        if (res.ref != null) {
+          newAuthorAvatar = res.ref;
           changed = true;
-        } else {
+        } else if (!res.gone) {
           failures++;
         }
       }
@@ -806,12 +825,12 @@ class FirebaseService {
           final url = (entry.value as String?) ?? '';
           if (_isFirebaseMediaUrl(url)) {
             final storagePath = 'avatars/$uid/profile${_extFromUrl(url)}';
-            final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-            if (sbRef != null) {
-              newAvatars[uid] = sbRef;
+            final res = await _migrateFbFileToSupabase(url, storagePath);
+            if (res.ref != null) {
+              newAvatars[uid] = res.ref!;
               changed = true;
               continue;
-            } else {
+            } else if (!res.gone) {
               failures++;
             }
           }
@@ -836,11 +855,11 @@ class FirebaseService {
             if (url != null && _isFirebaseMediaUrl(url)) {
               final storagePath = _fbUrlToStoragePath(url);
               if (storagePath != null) {
-                final sbRef = await _migrateFbFileToSupabase(url, storagePath);
-                if (sbRef != null) {
-                  m['imageUrl'] = sbRef;
+                final res = await _migrateFbFileToSupabase(url, storagePath);
+                if (res.ref != null) {
+                  m['imageUrl'] = res.ref;
                   changed = true;
-                } else {
+                } else if (!res.gone) {
                   failures++;
                 }
               }
@@ -1114,6 +1133,34 @@ class FirebaseService {
 
   /// Публично для сервисов (ChatService): писать ли данные группы в Firebase.
   bool writeToFirebase(String groupId) => _writeFb(groupId);
+
+  /// Извлекает groupId из storage-пути группового медиа. Для ВСЕХ групповых
+  /// префиксов (memories/, music/, timer_backgrounds/, widget/, groups/) groupId —
+  /// второй сегмент пути. Негрупповые пути (avatars/ — per-user) → null.
+  String? _groupIdFromStoragePath(String path) {
+    final parts = path.split('/');
+    if (parts.length < 2 || parts[1].isEmpty) return null;
+    switch (parts[0]) {
+      case 'memories':
+      case 'music':
+      case 'timer_backgrounds':
+      case 'widget':
+      case 'groups':
+        return parts[1];
+      default:
+        return null; // avatars/ и прочее — не групповое
+    }
+  }
+
+  /// Куда писать НОВОЕ медиа группы: в Supabase, если группа ПОЛНОСТЬЮ
+  /// мигрирована (тот же гейт, что у данных — `!_writeFb`, т.е. Stage 4 активен
+  /// и оба партнёра на новой сборке). Медиа флипается синхронно с данными, чтобы
+  /// откат оставался согласованным. Негрупповые пути (аватары) и
+  /// не-мигрированные/смешанные группы → Firebase (общий источник).
+  bool _uploadGroupMediaToSupabase(String storagePath) {
+    final gid = _groupIdFromStoragePath(storagePath);
+    return gid != null && !_writeFb(gid);
+  }
 
   /// Помечает группу «со следующей сессии читать из Supabase» — ТОЛЬКО когда
   /// compat-резолв подтвердил, что оба партнёра на новой сборке
@@ -4487,9 +4534,11 @@ class FirebaseService {
         }
       }
 
-      // Stage 2: грузим в Firebase Storage (https://-URL читают обе версии).
-      // Stage 3 (_readSb) — в Supabase Storage (sb://).
-      if (_readSb('')) {
+      // Медиа полностью мигрированной группы → Supabase Storage (sb://),
+      // синхронно с её данными (Stage 4). Не-мигрированные/смешанные группы и
+      // негрупповые пути (аватары) → Firebase Storage (https://-URL читают обе
+      // версии — безопасно для смешанных пар и отката).
+      if (_uploadGroupMediaToSupabase(uploadDestination)) {
         final bytes = await fileToUpload.readAsBytes();
         final sbRef = await _sb.uploadStorageFile(
           bytes,
@@ -6571,9 +6620,9 @@ class FirebaseService {
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
       final path = 'groups/$groupId/mascots/mascot_$ts.png';
-      // Stage 2: грузим в Firebase Storage (https://-URL читают обе версии).
-      // Stage 3 (_readSb) — в Supabase Storage (sb://).
-      if (_readSb('')) {
+      // Медиа полностью мигрированной группы → Supabase (sb://), синхронно с
+      // данными (Stage 4). Иначе → Firebase (общий источник / откат).
+      if (!_writeFb(groupId)) {
         return _sb.uploadStorageFile(
           Uint8List.fromList(pngBytes),
           path,
