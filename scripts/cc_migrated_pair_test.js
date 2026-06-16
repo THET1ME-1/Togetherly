@@ -210,8 +210,13 @@ const rows = (r) => Array.isArray(r.json) ? r.json : [];
     check('mascots: A создаёт маскота → B читает галерею',
       rows(await sbGet(`mascots?group_id=eq.${G}&id=eq.${masc}&select=name`, B.token))[0]?.name === 'Мася');
     await sbPatch(A.token, `groups?id=eq.${G}`, { active_mascot_id: masc });
+    // Огонёк растёт ТОЛЬКО когда за день отметились ОБА: первый (A) ставит
+    // «ожидание» и НЕ растит, второй РАЗНЫЙ (B) — поднимает streak.
+    const streakSolo = await sbRpc(A.token, 'group_record_activity', { p_group_id: G, p_today: today });
+    check('streak: один партнёр (A) НЕ растит огонёк (ждём второго)',
+      ok(streakSolo.status) && Number(streakSolo.json) === 0, `streak=${JSON.stringify(streakSolo.json)}`);
     const streak = await sbRpc(B.token, 'group_record_activity', { p_group_id: G, p_today: today });
-    check('mascots (RPC group_record_activity): streak считается',
+    check('streak: второй партнёр (B) растит огонёк (оба зашли)',
       ok(streak.status) && Number(streak.json) >= 1, `streak=${JSON.stringify(streak.json)}`);
     check('mascots: streak_days виден A',
       (rows(await sbGet(`groups?id=eq.${G}&select=streak_days`, A.token))[0]?.streak_days ?? 0) >= 1);
