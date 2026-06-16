@@ -285,10 +285,13 @@ class UserData extends ChangeNotifier {
     }
   }
 
-  /// Единоразовая награда за приглашение партнёра (50 🪙).
-  /// Возвращает кол-во начисленных монет, или 0 если уже выдано.
-  Future<int> claimPartnerInviteReward() async {
-    final r = await _fb.callGrantPartnerInviteReward();
+  /// Награда за подключение партнёра (50 🪙). Выдаётся по одному разу на каждую
+  /// УНИКАЛЬНУЮ пару людей (дедуп на сервере по email/uid партнёра), обоим
+  /// участникам независимо. [partnerUid] — uid второго участника пары.
+  /// Возвращает кол-во начисленных монет, или 0 если уже выдано/нет партнёра.
+  Future<int> claimPartnerInviteReward(String partnerUid) async {
+    if (partnerUid.isEmpty) return 0;
+    final r = await _fb.callGrantPartnerInviteReward(partnerUid);
     if (r == null) return 0;
     _applyServerResult(r);
     return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;

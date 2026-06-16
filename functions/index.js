@@ -1166,24 +1166,65 @@ exports.grantAdReward = onCall(async (request) => {
 });
 
 /**
- * Единоразовая награда за приглашение партнёра. 50 🪙.
- * Флаг partnerInviteRewardGranted гарантирует идемпотентность.
+ * Награда за подключение партнёра. 50 🪙 КАЖДОМУ участнику пары, по одному разу
+ * на каждую УНИКАЛЬНУЮ пару людей (не один раз на аккаунт и не за каждую группу).
+ *
+ * Дедуп — по СТАБИЛЬНОМУ ключу партнёра: его email (ник можно сменить, email —
+ * нет; фолбэк на uid, если email отсутствует). У каждого пользователя свой набор
+ * уже вознаграждённых партнёров partnerInviteRewardedKeys: пара A↔B даёт по 50
+ * обоим один раз, повторное подключение тех же двоих — 0, новый партнёр — снова 50.
+ * Оба клиента зовут эту функцию каждый за себя (передавая uid другого), поэтому
+ * награду получают оба независимо.
+ *
+ * Миграция легаси: у старых аккаунтов стоит булев флаг partnerInviteRewardGranted
+ * (без информации, С КЕМ). Чтобы не выдать повторную награду за уже существующую
+ * пару, при первом вызове новой схемы (флаг=true И набор ключей пуст) текущий
+ * партнёр сидируется в набор БЕЗ начисления; новые партнёры далее идут как обычно.
  */
 exports.grantPartnerInviteReward = onCall(async (request) => {
   const auth = requireAuth(request);
+  const partnerUid = String((request.data && request.data.partnerUid) || "").trim();
   const db = getFirestore();
   const userRef = db.collection("users").doc(auth.uid);
 
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     const data = snap.exists ? snap.data() : {};
-    if (data.partnerInviteRewardGranted === true) {
-      return { ok: false, alreadyGranted: true, coins: Number(data.coins || 0) };
+    const coinsNow = Number(data.coins || 0);
+
+    if (!partnerUid) {
+      return { ok: false, noPartner: true, coins: coinsNow };
     }
-    const coins = Number(data.coins || 0) + PARTNER_INVITE_REWARD;
+
+    // Стабильный ключ партнёра: email (фолбэк uid). Чтение партнёра — до записей.
+    const pSnap = await tx.get(db.collection("users").doc(partnerUid));
+    const pEmail = pSnap.exists
+      ? String(pSnap.data().email || "").trim().toLowerCase() : "";
+    const partnerKey = pEmail || partnerUid;
+
+    const rewarded = Array.isArray(data.partnerInviteRewardedKeys)
+      ? data.partnerInviteRewardedKeys : [];
+
+    // Уже вознаграждены за этого партнёра.
+    if (rewarded.includes(partnerKey)) {
+      return { ok: false, alreadyGranted: true, coins: coinsNow };
+    }
+
+    // Легаси «первое касание»: старый флаг стоит, набор пуст → сидируем текущего
+    // партнёра без начисления, чтобы существующая пара не получила награду снова.
+    if (rewarded.length === 0 && data.partnerInviteRewardGranted === true) {
+      tx.set(userRef, {
+        partnerInviteRewardedKeys: FieldValue.arrayUnion(partnerKey),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { ok: false, alreadyGranted: true, coins: coinsNow };
+    }
+
+    const coins = coinsNow + PARTNER_INVITE_REWARD;
     tx.set(userRef, {
       coins,
       partnerInviteRewardGranted: true,
+      partnerInviteRewardedKeys: FieldValue.arrayUnion(partnerKey),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     return { ok: true, coins, awarded: PARTNER_INVITE_REWARD };

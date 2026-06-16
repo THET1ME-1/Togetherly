@@ -414,6 +414,7 @@ class _ChatScreenState extends State<ChatScreen> {
           pairData: widget.pairData,
           theme: _t,
           initialMemoryId: pinId,
+          userData: widget.userData,
         ),
         settings: const RouteSettings(name: '/memory_lane'),
       ),
