@@ -202,6 +202,7 @@ class SupabaseService {
         break;
       case 'grantPartnerInviteReward':
         rpc = 'grant_partner_invite_reward';
+        params['p_partner_uid'] = data['partnerUid'];
         break;
       case 'grantMoodStreakReward':
         rpc = 'grant_mood_streak_reward';

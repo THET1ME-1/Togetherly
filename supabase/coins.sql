@@ -33,6 +33,9 @@ ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS ad_rewards_today             INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS dev_coins_granted            BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS partner_invite_reward_granted BOOLEAN NOT NULL DEFAULT FALSE,
+  -- [ "<email|uid партнёра>", … ] — стабильные ключи партнёров, за которых уже
+  -- выдана награда за подключение. Награда «по 50 на уникальную пару людей».
+  ADD COLUMN IF NOT EXISTS partner_invite_rewarded_keys JSONB NOT NULL DEFAULT '[]'::JSONB,
   -- { "<groupId>": "<iso8601>" } — кулдаун mood-streak на каждую группу.
   ADD COLUMN IF NOT EXISTS mood_streak_rewards          JSONB NOT NULL DEFAULT '{}'::JSONB;
 
@@ -330,23 +333,59 @@ END;
 $$;
 
 -- ──────────────────────────────────────────────
--- 10. Награда за приглашение партнёра (50 коинов, один раз)
+-- 10. Награда за подключение партнёра (50 коинов КАЖДОМУ, один раз на пару людей)
+--     Дедуп по стабильному ключу партнёра: email (фолбэк uid) — ник можно сменить.
+--     Каждый пользователь хранит свой набор partner_invite_rewarded_keys.
+--     Сигнатура изменилась на (TEXT, TEXT) → дропаем старую 1-арг версию.
 -- ──────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.grant_partner_invite_reward(p_uid TEXT)
+DROP FUNCTION IF EXISTS public.grant_partner_invite_reward(TEXT);
+CREATE OR REPLACE FUNCTION public.grant_partner_invite_reward(p_uid TEXT, p_partner_uid TEXT DEFAULT NULL)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_coins   INT;
+  v_keys    JSONB;
   v_granted BOOLEAN;
+  v_pemail  TEXT;
+  v_key     TEXT;
 BEGIN
   PERFORM public.app_require_uid(p_uid);
-  SELECT coins, partner_invite_reward_granted INTO v_coins, v_granted
-    FROM public.users WHERE uid = p_uid FOR UPDATE;
-  IF NOT FOUND THEN v_coins := 0; v_granted := FALSE; INSERT INTO public.users (uid, coins) VALUES (p_uid, 0); END IF;
-  IF v_granted THEN
+  IF p_partner_uid IS NULL OR p_partner_uid = '' THEN
+    SELECT coins INTO v_coins FROM public.users WHERE uid = p_uid;
+    RETURN jsonb_build_object('ok', false, 'noPartner', true, 'coins', COALESCE(v_coins, 0));
+  END IF;
+
+  -- Стабильный ключ партнёра: email (фолбэк uid, напр. если партнёр ещё не в Supabase).
+  SELECT LOWER(NULLIF(TRIM(email), '')) INTO v_pemail FROM public.users WHERE uid = p_partner_uid;
+  v_key := COALESCE(v_pemail, p_partner_uid);
+
+  SELECT coins, COALESCE(partner_invite_rewarded_keys, '[]'::JSONB), partner_invite_reward_granted
+    INTO v_coins, v_keys, v_granted FROM public.users WHERE uid = p_uid FOR UPDATE;
+  IF NOT FOUND THEN
+    v_coins := 0; v_keys := '[]'::JSONB; v_granted := FALSE;
+    INSERT INTO public.users (uid, coins) VALUES (p_uid, 0);
+  END IF;
+
+  -- Уже вознаграждены за этого партнёра.
+  IF v_keys @> to_jsonb(v_key) THEN
     RETURN jsonb_build_object('ok', false, 'alreadyGranted', true, 'coins', v_coins);
   END IF;
+
+  -- Легаси «первое касание»: старый флаг стоит, набор пуст → сидируем текущего
+  -- партнёра без начисления (существующая пара не должна получить награду снова).
+  IF jsonb_array_length(v_keys) = 0 AND v_granted IS TRUE THEN
+    UPDATE public.users SET
+      partner_invite_rewarded_keys = v_keys || jsonb_build_array(v_key), updated_at = NOW()
+      WHERE uid = p_uid;
+    RETURN jsonb_build_object('ok', false, 'alreadyGranted', true, 'coins', v_coins);
+  END IF;
+
   v_coins := v_coins + 50;
-  UPDATE public.users SET coins = v_coins, partner_invite_reward_granted = TRUE, updated_at = NOW() WHERE uid = p_uid;
+  UPDATE public.users SET
+    coins = v_coins,
+    partner_invite_rewarded_keys = v_keys || jsonb_build_array(v_key),
+    partner_invite_reward_granted = TRUE,
+    updated_at = NOW()
+  WHERE uid = p_uid;
   RETURN jsonb_build_object('ok', true, 'coins', v_coins, 'awarded', 50);
 END;
 $$;
@@ -393,6 +432,6 @@ GRANT EXECUTE ON FUNCTION
   public.grant_dev_coins(TEXT),
   public.grant_memory_reward(TEXT),
   public.grant_ad_reward(TEXT),
-  public.grant_partner_invite_reward(TEXT),
+  public.grant_partner_invite_reward(TEXT, TEXT),
   public.grant_mood_streak_reward(TEXT, TEXT)
 TO anon, authenticated;

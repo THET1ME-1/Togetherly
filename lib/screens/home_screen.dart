@@ -431,6 +431,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final justPaired = !_wasPaired && isPaired;
     _wasPaired = isPaired;
 
+    // Разовая награда за приглашение партнёра — триггерим в МОМЕНТ образования
+    // пары, а не только на старте (_tryClaimStartupRewards). Иначе свежеподклю-
+    // чившийся пользователь видит задание выполненным, но монеты не приходят до
+    // перезапуска приложения. Эта точка достигается только пережившим generation-
+    // check вызовом, поэтому проблемы прерывания (см. _tryClaimStartupRewards) нет.
+    // Идемпотентно: серверный флаг partnerInviteRewardGranted + локальный кеш —
+    // повторный вызов вместе со стартовым безопасен.
+    if (justPaired) {
+      unawaited(_tryClaimPartnerInviteReward());
+    }
+
     if (mounted) {
       setState(() {
         if (justPaired && _selectedNavIndex == 2) {
@@ -894,6 +905,7 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: _t,
               userLat: _userLat,
               userLng: _userLng,
+              userData: widget.userData,
             ),
           ),
           const SizedBox(height: 40),
@@ -1939,13 +1951,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _tryClaimPartnerInviteReward() async {
     if (!mounted) return;
-    // Локальный кеш — пропускаем CF вызов если флаг уже выставлен
+    // Награда теперь за УНИКАЛЬНУЮ пару людей (не одноразово на аккаунт), поэтому
+    // и локальный кеш — на конкретного партнёра, а не глобальный флаг.
+    final partnerUid = _pairData.partnerUid;
+    if (partnerUid.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('partnerInviteRewardGranted_local') == true) return;
+    final cacheKey = 'partnerInviteRewarded_local_$partnerUid';
+    if (prefs.getBool(cacheKey) == true) return;
 
-    final amount = await widget.userData.claimPartnerInviteReward();
+    final amount = await widget.userData.claimPartnerInviteReward(partnerUid);
     if (amount > 0) {
-      await prefs.setBool('partnerInviteRewardGranted_local', true);
+      await prefs.setBool(cacheKey, true);
     }
     if (amount <= 0 || !mounted) return;
     CoinRewardToast.show(

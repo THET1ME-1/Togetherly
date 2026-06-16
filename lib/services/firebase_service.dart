@@ -2121,8 +2121,10 @@ class FirebaseService {
   Future<Map<String, dynamic>?> callGrantAdReward() =>
       _callCoinFn('grantAdReward');
 
-  Future<Map<String, dynamic>?> callGrantPartnerInviteReward() =>
-      _callCoinFn('grantPartnerInviteReward');
+  /// Награда за подключение партнёра — по 50 🪙 каждому, один раз на уникальную
+  /// пару людей. [partnerUid] — uid второго участника (дедуп по его email/uid).
+  Future<Map<String, dynamic>?> callGrantPartnerInviteReward(String partnerUid) =>
+      _callCoinFn('grantPartnerInviteReward', {'partnerUid': partnerUid});
 
   Future<Map<String, dynamic>?> callGrantMoodStreakReward(String groupId) =>
       _callCoinFn('grantMoodStreakReward', {'groupId': groupId});

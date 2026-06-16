@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
+import '../../models/user_data.dart';
 import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
@@ -18,6 +19,7 @@ class MemoryLanePreview extends StatelessWidget {
   final AppTheme theme;
   final double? userLat;
   final double? userLng;
+  final UserData? userData;
 
   const MemoryLanePreview({
     super.key,
@@ -27,6 +29,7 @@ class MemoryLanePreview extends StatelessWidget {
     required this.theme,
     this.userLat,
     this.userLng,
+    this.userData,
   });
 
   @override
@@ -326,7 +329,8 @@ class MemoryLanePreview extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MemoryLaneScreen(pairData: pairData, theme: theme),
+        builder: (_) =>
+            MemoryLaneScreen(pairData: pairData, theme: theme, userData: userData),
         settings: const RouteSettings(name: '/memory_lane'),
       ),
     );
