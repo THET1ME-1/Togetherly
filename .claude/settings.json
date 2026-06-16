@@ -89,7 +89,14 @@
       "Bash(cp scripts/togetherly-d4856-firebase-adminsdk-*.json scripts/serviceAccountKey.json)",
       "Bash(NODE_PATH=./functions/node_modules node scripts/cc_storage_check.js)",
       "Bash(rm -f scripts/serviceAccountKey.json)",
-      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_diag_group_media.js ADuqhCOwcZg89UyNzZ9D)"
+      "Bash(NODE_PATH=./functions/node_modules node scripts/cc_diag_group_media.js ADuqhCOwcZg89UyNzZ9D)",
+      "PowerShell(dart analyze lib/services/firebase_service.dart lib/screens/miss_you_button.dart)",
+      "PowerShell(dart analyze lib/screens/memory_lane_screen.dart)",
+      "Bash(echo \"=== ERRORS ===\")",
+      "Bash(grep -iE 'error -' 'C:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\10897fda-ffca-44a7-b502-bd05cf991b46\\\\tool-results\\\\b6qz3vdq3.txt')",
+      "Bash(echo \"=== WARNINGS ===\")",
+      "Bash(grep -iE 'warning -' 'C:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\10897fda-ffca-44a7-b502-bd05cf991b46\\\\tool-results\\\\b6qz3vdq3.txt')",
+      "Bash(echo \"=== VideoProgress / unused ===\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

@@ -5892,7 +5892,8 @@ class FirebaseService {
   }) async {
     final myUid = uid;
     if (myUid == null || groupId.isEmpty) return;
-    await RateLimiterService().checkVibe();
+    // «Я скучаю» намеренно без рейт-лимита: счётчик идёт в RTDB (даром), а
+    // защита от спама пушами осталась только на прочих вайбах (sendVibe).
     try {
       debugPrint('sendMissYou($groupId): incrementing counter for uid=$myUid');
       // 1. Инкремент per-user счётчика в RTDB (атомарно, серверный increment).
@@ -5920,7 +5921,6 @@ class FirebaseService {
             'timestamp': FieldValue.serverTimestamp(),
           });
       debugPrint('sendMissYou($groupId): event written for push');
-      unawaited(RateLimiterService().recordVibe());
       unawaited(AnalyticsService.instance.logMissYouSent());
     } catch (e) {
       debugPrint('sendMissYou failed: $e');
