@@ -6731,6 +6731,8 @@ class FirebaseService {
   /// Updates the group's streak counter.
   Future<void> recordGroupActivity(String groupId) async {
     if (groupId.isEmpty) return;
+    final uid = currentUser?.uid;
+    if (uid == null) return;
     try {
       final now = DateTime.now();
       final today =
@@ -6740,18 +6742,14 @@ class FirebaseService {
       // день) + ведём streak в Firebase (источник) ниже.
       if (_dualWrite) unawaited(_sb.recordGroupActivity(groupId, today));
 
-      // Read from local cache first — the group doc is already being listened
-      // to via _listenToPair, so the cache is usually fresh, and a cache read
-      // is free. Using serverAndCache on every call triggers a network
-      // round-trip and causes a cascade: the streak write updates the group
-      // doc → _listenToPair fires → _handlePairChanged → recordDailyActivity.
-      //
-      // НО кэшу нельзя верить, когда он говорит «серия прервана»: после
-      // обновления/переустановки кэш бывает устаревшим (старый
-      // streakLastOpenedDate), и слепая запись streakDays=1 затирала живую
-      // серию поверх актуального серверного значения — «серия сбрасывается
-      // после обновления». Поэтому сброс подтверждаем серверным чтением
-      // (максимум одно в день и только в этом редком сценарии).
+      // Огонёк растёт ТОЛЬКО когда за день зашли ОБА партнёра (а не один). Первый
+      // зашедший фиксируется в streakPendingUid/Date, второй ОТЛИЧНЫЙ участник —
+      // поднимает streakDays. group-doc активно слушается (_listenToPair), кэш
+      // обычно свежий — основные решения принимаем по кэшу БЕЗ сетевого
+      // round-trip (функция зовётся на каждый resume; серверное чтение на каждый
+      // вызов = всплеск Firestore-чтений). Сервер дёргаем лишь в момент роста
+      // огонька (≈раз в день): чтобы устаревший кэш не сбросил живую серию и не
+      // словить гонку с устройством партнёра, которое могло уже засчитать день.
       Map<String, dynamic>? data;
       try {
         final doc = await _db
@@ -6760,23 +6758,10 @@ class FirebaseService {
             .get(const GetOptions(source: Source.cache));
         data = doc.data();
       } catch (_) {
-        data = null; // cache miss — упадём на серверное чтение ниже
+        data = null;
       }
-
-      int computeNewStreak(Map<String, dynamic> d) {
-        final lastDate = d['streakLastOpenedDate'] as String?;
-        final currentStreak = (d['streakDays'] as num?)?.toInt() ?? 0;
-        if (lastDate == today) return 0; // 0 = уже записано сегодня
-        final last = lastDate != null ? DateTime.tryParse(lastDate) : null;
-        final diff = last != null ? now.difference(last).inDays : 999;
-        return diff == 1 ? currentStreak + 1 : 1;
-      }
-
-      var newStreak = data != null ? computeNewStreak(data) : 1;
-      if (data != null && newStreak == 0) return; // already recorded today
-
-      // Кэш отсутствует или предлагает сброс — перепроверяем по серверу.
-      if (data == null || newStreak == 1) {
+      if (data == null) {
+        // Кэша нет (первый запуск/переустановка) — одно серверное чтение.
         try {
           final doc = await _db
               .collection('groups')
@@ -6784,40 +6769,77 @@ class FirebaseService {
               .get(const GetOptions(source: Source.server));
           data = doc.data();
         } catch (_) {
-          // Оффлайн — сброс без серверного подтверждения не пишем: запись по
-          // устаревшему кэшу затирает живую серию. Хуже не станет: если серия
-          // действительно прервана, завтрашний запуск это зафиксирует.
+          return; // оффлайн — ничего не пишем
+        }
+      }
+      if (data == null) return;
+
+      bool bothPresent(Map<String, dynamic> d) {
+        final pUid = d['streakPendingUid'] as String?;
+        return d['streakPendingDate'] == today && pUid != null && pUid != uid;
+      }
+
+      // Кэш намекает, что пара «оба зашли» → перед ростом берём авторитетные
+      // данные с сервера (раз в день).
+      if (data['streakLastOpenedDate'] != today && bothPresent(data)) {
+        try {
+          final doc = await _db
+              .collection('groups')
+              .doc(groupId)
+              .get(const GetOptions(source: Source.server));
+          data = doc.data();
+        } catch (_) {
           return;
         }
         if (data == null) return;
-        newStreak = computeNewStreak(data);
-        if (newStreak == 0) return; // already recorded today (on server)
       }
 
-      // Also check if we should update mascot record streak.
-      final activeMascotId = data['activeMascotId'] as String?;
-      final updates = <String, dynamic>{
-        'streakDays': newStreak,
-        'streakLastOpenedDate': today,
-      };
+      final last = data['streakLastOpenedDate'] as String?;
+      if (last == today) return; // уже засчитано сегодня (оба заходили)
 
-      await _db
-          .collection('groups')
-          .doc(groupId)
-          .set(updates, SetOptions(merge: true));
+      // Второй РАЗНЫЙ участник отметился сегодня → пара «оба зашли» → растим.
+      if (bothPresent(data)) {
+        final lastDt = last != null ? DateTime.tryParse(last) : null;
+        final todayDate = DateTime(now.year, now.month, now.day);
+        final diff = lastDt != null
+            ? todayDate
+                .difference(DateTime(lastDt.year, lastDt.month, lastDt.day))
+                .inDays
+            : 999;
+        final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
+        final newStreak = diff == 1 ? currentStreak + 1 : 1;
 
-      // Update record streak for active mascot if needed.
-      if (activeMascotId != null) {
-        final mascotDoc = await _mascotsRef(groupId).doc(activeMascotId).get();
-        if (mascotDoc.exists) {
-          final record =
-              (mascotDoc.data()?['recordStreak'] as num?)?.toInt() ?? 0;
-          if (newStreak > record) {
-            await _mascotsRef(
-              groupId,
-            ).doc(activeMascotId).update({'recordStreak': newStreak});
+        await _db.collection('groups').doc(groupId).set({
+          'streakDays': newStreak,
+          'streakLastOpenedDate': today,
+        }, SetOptions(merge: true));
+
+        // Рекорд активного маскота.
+        final activeMascotId = data['activeMascotId'] as String?;
+        if (activeMascotId != null) {
+          final mascotDoc = await _mascotsRef(groupId).doc(activeMascotId).get();
+          if (mascotDoc.exists) {
+            final record =
+                (mascotDoc.data()?['recordStreak'] as num?)?.toInt() ?? 0;
+            if (newStreak > record) {
+              await _mascotsRef(
+                groupId,
+              ).doc(activeMascotId).update({'recordStreak': newStreak});
+            }
           }
         }
+        return;
+      }
+
+      // Первый участник за сегодня (или повторный заход того же) — ставим
+      // ожидание партнёра. Огонёк пока НЕ растёт.
+      final pendingDate = data['streakPendingDate'] as String?;
+      final pendingUid = data['streakPendingUid'] as String?;
+      if (pendingDate != today || pendingUid == null) {
+        await _db.collection('groups').doc(groupId).set({
+          'streakPendingDate': today,
+          'streakPendingUid': uid,
+        }, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint('recordGroupActivity failed: $e');

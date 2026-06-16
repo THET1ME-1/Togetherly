@@ -41,51 +41,75 @@ ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS mascot_position_y       DOUBL
 ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS mascot_scale            DOUBLE PRECISION;
 ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS streak_days             INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS streak_last_opened_date TEXT;
+-- Огонёк растёт ТОЛЬКО когда за день отметились ОБА партнёра. Первый зашедший за
+-- день фиксируется тут (дата + его uid); второй ОТЛИЧНЫЙ участник «закрывает» день.
+ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS streak_pending_date     TEXT;
+ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS streak_pending_uid      TEXT;
 
 -- ── Атомарный учёт ежедневной активности (streak) ────────────
--- Аналог FirebaseService.recordGroupActivity: оба партнёра могут открыть
--- приложение одновременно — read-modify-write с клиента терял бы инкремент.
--- FOR UPDATE + один UPDATE атомарны. Возвращает новый streak.
---   p_today = 'YYYY-MM-DD' (локальная дата клиента).
+-- Аналог FirebaseService.recordGroupActivity. Огонёк растёт только если за день
+-- зашли ОБА участника пары (а не один): первый ставит «ожидание»
+-- (streak_pending_*), второй РАЗНЫЙ участник — поднимает streak_days. FOR UPDATE
+-- сериализует одновременные вызовы. Возвращает текущий streak (вырастет на
+-- вызове второго партнёра). p_today = 'YYYY-MM-DD' (локальная дата клиента).
+-- uid вызывающего берётся из токена (auth.jwt()->>'sub'), клиент его не передаёт.
 CREATE OR REPLACE FUNCTION public.group_record_activity(
   p_group_id TEXT,
   p_today    TEXT
 ) RETURNS INTEGER AS $$
 DECLARE
+  v_uid    TEXT := auth.jwt() ->> 'sub';
   v_last   TEXT;
   v_cur    INTEGER;
   v_active TEXT;
+  v_pdate  TEXT;
+  v_puid   TEXT;
   v_new    INTEGER;
 BEGIN
   IF NOT public.is_group_member(p_group_id) THEN
     RAISE EXCEPTION 'forbidden: not a group member' USING ERRCODE = 'insufficient_privilege';
   END IF;
-  SELECT streak_last_opened_date, COALESCE(streak_days, 0), active_mascot_id
-    INTO v_last, v_cur, v_active
+  SELECT streak_last_opened_date, COALESCE(streak_days, 0), active_mascot_id,
+         streak_pending_date, streak_pending_uid
+    INTO v_last, v_cur, v_active, v_pdate, v_puid
     FROM public.groups
    WHERE id = p_group_id
    FOR UPDATE;
   IF NOT FOUND THEN
     RETURN 0;
   END IF;
+
+  -- Огонёк за сегодня уже засчитан (оба отметились ранее).
   IF v_last = p_today THEN
-    RETURN v_cur;                       -- уже отметились сегодня
+    RETURN v_cur;
   END IF;
-  IF v_last IS NOT NULL AND (p_today::date - v_last::date) = 1 THEN
-    v_new := v_cur + 1;                 -- следующий подряд день
-  ELSE
-    v_new := 1;                         -- первый день или разрыв
+
+  -- Второй РАЗНЫЙ участник отметился сегодня → пара «оба зашли» → растим огонёк.
+  IF v_pdate = p_today AND v_puid IS NOT NULL AND v_puid <> v_uid THEN
+    IF v_last IS NOT NULL AND (p_today::date - v_last::date) = 1 THEN
+      v_new := v_cur + 1;               -- следующий подряд день (где оба заходили)
+    ELSE
+      v_new := 1;                       -- первый общий день или разрыв
+    END IF;
+    UPDATE public.groups
+       SET streak_days = v_new, streak_last_opened_date = p_today
+     WHERE id = p_group_id;
+    IF v_active IS NOT NULL THEN
+      UPDATE public.mascots
+         SET record_streak = v_new
+       WHERE group_id = p_group_id AND id = v_active AND record_streak < v_new;
+    END IF;
+    RETURN v_new;
   END IF;
-  UPDATE public.groups
-     SET streak_days = v_new, streak_last_opened_date = p_today
-   WHERE id = p_group_id;
-  -- Рекорд активного маскота
-  IF v_active IS NOT NULL THEN
-    UPDATE public.mascots
-       SET record_streak = v_new
-     WHERE group_id = p_group_id AND id = v_active AND record_streak < v_new;
+
+  -- Первый участник за сегодня (или повторный заход того же) — ставим ожидание
+  -- партнёра. Огонёк пока НЕ растёт.
+  IF v_pdate IS DISTINCT FROM p_today OR v_puid IS NULL THEN
+    UPDATE public.groups
+       SET streak_pending_date = p_today, streak_pending_uid = v_uid
+     WHERE id = p_group_id;
   END IF;
-  RETURN v_new;
+  RETURN v_cur;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
