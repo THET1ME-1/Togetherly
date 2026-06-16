@@ -11823,13 +11823,15 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
     setState(() {
       _position = controller.value.position;
     });
-    // Auto-restart when finished
-    if (controller.value.position >= controller.value.duration &&
-        controller.value.duration > Duration.zero) {
-      controller.seekTo(Duration.zero);
-      controller.pause();
-      setState(() => _showControls = true);
+    // Natural end: reveal controls but DON'T yank the position back to 0 — that
+    // fought the seek bar (thumb snapped to the start) and hid where playback
+    // ended. Restart-from-0 happens on the next play press (_togglePlay).
+    final v = controller.value;
+    if (v.duration > Duration.zero &&
+        v.position >= v.duration &&
+        !v.isPlaying) {
       _hideTimer?.cancel();
+      if (!_showControls) setState(() => _showControls = true);
     }
   }
 
@@ -11857,6 +11859,11 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
       _hideTimer?.cancel();
       setState(() => _showControls = true);
     } else {
+      // Restart from the beginning if playback had reached the end.
+      if (controller.value.duration > Duration.zero &&
+          controller.value.position >= controller.value.duration) {
+        controller.seekTo(Duration.zero);
+      }
       controller.play();
       _scheduleHide();
     }
@@ -12018,15 +12025,9 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (controller != null && _isInitialized)
-                              VideoProgressIndicator(
-                                controller,
-                                allowScrubbing: true,
-                                padding: EdgeInsets.zero,
-                                colors: const VideoProgressColors(
-                                  playedColor: Color(0xFFEC4899),
-                                  bufferedColor: Colors.white38,
-                                  backgroundColor: Colors.white24,
-                                ),
+                              _VideoSeekBar(
+                                controller: controller,
+                                color: const Color(0xFFEC4899),
                               ),
                             const SizedBox(height: 6),
                             Row(
@@ -12061,4 +12062,115 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
       ),
     );
   }
+}
+
+/// Seek bar for [_InAppVideoPlayerPage]. Unlike the stock
+/// [VideoProgressIndicator], it holds a local drag fraction while the user
+/// scrubs and paints the thumb from it — so the thumb follows the finger
+/// instead of snapping back to the player's not-yet-updated position between
+/// drag events (async seek lag = the visible jitter). Control is handed back to
+/// the controller once its reported position catches up to the seek target.
+class _VideoSeekBar extends StatefulWidget {
+  final VideoPlayerController controller;
+  final Color color;
+
+  const _VideoSeekBar({required this.controller, required this.color});
+
+  @override
+  State<_VideoSeekBar> createState() => _VideoSeekBarState();
+}
+
+class _VideoSeekBarState extends State<_VideoSeekBar> {
+  // 0..1 while scrubbing; null = follow the controller's reported position.
+  // The parent player rebuilds this widget on every controller tick, so no
+  // separate listener is needed here.
+  double? _dragValue;
+
+  void _seek(double fraction) {
+    final dur = widget.controller.value.duration;
+    if (dur <= Duration.zero) return;
+    final frac = fraction.clamp(0.0, 1.0);
+    setState(() => _dragValue = frac);
+    widget.controller.seekTo(dur * frac);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.controller.value;
+    final durMs = v.duration.inMilliseconds;
+    final played =
+        durMs > 0 ? (v.position.inMilliseconds / durMs).clamp(0.0, 1.0) : 0.0;
+    // Player caught up to where we dragged → drop the override (the next
+    // controller-driven rebuild resumes painting the live position smoothly).
+    if (_dragValue != null && (played - _dragValue!).abs() < 0.02) {
+      _dragValue = null;
+    }
+    final value = _dragValue ?? played;
+    final buffered = (durMs > 0 && v.buffered.isNotEmpty)
+        ? (v.buffered.last.end.inMilliseconds / durMs).clamp(0.0, 1.0)
+        : 0.0;
+    return LayoutBuilder(
+      builder: (context, c) => GestureDetector(
+        // translucent so the bar doesn't swallow system-gesture edge swipes.
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (d) => _seek(d.localPosition.dx / c.maxWidth),
+        onHorizontalDragUpdate: (d) => _seek(d.localPosition.dx / c.maxWidth),
+        child: SizedBox(
+          height: 24,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _VideoSeekBarPainter(
+              played: value,
+              buffered: buffered,
+              playedColor: widget.color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoSeekBarPainter extends CustomPainter {
+  final double played; // 0..1
+  final double buffered; // 0..1
+  final Color playedColor;
+
+  const _VideoSeekBarPainter({
+    required this.played,
+    required this.buffered,
+    required this.playedColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    const trackH = 3.0;
+    void bar(double frac, Color color) {
+      if (frac <= 0) return;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(0, cy - trackH / 2, size.width * frac, cy + trackH / 2),
+          const Radius.circular(2),
+        ),
+        Paint()..color = color,
+      );
+    }
+
+    bar(1.0, Colors.white24); // background track
+    bar(buffered, Colors.white38); // buffered
+    bar(played, playedColor); // played
+    // Thumb at the current (or dragged) position.
+    canvas.drawCircle(
+      Offset(size.width * played.clamp(0.0, 1.0), cy),
+      6,
+      Paint()..color = playedColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_VideoSeekBarPainter old) =>
+      old.played != played ||
+      old.buffered != buffered ||
+      old.playedColor != playedColor;
 }
