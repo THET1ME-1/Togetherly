@@ -4625,6 +4625,47 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       }
     }
 
+    // ── VK Музыка ──
+    if (lower.contains('vk.com/music') ||
+        lower.contains('vk.com/audio') ||
+        lower.contains('vk.ru/music')) {
+      try {
+        final pageResp = await http.get(
+          Uri.parse(url),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+          },
+        );
+        if (pageResp.statusCode == 200) {
+          final body = pageResp.body;
+          String? ogContent(String prop) => RegExp(
+                'property="$prop"\\s+content="([^"]*)"',
+                caseSensitive: false,
+              ).firstMatch(body)?.group(1);
+
+          final title = ogContent('og:title');
+          final image = ogContent('og:image');
+          final desc = ogContent('og:description');
+
+          String? artist;
+          if (desc != null && desc.contains(' — ')) {
+            artist = desc.split(' — ').first.trim();
+          }
+
+          if (title != null && title.isNotEmpty) {
+            return {
+              'title': _decodeHtmlEntities(title),
+              'artist': artist != null ? _decodeHtmlEntities(artist) : null,
+              'cover': image,
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint('VK Music meta fetch error: $e');
+      }
+    }
+
     // ── Tidal ──
     if (lower.contains('tidal.com')) {
       try {
@@ -7164,6 +7205,11 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
     } else if (lower.contains('tidal.com')) {
       _sourceName = 'Tidal';
       _isExternalLink = true;
+    } else if (lower.contains('vk.com/music') ||
+        lower.contains('vk.com/audio') ||
+        lower.contains('vk.ru/music')) {
+      _sourceName = 'VK Музыка';
+      _isExternalLink = true;
     } else if (lower.startsWith('http') &&
         !lower.contains('firebasestorage') &&
         !lower.contains('firebase')) {
@@ -7964,6 +8010,12 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
     } else if (lower.contains('tidal.com')) {
       _sourceName = 'Tidal';
       _sourceColor = const Color(0xFF000000);
+      _isExternalLink = true;
+    } else if (lower.contains('vk.com/music') ||
+        lower.contains('vk.com/audio') ||
+        lower.contains('vk.ru/music')) {
+      _sourceName = 'VK Музыка';
+      _sourceColor = const Color(0xFF0077FF);
       _isExternalLink = true;
     } else if (lower.startsWith('http') &&
         !lower.contains('firebasestorage') &&
