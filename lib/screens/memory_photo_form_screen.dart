@@ -280,7 +280,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
       ),
       title: Text(
-        'Новая запись',
+        LocaleService.current.newEntry,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
@@ -351,7 +351,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Фото/Видео',
+                  LocaleService.current.photoVideo,
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -359,7 +359,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Необязательно — нажмите чтобы выбрать',
+                  LocaleService.current.optionalTapToSelect,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
               ],
@@ -413,7 +413,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '${_media.length} элем.',
+                        LocaleService.current.itemsShort(_media.length),
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,

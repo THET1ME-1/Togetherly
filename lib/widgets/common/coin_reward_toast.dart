@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/locale_service.dart';
 
 /// Показывает всплывающее уведомление о начислении монет.
 /// Анимация: появляется снизу, задерживается, исчезает вверх.
@@ -131,7 +132,7 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '+${widget.amount} монет',
+                      LocaleService.current.coinsPlus(widget.amount),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,

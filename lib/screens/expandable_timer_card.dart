@@ -368,7 +368,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                           controller: dateCtrl,
                           keyboardType: TextInputType.datetime,
                           decoration: _dialogInputDeco(
-                            '${LocaleService.current.dateFormatHint}  чч:мм',
+                            '${LocaleService.current.dateFormatHint}  ${LocaleService.current.timeFormatHint}',
                           ),
                         ),
                       ),

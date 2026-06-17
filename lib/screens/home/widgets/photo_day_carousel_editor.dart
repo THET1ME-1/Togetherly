@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/storage_image.dart';
 import '../../../utils/photo_crop.dart';
+import '../../../services/locale_service.dart';
 
 /// Bottom-sheet редактор карусели для одного виджета "Фото-виджет".
 ///
@@ -210,7 +211,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Фото-виджет',
+                            LocaleService.current.widgetPhotoTitle,
                             style: GoogleFonts.rubik(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -220,10 +221,11 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                           const SizedBox(height: 2),
                           Text(
                             _paths.isEmpty
-                                ? 'Добавьте от 1 до 10 фото'
+                                ? LocaleService.current.addOneToTenPhotos
                                 : _paths.length == 1
-                                    ? '1 фото · без карусели'
-                                    : '${_paths.length} фото · карусель',
+                                    ? LocaleService.current.onePhotoNoCarousel
+                                    : LocaleService.current
+                                        .photoCountCarousel(_paths.length),
                             style: GoogleFonts.rubik(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -291,7 +293,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Добавьте ещё фото, чтобы появилась карусель — фото будут меняться автоматически.',
+                                LocaleService.current.addMorePhotosCarouselHint,
                                 style: GoogleFonts.rubik(
                                   fontSize: 11,
                                   color: Colors.grey.shade700,
@@ -338,7 +340,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                               ),
                             )
                           : Text(
-                              _paths.isEmpty ? 'Удалить фото' : 'Сохранить',
+                              _paths.isEmpty
+                                  ? LocaleService.current.deletePhoto
+                                  : LocaleService.current.save,
                               style: GoogleFonts.rubik(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -362,7 +366,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'Удерживайте и перетаскивайте, чтобы изменить порядок',
+            LocaleService.current.dragToReorder,
             style: GoogleFonts.rubik(
               fontSize: 11,
               color: Colors.grey.shade600,
@@ -452,7 +456,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Фото ${index + 1}',
+                  LocaleService.current.photoNumber(index + 1),
                   style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -461,7 +465,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  index == 0 ? 'Главное' : 'Позиция ${index + 1}',
+                  index == 0
+                      ? LocaleService.current.mainPhoto
+                      : LocaleService.current.positionNumber(index + 1),
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade500,
@@ -471,7 +477,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             ),
           ),
           IconButton(
-            tooltip: 'Удалить',
+            tooltip: LocaleService.current.delete,
             onPressed: () => _removePhoto(index),
             icon: Icon(
               Icons.delete_outline_rounded,
@@ -487,7 +493,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
 
   Widget _buildAddButton(AppTheme t) {
     final hasMemoryPicker = widget.onPickFromMemories != null;
-    final label = _paths.isEmpty ? 'Добавить фото' : 'Добавить ещё';
+    final label = _paths.isEmpty
+        ? LocaleService.current.photoGridAddPhoto
+        : LocaleService.current.addMore;
 
     if (!hasMemoryPicker) {
       return _addTile(
@@ -507,7 +515,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               child: _addTile(
                 t,
                 icon: Icons.add_photo_alternate_rounded,
-                label: 'С устройства',
+                label: LocaleService.current.fromDevice,
                 onTap: _addPhotos,
               ),
             ),
@@ -516,7 +524,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               child: _addTile(
                 t,
                 icon: Icons.auto_stories_rounded,
-                label: 'Из ленты',
+                label: LocaleService.current.fromFeed,
                 onTap: _addFromMemories,
               ),
             ),
@@ -570,7 +578,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Менять фото:',
+          LocaleService.current.changePhotosLabel,
           style: GoogleFonts.rubik(
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -582,7 +590,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
           children: [
             Expanded(
               child: _buildRadio(
-                title: 'При разблокировке',
+                title: LocaleService.current.onUnlockOption,
                 value: 'unlock',
                 groupValue: _rotationType,
                 onChanged: (v) => setState(() => _rotationType = v!),
@@ -591,7 +599,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             const SizedBox(width: 8),
             Expanded(
               child: _buildRadio(
-                title: 'По времени',
+                title: LocaleService.current.byTimeOption,
                 value: 'time',
                 groupValue: _rotationType,
                 onChanged: (v) => setState(() => _rotationType = v!),
@@ -611,19 +619,22 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               child: DropdownButton<int>(
                 value: _rotationInterval,
                 isExpanded: true,
-                items: const [
+                items: [
                   DropdownMenuItem(
                     value: 15,
-                    child: Text('Каждые 15 минут'),
+                    child: Text(LocaleService.current.every15Minutes),
                   ),
                   DropdownMenuItem(
                     value: 30,
-                    child: Text('Каждые 30 минут'),
+                    child: Text(LocaleService.current.every30Minutes),
                   ),
-                  DropdownMenuItem(value: 60, child: Text('Каждый час')),
+                  DropdownMenuItem(
+                    value: 60,
+                    child: Text(LocaleService.current.everyHourOption),
+                  ),
                   DropdownMenuItem(
                     value: 180,
-                    child: Text('Каждые 3 часа'),
+                    child: Text(LocaleService.current.every3HoursOption),
                   ),
                 ],
                 onChanged: (v) {

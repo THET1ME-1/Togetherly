@@ -659,7 +659,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       uiSettings: [
         AndroidUiSettings(
           cropStyle: CropStyle.circle,
-          toolbarTitle: '✂️  Обрезка аватарки',
+          toolbarTitle: LocaleService.current.cropAvatarTitle,
           toolbarColor: const Color(0xFF1A1A2E),
           toolbarWidgetColor: Colors.white,
           statusBarColor: const Color(0xFF1A1A2E),
@@ -675,9 +675,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         IOSUiSettings(
           cropStyle: CropStyle.circle,
-          title: 'Аватарка',
-          doneButtonTitle: 'Готово',
-          cancelButtonTitle: 'Отмена',
+          title: LocaleService.current.avatarTitle,
+          doneButtonTitle: LocaleService.current.done,
+          cancelButtonTitle: LocaleService.current.cancel,
           aspectRatioLockEnabled: true,
           resetAspectRatioEnabled: false,
           rotateButtonsHidden: false,
@@ -894,9 +894,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               behavior: HitTestBehavior.opaque,
               child: _infoRow(
                 icon: Icons.apps_rounded,
-                label: LocaleService.instance.isRussian
-                    ? 'Иконка приложения'
-                    : 'App icon',
+                label: LocaleService.current.appIconTitle,
                 value: _appIconName(_appIconId),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -985,15 +983,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  isRu ? 'Иконка приложения' : 'App icon',
+                  LocaleService.current.appIconTitle,
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  isRu
-                      ? 'Иконка на рабочем столе может обновиться через пару секунд.'
-                      : 'The home-screen icon may take a couple of seconds to refresh.',
+                  LocaleService.current.appIconUpdateHint,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 16),
@@ -1069,9 +1065,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(LocaleService.instance.isRussian
-              ? 'Не удалось сменить иконку'
-              : 'Could not change the icon'),
+          content: Text(LocaleService.current.appIconChangeFailed),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
@@ -3681,9 +3675,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.visibility_outlined, size: 20),
-                        label: const Text(
-                          'Посмотреть',
-                          style: TextStyle(
+                        label: Text(
+                          LocaleService.current.viewAction,
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -5086,13 +5080,13 @@ class _DateInputDialogState extends State<_DateInputDialog> {
   void _submit() {
     final parsedDate = widget.parseDateInput(widget.ctrl.text);
     if (parsedDate == null) {
-      setState(() => _error = 'Введите дату в формате ДД.ММ.ГГГГ');
+      setState(() => _error = LocaleService.current.enterDateFormat);
       return;
     }
     if (parsedDate.year < widget.firstYear ||
         parsedDate.year > widget.lastYear) {
-      setState(() =>
-          _error = 'Год от ${widget.firstYear} до ${widget.lastYear}');
+      setState(() => _error =
+          LocaleService.current.yearRange(widget.firstYear, widget.lastYear));
       return;
     }
     // Разбираем время если введено
@@ -5102,7 +5096,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
       hour = int.tryParse(timeParts[0]) ?? 0;
       minute = int.tryParse(timeParts[1]) ?? 0;
       if (hour > 23 || minute > 59) {
-        setState(() => _error = 'Время должно быть в формате ЧЧ:ММ');
+        setState(() => _error = LocaleService.current.enterTimeFormat);
         return;
       }
     }
@@ -5178,7 +5172,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
                     color: p,
                   ),
                   decoration: _fieldDecoration(
-                    hint: 'ДД.ММ.ГГГГ',
+                    hint: LocaleService.current.dateHintFormat,
                     p: p,
                     showError: true,
                   ),
@@ -5203,7 +5197,8 @@ class _DateInputDialogState extends State<_DateInputDialog> {
                     letterSpacing: 2,
                     color: p,
                   ),
-                  decoration: _fieldDecoration(hint: 'ЧЧ:ММ', p: p),
+                  decoration: _fieldDecoration(
+                      hint: LocaleService.current.timeHintFormat, p: p),
                 ),
               ),
             ],
@@ -5243,7 +5238,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
               }
             },
             icon: Icon(Icons.calendar_month_rounded, size: 16, color: p),
-            label: Text('Открыть календарь',
+            label: Text(LocaleService.current.openCalendar,
                 style: TextStyle(fontSize: 13, color: p)),
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
@@ -5256,7 +5251,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
         TextButton(
           onPressed: () => Navigator.pop(context),
           style: TextButton.styleFrom(foregroundColor: Colors.grey.shade500),
-          child: const Text('Отмена'),
+          child: Text(LocaleService.current.cancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
@@ -5264,7 +5259,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
             shape: const StadiumBorder(),
           ),
           onPressed: _submit,
-          child: const Text('Готово'),
+          child: Text(LocaleService.current.done),
         ),
       ],
     );

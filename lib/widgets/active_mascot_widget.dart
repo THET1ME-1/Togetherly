@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/mascot.dart';
+import '../services/locale_service.dart';
 import '../services/mascot_service.dart';
 import '../theme/app_theme.dart';
 
@@ -180,9 +181,9 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
-                  'Это маскот вашей группы! 🎉',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                child: Text(
+                  LocaleService.current.groupMascotBanner,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ),
             ),
@@ -271,7 +272,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 Icons.photo_library_outlined,
                 color: widget.theme.primary,
               ),
-              title: const Text('Перейти в галерею'),
+              title: Text(LocaleService.current.goToGallery),
               onTap: () {
                 Navigator.of(ctx).pop();
                 widget.onOpenGallery();
@@ -282,7 +283,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 Icons.visibility_off_outlined,
                 color: Colors.grey,
               ),
-              title: const Text('Скрыть'),
+              title: Text(LocaleService.current.hide),
               onTap: () async {
                 Navigator.of(ctx).pop();
                 setState(() => _hidden = true);

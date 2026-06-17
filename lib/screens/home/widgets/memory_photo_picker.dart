@@ -2,6 +2,7 @@ import '../../../widgets/storage_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
 
 /// Пара (url, caption) — одна фотография из ленты воспоминаний.
@@ -176,7 +177,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Лента воспоминаний',
+                            LocaleService.current.memoryLane,
                             style: GoogleFonts.rubik(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -186,10 +187,11 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                           const SizedBox(height: 2),
                           Text(
                             widget.maxCount == 1
-                                ? 'Выберите 1 фото'
+                                ? LocaleService.current.selectOnePhoto
                                 : remaining == 0
-                                    ? 'Выбрано максимум'
-                                    : 'Выберите до $remaining фото',
+                                    ? LocaleService.current.maxSelected
+                                    : LocaleService.current
+                                        .selectUpToPhotos(remaining),
                             style: GoogleFonts.rubik(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -242,8 +244,9 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                       ),
                       child: Text(
                         _selected.isEmpty
-                            ? 'Выберите фото'
-                            : 'Добавить (${_selected.length})',
+                            ? LocaleService.current.selectPhotosPrompt
+                            : LocaleService.current
+                                .addWithCount(_selected.length),
                         style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -267,7 +270,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
     if (_error != null) {
       return Center(
         child: Text(
-          'Не удалось загрузить воспоминания',
+          LocaleService.current.failedToLoadMemories,
           style: GoogleFonts.rubik(color: Colors.grey.shade500),
         ),
       );
@@ -282,7 +285,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                 size: 48, color: Colors.grey.shade300),
             const SizedBox(height: 12),
             Text(
-              'Нет фото в ленте воспоминаний',
+              LocaleService.current.noPhotosInMemoryLane,
               style: GoogleFonts.rubik(color: Colors.grey.shade500),
             ),
           ],
@@ -389,7 +392,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'В виджете',
+                      LocaleService.current.inWidget,
                       style: GoogleFonts.rubik(
                         fontSize: 9,
                         color: Colors.white,

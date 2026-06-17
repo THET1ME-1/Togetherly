@@ -633,7 +633,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
             child: Icon(Icons.refresh_rounded, color: primary, size: 18),
           ),
-          tooltip: 'Обновить',
+          tooltip: LocaleService.current.refreshTooltip,
         ),
         IconButton(
           onPressed: _openPhotoGalleryScreen,
@@ -667,7 +667,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
             child: Icon(Icons.map_rounded, color: primary, size: 18),
           ),
-          tooltip: 'Карта воспоминаний',
+          tooltip: LocaleService.current.memoriesMapTooltip,
         ),
         Padding(
           padding: const EdgeInsets.only(right: 16),
@@ -1751,7 +1751,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   Widget _movieTile(Memory memory) {
     final s = LocaleService.current;
-    final isRu = s.movies == 'Фильмы и сериалы';
+    final isRu = LocaleService.instance.isRussian;
     final title = memory.title?.isNotEmpty == true
         ? memory.title!
         : s.movies;
@@ -1909,7 +1909,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           Icon(Icons.star_rounded, size: 11, color: Colors.amber.shade700),
           const SizedBox(width: 4),
           Text(
-            'КП $rating',
+            LocaleService.current.kpRating(rating),
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -3022,8 +3022,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
               title: Text(
                 memory.latitude != null
-                    ? 'Изменить геолокацию'
-                    : 'Добавить геолокацию',
+                    ? LocaleService.current.editLocation
+                    : LocaleService.current.addLocation,
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -3703,7 +3703,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               const SizedBox(height: 24),
               _addMemoryOption(
                 icon: Icons.perm_media_rounded,
-                label: 'Фото / Видео / Заметка',
+                label: LocaleService.current.photoVideoNote,
                 color: const Color(0xFF3B82F6),
                 type: MemoryType.photo,
               ),
@@ -9725,7 +9725,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   // ── MOVIE / SERIES DETAIL ──
   Widget _buildMovieMedia(Memory memory, Color p) {
     final s = LocaleService.current;
-    final isRu = s.movies == 'Фильмы и сериалы';
+    final isRu = LocaleService.instance.isRussian;
     final title = memory.title?.isNotEmpty == true ? memory.title! : s.movies;
     final original = memory.movieOriginalTitle ?? '';
     final hasOriginal = original.isNotEmpty && original != title;
@@ -9776,7 +9776,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 Icon(Icons.star_rounded, size: 15, color: Colors.amber.shade600),
                 const SizedBox(width: 3),
                 Text(
-                  'КП ${memory.movieRatingKp!}',
+                  LocaleService.current.kpRating(memory.movieRatingKp!),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -9965,7 +9965,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         memory.latitude!, memory.longitude!,
       );
       final km = m / 1000;
-      distLabel = m < 1000 ? '${m.round()} м' : '${km.toStringAsFixed(1)} км';
+      distLabel = LocaleService.current.distanceLabel(m);
       if (km < 1) {
         pillColor = const Color(0xFF22C55E);
       } else if (km < 10) {
@@ -10998,7 +10998,7 @@ class _MapAppTile extends StatelessWidget {
           );
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Приложение не установлено')),
+              SnackBar(content: Text(LocaleService.current.appNotInstalled)),
             );
           }
           debugPrint('Cannot launch $url, fallback: $webFallback');
@@ -11734,7 +11734,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
                   icon: Icon(Icons.people_alt_rounded,
                       size: 16, color: platformColor),
                   label: Text(
-                    'Смотреть вместе',
+                    LocaleService.current.watchTogether,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

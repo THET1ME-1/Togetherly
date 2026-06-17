@@ -346,7 +346,7 @@ class _SetupScreenState extends State<SetupScreen>
       uiSettings: [
         AndroidUiSettings(
           cropStyle: CropStyle.circle,
-          toolbarTitle: '✂️  Обрезка аватарки',
+          toolbarTitle: LocaleService.current.cropAvatarTitle,
           toolbarColor: const Color(0xFF1A1A2E),
           toolbarWidgetColor: Colors.white,
           statusBarColor: const Color(0xFF1A1A2E),
@@ -362,9 +362,9 @@ class _SetupScreenState extends State<SetupScreen>
         ),
         IOSUiSettings(
           cropStyle: CropStyle.circle,
-          title: 'Аватарка',
-          doneButtonTitle: 'Готово',
-          cancelButtonTitle: 'Отмена',
+          title: LocaleService.current.avatarTitle,
+          doneButtonTitle: LocaleService.current.done,
+          cancelButtonTitle: LocaleService.current.cancel,
           aspectRatioLockEnabled: true,
           resetAspectRatioEnabled: false,
           rotateButtonsHidden: false,

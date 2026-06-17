@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/locale_service.dart';
 import '../models/postcard_template.dart';
 
 class PostcardCard extends StatelessWidget {
@@ -331,12 +332,15 @@ class _PolaroidCard extends StatelessWidget {
                       color: Colors.black.withOpacity(0.45),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.open_with_rounded, color: Colors.white, size: 11),
-                        SizedBox(width: 4),
-                        Text('потяни', style: TextStyle(color: Colors.white, fontSize: 10)),
+                        const Icon(Icons.open_with_rounded,
+                            color: Colors.white, size: 11),
+                        const SizedBox(width: 4),
+                        Text(LocaleService.current.dragHint,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 10)),
                       ],
                     ),
                   ),
@@ -375,7 +379,7 @@ class _PolaroidCard extends StatelessWidget {
                     if (isEditing) ...[
                       const Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: 34),
                       const SizedBox(height: 6),
-                      Text('Добавить фото',
+                      Text(LocaleService.current.addPhoto,
                         style: GoogleFonts.rubik(
                           fontSize: 12, color: Colors.white.withOpacity(0.9),
                           fontWeight: FontWeight.w500)),

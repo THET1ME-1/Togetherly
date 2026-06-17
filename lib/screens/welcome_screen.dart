@@ -26,12 +26,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
-    final ru = LocaleService.instance.isRussian;
 
     final slides = [
       _Slide(
         icon: Icons.favorite_rounded,
-        title: ru ? 'Только для\nвас двоих' : 'Just for\nthe two of you',
+        title: s.welcomeSlide1Title,
         subtitle: s.welcomeSubtitle,
         bg: const [Color(0xFFEADBFF), Color(0xFFF3ECFF), Color(0xFFE6E0FF)],
         card: const [Color(0xFFB98CFF), Color(0xFF9B6BFF)],
@@ -39,7 +38,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       ),
       _Slide(
         icon: Icons.photo_library_rounded,
-        title: ru ? 'Фото и\nвоспоминания' : 'Photos &\nmemories',
+        title: s.welcomeSlide2Title,
         subtitle: s.welcomeFeatureMemories,
         bg: const [Color(0xFFFFEAD9), Color(0xFFFFF4EC), Color(0xFFFFE9E4)],
         card: const [Color(0xFFFFB07A), Color(0xFFFF8A5B)],
@@ -47,7 +46,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       ),
       _Slide(
         icon: Icons.auto_awesome_rounded,
-        title: ru ? 'Ваш общий\nмир' : 'Your shared\nworld',
+        title: s.welcomeSlide3Title,
         subtitle: '${s.welcomeFeatureMood} · ${s.welcomeFeatureWidgets}',
         bg: const [Color(0xFFFFE4EC), Color(0xFFFFF1F4), Color(0xFFFCE9FF)],
         card: const [Color(0xFFFF8FA3), Color(0xFFFF6B9D)],
@@ -91,7 +90,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 )
                             : null,
                         child: Text(
-                          ru ? 'Пропустить' : 'Skip',
+                          s.skip,
                           style: GoogleFonts.rubik(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

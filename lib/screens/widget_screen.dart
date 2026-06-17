@@ -1593,8 +1593,8 @@ class _WidgetScreenState extends State<WidgetScreen>
 
           // ── 2б. Огонёк пары (серия дней подряд) ──
           _buildGalleryItem(
-            title: 'Огонёк пары',
-            subtitle: 'Сколько дней подряд вы заходите вместе',
+            title: LocaleService.current.widgetStreakTitle,
+            subtitle: LocaleService.current.widgetStreakSubtitle,
             svgString: _flameSvg,
             qualifiedName: 'com.togetherly.love.StreakWidgetProvider',
             preview: _buildStreakPreview(),
@@ -1620,8 +1620,8 @@ class _WidgetScreenState extends State<WidgetScreen>
 
         // ── 3б. Лепестковый таймер ──
         _buildGalleryItem(
-          title: 'Лепестковый таймер',
-          subtitle: 'Живой циферблат — годы, мес, дни, ч, мин, сек',
+          title: LocaleService.current.widgetPetalTimerTitle,
+          subtitle: LocaleService.current.widgetPetalTimerSubtitle,
           svgString: _timerSvg,
           qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
           preview: _buildPetalTimerPreview(),
@@ -1637,8 +1637,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         // ── 4. Фото-виджет (личный) ──
         if (isPaired || _pair.isSolo) ...[
           _buildGalleryItem(
-            title: 'Фото-виджет',
-            subtitle: 'Личная карусель: 1–10 фото с автосменой',
+            title: LocaleService.current.widgetPhotoTitle,
+            subtitle: LocaleService.current.widgetPhotoSubtitle,
             svgString: _photoSvg,
             qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
             widgetType: 'photo_day_self',
@@ -1884,9 +1884,9 @@ class _WidgetScreenState extends State<WidgetScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'СЕРИЯ ВМЕСТЕ',
-                  style: TextStyle(
+                Text(
+                  LocaleService.current.streakTogetherCaps,
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -1902,9 +1902,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                     height: 1.05,
                   ),
                 ),
-                const Text(
-                  'дней подряд',
-                  style: TextStyle(
+                Text(
+                  LocaleService.current.daysInARow,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -1912,7 +1912,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Так держать!',
+                  LocaleService.current.keepItUp,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.8),
@@ -2107,7 +2107,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Наши фото вместо рисунка',
+                  LocaleService.current.ourPhotosInsteadOfDrawing,
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -2119,8 +2119,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'Замените нарисованную пару на ваши настоящие аватарки — '
-            'на превью и на виджете рабочего стола.',
+            LocaleService.current.daysPhotosDescription,
             style: GoogleFonts.rubik(
               fontSize: 12,
               color: Colors.grey.shade600,
@@ -2139,7 +2138,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.lock_open_rounded, size: 18),
-                label: Text('Разблокировать — $_daysPhotosPrice 🪙'),
+                label: Text(
+                  LocaleService.current.unlockForCoins(_daysPhotosPrice),
+                ),
               ),
             )
           else ...[
@@ -2149,7 +2150,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               onChanged:
                   (_daysPhotosBusy || !bothPhotos) ? null : _setDaysPhotos,
               title: Text(
-                'Показывать наши фото',
+                LocaleService.current.showOurPhotos,
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -2160,8 +2161,8 @@ class _WidgetScreenState extends State<WidgetScreen>
             if (!bothPhotos)
               Text(
                 hasMyPhoto
-                    ? 'У партнёра нет фото профиля — попросите добавить.'
-                    : 'Добавьте своё фото профиля, чтобы оно появилось на виджете.',
+                    ? LocaleService.current.partnerNoProfilePhoto
+                    : LocaleService.current.addYourProfilePhoto,
                 style: GoogleFonts.rubik(fontSize: 11, color: Colors.red.shade400),
               ),
           ],
@@ -2176,7 +2177,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       return;
     }
     if (ud.coins < _daysPhotosPrice) {
-      _showDaysPhotosSnack('Недостаточно монет — нужно $_daysPhotosPrice 🪙');
+      _showDaysPhotosSnack(
+        LocaleService.current.notEnoughCoinsNeed(_daysPhotosPrice),
+      );
       return;
     }
     setState(() => _daysPhotosBusy = true);
@@ -2185,9 +2188,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     setState(() => _daysPhotosBusy = false);
     if (ok) {
       await _setDaysPhotos(true); // сразу включаем после покупки
-      if (mounted) _showDaysPhotosSnack('Готово! Ваши фото на виджете 💞');
+      if (mounted) _showDaysPhotosSnack(LocaleService.current.daysPhotosDone);
     } else {
-      _showDaysPhotosSnack('Не удалось купить — попробуйте позже');
+      _showDaysPhotosSnack(LocaleService.current.purchaseFailedTryLater);
     }
   }
 
@@ -2556,8 +2559,9 @@ class _WidgetScreenState extends State<WidgetScreen>
               Expanded(
                 child: Text(
                   _pair.partnerName.isNotEmpty
-                      ? 'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается карусель: смена при разблокировке или по таймеру.\n\nЭти фото видны только тебе. Чтобы поделиться с ${_pair.partnerName}, открой «Фото партнёра» → «Выбрать фото для партнёра».'
-                      : 'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается карусель: смена при разблокировке или по таймеру.',
+                      ? LocaleService.current
+                          .personalPhotosHelp(_pair.partnerName)
+                      : LocaleService.current.personalPhotosHelpShort,
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade700,
@@ -2602,7 +2606,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Загруженные фото попадут в ленту воспоминаний',
+                        LocaleService.current.uploadedPhotosToMemoryLane,
                         style: GoogleFonts.rubik(
                           fontSize: 11,
                           color: Colors.grey.shade500,
@@ -2627,7 +2631,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   Widget _buildPartnerPhotoExpandedContent() {
     final partnerName = _pair.partnerName.isNotEmpty
         ? _pair.partnerName
-        : 'партнёр';
+        : LocaleService.current.partnerFallback;
     final partnerSharedCount =
         _ws.firstPartnerData?.photoForPartnerUrls.length ??
         ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
@@ -2651,8 +2655,10 @@ class _WidgetScreenState extends State<WidgetScreen>
               Expanded(
                 child: Text(
                   partnerSharedCount > 0
-                      ? 'Этот виджет показывает фото, которыми делится $partnerName ($partnerSharedCount ${_pluralPhotos(partnerSharedCount)}). Менять их может только $partnerName.'
-                      : '$partnerName ещё не поделился(ась) фото. Чтобы они здесь появились, $partnerName нужно открыть «Фото партнёра» и нажать «Выбрать фото для партнёра» — обычный «Фото-виджет» виден только владельцу.',
+                      ? LocaleService.current.partnerSharesPhotosHelp(
+                          partnerName, partnerSharedCount)
+                      : LocaleService.current
+                          .partnerNotSharedHelp(partnerName),
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     color: Colors.grey.shade700,
@@ -2687,7 +2693,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               onPressed: _showPhotoForPartnerSourcePicker,
               icon: const Icon(Icons.favorite_rounded, size: 18),
               label: Text(
-                'Выбрать фото для партнёра',
+                LocaleService.current.selectPhotosForPartner,
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -2724,13 +2730,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  String _pluralPhotos(int n) {
-    final mod10 = n % 10;
-    final mod100 = n % 100;
-    if (mod10 == 1 && mod100 != 11) return 'фото';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'фото';
-    return 'фото';
-  }
 
   Widget _buildPhotoDayWidgetSelector({
     required List<int> ids,
@@ -2785,12 +2784,15 @@ class _WidgetScreenState extends State<WidgetScreen>
             _photoDayWidgetRotationInterval[widgetId] ?? 60;
         final hasCarousel = photoCount >= 2;
         final String summary = photoCount == 0
-            ? (isPartner ? 'Нет фото от партнёра' : 'Фото не добавлены')
+            ? (isPartner
+                  ? LocaleService.current.noPhotosFromPartner
+                  : LocaleService.current.noPhotosAdded)
             : !hasCarousel
-            ? '1 фото · без карусели'
+            ? LocaleService.current.onePhotoNoCarousel
             : rotationType == 'unlock'
-            ? '$photoCount фото · при разблокировке'
-            : '$photoCount фото · ${_intervalLabel(rotationInterval)}';
+            ? LocaleService.current.photoCountOnUnlock(photoCount)
+            : LocaleService.current.photoCountInterval(
+                photoCount, _intervalLabel(rotationInterval));
 
         VoidCallback onTapThumb = isPartner
             ? () => _showPartnerWidgetRotationEditor(widgetId)
@@ -2963,20 +2965,8 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  String _intervalLabel(int minutes) {
-    switch (minutes) {
-      case 15:
-        return 'каждые 15 мин';
-      case 30:
-        return 'каждые 30 мин';
-      case 60:
-        return 'каждый час';
-      case 180:
-        return 'каждые 3 часа';
-      default:
-        return 'каждые $minutes мин';
-    }
-  }
+  String _intervalLabel(int minutes) =>
+      LocaleService.current.intervalLabel(minutes);
 
   Future<void> _showPartnerWidgetRotationEditor(int widgetId) async {
     await _selectPhotoDayWidget(widgetId);
@@ -3028,7 +3018,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Фото партнёра',
+                    LocaleService.current.partnerPhotoTitle,
                     style: GoogleFonts.rubik(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -3038,10 +3028,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                   const SizedBox(height: 4),
                   Text(
                     canRotate
-                        ? 'Партнёр поделился $partnerCount фото — выберите как они будут меняться на этом виджете.'
+                        ? LocaleService.current
+                            .partnerSharedCountHelp(partnerCount)
                         : partnerCount == 1
-                        ? 'Партнёр поделился 1 фото — без карусели.'
-                        : 'Партнёр ещё не поделился фото.',
+                        ? LocaleService.current.partnerSharedOnePhoto
+                        : LocaleService.current.partnerNotSharedYet,
                     style: GoogleFonts.rubik(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -3050,7 +3041,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   if (canRotate) ...[
                     const SizedBox(height: 20),
                     Text(
-                      'Менять фото:',
+                      LocaleService.current.changePhotosLabel,
                       style: GoogleFonts.rubik(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -3062,7 +3053,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       children: [
                         Expanded(
                           child: _buildRotationRadio(
-                            title: 'При разблокировке',
+                            title: LocaleService.current.onUnlockOption,
                             value: 'unlock',
                             groupValue: rotationType,
                             onChanged: (v) =>
@@ -3072,7 +3063,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildRotationRadio(
-                            title: 'По времени',
+                            title: LocaleService.current.byTimeOption,
                             value: 'time',
                             groupValue: rotationType,
                             onChanged: (v) =>
@@ -3093,22 +3084,22 @@ class _WidgetScreenState extends State<WidgetScreen>
                           child: DropdownButton<int>(
                             value: rotationInterval,
                             isExpanded: true,
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: 15,
-                                child: Text('Каждые 15 минут'),
+                                child: Text(LocaleService.current.every15Minutes),
                               ),
                               DropdownMenuItem(
                                 value: 30,
-                                child: Text('Каждые 30 минут'),
+                                child: Text(LocaleService.current.every30Minutes),
                               ),
                               DropdownMenuItem(
                                 value: 60,
-                                child: Text('Каждый час'),
+                                child: Text(LocaleService.current.everyHourOption),
                               ),
                               DropdownMenuItem(
                                 value: 180,
-                                child: Text('Каждые 3 часа'),
+                                child: Text(LocaleService.current.every3HoursOption),
                               ),
                             ],
                             onChanged: (v) {
@@ -3153,7 +3144,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         elevation: 0,
                       ),
                       child: Text(
-                        'Сохранить',
+                        LocaleService.current.save,
                         style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -4686,7 +4677,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Создать открытку',
+                    LocaleService.current.createPostcardTitle,
                     style: GoogleFonts.rubik(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -4695,7 +4686,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Сколько дней вы вместе — красиво и со стилем',
+                    LocaleService.current.createPostcardSubtitle,
                     style: GoogleFonts.rubik(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -4953,7 +4944,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             groupId: _pair.pairId,
             type: MemoryType.photo,
             imageUrl: url,
-            caption: '📸 Виджет',
+            caption: LocaleService.current.widgetPhotoCaption,
           );
         } catch (e) {
           debugPrint('Widget → Memory (photo) failed: $e');
@@ -5417,7 +5408,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
   Widget build(BuildContext context) {
     final partner = widget.partnerName.isNotEmpty
         ? widget.partnerName
-        : 'партнёр';
+        : LocaleService.current.partnerFallback;
     final nothingSelected =
         !_toPairWidget && !_toPartnerWidget && !_toMemories;
 
@@ -5443,7 +5434,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Куда отправить фото?',
+            LocaleService.current.whereToSendPhoto,
             style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -5453,22 +5444,22 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
           const SizedBox(height: 16),
           _destTile(
             icon: Icons.dashboard_customize_rounded,
-            title: 'Парный виджет',
-            subtitle: 'Фото в «Моём виджете» — видно тебе и $partner',
+            title: LocaleService.current.captionDestPairWidget,
+            subtitle: LocaleService.current.captionDestPairWidgetSub(partner),
             value: _toPairWidget,
             onChanged: (v) => setState(() => _toPairWidget = v),
           ),
           _destTile(
             icon: Icons.favorite_rounded,
-            title: 'Виджет «Фото партнёра»',
-            subtitle: 'Отдельный виджет с фото для $partner',
+            title: LocaleService.current.captionDestPartnerWidget,
+            subtitle: LocaleService.current.captionDestPartnerWidgetSub(partner),
             value: _toPartnerWidget,
             onChanged: (v) => setState(() => _toPartnerWidget = v),
           ),
           _destTile(
             icon: Icons.photo_album_rounded,
-            title: 'Воспоминания',
-            subtitle: 'Добавить фото в ленту воспоминаний',
+            title: LocaleService.current.captionDestMemories,
+            subtitle: LocaleService.current.captionDestMemoriesSub,
             value: _toMemories,
             onChanged: (v) => setState(() => _toMemories = v),
           ),
@@ -5496,7 +5487,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
                 elevation: 0,
               ),
               child: Text(
-                'Отправить',
+                LocaleService.current.sendLabel,
                 style: GoogleFonts.rubik(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -5603,7 +5594,7 @@ const List<Map<String, dynamic>> _musicServicesList = [
     'icon': Icons.cloud_rounded,
   },
   {
-    'name': 'Яндекс Музыка',
+    'name': 'Yandex Music',
     'supported': true,
     'color': Color(0xFFFFCC00),
     'icon': Icons.library_music_rounded,

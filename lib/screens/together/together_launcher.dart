@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/rewarded_ad_service.dart';
 import 'watch_together_screen.dart';
 
@@ -42,16 +43,13 @@ class TogetherLauncher {
       builder: (ctx) => PopScope(
         canPop: false, // и системной кнопкой «назад» тоже
         child: AlertDialog(
-          title: const Text('Смотреть вместе'),
-          content: const Text(
-            'Чтобы открыть совместный просмотр, посмотри короткую рекламу — '
-            'поддержишь приложение и получишь коины 🪙',
-          ),
+          title: Text(LocaleService.current.watchTogether),
+          content: Text(LocaleService.current.watchTogetherAdPrompt),
           actions: [
             FilledButton.icon(
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.play_circle_outline_rounded),
-              label: const Text('Смотреть'),
+              label: Text(LocaleService.current.watchAction),
             ),
           ],
         ),
@@ -99,23 +97,23 @@ class TogetherLauncher {
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Смотреть вместе'),
+        title: Text(LocaleService.current.watchTogether),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Ссылка на YouTube',
-            prefixIcon: Icon(Icons.link),
+          decoration: InputDecoration(
+            hintText: LocaleService.current.youtubeLinkHint,
+            prefixIcon: const Icon(Icons.link),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
+            child: Text(LocaleService.current.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Начать'),
+            child: Text(LocaleService.current.startAction),
           ),
         ],
       ),
@@ -125,7 +123,7 @@ class TogetherLauncher {
     final videoId = YoutubePlayer.convertUrlToId(url);
     if (videoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось распознать ссылку YouTube')),
+        SnackBar(content: Text(LocaleService.current.youtubeLinkInvalid)),
       );
       return;
     }
@@ -157,7 +155,7 @@ class TogetherLauncher {
     final videoId = YoutubePlayer.convertUrlToId(videoUrl);
     if (videoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось распознать ссылку YouTube')),
+        SnackBar(content: Text(LocaleService.current.youtubeLinkInvalid)),
       );
       return;
     }
@@ -228,7 +226,8 @@ class TogetherInviteBanner extends StatelessWidget {
 
         final mediaId = (session['mediaId'] as String?) ?? '';
         if (mediaId.isEmpty) return const SizedBox.shrink();
-        final hostName = (session['hostName'] as String?) ?? 'Партнёр';
+        final hostName =
+            (session['hostName'] as String?) ?? LocaleService.current.partnerFallback;
 
         return Material(
           color: Theme.of(context).colorScheme.primaryContainer,
@@ -249,11 +248,11 @@ class TogetherInviteBanner extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '$hostName зовёт смотреть вместе',
+                      LocaleService.current.invitesToWatchTogether(hostName),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  const Text('Присоединиться'),
+                  Text(LocaleService.current.joinAction),
                   const Icon(Icons.chevron_right),
                 ],
               ),

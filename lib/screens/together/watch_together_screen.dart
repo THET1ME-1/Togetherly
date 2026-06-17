@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/together_session_service.dart';
 
 /// Совместный просмотр YouTube. Синхронизация play/pause/seek идёт через RTDB
@@ -284,7 +285,9 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     if (!mounted) return;
     if (closedByPartner) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Партнёр завершил совместный просмотр')),
+        SnackBar(
+          content: Text(LocaleService.current.partnerEndedWatchTogether),
+        ),
       );
     }
     Navigator.of(context).pop();
@@ -370,21 +373,21 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
           const Icon(Icons.lock_outline_rounded,
               color: Colors.white70, size: 40),
           const SizedBox(height: 14),
-          const Text(
-            'Это видео нельзя смотреть вместе',
+          Text(
+            LocaleService.current.videoCannotWatchTogether,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Автор ролика запретил воспроизведение вне YouTube. '
-            'Выберите другое видео — большинство роликов работает.',
+          Text(
+            LocaleService.current.videoEmbedBlockedHint,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.3),
+            style: const TextStyle(
+                color: Colors.white60, fontSize: 13, height: 1.3),
           ),
           const SizedBox(height: 18),
           ElevatedButton.icon(
@@ -397,7 +400,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
               ),
             ),
             icon: const Icon(Icons.search_rounded, size: 18),
-            label: const Text('Выбрать другое'),
+            label: Text(LocaleService.current.chooseAnother),
           ),
         ],
       ),
@@ -417,7 +420,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
           appBar: AppBar(
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
-            title: const Text('Смотрим вместе'),
+            title: Text(LocaleService.current.watchingTogether),
             leading: IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => _exit(),
@@ -468,8 +471,8 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                   const SizedBox(width: 8),
                   Text(
                     _partnerHere
-                        ? 'Партнёр подключился'
-                        : 'Ожидаем партнёра…',
+                        ? LocaleService.current.partnerJoined
+                        : LocaleService.current.waitingForPartner,
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
@@ -481,7 +484,9 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                   const Icon(Icons.sync, color: Colors.white38, size: 14),
                   const SizedBox(width: 8),
                   Text(
-                    _remotePlaying ? 'Синхронизировано · играет' : 'Синхронизировано · пауза',
+                    _remotePlaying
+                        ? LocaleService.current.syncedPlaying
+                        : LocaleService.current.syncedPaused,
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
@@ -542,10 +547,10 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
 
   Widget _buildChatList() {
     if (_messages.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'Напишите первое сообщение 💬',
-          style: TextStyle(color: Colors.white24, fontSize: 13),
+          LocaleService.current.writeFirstMessage,
+          style: const TextStyle(color: Colors.white24, fontSize: 13),
         ),
       );
     }
@@ -594,7 +599,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                 minLines: 1,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  hintText: 'Сообщение…',
+                  hintText: LocaleService.current.messageInputHint,
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
                   fillColor: Colors.white10,

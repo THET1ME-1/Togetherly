@@ -1024,7 +1024,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Название на английском — можно переписать на русский',
+                LocaleService.current.bookTitleLanguageHint,
                 style: TextStyle(
                   fontSize: 11.5,
                   color: Colors.amber.shade900,

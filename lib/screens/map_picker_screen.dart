@@ -401,7 +401,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             textInputAction: TextInputAction.search,
                             style: GoogleFonts.rubik(fontSize: 13),
                             decoration: InputDecoration(
-                              hintText: 'Место или 55.751, 37.618',
+                              hintText: LocaleService.current.placeOrCoordsHint,
                               hintStyle: GoogleFonts.rubik(
                                 fontSize: 13,
                                 color: Colors.grey.shade400,
@@ -484,7 +484,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Перейти к координатам',
+                              LocaleService.current.goToCoordinates,
                               style: GoogleFonts.rubik(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,

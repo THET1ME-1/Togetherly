@@ -72,7 +72,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
 
   bool get _canSave => _titleCtrl.text.trim().isNotEmpty;
 
-  bool get _isRu => LocaleService.current.movies == 'Фильмы и сериалы';
+  bool get _isRu => LocaleService.instance.isRussian;
 
   @override
   void dispose() {
