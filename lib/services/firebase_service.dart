@@ -1129,8 +1129,17 @@ class FirebaseService {
   /// Пустой groupId / не-мигрированная группа → всегда true (безопасный дефолт).
   /// ВАЖНО: НЕ распространяется на членство/события/users-doc/RTDB — те пишутся
   /// в Firebase безусловно (их читают пуш-функции и Auth).
+  ///
+  /// Доп. гейт `_groupBothRead`: Firebase-запись срезается ТОЛЬКО когда ОБА
+  /// партнёра уже читают из Supabase. Пока второй ещё читает Firebase (окно
+  /// перехода — телефоны флипают в разные сессии), мы продолжаем писать в
+  /// Firebase, иначе он не увидит наши изменения (рисунки/чат/память). Так у
+  /// полностью мигрированной пары дуал-райта нет, а на время перехода держится
+  /// мост — без потери синхронизации.
   bool _writeFb(String groupId) =>
-      !(MigrationConfig.stage4DropFirebaseWrites && _readSb(groupId));
+      !(MigrationConfig.stage4DropFirebaseWrites &&
+          _readSb(groupId) &&
+          (_groupBothRead[groupId] ?? false));
 
   /// Публично для сервисов (ChatService): писать ли данные группы в Firebase.
   bool writeToFirebase(String groupId) => _writeFb(groupId);
@@ -1214,6 +1223,13 @@ class FirebaseService {
   final Map<String, bool> _groupMixed = {};
   final Set<String> _groupCompatResolving = {};
 
+  // groupId → ОБА партнёра уже ЧИТАЮТ из Supabase (по свежести маркеров sbRead
+  // в group-doc). Гейтит Stage 4 в [_writeFb]: пока второй партнёр ещё читает
+  // Firebase, мы ПРОДОЛЖАЕМ писать туда (иначе он не увидит наши изменения);
+  // как только оба на Supabase — Firebase-запись прекращается. Безопасный
+  // дефолт — отсутствие записи (== не оба, держим Firebase-запись).
+  final Map<String, bool> _groupBothRead = {};
+
   /// Группа полностью на новой сборке — можно Supabase как источник.
   /// Дефолт безопасный: пока НЕ доказано, что партнёр на старом билде, ведём
   /// себя как раньше (== `_mig`). НЕ используется для маршрутизации, пока не
@@ -1231,10 +1247,20 @@ class FirebaseService {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return;
-      // 1. Помечаем себя «на новой сборке».
-      await _db.collection('groups').doc(groupId).set({
+      // 1. Помечаем себя «на новой сборке». Если в ЭТОЙ сессии мы уже читаем из
+      //    Supabase — дополнительно пишем маркер sbRead, чтобы партнёр узнал и
+      //    (когда перейдут оба) безопасно прекратил Firebase-запись (Stage 4).
+      final markers = <String, dynamic>{
         'sbMig': {uid: FieldValue.serverTimestamp()},
-      }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
+      };
+      if (_readSb(groupId)) {
+        markers['sbRead'] = {uid: FieldValue.serverTimestamp()};
+      }
+      await _db
+          .collection('groups')
+          .doc(groupId)
+          .set(markers, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
       // 2. Читаем маркеры всех участников.
       final doc = await _db
           .collection('groups')
@@ -1261,6 +1287,21 @@ class FirebaseService {
       }
       final wasMixed = _groupMixed[groupId] ?? false;
       _groupMixed[groupId] = !allFresh;
+
+      // Оба ли партнёра уже ЧИТАЮТ из Supabase (свежесть маркеров sbRead). Пока
+      // не оба — Stage 4 не срезает Firebase-запись (см. [_writeFb]): партнёр,
+      // ещё читающий Firebase, должен видеть наши изменения.
+      final sbRead = Map<String, dynamic>.from(data['sbRead'] ?? {});
+      var allRead = members.isNotEmpty;
+      for (final m in members) {
+        final ts = sbRead[m];
+        final dt = ts is Timestamp ? ts.toDate() : null;
+        if (dt == null || now.difference(dt).inDays > _kMarkerFreshDays) {
+          allRead = false;
+          break;
+        }
+      }
+      _groupBothRead[groupId] = allRead;
       // Compat подтверждён → пере-оценить право группы читать из Supabase
       // (применится со следующей сессии). Снимет флаг, если пара снова смешанная.
       unawaited(_maybeMarkReadFromSupabase(groupId));
