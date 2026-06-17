@@ -222,6 +222,10 @@ class GroupMascotState {
 }
 
 /// The default mascots bundled with the app.
+///
+/// Только два бесплатных стартовых маскота сидируются в галерею. Остальные
+/// (включая маскотов-наград «за уровень») приходят из удалённого каталога
+/// (Supabase) и добавляются БЕЗ обновления приложения — см. CatalogService.
 class DefaultMascots {
   static const String _base = 'assets/images/mascots';
 
@@ -235,26 +239,6 @@ class DefaultMascots {
       'id': 'default_girl',
       'name': 'Пикси',
       'asset': '$_base/Веселая девочка.png',
-    },
-    {
-      'id': 'default_spiky',
-      'name': 'Спайки',
-      'asset': '$_base/spiky.webp',
-    },
-    {
-      'id': 'default_lulu',
-      'name': 'Лулу',
-      'asset': '$_base/lulu.webp',
-    },
-    {
-      'id': 'default_iskrik',
-      'name': 'Искрик',
-      'asset': '$_base/iskrik.webp',
-    },
-    {
-      'id': 'default_zhuzha',
-      'name': 'Жужа',
-      'asset': '$_base/zhuzha.webp',
     },
   ];
 

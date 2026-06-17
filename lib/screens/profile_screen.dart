@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
+import '../services/level_service.dart';
+import 'level_tasks_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -306,6 +308,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
           // ═══ Coin Shop ═══
           _buildCoinShopCard(context),
+          const SizedBox(height: 20),
+          // ═══ Level & Tasks ═══
+          _buildLevelTasksCard(context),
           const SizedBox(height: 20),
           // ═══ Relationship Status Card ═══
           _buildRelationshipCard(context),
@@ -2888,6 +2893,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _divider() {
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
+  }
+
+  Widget _buildLevelTasksCard(BuildContext context) {
+    final ru = LocaleService.instance.isRussian;
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LevelTasksScreen(
+            accent: _accent,
+            accentLight: _accentLight,
+          ),
+        ),
+      ),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _accent.withOpacity(0.15)),
+          boxShadow: [
+            BoxShadow(
+              color: _accent.withOpacity(0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _accentLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.emoji_events_rounded, size: 22, color: _accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ru ? 'Уровень и задания' : 'Level & tasks',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    ru
+                        ? 'Растите уровень и открывайте маскотов'
+                        : 'Level up and unlock mascots',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedBuilder(
+              animation: LevelService.instance,
+              builder: (context, _) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _accentLight,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  ru
+                      ? 'Ур. ${LevelService.instance.level}'
+                      : 'Lv ${LevelService.instance.level}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: _accent,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 22,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildCoinShopCard(BuildContext context) {

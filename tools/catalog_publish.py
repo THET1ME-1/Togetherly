@@ -75,8 +75,8 @@ def to_webp(path, remove_bg):
 def upload(path_in_bucket, data):
     r = requests.post(
         f"{URL}/storage/v1/object/{BUCKET}/{path_in_bucket}",
-        headers={"Authorization": f"Bearer {KEY}", "Content-Type": "image/webp",
-                 "x-upsert": "true"},
+        headers={"apikey": KEY, "Authorization": f"Bearer {KEY}",
+                 "Content-Type": "image/webp", "x-upsert": "true"},
         data=data,
     )
     r.raise_for_status()
@@ -108,6 +108,9 @@ def main(desc_path):
     if kind == "mascot":
         url = upload(f"mascots/{cid}.webp", to_webp(os.path.join(base, d["image"]), remove_bg))
         data = {"url": url}
+        # Требование разблокировки («задание»): {"type":"level","level":N} | {"type":"premium"}.
+        if "unlock" in d:
+            data["unlock"] = d["unlock"]
     elif kind == "mood_pack":
         moods = []
         for m in d["moods"]:
@@ -124,6 +127,8 @@ def main(desc_path):
         data = {"moods": moods}
         if "tileGradient" in d:
             data["tileGradient"] = d["tileGradient"]
+        if "unlock" in d:
+            data["unlock"] = d["unlock"]
     else:
         sys.exit(f"ERROR: неизвестный kind '{kind}'")
 

@@ -98,6 +98,40 @@ class LevelService extends ChangeNotifier {
     }
   }
 
+  // ── Для экрана «Уровень и задания» ──────────────────────────────────────────
+
+  /// Все действия-задания в порядке отображения.
+  List<XpAction> get actions => XpAction.values;
+
+  /// Награда XP за действие.
+  int rewardFor(XpAction a) => _rules[a]?.amount ?? 0;
+
+  /// Дневной лимит (0 = без лимита).
+  int dailyCapFor(XpAction a) => _rules[a]?.dailyCap ?? 0;
+
+  /// Разовое ли действие (ачивка навсегда).
+  bool isOnceEver(XpAction a) => _rules[a]?.onceEver ?? false;
+
+  /// Прогресс за сегодня: для дневных — сколько раз зачтено; для разовых — 1/0.
+  /// Ключи prefs совпадают с [_consume]. Для UI заданий.
+  Future<int> progressToday(XpAction action) async {
+    final rule = _rules[action];
+    if (rule == null || _groupId.isEmpty) return 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final a = action.name;
+      if (rule.onceEver) {
+        return (prefs.getBool('xp_once_${a}_$_groupId') ?? false) ? 1 : 0;
+      }
+      final now = DateTime.now();
+      final day =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      return prefs.getInt('xp_day_${a}_${_groupId}_$day') ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Сбросить привязку (выход из группы).
   void unbind() {
     _groupId = '';
