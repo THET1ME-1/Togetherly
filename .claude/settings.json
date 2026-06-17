@@ -96,7 +96,20 @@
       "Bash(grep -iE 'error -' 'C:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\10897fda-ffca-44a7-b502-bd05cf991b46\\\\tool-results\\\\b6qz3vdq3.txt')",
       "Bash(echo \"=== WARNINGS ===\")",
       "Bash(grep -iE 'warning -' 'C:\\\\Users\\\\Alex\\\\.claude\\\\projects\\\\c--Users-Alex-Documents-GitHub-love-app\\\\10897fda-ffca-44a7-b502-bd05cf991b46\\\\tool-results\\\\b6qz3vdq3.txt')",
-      "Bash(echo \"=== VideoProgress / unused ===\")"
+      "Bash(echo \"=== VideoProgress / unused ===\")",
+      "Bash(awk 'NR>=2814' lib/services/locale_service.dart)",
+      "Bash(awk -F: '$1>=2814')",
+      "Bash(awk 'NR>=968 && NR<2814' lib/services/locale_service.dart)",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(rg -v 'debugPrint|^\\\\s*//|новым|emodji')",
+      "Bash(rg -v 'debugPrint|^\\\\s*//|//[^*]|emodji')",
+      "Bash(rg -v 'debugPrint|^\\\\s*//|emodji|assets/')",
+      "Bash(rg -v 'debugPrint|^\\\\s*//|emodji|assets/|слушать|listen')",
+      "Bash(rg -v '^\\\\s*[0-9]+:\\\\s*//|debugPrint|emodji|assets/|слушать')",
+      "Bash(rg -v '^\\\\s*[0-9]+:\\\\s*//')",
+      "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка|name': '\")",
+      "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка|name': '|label: 'Русский'\")",
+      "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

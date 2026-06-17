@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 class _MemoryCluster {
@@ -273,7 +274,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                             Icon(Icons.map_rounded, size: 16, color: t.primary),
                             const SizedBox(width: 8),
                             Text(
-                              'Карта воспоминаний',
+                              LocaleService.current.memoriesMapTooltip,
                               style: GoogleFonts.rubik(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -332,7 +333,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         size: 48, color: Colors.grey.shade300),
                     const SizedBox(height: 16),
                     Text(
-                      'Нет воспоминаний с геолокацией',
+                      LocaleService.current.noGeoMemories,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.rubik(
                         fontSize: 16,
@@ -342,7 +343,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Добавьте место к воспоминанию\nчерез долгое нажатие',
+                      LocaleService.current.addLocationHint,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.rubik(
                         fontSize: 13,
@@ -419,7 +420,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        locationName ?? 'Место',
+                        locationName ?? LocaleService.current.placeFallback,
                         style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -429,7 +430,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${cluster.count} ${_pluralMemory(cluster.count)}',
+                        '${cluster.count} ${LocaleService.current.memoriesUnit(cluster.count)}',
                         style: GoogleFonts.rubik(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -476,13 +477,5 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
         ),
       ),
     );
-  }
-
-  String _pluralMemory(int n) {
-    if (n % 10 == 1 && n % 100 != 11) return 'воспоминание';
-    if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
-      return 'воспоминания';
-    }
-    return 'воспоминаний';
   }
 }

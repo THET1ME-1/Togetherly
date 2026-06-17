@@ -959,6 +959,257 @@ abstract class AppStrings {
   String get openPhotoGallery;
   String get allMediaGallery;
   String get loadMore;
+
+  // ── Home screen / photo caption dialog / mascot card ──
+  String get previewLabel;
+  String get photoSent;
+  String get partnerFallback;
+  String get captionDestMemories;
+  String get captionDestMemoriesSub;
+  String get captionDestPairWidget;
+  String captionDestPairWidgetSub(String partner);
+  String get captionDestPartnerWidget;
+  String captionDestPartnerWidgetSub(String partner);
+  String get groupMascot;
+  String get tapForGallery;
+  String get selectMascot;
+  String get showLabel;
+  String streakLabel(int days);
+
+  // ── Widget screen ──
+  String get widgetStreakTitle;
+  String get widgetStreakSubtitle;
+  String get widgetPetalTimerTitle;
+  String get widgetPetalTimerSubtitle;
+  String get widgetPhotoTitle;
+  String get widgetPhotoSubtitle;
+  String get streakTogetherCaps;
+  String get daysInARow;
+  String get keepItUp;
+  String get ourPhotosInsteadOfDrawing;
+  String get daysPhotosDescription;
+  String unlockForCoins(int price);
+  String get showOurPhotos;
+  String get partnerNoProfilePhoto;
+  String get addYourProfilePhoto;
+  String notEnoughCoinsNeed(int price);
+  String get daysPhotosDone;
+  String get purchaseFailedTryLater;
+  String personalPhotosHelp(String partner);
+  String get personalPhotosHelpShort;
+  String get uploadedPhotosToMemoryLane;
+  String partnerSharesPhotosHelp(String partner, int count);
+  String partnerNotSharedHelp(String partner);
+  String get selectPhotosForPartner;
+  String photosUnit(int n);
+  String get noPhotosFromPartner;
+  String get noPhotosAdded;
+  String get onePhotoNoCarousel;
+  String photoCountOnUnlock(int count);
+  String photoCountInterval(int count, String interval);
+  String intervalLabel(int minutes);
+  String get partnerPhotoTitle;
+  String partnerSharedCountHelp(int count);
+  String get partnerSharedOnePhoto;
+  String get partnerNotSharedYet;
+  String get changePhotosLabel;
+  String get onUnlockOption;
+  String get byTimeOption;
+  String get every15Minutes;
+  String get every30Minutes;
+  String get everyHourOption;
+  String get every3HoursOption;
+  String get createPostcardTitle;
+  String get createPostcardSubtitle;
+  String get whereToSendPhoto;
+  String get sendLabel;
+  String get widgetPhotoCaption;
+
+  // ── Mascot gallery ──
+  String get mascotSaveFailed;
+  String get mascotLoadFailed;
+  String get transparentBgTitle;
+  String get transparentBgBody;
+  String get mascotNameTitle;
+  String get enterNameHint;
+  String get mascotLimitReached;
+  String mascotDeactivated(String name);
+  String mascotActivated(String name);
+  String get rename;
+  String get deleteMascotTitle;
+  String deleteMascotBody(String name);
+  String recordStreakDays(int days);
+  String get deactivateLabel;
+  String get makeActiveLabel;
+  String get editLabel;
+  String get exportPng;
+  String get groupMascots;
+  String mascotsCount(int count, int max);
+  String get limitLabel;
+  String get mascotsLoadFailedMultiline;
+  String get artistCredit;
+  String get uploadPhotoTooltip;
+  String get drawLabel;
+  String get streakBroken;
+  String get streakKeepHint;
+  String get streakStartHint;
+  String get fromUs;
+  String recordStreakBadge(int days);
+
+  // ── Mascot draw screen ──
+  String get drawSomethingFirst;
+  String genericError(String e);
+  String get drawMascotTitle;
+  String get toolBrush;
+  String get toolPencil;
+  String get toolMarker;
+  String get toolEraser;
+  String get toolFill;
+  String get toolLine;
+  String get toolRect;
+  String get toolCircle;
+  String get toolTriangle;
+  String get fillAction;
+  String get resetSize;
+  String get undoLabel;
+  String get redoLabel;
+  String get underlayLabel;
+  String get drawHintEdit;
+  String get drawHintDraw;
+  String get colorLabel;
+  String get hueLabel;
+  String get saturationLabel;
+  String get brightnessLabel;
+  String get selectAction;
+
+  // ── Postcard templates ──
+  String get pcNamesFallback;
+  String get pcLabelNames;
+  String get pcLabelDaysCaption;
+  String get pcLabelMessage;
+  String get pcLabelCaption;
+  String get pcLabelPolaroidCaption;
+  String get pcLabelMessageAlt;
+  String get pcDaysTogether;
+  String get pcMsgTogether;
+  String get pcDaysOfLove;
+  String get pcMsgPolaroid;
+  String get pcDaysNearby;
+  String get pcMsgBloom;
+  String get pcNightsUnderSky;
+  String get pcMsgNightSky;
+
+  // ── Photo carousel editor ──
+  String get addOneToTenPhotos;
+  String photoCountCarousel(int count);
+  String get addMorePhotosCarouselHint;
+  String get dragToReorder;
+  String photoNumber(int n);
+  String get mainPhoto;
+  String positionNumber(int n);
+  String get addMore;
+  String get fromDevice;
+  String get fromFeed;
+
+  // ── Profile screen ──
+  String get cropAvatarTitle;
+  String get avatarTitle;
+  String get appIconTitle;
+  String get appIconUpdateHint;
+  String get appIconChangeFailed;
+  String get viewAction;
+  String get enterDateFormat;
+  String yearRange(int first, int last);
+  String get enterTimeFormat;
+  String get dateHintFormat;
+  String get timeHintFormat;
+  String get openCalendar;
+
+  // ── Memory Lane screen ──
+  String get refreshTooltip;
+  String get memoriesMapTooltip;
+  String kpRating(String rating);
+  String get editLocation;
+  String get addLocation;
+  String get photoVideoNote;
+  String distanceLabel(double meters);
+  String get appNotInstalled;
+  String get watchTogether;
+
+  // ── Watch Together ──
+  String get watchTogetherAdPrompt;
+  String get watchAction;
+  String get youtubeLinkHint;
+  String get startAction;
+  String get youtubeLinkInvalid;
+  String invitesToWatchTogether(String hostName);
+  String get joinAction;
+  String get partnerEndedWatchTogether;
+  String get videoCannotWatchTogether;
+  String get videoEmbedBlockedHint;
+  String get chooseAnother;
+  String get watchingTogether;
+  String get partnerJoined;
+  String get waitingForPartner;
+  String get syncedPlaying;
+  String get syncedPaused;
+  String get writeFirstMessage;
+  String get messageInputHint;
+
+  // ── Memory photo picker ──
+  String get selectOnePhoto;
+  String get maxSelected;
+  String selectUpToPhotos(int n);
+  String get selectPhotosPrompt;
+  String addWithCount(int n);
+  String get failedToLoadMemories;
+  String get noPhotosInMemoryLane;
+  String get inWidget;
+
+  // ── Postcard editor ──
+  String get postcardTitle;
+  String failedToSave(Object e);
+  String get changePhoto;
+  String get addPhotoFromGallery;
+  String get tapAnyTextToEdit;
+  String get creating;
+  String get sharePostcard;
+
+  // ── Memories map ──
+  String get noGeoMemories;
+  String get addLocationHint;
+  String get placeFallback;
+  String memoriesUnit(int n);
+
+  // ── Welcome slides ──
+  String get welcomeSlide1Title;
+  String get welcomeSlide2Title;
+  String get welcomeSlide3Title;
+
+  // ── Memory photo form ──
+  String get newEntry;
+  String get photoVideo;
+  String get optionalTapToSelect;
+  String itemsShort(int n);
+
+  // ── Misc widgets ──
+  String get dragHint;
+  String get addPhoto;
+  String get groupMascotBanner;
+  String get goToGallery;
+  String get hide;
+  String coinsPlus(int n);
+  String moodScoreLabel(int score, int max);
+  List<String> get monthAbbrev;
+
+  // ── Map picker ──
+  String get placeOrCoordsHint;
+  String get goToCoordinates;
+
+  // ── Misc ──
+  String get chatBgSaveFailed;
+  String get timeFormatHint;
+  String get bookTitleLanguageHint;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2809,6 +3060,539 @@ class _RuStrings extends AppStrings {
   String get allMediaGallery => 'Все фото и видео';
   @override
   String get loadMore => 'Загрузить ещё';
+  @override
+  String get previewLabel => 'Предпросмотр';
+  @override
+  String get photoSent => 'Фото отправлено';
+  @override
+  String get partnerFallback => 'партнёр';
+  @override
+  String get captionDestMemories => 'Воспоминания';
+  @override
+  String get captionDestMemoriesSub => 'Добавить фото в ленту воспоминаний';
+  @override
+  String get captionDestPairWidget => 'Парный виджет';
+  @override
+  String captionDestPairWidgetSub(String partner) =>
+      'Фото в «Моём виджете» — видно тебе и $partner';
+  @override
+  String get captionDestPartnerWidget => 'Виджет «Фото партнёра»';
+  @override
+  String captionDestPartnerWidgetSub(String partner) =>
+      'Отдельный виджет с фото для $partner';
+  @override
+  String get groupMascot => 'Маскот группы';
+  @override
+  String get tapForGallery => 'Нажмите для галереи';
+  @override
+  String get selectMascot => 'Выберите маскота';
+  @override
+  String get showLabel => 'Показать';
+  @override
+  String streakLabel(int days) {
+    String unit;
+    if (days % 100 >= 11 && days % 100 <= 14) {
+      unit = 'дней';
+    } else {
+      switch (days % 10) {
+        case 1:
+          unit = 'день';
+          break;
+        case 2:
+        case 3:
+        case 4:
+          unit = 'дня';
+          break;
+        default:
+          unit = 'дней';
+      }
+    }
+    return 'Серия: $days $unit';
+  }
+
+  // ── Widget screen ──
+  @override
+  String get widgetStreakTitle => 'Огонёк пары';
+  @override
+  String get widgetStreakSubtitle => 'Сколько дней подряд вы заходите вместе';
+  @override
+  String get widgetPetalTimerTitle => 'Лепестковый таймер';
+  @override
+  String get widgetPetalTimerSubtitle =>
+      'Живой циферблат — годы, мес, дни, ч, мин, сек';
+  @override
+  String get widgetPhotoTitle => 'Фото-виджет';
+  @override
+  String get widgetPhotoSubtitle => 'Личная карусель: 1–10 фото с автосменой';
+  @override
+  String get streakTogetherCaps => 'СЕРИЯ ВМЕСТЕ';
+  @override
+  String get daysInARow => 'дней подряд';
+  @override
+  String get keepItUp => 'Так держать!';
+  @override
+  String get ourPhotosInsteadOfDrawing => 'Наши фото вместо рисунка';
+  @override
+  String get daysPhotosDescription =>
+      'Замените нарисованную пару на ваши настоящие аватарки — '
+      'на превью и на виджете рабочего стола.';
+  @override
+  String unlockForCoins(int price) => 'Разблокировать — $price 🪙';
+  @override
+  String get showOurPhotos => 'Показывать наши фото';
+  @override
+  String get partnerNoProfilePhoto =>
+      'У партнёра нет фото профиля — попросите добавить.';
+  @override
+  String get addYourProfilePhoto =>
+      'Добавьте своё фото профиля, чтобы оно появилось на виджете.';
+  @override
+  String notEnoughCoinsNeed(int price) =>
+      'Недостаточно монет — нужно $price 🪙';
+  @override
+  String get daysPhotosDone => 'Готово! Ваши фото на виджете 💞';
+  @override
+  String get purchaseFailedTryLater => 'Не удалось купить — попробуйте позже';
+  @override
+  String personalPhotosHelp(String partner) =>
+      'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается '
+      'карусель: смена при разблокировке или по таймеру.\n\nЭти фото видны '
+      'только тебе. Чтобы поделиться с $partner, открой «Фото партнёра» → '
+      '«Выбрать фото для партнёра».';
+  @override
+  String get personalPhotosHelpShort =>
+      'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается '
+      'карусель: смена при разблокировке или по таймеру.';
+  @override
+  String get uploadedPhotosToMemoryLane =>
+      'Загруженные фото попадут в ленту воспоминаний';
+  @override
+  String partnerSharesPhotosHelp(String partner, int count) =>
+      'Этот виджет показывает фото, которыми делится $partner '
+      '($count ${photosUnit(count)}). Менять их может только $partner.';
+  @override
+  String partnerNotSharedHelp(String partner) =>
+      '$partner ещё не поделился(ась) фото. Чтобы они здесь появились, '
+      '$partner нужно открыть «Фото партнёра» и нажать «Выбрать фото для '
+      'партнёра» — обычный «Фото-виджет» виден только владельцу.';
+  @override
+  String get selectPhotosForPartner => 'Выбрать фото для партнёра';
+  @override
+  String photosUnit(int n) => 'фото';
+  @override
+  String get noPhotosFromPartner => 'Нет фото от партнёра';
+  @override
+  String get noPhotosAdded => 'Фото не добавлены';
+  @override
+  String get onePhotoNoCarousel => '1 фото · без карусели';
+  @override
+  String photoCountOnUnlock(int count) => '$count фото · при разблокировке';
+  @override
+  String photoCountInterval(int count, String interval) =>
+      '$count фото · $interval';
+  @override
+  String intervalLabel(int minutes) {
+    switch (minutes) {
+      case 15:
+        return 'каждые 15 мин';
+      case 30:
+        return 'каждые 30 мин';
+      case 60:
+        return 'каждый час';
+      case 180:
+        return 'каждые 3 часа';
+      default:
+        return 'каждые $minutes мин';
+    }
+  }
+
+  @override
+  String get partnerPhotoTitle => 'Фото партнёра';
+  @override
+  String partnerSharedCountHelp(int count) =>
+      'Партнёр поделился $count фото — выберите как они будут меняться на '
+      'этом виджете.';
+  @override
+  String get partnerSharedOnePhoto => 'Партнёр поделился 1 фото — без карусели.';
+  @override
+  String get partnerNotSharedYet => 'Партнёр ещё не поделился фото.';
+  @override
+  String get changePhotosLabel => 'Менять фото:';
+  @override
+  String get onUnlockOption => 'При разблокировке';
+  @override
+  String get byTimeOption => 'По времени';
+  @override
+  String get every15Minutes => 'Каждые 15 минут';
+  @override
+  String get every30Minutes => 'Каждые 30 минут';
+  @override
+  String get everyHourOption => 'Каждый час';
+  @override
+  String get every3HoursOption => 'Каждые 3 часа';
+  @override
+  String get createPostcardTitle => 'Создать открытку';
+  @override
+  String get createPostcardSubtitle =>
+      'Сколько дней вы вместе — красиво и со стилем';
+  @override
+  String get whereToSendPhoto => 'Куда отправить фото?';
+  @override
+  String get sendLabel => 'Отправить';
+  @override
+  String get widgetPhotoCaption => '📸 Виджет';
+
+  // ── Mascot gallery ──
+  @override
+  String get mascotSaveFailed =>
+      'Не удалось сохранить маскота. Проверьте соединение.';
+  @override
+  String get mascotLoadFailed => 'Не удалось загрузить. Проверьте соединение.';
+  @override
+  String get transparentBgTitle => 'Нужен прозрачный фон';
+  @override
+  String get transparentBgBody =>
+      'Маскот отображается без фона, поэтому загружай PNG-файл с '
+      'прозрачностью.\n\nВырежи фон заранее — например, через remove.bg, '
+      'Photoshop или Canva.';
+  @override
+  String get mascotNameTitle => 'Имя маскота';
+  @override
+  String get enterNameHint => 'Введите имя';
+  @override
+  String get mascotLimitReached =>
+      'Достигнут лимит. Удалите маскота из галереи.';
+  @override
+  String mascotDeactivated(String name) => '$name деактивирован';
+  @override
+  String mascotActivated(String name) => '$name теперь активен';
+  @override
+  String get rename => 'Переименовать';
+  @override
+  String get deleteMascotTitle => 'Удалить маскота?';
+  @override
+  String deleteMascotBody(String name) => '«$name» будет удалён навсегда.';
+  @override
+  String recordStreakDays(int days) => 'Рекорд: $days дн.';
+  @override
+  String get deactivateLabel => 'Деактивировать';
+  @override
+  String get makeActiveLabel => 'Сделать активным';
+  @override
+  String get editLabel => 'Редактировать';
+  @override
+  String get exportPng => 'Экспортировать PNG';
+  @override
+  String get groupMascots => 'Маскоты группы';
+  @override
+  String mascotsCount(int count, int max) => '$count / $max маскотов';
+  @override
+  String get limitLabel => 'Лимит';
+  @override
+  String get mascotsLoadFailedMultiline =>
+      'Маскоты не загрузились.\nПроверьте соединение.';
+  @override
+  String get artistCredit => 'Художница — Алёна Гребенева';
+  @override
+  String get uploadPhotoTooltip => 'Загрузить фото';
+  @override
+  String get drawLabel => 'Нарисовать';
+  @override
+  String get streakBroken => 'Серия прервана';
+  @override
+  String get streakKeepHint =>
+      'Заходите каждый день, чтобы не прерывать серию';
+  @override
+  String get streakStartHint => 'Зайдите сегодня, чтобы начать новую серию';
+  @override
+  String get fromUs => 'От нас';
+  @override
+  String recordStreakBadge(int days) => '🏅 $days дн.';
+
+  // ── Mascot draw screen ──
+  @override
+  String get drawSomethingFirst => 'Нарисуйте что-нибудь сначала';
+  @override
+  String genericError(String e) => 'Ошибка: $e';
+  @override
+  String get drawMascotTitle => 'Нарисовать маскота';
+  @override
+  String get toolBrush => 'Кисть';
+  @override
+  String get toolPencil => 'Карандаш';
+  @override
+  String get toolMarker => 'Маркер';
+  @override
+  String get toolEraser => 'Ластик';
+  @override
+  String get toolFill => 'Заливка';
+  @override
+  String get toolLine => 'Линия';
+  @override
+  String get toolRect => 'Прямоуг.';
+  @override
+  String get toolCircle => 'Круг';
+  @override
+  String get toolTriangle => 'Треугол.';
+  @override
+  String get fillAction => 'Залить';
+  @override
+  String get resetSize => 'Сбросить размер';
+  @override
+  String get undoLabel => 'Отмена';
+  @override
+  String get redoLabel => 'Повтор';
+  @override
+  String get underlayLabel => 'Подложка';
+  @override
+  String get drawHintEdit =>
+      'Двойной тап — сбросить вид  •  2 пальца — зум/поворот';
+  @override
+  String get drawHintDraw =>
+      'Два пальца быстро — отменить  •  Двойной тап — сбросить вид';
+  @override
+  String get colorLabel => 'Цвет';
+  @override
+  String get hueLabel => 'Оттенок';
+  @override
+  String get saturationLabel => 'Насыщ.';
+  @override
+  String get brightnessLabel => 'Яркость';
+  @override
+  String get selectAction => 'Выбрать';
+
+  // ── Postcard templates ──
+  @override
+  String get pcNamesFallback => 'Мы вместе';
+  @override
+  String get pcLabelNames => 'Имена';
+  @override
+  String get pcLabelDaysCaption => 'Подпись к числу';
+  @override
+  String get pcLabelMessage => 'Послание';
+  @override
+  String get pcLabelCaption => 'Подпись';
+  @override
+  String get pcLabelPolaroidCaption => 'Подпись на полароиде';
+  @override
+  String get pcLabelMessageAlt => 'Сообщение';
+  @override
+  String get pcDaysTogether => 'дней вместе';
+  @override
+  String get pcMsgTogether => 'Каждый день с тобой — подарок ❤️';
+  @override
+  String get pcDaysOfLove => 'дней любви';
+  @override
+  String get pcMsgPolaroid => 'Наш момент ✨';
+  @override
+  String get pcDaysNearby => 'дней рядом';
+  @override
+  String get pcMsgBloom => 'Ты моё любимое приключение 🌸';
+  @override
+  String get pcNightsUnderSky => 'ночей под одним небом';
+  @override
+  String get pcMsgNightSky => 'Ты — моя звезда ✨';
+
+  // ── Photo carousel editor ──
+  @override
+  String get addOneToTenPhotos => 'Добавьте от 1 до 10 фото';
+  @override
+  String photoCountCarousel(int count) => '$count фото · карусель';
+  @override
+  String get addMorePhotosCarouselHint =>
+      'Добавьте ещё фото, чтобы появилась карусель — фото будут меняться '
+      'автоматически.';
+  @override
+  String get dragToReorder => 'Удерживайте и перетаскивайте, чтобы изменить порядок';
+  @override
+  String photoNumber(int n) => 'Фото $n';
+  @override
+  String get mainPhoto => 'Главное';
+  @override
+  String positionNumber(int n) => 'Позиция $n';
+  @override
+  String get addMore => 'Добавить ещё';
+  @override
+  String get fromDevice => 'С устройства';
+  @override
+  String get fromFeed => 'Из ленты';
+
+  // ── Profile screen ──
+  @override
+  String get cropAvatarTitle => '✂️  Обрезка аватарки';
+  @override
+  String get avatarTitle => 'Аватарка';
+  @override
+  String get appIconTitle => 'Иконка приложения';
+  @override
+  String get appIconUpdateHint =>
+      'Иконка на рабочем столе может обновиться через пару секунд.';
+  @override
+  String get appIconChangeFailed => 'Не удалось сменить иконку';
+  @override
+  String get viewAction => 'Посмотреть';
+  @override
+  String get enterDateFormat => 'Введите дату в формате ДД.ММ.ГГГГ';
+  @override
+  String yearRange(int first, int last) => 'Год от $first до $last';
+  @override
+  String get enterTimeFormat => 'Время должно быть в формате ЧЧ:ММ';
+  @override
+  String get dateHintFormat => 'ДД.ММ.ГГГГ';
+  @override
+  String get timeHintFormat => 'ЧЧ:ММ';
+  @override
+  String get openCalendar => 'Открыть календарь';
+  @override
+  String get refreshTooltip => 'Обновить';
+  @override
+  String get memoriesMapTooltip => 'Карта воспоминаний';
+  @override
+  String kpRating(String rating) => 'КП $rating';
+  @override
+  String get editLocation => 'Изменить геолокацию';
+  @override
+  String get addLocation => 'Добавить геолокацию';
+  @override
+  String get photoVideoNote => 'Фото / Видео / Заметка';
+  @override
+  String distanceLabel(double meters) => meters < 1000
+      ? '${meters.round()} м'
+      : '${(meters / 1000).toStringAsFixed(1)} км';
+  @override
+  String get appNotInstalled => 'Приложение не установлено';
+  @override
+  String get watchTogether => 'Смотреть вместе';
+  @override
+  String get watchTogetherAdPrompt =>
+      'Чтобы открыть совместный просмотр, посмотри короткую рекламу — '
+      'поддержишь приложение и получишь коины 🪙';
+  @override
+  String get watchAction => 'Смотреть';
+  @override
+  String get youtubeLinkHint => 'Ссылка на YouTube';
+  @override
+  String get startAction => 'Начать';
+  @override
+  String get youtubeLinkInvalid => 'Не удалось распознать ссылку YouTube';
+  @override
+  String invitesToWatchTogether(String hostName) =>
+      '$hostName зовёт смотреть вместе';
+  @override
+  String get joinAction => 'Присоединиться';
+  @override
+  String get partnerEndedWatchTogether => 'Партнёр завершил совместный просмотр';
+  @override
+  String get videoCannotWatchTogether => 'Это видео нельзя смотреть вместе';
+  @override
+  String get videoEmbedBlockedHint =>
+      'Автор ролика запретил воспроизведение вне YouTube. '
+      'Выберите другое видео — большинство роликов работает.';
+  @override
+  String get chooseAnother => 'Выбрать другое';
+  @override
+  String get watchingTogether => 'Смотрим вместе';
+  @override
+  String get partnerJoined => 'Партнёр подключился';
+  @override
+  String get waitingForPartner => 'Ожидаем партнёра…';
+  @override
+  String get syncedPlaying => 'Синхронизировано · играет';
+  @override
+  String get syncedPaused => 'Синхронизировано · пауза';
+  @override
+  String get writeFirstMessage => 'Напишите первое сообщение 💬';
+  @override
+  String get messageInputHint => 'Сообщение…';
+  @override
+  String get selectOnePhoto => 'Выберите 1 фото';
+  @override
+  String get maxSelected => 'Выбрано максимум';
+  @override
+  String selectUpToPhotos(int n) => 'Выберите до $n фото';
+  @override
+  String get selectPhotosPrompt => 'Выберите фото';
+  @override
+  String addWithCount(int n) => 'Добавить ($n)';
+  @override
+  String get failedToLoadMemories => 'Не удалось загрузить воспоминания';
+  @override
+  String get noPhotosInMemoryLane => 'Нет фото в ленте воспоминаний';
+  @override
+  String get inWidget => 'В виджете';
+  @override
+  String get postcardTitle => 'Открытка';
+  @override
+  String failedToSave(Object e) => 'Не удалось сохранить: $e';
+  @override
+  String get changePhoto => 'Сменить фото';
+  @override
+  String get addPhotoFromGallery => 'Добавить фото из галереи';
+  @override
+  String get tapAnyTextToEdit => 'Нажми на любой текст чтобы изменить';
+  @override
+  String get creating => 'Создаём...';
+  @override
+  String get sharePostcard => 'Поделиться открыткой';
+  @override
+  String get noGeoMemories => 'Нет воспоминаний с геолокацией';
+  @override
+  String get addLocationHint =>
+      'Добавьте место к воспоминанию\nчерез долгое нажатие';
+  @override
+  String get placeFallback => 'Место';
+  @override
+  String get welcomeSlide1Title => 'Только для\nвас двоих';
+  @override
+  String get welcomeSlide2Title => 'Фото и\nвоспоминания';
+  @override
+  String get welcomeSlide3Title => 'Ваш общий\nмир';
+  @override
+  String get newEntry => 'Новая запись';
+  @override
+  String get photoVideo => 'Фото/Видео';
+  @override
+  String get optionalTapToSelect => 'Необязательно — нажмите чтобы выбрать';
+  @override
+  String itemsShort(int n) => '$n элем.';
+  @override
+  String get dragHint => 'потяни';
+  @override
+  String get addPhoto => 'Добавить фото';
+  @override
+  String get groupMascotBanner => 'Это маскот вашей группы! 🎉';
+  @override
+  String get goToGallery => 'Перейти в галерею';
+  @override
+  String get hide => 'Скрыть';
+  @override
+  String coinsPlus(int n) => '+$n монет';
+  @override
+  String moodScoreLabel(int score, int max) => '$moodScorePrefix $score из $max';
+  @override
+  List<String> get monthAbbrev => const [
+        'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+        'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+      ];
+  @override
+  String get placeOrCoordsHint => 'Место или 55.751, 37.618';
+  @override
+  String get goToCoordinates => 'Перейти к координатам';
+  @override
+  String get chatBgSaveFailed => 'Не удалось сохранить фон';
+  @override
+  String get timeFormatHint => 'чч:мм';
+  @override
+  String get bookTitleLanguageHint =>
+      'Название на английском — можно переписать на русский';
+  @override
+  String memoriesUnit(int n) {
+    if (n % 10 == 1 && n % 100 != 11) return 'воспоминание';
+    if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
+      return 'воспоминания';
+    }
+    return 'воспоминаний';
+  }
 }
 
 class _EnStrings extends AppStrings {
@@ -4633,4 +5417,513 @@ class _EnStrings extends AppStrings {
   String get allMediaGallery => 'All photos & videos';
   @override
   String get loadMore => 'Load more';
+  @override
+  String get previewLabel => 'Preview';
+  @override
+  String get photoSent => 'Photo sent';
+  @override
+  String get partnerFallback => 'partner';
+  @override
+  String get captionDestMemories => 'Memories';
+  @override
+  String get captionDestMemoriesSub => 'Add the photo to the memory lane';
+  @override
+  String get captionDestPairWidget => 'Pair widget';
+  @override
+  String captionDestPairWidgetSub(String partner) =>
+      'Photo in "My widget" — visible to you and $partner';
+  @override
+  String get captionDestPartnerWidget => 'Partner photo widget';
+  @override
+  String captionDestPartnerWidgetSub(String partner) =>
+      'A separate widget with a photo for $partner';
+  @override
+  String get groupMascot => 'Group mascot';
+  @override
+  String get tapForGallery => 'Tap to open gallery';
+  @override
+  String get selectMascot => 'Choose a mascot';
+  @override
+  String get showLabel => 'Show';
+  @override
+  String streakLabel(int days) => 'Streak: $days ${days == 1 ? 'day' : 'days'}';
+
+  // ── Widget screen ──
+  @override
+  String get widgetStreakTitle => 'Couple streak';
+  @override
+  String get widgetStreakSubtitle =>
+      'How many days in a row you both open the app';
+  @override
+  String get widgetPetalTimerTitle => 'Petal timer';
+  @override
+  String get widgetPetalTimerSubtitle =>
+      'A living dial — years, months, days, h, min, sec';
+  @override
+  String get widgetPhotoTitle => 'Photo widget';
+  @override
+  String get widgetPhotoSubtitle =>
+      'Personal carousel: 1–10 photos with auto-rotation';
+  @override
+  String get streakTogetherCaps => 'STREAK TOGETHER';
+  @override
+  String get daysInARow => 'days in a row';
+  @override
+  String get keepItUp => 'Keep it up!';
+  @override
+  String get ourPhotosInsteadOfDrawing => 'Our photos instead of the drawing';
+  @override
+  String get daysPhotosDescription =>
+      'Replace the drawn couple with your real avatars — '
+      'in the preview and on the home screen widget.';
+  @override
+  String unlockForCoins(int price) => 'Unlock — $price 🪙';
+  @override
+  String get showOurPhotos => 'Show our photos';
+  @override
+  String get partnerNoProfilePhoto =>
+      'Your partner has no profile photo — ask them to add one.';
+  @override
+  String get addYourProfilePhoto =>
+      'Add your profile photo so it appears on the widget.';
+  @override
+  String notEnoughCoinsNeed(int price) =>
+      'Not enough coins — you need $price 🪙';
+  @override
+  String get daysPhotosDone => 'Done! Your photos are on the widget 💞';
+  @override
+  String get purchaseFailedTryLater => 'Purchase failed — try again later';
+  @override
+  String personalPhotosHelp(String partner) =>
+      'Personal photos — 1 to 10 per widget. With two or more photos a '
+      'carousel turns on: it changes on unlock or by timer.\n\nThese photos '
+      'are visible only to you. To share with $partner, open “Partner photo” → '
+      '“Choose photos for partner”.';
+  @override
+  String get personalPhotosHelpShort =>
+      'Personal photos — 1 to 10 per widget. With two or more photos a '
+      'carousel turns on: it changes on unlock or by timer.';
+  @override
+  String get uploadedPhotosToMemoryLane =>
+      'Uploaded photos will be added to the memory lane';
+  @override
+  String partnerSharesPhotosHelp(String partner, int count) =>
+      'This widget shows photos shared by $partner '
+      '($count ${photosUnit(count)}). Only $partner can change them.';
+  @override
+  String partnerNotSharedHelp(String partner) =>
+      '$partner hasn’t shared any photos yet. For them to appear here, '
+      '$partner needs to open “Partner photo” and tap “Choose photos for '
+      'partner” — the regular “Photo widget” is visible only to its owner.';
+  @override
+  String get selectPhotosForPartner => 'Choose photos for partner';
+  @override
+  String photosUnit(int n) => n == 1 ? 'photo' : 'photos';
+  @override
+  String get noPhotosFromPartner => 'No photos from partner';
+  @override
+  String get noPhotosAdded => 'No photos added';
+  @override
+  String get onePhotoNoCarousel => '1 photo · no carousel';
+  @override
+  String photoCountOnUnlock(int count) => '$count photos · on unlock';
+  @override
+  String photoCountInterval(int count, String interval) =>
+      '$count photos · $interval';
+  @override
+  String intervalLabel(int minutes) {
+    switch (minutes) {
+      case 15:
+        return 'every 15 min';
+      case 30:
+        return 'every 30 min';
+      case 60:
+        return 'every hour';
+      case 180:
+        return 'every 3 hours';
+      default:
+        return 'every $minutes min';
+    }
+  }
+
+  @override
+  String get partnerPhotoTitle => 'Partner photo';
+  @override
+  String partnerSharedCountHelp(int count) =>
+      'Your partner shared $count photos — choose how they rotate on this '
+      'widget.';
+  @override
+  String get partnerSharedOnePhoto =>
+      'Your partner shared 1 photo — no carousel.';
+  @override
+  String get partnerNotSharedYet => 'Your partner hasn’t shared any photos yet.';
+  @override
+  String get changePhotosLabel => 'Change photos:';
+  @override
+  String get onUnlockOption => 'On unlock';
+  @override
+  String get byTimeOption => 'By time';
+  @override
+  String get every15Minutes => 'Every 15 minutes';
+  @override
+  String get every30Minutes => 'Every 30 minutes';
+  @override
+  String get everyHourOption => 'Every hour';
+  @override
+  String get every3HoursOption => 'Every 3 hours';
+  @override
+  String get createPostcardTitle => 'Create a postcard';
+  @override
+  String get createPostcardSubtitle =>
+      'How long you’ve been together — beautifully and with style';
+  @override
+  String get whereToSendPhoto => 'Where to send the photo?';
+  @override
+  String get sendLabel => 'Send';
+  @override
+  String get widgetPhotoCaption => '📸 Widget';
+
+  // ── Mascot gallery ──
+  @override
+  String get mascotSaveFailed =>
+      'Couldn’t save the mascot. Check your connection.';
+  @override
+  String get mascotLoadFailed => 'Couldn’t load. Check your connection.';
+  @override
+  String get transparentBgTitle => 'Transparent background required';
+  @override
+  String get transparentBgBody =>
+      'The mascot is shown without a background, so upload a PNG file with '
+      'transparency.\n\nRemove the background beforehand — for example with '
+      'remove.bg, Photoshop or Canva.';
+  @override
+  String get mascotNameTitle => 'Mascot name';
+  @override
+  String get enterNameHint => 'Enter a name';
+  @override
+  String get mascotLimitReached =>
+      'Limit reached. Delete a mascot from the gallery.';
+  @override
+  String mascotDeactivated(String name) => '$name deactivated';
+  @override
+  String mascotActivated(String name) => '$name is now active';
+  @override
+  String get rename => 'Rename';
+  @override
+  String get deleteMascotTitle => 'Delete mascot?';
+  @override
+  String deleteMascotBody(String name) => '“$name” will be deleted permanently.';
+  @override
+  String recordStreakDays(int days) => 'Record: $days d.';
+  @override
+  String get deactivateLabel => 'Deactivate';
+  @override
+  String get makeActiveLabel => 'Make active';
+  @override
+  String get editLabel => 'Edit';
+  @override
+  String get exportPng => 'Export PNG';
+  @override
+  String get groupMascots => 'Group mascots';
+  @override
+  String mascotsCount(int count, int max) => '$count / $max mascots';
+  @override
+  String get limitLabel => 'Limit';
+  @override
+  String get mascotsLoadFailedMultiline =>
+      'Mascots didn’t load.\nCheck your connection.';
+  @override
+  String get artistCredit => 'Artist — Alyona Grebeneva';
+  @override
+  String get uploadPhotoTooltip => 'Upload photo';
+  @override
+  String get drawLabel => 'Draw';
+  @override
+  String get streakBroken => 'Streak broken';
+  @override
+  String get streakKeepHint => 'Open the app every day to keep your streak';
+  @override
+  String get streakStartHint => 'Open the app today to start a new streak';
+  @override
+  String get fromUs => 'From us';
+  @override
+  String recordStreakBadge(int days) => '🏅 $days d.';
+
+  // ── Mascot draw screen ──
+  @override
+  String get drawSomethingFirst => 'Draw something first';
+  @override
+  String genericError(String e) => 'Error: $e';
+  @override
+  String get drawMascotTitle => 'Draw a mascot';
+  @override
+  String get toolBrush => 'Brush';
+  @override
+  String get toolPencil => 'Pencil';
+  @override
+  String get toolMarker => 'Marker';
+  @override
+  String get toolEraser => 'Eraser';
+  @override
+  String get toolFill => 'Fill';
+  @override
+  String get toolLine => 'Line';
+  @override
+  String get toolRect => 'Rect.';
+  @override
+  String get toolCircle => 'Circle';
+  @override
+  String get toolTriangle => 'Triangle';
+  @override
+  String get fillAction => 'Fill';
+  @override
+  String get resetSize => 'Reset size';
+  @override
+  String get undoLabel => 'Undo';
+  @override
+  String get redoLabel => 'Redo';
+  @override
+  String get underlayLabel => 'Underlay';
+  @override
+  String get drawHintEdit =>
+      'Double tap — reset view  •  2 fingers — zoom/rotate';
+  @override
+  String get drawHintDraw =>
+      'Two fingers quickly — undo  •  Double tap — reset view';
+  @override
+  String get colorLabel => 'Color';
+  @override
+  String get hueLabel => 'Hue';
+  @override
+  String get saturationLabel => 'Sat.';
+  @override
+  String get brightnessLabel => 'Brightness';
+  @override
+  String get selectAction => 'Select';
+
+  // ── Postcard templates ──
+  @override
+  String get pcNamesFallback => 'Together';
+  @override
+  String get pcLabelNames => 'Names';
+  @override
+  String get pcLabelDaysCaption => 'Number caption';
+  @override
+  String get pcLabelMessage => 'Message';
+  @override
+  String get pcLabelCaption => 'Caption';
+  @override
+  String get pcLabelPolaroidCaption => 'Polaroid caption';
+  @override
+  String get pcLabelMessageAlt => 'Message';
+  @override
+  String get pcDaysTogether => 'days together';
+  @override
+  String get pcMsgTogether => 'Every day with you is a gift ❤️';
+  @override
+  String get pcDaysOfLove => 'days of love';
+  @override
+  String get pcMsgPolaroid => 'Our moment ✨';
+  @override
+  String get pcDaysNearby => 'days side by side';
+  @override
+  String get pcMsgBloom => 'You’re my favorite adventure 🌸';
+  @override
+  String get pcNightsUnderSky => 'nights under one sky';
+  @override
+  String get pcMsgNightSky => 'You’re my star ✨';
+
+  // ── Photo carousel editor ──
+  @override
+  String get addOneToTenPhotos => 'Add 1 to 10 photos';
+  @override
+  String photoCountCarousel(int count) => '$count photos · carousel';
+  @override
+  String get addMorePhotosCarouselHint =>
+      'Add more photos to enable the carousel — photos will rotate '
+      'automatically.';
+  @override
+  String get dragToReorder => 'Hold and drag to reorder';
+  @override
+  String photoNumber(int n) => 'Photo $n';
+  @override
+  String get mainPhoto => 'Main';
+  @override
+  String positionNumber(int n) => 'Position $n';
+  @override
+  String get addMore => 'Add more';
+  @override
+  String get fromDevice => 'From device';
+  @override
+  String get fromFeed => 'From feed';
+
+  // ── Profile screen ──
+  @override
+  String get cropAvatarTitle => '✂️  Crop avatar';
+  @override
+  String get avatarTitle => 'Avatar';
+  @override
+  String get appIconTitle => 'App icon';
+  @override
+  String get appIconUpdateHint =>
+      'The home-screen icon may take a couple of seconds to refresh.';
+  @override
+  String get appIconChangeFailed => 'Could not change the icon';
+  @override
+  String get viewAction => 'View';
+  @override
+  String get enterDateFormat => 'Enter the date as DD.MM.YYYY';
+  @override
+  String yearRange(int first, int last) => 'Year from $first to $last';
+  @override
+  String get enterTimeFormat => 'Time must be in HH:MM format';
+  @override
+  String get dateHintFormat => 'DD.MM.YYYY';
+  @override
+  String get timeHintFormat => 'HH:MM';
+  @override
+  String get openCalendar => 'Open calendar';
+  @override
+  String get refreshTooltip => 'Refresh';
+  @override
+  String get memoriesMapTooltip => 'Memories map';
+  @override
+  String kpRating(String rating) => 'KP $rating';
+  @override
+  String get editLocation => 'Edit location';
+  @override
+  String get addLocation => 'Add location';
+  @override
+  String get photoVideoNote => 'Photo / Video / Note';
+  @override
+  String distanceLabel(double meters) => meters < 1000
+      ? '${meters.round()} m'
+      : '${(meters / 1000).toStringAsFixed(1)} km';
+  @override
+  String get appNotInstalled => 'App not installed';
+  @override
+  String get watchTogether => 'Watch together';
+  @override
+  String get watchTogetherAdPrompt =>
+      'To open watch together, watch a short ad — '
+      'support the app and earn coins 🪙';
+  @override
+  String get watchAction => 'Watch';
+  @override
+  String get youtubeLinkHint => 'YouTube link';
+  @override
+  String get startAction => 'Start';
+  @override
+  String get youtubeLinkInvalid => 'Could not recognize the YouTube link';
+  @override
+  String invitesToWatchTogether(String hostName) =>
+      '$hostName invites you to watch together';
+  @override
+  String get joinAction => 'Join';
+  @override
+  String get partnerEndedWatchTogether => 'Partner ended the watch session';
+  @override
+  String get videoCannotWatchTogether => 'This video can\'t be watched together';
+  @override
+  String get videoEmbedBlockedHint =>
+      'The author disabled playback outside YouTube. '
+      'Pick another video — most of them work.';
+  @override
+  String get chooseAnother => 'Choose another';
+  @override
+  String get watchingTogether => 'Watching together';
+  @override
+  String get partnerJoined => 'Partner joined';
+  @override
+  String get waitingForPartner => 'Waiting for partner…';
+  @override
+  String get syncedPlaying => 'Synced · playing';
+  @override
+  String get syncedPaused => 'Synced · paused';
+  @override
+  String get writeFirstMessage => 'Write the first message 💬';
+  @override
+  String get messageInputHint => 'Message…';
+  @override
+  String get selectOnePhoto => 'Select 1 photo';
+  @override
+  String get maxSelected => 'Maximum selected';
+  @override
+  String selectUpToPhotos(int n) => 'Select up to $n ${photosUnit(n)}';
+  @override
+  String get selectPhotosPrompt => 'Select photos';
+  @override
+  String addWithCount(int n) => 'Add ($n)';
+  @override
+  String get failedToLoadMemories => 'Failed to load memories';
+  @override
+  String get noPhotosInMemoryLane => 'No photos in Memory Lane';
+  @override
+  String get inWidget => 'On widget';
+  @override
+  String get postcardTitle => 'Postcard';
+  @override
+  String failedToSave(Object e) => 'Failed to save: $e';
+  @override
+  String get changePhoto => 'Change photo';
+  @override
+  String get addPhotoFromGallery => 'Add photo from gallery';
+  @override
+  String get tapAnyTextToEdit => 'Tap any text to edit';
+  @override
+  String get creating => 'Creating...';
+  @override
+  String get sharePostcard => 'Share postcard';
+  @override
+  String get noGeoMemories => 'No memories with location';
+  @override
+  String get addLocationHint => 'Add a place to a memory\nwith a long press';
+  @override
+  String get placeFallback => 'Place';
+  @override
+  String get welcomeSlide1Title => 'Just for\nthe two of you';
+  @override
+  String get welcomeSlide2Title => 'Photos &\nmemories';
+  @override
+  String get welcomeSlide3Title => 'Your shared\nworld';
+  @override
+  String get newEntry => 'New entry';
+  @override
+  String get photoVideo => 'Photo/Video';
+  @override
+  String get optionalTapToSelect => 'Optional — tap to select';
+  @override
+  String itemsShort(int n) => '$n items';
+  @override
+  String get dragHint => 'drag';
+  @override
+  String get addPhoto => 'Add photo';
+  @override
+  String get groupMascotBanner => 'This is your group mascot! 🎉';
+  @override
+  String get goToGallery => 'Go to gallery';
+  @override
+  String get hide => 'Hide';
+  @override
+  String coinsPlus(int n) => '+$n ${n == 1 ? 'coin' : 'coins'}';
+  @override
+  String moodScoreLabel(int score, int max) => '$moodScorePrefix $score of $max';
+  @override
+  List<String> get monthAbbrev => const [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+  @override
+  String get placeOrCoordsHint => 'Place or 55.751, 37.618';
+  @override
+  String get goToCoordinates => 'Go to coordinates';
+  @override
+  String get chatBgSaveFailed => 'Failed to save background';
+  @override
+  String get timeFormatHint => 'hh:mm';
+  @override
+  String get bookTitleLanguageHint =>
+      'Title may be in English — feel free to edit';
+  @override
+  String memoriesUnit(int n) => n == 1 ? 'memory' : 'memories';
 }

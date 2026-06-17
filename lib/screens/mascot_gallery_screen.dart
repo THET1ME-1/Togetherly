@@ -13,6 +13,7 @@ import 'dart:io';
 import '../models/mascot.dart';
 import '../services/firebase_service.dart';
 import '../services/mascot_service.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import 'mascot_draw_screen.dart';
@@ -105,10 +106,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         );
         if (saved == null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Не удалось сохранить маскота. Проверьте соединение.',
-              ),
+            SnackBar(
+              content: Text(LocaleService.current.mascotSaveFailed),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -164,8 +163,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       );
       if (saved == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Не удалось загрузить. Проверьте соединение.'),
+          SnackBar(
+            content: Text(LocaleService.current.mascotLoadFailed),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -200,14 +199,13 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               child: Icon(Icons.layers_clear_rounded, color: _t.primary, size: 24),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Нужен прозрачный фон',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            Text(
+              LocaleService.current.transparentBgTitle,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             Text(
-              'Маскот отображается без фона, поэтому загружай PNG-файл с прозрачностью.\n\n'
-              'Вырежи фон заранее — например, через remove.bg, Photoshop или Canva.',
+              LocaleService.current.transparentBgBody,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5),
             ),
@@ -225,9 +223,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text(
-                  'Понятно',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                child: Text(
+                  LocaleService.current.gotIt,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -243,7 +241,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Имя маскота'),
+        title: Text(LocaleService.current.mascotNameTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,7 +250,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               controller: controller,
               autofocus: true,
               maxLength: 30,
-              decoration: const InputDecoration(hintText: 'Введите имя'),
+              decoration: InputDecoration(
+                hintText: LocaleService.current.enterNameHint,
+              ),
               onSubmitted: (_) {
                 final n = controller.text.trim();
                 if (n.isNotEmpty) Navigator.of(ctx).pop(n);
@@ -263,14 +263,14 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Отмена'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () {
               final n = controller.text.trim();
               if (n.isNotEmpty) Navigator.of(ctx).pop(n);
             },
-            child: Text('Добавить', style: TextStyle(color: _t.primary)),
+            child: Text(LocaleService.current.add, style: TextStyle(color: _t.primary)),
           ),
         ],
       ),
@@ -279,8 +279,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
 
   void _showLimitSnack() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Достигнут лимит. Удалите маскота из галереи.'),
+      SnackBar(
+        content: Text(LocaleService.current.mascotLimitReached),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -296,8 +296,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         SnackBar(
           content: Text(
             alreadyActive
-                ? '${mascot.localizedName} деактивирован'
-                : '${mascot.localizedName} теперь активен',
+                ? LocaleService.current.mascotDeactivated(mascot.localizedName)
+                : LocaleService.current.mascotActivated(mascot.localizedName),
           ),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
@@ -311,18 +311,20 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Переименовать'),
+        title: Text(LocaleService.current.rename),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 30,
-          decoration: const InputDecoration(hintText: 'Имя маскота'),
+          decoration: InputDecoration(
+            hintText: LocaleService.current.mascotNameTitle,
+          ),
           onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Отмена'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
@@ -340,16 +342,19 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Удалить маскота?'),
-        content: Text('«${mascot.localizedName}» будет удалён навсегда.'),
+        title: Text(LocaleService.current.deleteMascotTitle),
+        content: Text(
+          LocaleService.current.deleteMascotBody(mascot.localizedName),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Отмена'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+            child: Text(LocaleService.current.delete,
+                style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -374,7 +379,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
+        ).showSnackBar(
+          SnackBar(content: Text(LocaleService.current.exportError('$e'))),
+        );
       }
     }
   }
@@ -429,7 +436,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                         ),
                         if (mascot.recordStreak > 0)
                           Text(
-                            'Рекорд: ${mascot.recordStreak} дн.',
+                            LocaleService.current
+                                .recordStreakDays(mascot.recordStreak),
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey.shade600,
@@ -446,7 +454,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               icon: isActive
                   ? Icons.check_circle
                   : Icons.radio_button_unchecked,
-              label: isActive ? 'Деактивировать' : 'Сделать активным',
+              label: isActive
+                  ? LocaleService.current.deactivateLabel
+                  : LocaleService.current.makeActiveLabel,
               color: isActive ? Colors.green : _t.primary,
               onTap: () {
                 Navigator.of(ctx).pop();
@@ -456,7 +466,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             if (!mascot.isDefault)
               _ActionTile(
                 icon: Icons.edit_outlined,
-                label: 'Редактировать',
+                label: LocaleService.current.editLabel,
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _openDrawScreen(editMascot: mascot);
@@ -465,7 +475,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             if (!mascot.isDefault)
               _ActionTile(
                 icon: Icons.drive_file_rename_outline,
-                label: 'Переименовать',
+                label: LocaleService.current.rename,
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _rename(mascot);
@@ -474,7 +484,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             if (canExport) ...[
               _ActionTile(
                 icon: Icons.download_outlined,
-                label: 'Экспортировать PNG',
+                label: LocaleService.current.exportPng,
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _export(mascot);
@@ -482,7 +492,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               ),
               _ActionTile(
                 icon: Icons.share_outlined,
-                label: 'Поделиться',
+                label: LocaleService.current.share,
                 onTap: () {
                   Navigator.of(ctx).pop();
                   _share(mascot);
@@ -492,7 +502,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             if (!mascot.isDefault)
               _ActionTile(
                 icon: Icons.delete_outline,
-                label: 'Удалить',
+                label: LocaleService.current.delete,
                 color: Colors.red,
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -519,9 +529,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Маскоты группы',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        title: Text(
+          LocaleService.current.groupMascots,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
         actions: [
           if (_uploading)
@@ -546,7 +556,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${mascots.length} / ${MascotService.maxMascots} маскотов',
+                  LocaleService.current
+                      .mascotsCount(mascots.length, MascotService.maxMascots),
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
                 if (_svc.isGalleryFull)
@@ -559,9 +570,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                       color: Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
-                      'Лимит',
-                      style: TextStyle(
+                    child: Text(
+                      LocaleService.current.limitLabel,
+                      style: const TextStyle(
                         fontSize: 11,
                         color: Colors.orange,
                         fontWeight: FontWeight.w600,
@@ -578,7 +589,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                 : mascots.isEmpty
                 ? Center(
                     child: Text(
-                      'Маскоты не загрузились.\nПроверьте соединение.',
+                      LocaleService.current.mascotsLoadFailedMultiline,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey.shade500),
                     ),
@@ -635,7 +646,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Художница - Алёна Гребенева',
+                          LocaleService.current.artistCredit,
                           style: TextStyle(
                             fontSize: 9,
                             color: _t.primary,
@@ -663,7 +674,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                   onPressed: _uploading ? null : _importPng,
                   backgroundColor: Colors.white,
                   foregroundColor: _t.primary,
-                  tooltip: 'Загрузить фото',
+                  tooltip: LocaleService.current.uploadPhotoTooltip,
                   child: const Icon(Icons.add_photo_alternate_outlined),
                 ),
                 const SizedBox(height: 10),
@@ -673,7 +684,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                   backgroundColor: _t.primary,
                   foregroundColor: Colors.white,
                   icon: const Icon(Icons.add),
-                  label: const Text('Нарисовать'),
+                  label: Text(LocaleService.current.drawLabel),
                 ),
               ],
             ),
@@ -703,8 +714,8 @@ class _StreakBanner extends StatelessWidget {
             children: [
               Text(
                 streak > 0
-                    ? 'Серия: $streak ${_dayLabel(streak)}'
-                    : 'Серия прервана',
+                    ? LocaleService.current.streakLabel(streak)
+                    : LocaleService.current.streakBroken,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
@@ -712,8 +723,8 @@ class _StreakBanner extends StatelessWidget {
               ),
               Text(
                 streak > 0
-                    ? 'Заходите каждый день, чтобы не прерывать серию'
-                    : 'Зайдите сегодня, чтобы начать новую серию',
+                    ? LocaleService.current.streakKeepHint
+                    : LocaleService.current.streakStartHint,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
             ],
@@ -721,20 +732,6 @@ class _StreakBanner extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _dayLabel(int n) {
-    if (n % 100 >= 11 && n % 100 <= 14) return 'дней';
-    switch (n % 10) {
-      case 1:
-        return 'день';
-      case 2:
-      case 3:
-      case 4:
-        return 'дня';
-      default:
-        return 'дней';
-    }
   }
 }
 
@@ -823,9 +820,9 @@ class _MascotCard extends StatelessWidget {
                           color: Colors.purple.withAlpha(200),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'От нас',
-                          style: TextStyle(
+                        child: Text(
+                          LocaleService.current.fromUs,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 8,
                             fontWeight: FontWeight.w700,
@@ -851,7 +848,7 @@ class _MascotCard extends StatelessWidget {
                   ),
                   if (mascot.recordStreak > 0)
                     Text(
-                      '🏅 ${mascot.recordStreak} дн.',
+                      LocaleService.current.recordStreakBadge(mascot.recordStreak),
                       style: TextStyle(
                         fontSize: 10,
                         color: Colors.grey.shade500,

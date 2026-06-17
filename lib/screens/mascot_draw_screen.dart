@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/draw_stroke.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 
 // ── Palette (32 colours) ─────────────────────────────────────────────────────
@@ -809,7 +810,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
         _prevDrawingImage != null;
     if (!hasContent) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Нарисуйте что-нибудь сначала')),
+        SnackBar(content: Text(LocaleService.current.drawSomethingFirst)),
       );
       return;
     }
@@ -865,7 +866,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       if (mounted)
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+        ).showSnackBar(
+          SnackBar(content: Text(LocaleService.current.genericError('$e'))),
+        );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -877,18 +880,20 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Имя маскота'),
+        title: Text(LocaleService.current.mascotNameTitle),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLength: 30,
-          decoration: const InputDecoration(hintText: 'Введите имя'),
+          decoration: InputDecoration(
+            hintText: LocaleService.current.enterNameHint,
+          ),
           onSubmitted: (_) => Navigator.of(ctx).pop(ctrl.text.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Отмена'),
+            child: Text(LocaleService.current.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -896,7 +901,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               if (n.isNotEmpty) Navigator.of(ctx).pop(n);
             },
             child: Text(
-              'Сохранить',
+              LocaleService.current.save,
               style: TextStyle(color: _t.primary, fontWeight: FontWeight.w600),
             ),
           ),
@@ -930,9 +935,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Нарисовать маскота',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        title: Text(
+          LocaleService.current.drawMascotTitle,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
         actions: [
           if (_saving)
@@ -948,7 +953,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             TextButton(
               onPressed: widget.isGalleryFull ? null : _save,
               child: Text(
-                'Сохранить',
+                LocaleService.current.save,
                 style: TextStyle(
                   color: widget.isGalleryFull ? Colors.grey : _t.primary,
                   fontWeight: FontWeight.w600,
@@ -971,14 +976,14 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.orange),
-                    SizedBox(width: 8),
+                    const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Достигнут лимит. Удалите маскота из галереи.',
-                        style: TextStyle(fontSize: 13),
+                        LocaleService.current.mascotLimitReached,
+                        style: const TextStyle(fontSize: 13),
                       ),
                     ),
                   ],
@@ -1154,35 +1159,35 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               children: [
                 _ToolBtn(
                   icon: Icons.brush,
-                  label: 'Кисть',
+                  label: LocaleService.current.toolBrush,
                   active: _tool == _Tool.brush,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.brush),
                 ),
                 _ToolBtn(
                   icon: Icons.edit,
-                  label: 'Карандаш',
+                  label: LocaleService.current.toolPencil,
                   active: _tool == _Tool.pencil,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.pencil),
                 ),
                 _ToolBtn(
                   icon: Icons.highlight,
-                  label: 'Маркер',
+                  label: LocaleService.current.toolMarker,
                   active: _tool == _Tool.marker,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.marker),
                 ),
                 _ToolBtn(
                   icon: Icons.auto_fix_normal,
-                  label: 'Ластик',
+                  label: LocaleService.current.toolEraser,
                   active: _tool == _Tool.eraser,
                   color: Colors.grey.shade600,
                   onTap: () => _selectTool(_Tool.eraser),
                 ),
                 _ToolBtn(
                   icon: Icons.format_color_fill,
-                  label: 'Заливка',
+                  label: LocaleService.current.toolFill,
                   active: _tool == _Tool.fill,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.fill),
@@ -1197,28 +1202,28 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
 
                 _ToolBtn(
                   icon: Icons.horizontal_rule,
-                  label: 'Линия',
+                  label: LocaleService.current.toolLine,
                   active: _tool == _Tool.line,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.line),
                 ),
                 _ToolBtn(
                   icon: Icons.rectangle_outlined,
-                  label: 'Прямоуг.',
+                  label: LocaleService.current.toolRect,
                   active: _tool == _Tool.rect,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.rect),
                 ),
                 _ToolBtn(
                   icon: Icons.circle_outlined,
-                  label: 'Круг',
+                  label: LocaleService.current.toolCircle,
                   active: _tool == _Tool.circle,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.circle),
                 ),
                 _ToolBtn(
                   icon: Icons.change_history,
-                  label: 'Треугол.',
+                  label: LocaleService.current.toolTriangle,
                   active: _tool == _Tool.triangle,
                   color: _t.primary,
                   onTap: () => _selectTool(_Tool.triangle),
@@ -1235,7 +1240,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     icon: _fillShapes
                         ? Icons.square_rounded
                         : Icons.square_outlined,
-                    label: 'Залить',
+                    label: LocaleService.current.fillAction,
                     active: _fillShapes,
                     color: _t.primary,
                     onTap: () => setState(() => _fillShapes = !_fillShapes),
@@ -1257,7 +1262,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     _opacity = 1.0;
                   }),
                   child: Tooltip(
-                    message: 'Сбросить размер',
+                    message: LocaleService.current.resetSize,
                     child: SizedBox(
                       width: 36,
                       height: 36,
@@ -1418,19 +1423,19 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               children: [
                 _ActionBtn(
                   icon: Icons.undo,
-                  label: 'Отмена',
+                  label: LocaleService.current.undoLabel,
                   enabled: _canUndo,
                   onTap: _undo,
                 ),
                 _ActionBtn(
                   icon: Icons.redo,
-                  label: 'Повтор',
+                  label: LocaleService.current.redoLabel,
                   enabled: _canRedo,
                   onTap: _redo,
                 ),
                 _ActionBtn(
                   icon: Icons.delete_outline,
-                  label: 'Очистить',
+                  label: LocaleService.current.clear,
                   enabled: _canUndo,
                   onTap: _clear,
                   danger: true,
@@ -1439,14 +1444,14 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                 if (_isTransformed)
                   _ActionBtn(
                     icon: Icons.fit_screen,
-                    label: 'Сброс',
+                    label: LocaleService.current.reset,
                     enabled: true,
                     onTap: _resetTransform,
                     highlight: true,
                   ),
                 _ActionBtn(
                   icon: Icons.image_outlined,
-                  label: 'Подложка',
+                  label: LocaleService.current.underlayLabel,
                   enabled: true,
                   onTap: _pickRefImage,
                   highlight: _refImage != null && _showRef,
@@ -1469,8 +1474,8 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             padding: EdgeInsets.only(bottom: math.max(bottom - 4, 4)),
             child: Text(
               _isTransformed
-                  ? 'Двойной тап — сбросить вид  •  2 пальца — зум/поворот'
-                  : 'Два пальца быстро — отменить  •  Двойной тап — сбросить вид',
+                  ? LocaleService.current.drawHintEdit
+                  : LocaleService.current.drawHintDraw,
               style: TextStyle(fontSize: 10, color: Colors.grey.shade300),
             ),
           ),
@@ -1972,9 +1977,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
     final color = _hsv.toColor();
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
-        'Цвет',
-        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+      title: Text(
+        LocaleService.current.colorLabel,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
       ),
       contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       content: Column(
@@ -1992,7 +1997,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           const SizedBox(height: 16),
 
           _HsvSlider(
-            label: 'Оттенок',
+            label: LocaleService.current.hueLabel,
             value: _hsv.hue,
             min: 0,
             max: 360,
@@ -2005,7 +2010,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           const SizedBox(height: 10),
 
           _HsvSlider(
-            label: 'Насыщ.',
+            label: LocaleService.current.saturationLabel,
             value: _hsv.saturation,
             min: 0,
             max: 1,
@@ -2018,7 +2023,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           const SizedBox(height: 10),
 
           _HsvSlider(
-            label: 'Яркость',
+            label: LocaleService.current.brightnessLabel,
             value: _hsv.value,
             min: 0,
             max: 1,
@@ -2034,7 +2039,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(LocaleService.current.cancel),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -2045,7 +2050,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             ),
           ),
           onPressed: () => Navigator.pop(context, color),
-          child: const Text('Выбрать'),
+          child: Text(LocaleService.current.selectAction),
         ),
       ],
     );

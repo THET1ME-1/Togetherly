@@ -2477,12 +2477,12 @@ class _DrawScreenState extends State<DrawScreen>
             // Palm (hand) tool
             _toolBtn(Icons.pan_tool_rounded, DrawTool.palm, s.palmTool, t),
             // Image tool
-            _toolBtn(Icons.image_rounded, DrawTool.image, 'Фото', t),
+            _toolBtn(Icons.image_rounded, DrawTool.image, s.photo, t),
             // Add photo button
             _actionBtn(
               Icons.add_photo_alternate_rounded,
               _pickAndAddImage,
-              tooltip: 'Добавить фото',
+              tooltip: s.addPhoto,
             ),
             // Brush tool
             _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),

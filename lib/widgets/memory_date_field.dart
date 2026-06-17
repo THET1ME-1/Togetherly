@@ -189,10 +189,7 @@ class MemoryDateField extends StatelessWidget {
   }
 
   static String _format(DateTime d) {
-    const months = [
-      'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
-    ];
+    final months = LocaleService.current.monthAbbrev;
     final dd = d.day.toString().padLeft(2, '0');
     final mm = months[d.month - 1];
     final yyyy = d.year;

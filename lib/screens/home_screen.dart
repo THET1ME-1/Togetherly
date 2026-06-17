@@ -1018,7 +1018,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Предпросмотр',
+                      LocaleService.current.previewLabel,
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.grey.shade500,
@@ -1113,7 +1113,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Недостаточно монет')));
+        ).showSnackBar(
+          SnackBar(content: Text(LocaleService.current.notEnoughCoins)),
+        );
       }
       return;
     }
@@ -1536,7 +1538,7 @@ class _HomeScreenState extends State<HomeScreen> {
             content: Text(
               result.toMemories
                   ? LocaleService.current.postedToMemoryLane
-                  : 'Фото отправлено',
+                  : LocaleService.current.photoSent,
             ),
             backgroundColor: primary,
             behavior: SnackBarBehavior.floating,
@@ -1657,7 +1659,9 @@ class _HomeScreenState extends State<HomeScreen> {
         bool toPartnerWidget = initToPartnerWidget;
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
-            final partner = partnerName.isNotEmpty ? partnerName : 'партнёр';
+            final partner = partnerName.isNotEmpty
+                ? partnerName
+                : LocaleService.current.partnerFallback;
             final nothingSelected =
                 !toMemories && !toPairWidget && !toPartnerWidget;
             return Dialog(
@@ -1745,20 +1749,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 4),
                     // Куда отправить фото — три независимых тумблера.
                     _captionDestRow(
-                      title: 'Воспоминания',
-                      subtitle: 'Добавить фото в ленту воспоминаний',
+                      title: LocaleService.current.captionDestMemories,
+                      subtitle: LocaleService.current.captionDestMemoriesSub,
                       value: toMemories,
                       onChanged: (v) => setDlgState(() => toMemories = v),
                     ),
                     _captionDestRow(
-                      title: 'Парный виджет',
-                      subtitle: 'Фото в «Моём виджете» — видно тебе и $partner',
+                      title: LocaleService.current.captionDestPairWidget,
+                      subtitle:
+                          LocaleService.current.captionDestPairWidgetSub(partner),
                       value: toPairWidget,
                       onChanged: (v) => setDlgState(() => toPairWidget = v),
                     ),
                     _captionDestRow(
-                      title: 'Виджет «Фото партнёра»',
-                      subtitle: 'Отдельный виджет с фото для $partner',
+                      title: LocaleService.current.captionDestPartnerWidget,
+                      subtitle: LocaleService.current
+                          .captionDestPartnerWidgetSub(partner),
                       value: toPartnerWidget,
                       onChanged: (v) => setDlgState(() => toPartnerWidget = v),
                     ),
@@ -2329,7 +2335,9 @@ class _MascotButtonState extends State<_MascotButton>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      mascot != null ? mascot.localizedName : 'Маскот группы',
+                      mascot != null
+                          ? mascot.localizedName
+                          : LocaleService.current.groupMascot,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
@@ -2346,8 +2354,8 @@ class _MascotButtonState extends State<_MascotButton>
                     else
                       Text(
                         mascot != null
-                            ? 'Нажмите для галереи'
-                            : 'Выберите маскота',
+                            ? LocaleService.current.tapForGallery
+                            : LocaleService.current.selectMascot,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -2387,7 +2395,7 @@ class _MascotButtonState extends State<_MascotButton>
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Показать',
+                                  LocaleService.current.showLabel,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: t.primary,
@@ -2471,7 +2479,7 @@ class _StreakBadge extends StatelessWidget {
             duration: const Duration(milliseconds: 900),
             curve: Curves.easeOutCubic,
             builder: (_, val, _) => Text(
-              'Серия: $val ${_dayLabel(val)}',
+              LocaleService.current.streakLabel(val),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -2482,20 +2490,6 @@ class _StreakBadge extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _dayLabel(int n) {
-    if (n % 100 >= 11 && n % 100 <= 14) return 'дней';
-    switch (n % 10) {
-      case 1:
-        return 'день';
-      case 2:
-      case 3:
-      case 4:
-        return 'дня';
-      default:
-        return 'дней';
-    }
   }
 }
 

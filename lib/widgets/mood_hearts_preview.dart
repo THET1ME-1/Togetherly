@@ -167,7 +167,7 @@ class _HeartColumn extends StatelessWidget {
         : 0;
     final waterColor = _waterColor();
     final ratingText = entries.isNotEmpty
-        ? '${LocaleService.current.moodScorePrefix} $score из $_kMaxMoodsPerDay'
+        ? LocaleService.current.moodScoreLabel(score, _kMaxMoodsPerDay)
         : '';
 
     return Column(

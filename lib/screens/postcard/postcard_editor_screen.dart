@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/pair_data.dart';
 import '../../models/user_data.dart';
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import 'models/postcard_template.dart';
 import 'widgets/postcard_card.dart';
@@ -172,7 +173,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                     Navigator.of(ctx).pop();
                   },
                   child: Text(
-                    'Готово',
+                    LocaleService.current.done,
                     style: GoogleFonts.rubik(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -211,12 +212,12 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
-        text: '$_days дней вместе ❤️',
+        text: '$_days ${LocaleService.current.pcDaysTogether} ❤️',
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Не удалось сохранить: $e')),
+          SnackBar(content: Text(LocaleService.current.failedToSave(e))),
         );
       }
     } finally {
@@ -276,7 +277,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
           ),
           Expanded(
             child: Text(
-              'Открытка',
+              LocaleService.current.postcardTitle,
               style: GoogleFonts.rubik(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -285,7 +286,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
             ),
           ),
           Text(
-            '$_days дней',
+            LocaleService.current.daysTogetherLabel('$_days'),
             style: GoogleFonts.rubik(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -401,7 +402,9 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                hasPhoto ? 'Сменить фото' : 'Добавить фото из галереи',
+                hasPhoto
+                    ? LocaleService.current.changePhoto
+                    : LocaleService.current.addPhotoFromGallery,
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -424,7 +427,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
           Icon(Icons.touch_app_rounded, size: 14, color: Colors.grey.shade400),
           const SizedBox(width: 6),
           Text(
-            'Нажми на любой текст чтобы изменить',
+            LocaleService.current.tapAnyTextToEdit,
             style: GoogleFonts.rubik(
               fontSize: 12,
               color: Colors.grey.shade400,
@@ -461,7 +464,9 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                 )
               : const Icon(Icons.share_rounded, color: Colors.white, size: 20),
           label: Text(
-            _exporting ? 'Создаём...' : 'Поделиться открыткой',
+            _exporting
+                ? LocaleService.current.creating
+                : LocaleService.current.sharePostcard,
             style: GoogleFonts.rubik(
               fontSize: 15,
               fontWeight: FontWeight.w700,

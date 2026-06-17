@@ -574,7 +574,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _toast(s.chatBgCharged);
       }
     } catch (e) {
-      _toast('Не удалось сохранить фон');
+      _toast(s.chatBgSaveFailed);
     }
   }
 

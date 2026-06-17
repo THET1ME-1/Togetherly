@@ -1202,7 +1202,7 @@ class MemoryTileBuilder {
   // ═══════════════════════════════════════════════════
   Widget _movieContent(Memory memory) {
     final s = LocaleService.current;
-    final isRu = s.movies == 'Фильмы и сериалы';
+    final isRu = LocaleService.instance.isRussian;
     final hasPoster =
         memory.moviePosterUrl != null && memory.moviePosterUrl!.isNotEmpty;
     final title = memory.title?.isNotEmpty == true ? memory.title! : s.movies;

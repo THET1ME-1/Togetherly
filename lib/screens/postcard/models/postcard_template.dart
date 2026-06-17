@@ -1,3 +1,5 @@
+import '../../../services/locale_service.dart';
+
 enum PostcardTemplateId { together, polaroid, bloom, nightSky }
 
 class PostcardTextBlock {
@@ -32,64 +34,65 @@ class PostcardTemplate {
     required String myName,
     required String partnerName,
   }) {
+    final s = LocaleService.current;
     final names =
         myName.isNotEmpty && partnerName.isNotEmpty
             ? '$myName & $partnerName'
             : myName.isNotEmpty
             ? myName
-            : 'Мы вместе';
+            : s.pcNamesFallback;
 
     return switch (templateId) {
       PostcardTemplateId.together => [
-        PostcardTextBlock(id: 'names', label: 'Имена', text: names),
+        PostcardTextBlock(id: 'names', label: s.pcLabelNames, text: names),
         PostcardTextBlock(
           id: 'days_label',
-          label: 'Подпись к числу',
-          text: 'дней вместе',
+          label: s.pcLabelDaysCaption,
+          text: s.pcDaysTogether,
         ),
         PostcardTextBlock(
           id: 'message',
-          label: 'Послание',
-          text: 'Каждый день с тобой — подарок ❤️',
+          label: s.pcLabelMessage,
+          text: s.pcMsgTogether,
         ),
       ],
       PostcardTemplateId.polaroid => [
-        PostcardTextBlock(id: 'names', label: 'Имена', text: names),
+        PostcardTextBlock(id: 'names', label: s.pcLabelNames, text: names),
         PostcardTextBlock(
           id: 'days_label',
-          label: 'Подпись',
-          text: 'дней любви',
+          label: s.pcLabelCaption,
+          text: s.pcDaysOfLove,
         ),
         PostcardTextBlock(
           id: 'message',
-          label: 'Подпись на полароиде',
-          text: 'Наш момент ✨',
+          label: s.pcLabelPolaroidCaption,
+          text: s.pcMsgPolaroid,
         ),
       ],
       PostcardTemplateId.bloom => [
-        PostcardTextBlock(id: 'names', label: 'Имена', text: names),
+        PostcardTextBlock(id: 'names', label: s.pcLabelNames, text: names),
         PostcardTextBlock(
           id: 'days_label',
-          label: 'Подпись к числу',
-          text: 'дней рядом',
+          label: s.pcLabelDaysCaption,
+          text: s.pcDaysNearby,
         ),
         PostcardTextBlock(
           id: 'message',
-          label: 'Сообщение',
-          text: 'Ты моё любимое приключение 🌸',
+          label: s.pcLabelMessageAlt,
+          text: s.pcMsgBloom,
         ),
       ],
       PostcardTemplateId.nightSky => [
-        PostcardTextBlock(id: 'names', label: 'Имена', text: names),
+        PostcardTextBlock(id: 'names', label: s.pcLabelNames, text: names),
         PostcardTextBlock(
           id: 'days_label',
-          label: 'Подпись к числу',
-          text: 'ночей под одним небом',
+          label: s.pcLabelDaysCaption,
+          text: s.pcNightsUnderSky,
         ),
         PostcardTextBlock(
           id: 'message',
-          label: 'Послание',
-          text: 'Ты — моя звезда ✨',
+          label: s.pcLabelMessage,
+          text: s.pcMsgNightSky,
         ),
       ],
     };
