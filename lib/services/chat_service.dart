@@ -157,6 +157,9 @@ class ChatService {
     String? pinId,
     String? pinTitle,
     String? pinThumb,
+    String? replyToId,
+    String? replyToName,
+    String? replyToText,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
@@ -176,6 +179,9 @@ class ChatService {
           if (pinId != null) 'pinId': pinId,
           if (pinTitle != null) 'pinTitle': pinTitle,
           if (pinThumb != null) 'pinThumb': pinThumb,
+          if (replyToId != null) 'replyToId': replyToId,
+          if (replyToName != null) 'replyToName': replyToName,
+          if (replyToText != null) 'replyToText': replyToText,
         });
       }
       if (_dualWrite) {
@@ -189,6 +195,9 @@ class ChatService {
           pinId: pinId,
           pinTitle: pinTitle,
           pinThumb: pinThumb,
+          replyToId: replyToId,
+          replyToName: replyToName,
+          replyToText: replyToText,
         ));
       }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
@@ -284,6 +293,47 @@ class ChatService {
     } catch (e) {
       debugPrint('ChatService.setReaction failed: $e');
     }
+  }
+
+  // ── «Печатает…» (эфемерный презенс) ─────────────────────────────────────────
+  // Живёт в RTDB chats/{groupId}/typing/{uid}=ts (как presence/missYou) для ВСЕХ
+  // групп независимо от стадии миграции — это не данные, а живой статус. Ноль
+  // Firestore/Supabase. onDisconnect снимает маркер при обрыве связи.
+
+  DatabaseReference _typingRef(String groupId) =>
+      _db.ref('chats/$groupId/typing');
+
+  /// Пометить «я печатаю» / снять. Маркер обновляется клиентом раз в ~3с пока
+  /// идёт ввод и снимается при отправке/очистке/уходе с экрана.
+  Future<void> setTyping(String groupId, bool typing) async {
+    if (groupId.isEmpty || _uid.isEmpty) return;
+    try {
+      final ref = _typingRef(groupId).child(_uid);
+      if (typing) {
+        unawaited(ref.onDisconnect().remove());
+        await ref.set(ServerValue.timestamp);
+      } else {
+        await ref.remove();
+      }
+    } catch (e) {
+      debugPrint('ChatService.setTyping failed: $e');
+    }
+  }
+
+  /// true — партнёр сейчас печатает (его маркер свежий, < 8с).
+  Stream<bool> watchTyping(String groupId) {
+    if (groupId.isEmpty) return Stream.value(false);
+    return _typingRef(groupId).onValue.map((event) {
+      final v = event.snapshot.value;
+      if (v is! Map) return false;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final entry in v.entries) {
+        if (entry.key.toString() == _uid) continue; // свой маркер не считаем
+        final ts = (entry.value as num?)?.toInt() ?? 0;
+        if (now - ts < 8000) return true;
+      }
+      return false;
+    });
   }
 
   // ── Непрочитанные ──────────────────────────────────────────────────────────

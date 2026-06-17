@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -55,6 +56,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Сообщение, которое сейчас редактируем (null — обычная отправка).
   ChatMsg? _editing;
+
+  /// Сообщение, на которое отвечаем (null — обычная отправка).
+  ChatMsg? _replyingTo;
+
+  /// «Печатает…»: таймер авто-сброса и троттлинг пингов.
+  Timer? _typingStopTimer;
+  DateTime _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Прикреплённый к набираемому сообщению пин.
   Memory? _attachedPin;
@@ -155,6 +163,8 @@ class _ChatScreenState extends State<ChatScreen> {
       FirebaseService.activeChatGroupId = null;
     }
     _readsSub?.cancel();
+    _typingStopTimer?.cancel();
+    _chat.setTyping(_groupId, false);
     _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
@@ -263,6 +273,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── @-подсказки ────────────────────────────────────────────────────────────
 
   void _onTextChanged() {
+    _emitTyping();
     final text = _controller.text;
     final sel = _controller.selection.baseOffset;
     if (sel < 0) {
@@ -335,6 +346,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     final editing = _editing;
     final pin = _attachedPin;
+    final reply = _replyingTo;
     if (text.isEmpty && pin == null) return;
 
     // Оптимистично очищаем ввод СРАЗУ (до сети). RTDB с offline-persistence
@@ -342,9 +354,11 @@ class _ChatScreenState extends State<ChatScreen> {
     // поэтому очистка до await безопасна и исключает дубликаты.
     _sending = true;
     _controller.clear();
+    _stopTyping();
     setState(() {
       _editing = null;
       _attachedPin = null;
+      _replyingTo = null;
       _mentionQuery = null;
     });
 
@@ -363,6 +377,15 @@ class _ChatScreenState extends State<ChatScreen> {
           pinId: pin?.id,
           pinTitle: pin != null ? _memoryLabel(pin) : null,
           pinThumb: pin != null ? _memoryThumb(pin) : null,
+          replyToId: reply?.id,
+          replyToName: reply?.name,
+          replyToText: reply == null
+              ? null
+              : (reply.deleted
+                  ? LocaleService.current.chatDeletedPlaceholder
+                  : (reply.text.isNotEmpty
+                      ? reply.text
+                      : (reply.pinTitle ?? '📌'))),
         );
       }
     } finally {
@@ -374,12 +397,44 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _editing = msg;
       _attachedPin = null;
+      _replyingTo = null;
       _mentionQuery = null;
     });
     _controller.text = msg.text;
     _controller.selection =
         TextSelection.collapsed(offset: _controller.text.length);
     _focusNode.requestFocus();
+  }
+
+  void _startReply(ChatMsg msg) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _replyingTo = msg;
+      _editing = null;
+    });
+    _focusNode.requestFocus();
+  }
+
+  /// Пингуем «печатаю» не чаще раза в 3с; через 4с молчания — авто-сброс.
+  void _emitTyping() {
+    if (_controller.text.trim().isEmpty) {
+      _stopTyping();
+      return;
+    }
+    final now = DateTime.now();
+    if (now.difference(_lastTypingPing).inSeconds >= 3) {
+      _lastTypingPing = now;
+      _chat.setTyping(_groupId, true);
+    }
+    _typingStopTimer?.cancel();
+    _typingStopTimer = Timer(const Duration(seconds: 4), _stopTyping);
+  }
+
+  void _stopTyping() {
+    _typingStopTimer?.cancel();
+    _typingStopTimer = null;
+    _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
+    _chat.setTyping(_groupId, false);
   }
 
   Future<void> _confirmDelete(ChatMsg msg) async {
@@ -611,22 +666,32 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.edit_rounded, color: _t.primary),
-              title: Text(s.chatEditMessage),
+              leading: Icon(Icons.reply_rounded, color: _t.primary),
+              title: Text(s.chatReply),
               onTap: () {
                 Navigator.pop(ctx);
-                _startEdit(msg);
+                _startReply(msg);
               },
             ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Colors.red.shade400),
-              title: Text(s.chatDeleteMessage),
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmDelete(msg);
-              },
-            ),
+            if (msg.uid == _myUid) ...[
+              ListTile(
+                leading: Icon(Icons.edit_rounded, color: _t.primary),
+                title: Text(s.chatEditMessage),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _startEdit(msg);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded,
+                    color: Colors.red.shade400),
+                title: Text(s.chatDeleteMessage),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmDelete(msg);
+                },
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -634,9 +699,10 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Базовый набор системных эмодзи-реакций.
+  /// Набор системных эмодзи-реакций (тёплый, для пары).
   static const List<String> _reactionEmojis = [
-    '❤️', '😂', '👍', '😮', '😢', '🔥',
+    '❤️', '🥰', '😍', '😘', '😂', '🤗', '👍', '👏',
+    '🔥', '🎉', '😮', '😢', '🙏', '💯', '😡', '👎',
   ];
 
   /// Пикер реакций (по двойному тапу). Тап по уже выбранному эмодзи — снимает.
@@ -663,8 +729,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 4,
+                runSpacing: 4,
                 children: [
                   for (final e in _reactionEmojis)
                     GestureDetector(
@@ -691,6 +759,108 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Баннер «В ответ {имя}» над полем ввода (двухстрочный, как в Telegram).
+  Widget _buildReplyComposerBanner(AppStrings s) {
+    final r = _replyingTo!;
+    final preview = r.deleted
+        ? s.chatDeletedPlaceholder
+        : (r.text.isNotEmpty ? r.text : (r.pinTitle ?? '📌'));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: _t.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.reply_rounded, color: _t.primary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  s.chatReplyingTo(r.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _t.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  preview,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.close_rounded,
+                color: Colors.grey.shade500, size: 20),
+            onPressed: () => setState(() => _replyingTo = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Цитата «в ответ на …» внутри бабла (имя + снимок текста оригинала).
+  Widget _buildReplyQuote(ChatMsg msg, bool isMine) {
+    final accent = isMine ? Colors.white : _t.primary;
+    final nameColor = isMine ? Colors.white : _t.primary;
+    final textColor =
+        isMine ? Colors.white.withOpacity(0.85) : Colors.grey.shade700;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 3, color: accent.withOpacity(0.8)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    msg.replyToName ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: nameColor,
+                    ),
+                  ),
+                  Text(
+                    msg.replyToText ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: textColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -866,6 +1036,26 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
               if (_mentionQuery != null && _mentionResults.isNotEmpty)
                 _buildMentionList(),
+              StreamBuilder<bool>(
+                stream: _chat.watchTyping(_groupId),
+                builder: (context, snap) {
+                  if (snap.data != true) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        s.chatTyping(widget.pairData.partnerDisplayName),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _t.primary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               _buildComposer(s),
             ],
           ),
@@ -982,7 +1172,27 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return Align(
+    return Dismissible(
+      key: ValueKey('swipe_${msg.id}'),
+      // Свайп влево по ЛЮБОМУ сообщению (как в Telegram) — ответить. Не удаляем:
+      // confirmDismiss возвращает false, бабл сам возвращается на место.
+      direction:
+          msg.deleted ? DismissDirection.none : DismissDirection.endToStart,
+      dismissThresholds: const {DismissDirection.endToStart: 0.25},
+      movementDuration: const Duration(milliseconds: 180),
+      confirmDismiss: (_) async {
+        _startReply(msg); // вибрация — внутри _startReply
+        return false;
+      },
+      background: const SizedBox.shrink(),
+      secondaryBackground: Padding(
+        padding: const EdgeInsets.only(right: 28),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Icon(Icons.reply_rounded, color: _t.primary),
+        ),
+      ),
+      child: Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -992,8 +1202,7 @@ class _ChatScreenState extends State<ChatScreen> {
           GestureDetector(
             // Двойной тап — реакции (на любое сообщение, кроме удалённого).
             onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
-            onLongPress:
-                (isMine && !msg.deleted) ? () => _showMessageMenu(msg) : null,
+            onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
             child: Container(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
@@ -1008,18 +1217,21 @@ class _ChatScreenState extends State<ChatScreen> {
               bottomLeft: Radius.circular(isMine ? 16 : 4),
               bottomRight: Radius.circular(isMine ? 4 : 16),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: isMine
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
             crossAxisAlignment:
                 isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
+              if (msg.replyToId != null) _buildReplyQuote(msg, isMine),
               content,
               const SizedBox(height: 3),
               Row(
@@ -1061,6 +1273,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (msg.reactions.isNotEmpty) _buildReactionChips(msg, isMine),
         ],
+      ),
       ),
     );
   }
@@ -1210,6 +1423,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_replyingTo != null) _buildReplyComposerBanner(s),
           if (_editing != null)
             _buildBanner(
               icon: Icons.edit_rounded,
