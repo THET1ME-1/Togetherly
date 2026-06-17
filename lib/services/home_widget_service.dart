@@ -2175,6 +2175,12 @@ class HomeWidgetService {
   // ── Скопировать Flutter-ассет (emoji PNG) в локальный файл ──
   Future<String> _copyAssetToLocal(String assetPath) async {
     if (assetPath.isEmpty) return '';
+    // Удалённое настроение из каталога (публичный URL) — нативный виджет умеет
+    // только локальные файлы, поэтому качаем картинку в файл (один раз, кэш на
+    // диске). При сбое — классический бандл-ассет по id (имя файла URL = id).
+    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+      return _downloadToLocal(assetPath);
+    }
     try {
       final dir = await getApplicationSupportDirectory();
       final fileName = assetPath.split('/').last;
@@ -2202,6 +2208,28 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService._copyAssetToLocal failed: $e');
     }
+    return '';
+  }
+
+  /// Скачать удалённую картинку настроения (URL каталога) в локальный файл для
+  /// нативного виджета. Имя файла — по hash URL (разные паки с одинаковым именем
+  /// файла не конфликтуют). При сбое сети — классический бандл-ассет по id.
+  Future<String> _downloadToLocal(String url) async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/widget_mood_url_${url.hashCode}.webp');
+      if (file.existsSync()) return file.path;
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        await file.writeAsBytes(resp.bodyBytes);
+        debugPrint('HomeWidgetService: mood url downloaded → ${file.path}');
+        return file.path;
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService._downloadToLocal failed: $e');
+    }
+    final fallback = MoodOption.classicFallbackFor(url);
+    if (fallback != null) return _copyAssetToLocal(fallback);
     return '';
   }
 }

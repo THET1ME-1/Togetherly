@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
+import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -3395,13 +3396,11 @@ class _WidgetScreenState extends State<WidgetScreen>
         const SizedBox(height: 6),
         if (entry != null) ...[
           ClipOval(
-            child: Image.asset(
+            child: MoodImage(
               entry.imagePath,
               width: 48,
               height: 48,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  const Text('😶', style: TextStyle(fontSize: 36)),
             ),
           ),
           const SizedBox(height: 4),

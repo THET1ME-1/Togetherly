@@ -453,6 +453,10 @@ abstract class AppStrings {
   String get deletePhoto;
   String get mascotBoyName;
   String get mascotGirlName;
+  String get mascotSpikyName;
+  String get mascotLuluName;
+  String get mascotIskrikName;
+  String get mascotZhuzhaName;
   String get saveDrawing;
   String get shareDrawing;
   String drawingSavedTo(String path);
@@ -1973,6 +1977,14 @@ class _RuStrings extends AppStrings {
   String get mascotBoyName => 'Пиксик';
   @override
   String get mascotGirlName => 'Пикси';
+  @override
+  String get mascotSpikyName => 'Спайки';
+  @override
+  String get mascotLuluName => 'Лулу';
+  @override
+  String get mascotIskrikName => 'Искрик';
+  @override
+  String get mascotZhuzhaName => 'Жужа';
   @override
   String get saveDrawing => 'Сохранить';
   @override
@@ -4351,6 +4363,14 @@ class _EnStrings extends AppStrings {
   String get mascotBoyName => 'Pixel';
   @override
   String get mascotGirlName => 'Pixie';
+  @override
+  String get mascotSpikyName => 'Spiky';
+  @override
+  String get mascotLuluName => 'Lulu';
+  @override
+  String get mascotIskrikName => 'Sparky';
+  @override
+  String get mascotZhuzhaName => 'Buzzy';
   @override
   String get saveDrawing => 'Save';
   @override

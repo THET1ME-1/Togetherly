@@ -20,6 +20,7 @@ import 'models/user_data.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
+import 'services/catalog_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
@@ -313,6 +314,11 @@ void main() async {
   // Выбранный пак настроений (локальный выбор, как язык) — грузим заранее,
   // чтобы пикер сразу открывался на нужном наборе без мигания.
   await MoodPackService.instance.load();
+
+  // Удалённый каталог контента (паки настроений из Supabase) — поднимаем кэш с
+  // диска мгновенно, свежий список тянем фоном. Новые паки/эмоции приезжают без
+  // обновления приложения. Офлайн/без credentials — остаются встроенные паки.
+  await CatalogService.instance.init();
 
   // Synchronise Flutter's window with MainActivity's setDecorFitsSystemWindows(false).
   // Without this call Flutter and Android disagree about where gesture exclusion

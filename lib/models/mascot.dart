@@ -14,6 +14,15 @@ class Mascot {
   /// Asset path for default company mascots. Null for user-drawn.
   final String? defaultAsset;
 
+  /// Public CDN URL for catalog mascots (Supabase bucket `catalog`). Эти маскоты
+  /// приходят из удалённого каталога, рендерятся напрямую по публичному URL
+  /// (CachedNetworkImage, НЕ signed-URL StorageImage) и НЕ пишутся в Firestore
+  /// группы — добавляются в галерею «поверх». Null для всех остальных.
+  final String? catalogUrl;
+
+  /// Английское имя каталожного маскота (для localizedName). Null для остальных.
+  final String? nameEn;
+
   final String createdBy;
   final DateTime createdAt;
   final bool isDefault;
@@ -26,21 +35,52 @@ class Mascot {
     required this.name,
     this.imageUrl,
     this.defaultAsset,
+    this.catalogUrl,
+    this.nameEn,
     required this.createdBy,
     required this.createdAt,
     this.isDefault = false,
     this.recordStreak = 0,
   });
 
-  bool get hasImage => imageUrl != null || defaultAsset != null;
+  /// Маскот из удалённого каталога (рендер-онли, не сохраняется в Firestore).
+  /// isDefault=true → как встроенные: можно активировать, нельзя
+  /// редактировать/удалять/переименовывать.
+  factory Mascot.fromCatalog({
+    required String id,
+    required String nameRu,
+    required String nameEn,
+    required String url,
+  }) =>
+      Mascot(
+        id: id,
+        name: nameRu,
+        nameEn: nameEn,
+        catalogUrl: url,
+        createdBy: 'catalog',
+        createdAt: DateTime(2024),
+        isDefault: true,
+      );
+
+  bool get isCatalog => catalogUrl != null;
+
+  bool get hasImage =>
+      imageUrl != null || defaultAsset != null || catalogUrl != null;
 
   /// Returns the locale-aware name for built-in mascots; falls back to [name] for user-created ones.
   String get localizedName {
+    if (isCatalog) {
+      return LocaleService.instance.isRussian ? name : (nameEn ?? name);
+    }
     if (!isDefault) return name;
     final s = LocaleService.current;
     switch (id) {
       case 'default_boy': return s.mascotBoyName;
       case 'default_girl': return s.mascotGirlName;
+      case 'default_spiky': return s.mascotSpikyName;
+      case 'default_lulu': return s.mascotLuluName;
+      case 'default_iskrik': return s.mascotIskrikName;
+      case 'default_zhuzha': return s.mascotZhuzhaName;
       default: return name;
     }
   }
@@ -180,6 +220,26 @@ class DefaultMascots {
       'id': 'default_girl',
       'name': 'Пикси',
       'asset': '$_base/Веселая девочка.png',
+    },
+    {
+      'id': 'default_spiky',
+      'name': 'Спайки',
+      'asset': '$_base/spiky.webp',
+    },
+    {
+      'id': 'default_lulu',
+      'name': 'Лулу',
+      'asset': '$_base/lulu.webp',
+    },
+    {
+      'id': 'default_iskrik',
+      'name': 'Искрик',
+      'asset': '$_base/iskrik.webp',
+    },
+    {
+      'id': 'default_zhuzha',
+      'name': 'Жужа',
+      'asset': '$_base/zhuzha.webp',
     },
   ];
 

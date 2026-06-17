@@ -924,6 +924,12 @@ class WidgetService extends ChangeNotifier {
       await HomeWidget.saveWidgetData<String>(key, '');
       return;
     }
+    // Удалённое настроение из каталога (публичный URL) — нативный виджет умеет
+    // только локальные файлы, поэтому скачиваем картинку в файл (кэш по URL).
+    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+      await _cacheEmojiUrlForWidget(assetPath, key);
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
@@ -961,6 +967,41 @@ class WidgetService extends ChangeNotifier {
       debugPrint('_cacheEmojiForWidget: $key cached at ${file.path}');
     } catch (e) {
       debugPrint('_cacheEmojiForWidget($key) failed: $e');
+      await HomeWidget.saveWidgetData<String>(key, '');
+    }
+  }
+
+  /// Скачать удалённую картинку настроения (URL каталога) в локальный файл для
+  /// нативного виджета. При сбое сети — классический бандл-ассет по id.
+  Future<void> _cacheEmojiUrlForWidget(String url, String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
+      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+      if (cachedAsset == url &&
+          cachedPath.isNotEmpty &&
+          File(cachedPath).existsSync()) {
+        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        return;
+      }
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        final dir = await getApplicationSupportDirectory();
+        final file = File('${dir.path}/$key.webp');
+        await file.writeAsBytes(resp.bodyBytes);
+        await HomeWidget.saveWidgetData<String>(key, file.path);
+        await prefs.setString('${key}_cached_asset', url);
+        await prefs.setString('${key}_cached_path', file.path);
+        return;
+      }
+    } catch (e) {
+      debugPrint('_cacheEmojiUrlForWidget($key) failed: $e');
+    }
+    // Фолбэк: классический ассет по id (имя файла URL = id настроения).
+    final fallback = MoodOption.classicFallbackFor(url);
+    if (fallback != null) {
+      await _cacheEmojiForWidget(fallback, key);
+    } else {
       await HomeWidget.saveWidgetData<String>(key, '');
     }
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'storage_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -345,6 +346,14 @@ class _MascotImage extends StatelessWidget {
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);
+    }
+    if (mascot.catalogUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: mascot.catalogUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const Icon(Icons.face, size: 40),
+      );
     }
     if (mascot.imageUrl != null) {
       return StorageImage(

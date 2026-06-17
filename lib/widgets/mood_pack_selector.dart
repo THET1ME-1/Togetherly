@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/mood_pack.dart';
+import '../services/catalog_service.dart';
 import '../services/mood_pack_service.dart';
+import 'mood_image.dart';
 
 /// Горизонтальный селектор паков настроений для пикера.
 ///
@@ -22,18 +24,21 @@ class MoodPackSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: MoodPackService.instance,
+      animation: Listenable.merge(
+        [MoodPackService.instance, CatalogService.instance],
+      ),
       builder: (context, _) {
         final selectedId = MoodPackService.instance.selectedPackId;
+        final packs = CatalogService.instance.allPacks;
         return SizedBox(
           height: 64,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            itemCount: MoodPack.all.length,
+            itemCount: packs.length,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, i) {
-              final pack = MoodPack.all[i];
+              final pack = packs[i];
               return _PackChip(
                 pack: pack,
                 selected: pack.id == selectedId,
@@ -106,10 +111,9 @@ class _PackChip extends StatelessWidget {
                       padding: gradient != null
                           ? const EdgeInsets.all(2)
                           : EdgeInsets.zero,
-                      child: Image.asset(
+                      child: MoodImage(
                         pack.previewImage,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     )
                   : null,

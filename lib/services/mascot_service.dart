@@ -1,13 +1,22 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mascot.dart';
+import 'catalog_service.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
 
 /// Manages the mascot gallery and group streak for one group.
 /// Bind to a group via [bindToGroup] when the user is paired.
 class MascotService extends ChangeNotifier {
+  MascotService() {
+    // Каталожные маскоты приезжают асинхронно — обновляем галерею/виджет, когда
+    // удалённый каталог загрузился.
+    CatalogService.instance.addListener(_onCatalogChanged);
+  }
+
   final FirebaseService _fb = FirebaseService();
+
+  void _onCatalogChanged() => notifyListeners();
 
   String _groupId = '';
   int _bindGeneration = 0;
@@ -18,11 +27,21 @@ class MascotService extends ChangeNotifier {
   GroupMascotState _state = const GroupMascotState();
   bool _isLoading = false;
 
-  List<Mascot> get mascots => _mascots;
+  /// Галерея группы (Firestore) + каталожные маскоты (рендер-онли, поверх).
+  /// Дедуп по id: собственная копия группы побеждает (если id совпал).
+  List<Mascot> get mascots {
+    final catalog = CatalogService.instance.mascots;
+    if (catalog.isEmpty) return _mascots;
+    final ids = _mascots.map((m) => m.id).toSet();
+    return [..._mascots, ...catalog.where((c) => !ids.contains(c.id))];
+  }
+
   GroupMascotState get state => _state;
   bool get isLoading => _isLoading;
 
   bool get hasActiveMascot => _state.activeMascotId != null;
+
+  /// Лимит 20 — только на СВОИ (рисованные) маскоты; каталог не считается.
   int get mascotCount => _mascots.length;
   static const int maxMascots = 20;
   bool get isGalleryFull => mascotCount >= maxMascots;
@@ -30,11 +49,10 @@ class MascotService extends ChangeNotifier {
   Mascot? get activeMascot {
     final id = _state.activeMascotId;
     if (id == null) return null;
-    try {
-      return _mascots.firstWhere((m) => m.id == id);
-    } catch (_) {
-      return null;
+    for (final m in mascots) {
+      if (m.id == id) return m;
     }
+    return null;
   }
 
   // ── Bind / unbind ──────────────────────────────────────────────────────────
@@ -316,6 +334,7 @@ class MascotService extends ChangeNotifier {
 
   @override
   void dispose() {
+    CatalogService.instance.removeListener(_onCatalogChanged);
     _mascotsSub?.cancel();
     _groupStateSub?.cancel();
     super.dispose();

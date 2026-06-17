@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/mood_image.dart';
 import 'package:flutter/services.dart';
 import '../../../models/ailment.dart';
 import '../../../models/mood_entry.dart';
@@ -469,14 +470,11 @@ class _MoodTile extends StatelessWidget {
                         : null,
                   ),
                   child: mood.imagePath.isNotEmpty
-                      ? Image.asset(
+                      ? MoodImage(
                           mood.imagePath,
                           fit: BoxFit.cover,
                           width: double.infinity,
                           height: double.infinity,
-                          errorBuilder: (_, _, _) => Container(
-                            color: mood.color,
-                          ),
                         )
                       : Container(color: mood.color),
                 ),
