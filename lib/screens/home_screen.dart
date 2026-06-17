@@ -1379,71 +1379,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final effectivePath = croppedPath ?? photo.path;
 
-    // Extract EXIF geolocation from photo
-    double? photoLat;
-    double? photoLng;
-    String? photoLocationName;
-    try {
-      final bytes = await File(effectivePath).readAsBytes();
-      final exifData = await readExifFromBytes(bytes);
-      final latTag = exifData['GPS GPSLatitude'];
-      final lngTag = exifData['GPS GPSLongitude'];
-      final latRef = exifData['GPS GPSLatitudeRef'];
-      final lngRef = exifData['GPS GPSLongitudeRef'];
-      if (latTag != null && lngTag != null) {
-        photoLat = _exifGpsToDouble(latTag.values, latRef?.printable ?? 'N');
-        photoLng = _exifGpsToDouble(lngTag.values, lngRef?.printable ?? 'E');
-      }
-    } catch (e) {
-      debugPrint('EXIF extraction failed: \$e');
-    }
-
-    // If no EXIF, try current device location
-    if (photoLat == null || photoLng == null) {
-      try {
-        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          debugPrint('Geolocator: location services disabled on device');
-        } else {
-          LocationPermission perm = await Geolocator.checkPermission();
-          if (perm == LocationPermission.denied) {
-            perm = await Geolocator.requestPermission();
-          }
-          if (perm == LocationPermission.always ||
-              perm == LocationPermission.whileInUse) {
-            final pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.low,
-                timeLimit: Duration(seconds: 15),
-              ),
-            );
-            photoLat = pos.latitude;
-            photoLng = pos.longitude;
-          } else {
-            debugPrint('Geolocator: location permission denied');
-          }
-        }
-      } catch (e) {
-        debugPrint('Geolocator fallback failed: $e');
-      }
-    }
-
-    // Reverse geocode to get location name
-    if (photoLat != null && photoLng != null) {
-      try {
-        final placemarks = await placemarkFromCoordinates(photoLat, photoLng);
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          final parts = <String>[
-            if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
-            if (p.country != null && p.country!.isNotEmpty) p.country!,
-          ];
-          if (parts.isNotEmpty) photoLocationName = parts.join(', ');
-        }
-      } catch (e) {
-        debugPrint('Reverse geocode failed: \$e');
-      }
-    }
+    // Геолокация запускается параллельно с диалогом — не блокирует UI.
+    // Пока пользователь вводит название/описание, координаты уже грузятся.
+    final locationFuture = _resolvePhotoLocation(effectivePath);
 
     // Диалог: название/описание + три тумблера «куда отправить».
     // Дефолты тумблеров запоминаются (общие ключи с виджет-экраном).
@@ -1494,6 +1432,13 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
     }
+
+    // К этому моменту пользователь уже потратил время на ввод названия —
+    // геолокация скорее всего уже готова; ждём максимум 3 сек.
+    final location = await locationFuture.timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => (lat: null, lng: null, name: null),
+    );
 
     // Show loading
     showDialog(
@@ -1554,9 +1499,9 @@ class _HomeScreenState extends State<HomeScreen> {
           imageUrl: downloadUrl,
           title: result.title,
           caption: result.caption,
-          locationName: photoLocationName,
-          latitude: photoLat,
-          longitude: photoLng,
+          locationName: location.name,
+          latitude: location.lat,
+          longitude: location.lng,
         );
       }
 
@@ -1611,6 +1556,72 @@ class _HomeScreenState extends State<HomeScreen> {
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
+  }
+
+  Future<({double? lat, double? lng, String? name})> _resolvePhotoLocation(
+    String photoPath,
+  ) async {
+    double? lat;
+    double? lng;
+    String? name;
+
+    try {
+      final bytes = await File(photoPath).readAsBytes();
+      final exifData = await readExifFromBytes(bytes);
+      final latTag = exifData['GPS GPSLatitude'];
+      final lngTag = exifData['GPS GPSLongitude'];
+      final latRef = exifData['GPS GPSLatitudeRef'];
+      final lngRef = exifData['GPS GPSLongitudeRef'];
+      if (latTag != null && lngTag != null) {
+        lat = _exifGpsToDouble(latTag.values, latRef?.printable ?? 'N');
+        lng = _exifGpsToDouble(lngTag.values, lngRef?.printable ?? 'E');
+      }
+    } catch (e) {
+      debugPrint('EXIF extraction failed: $e');
+    }
+
+    if (lat == null || lng == null) {
+      try {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (serviceEnabled) {
+          LocationPermission perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.denied) {
+            perm = await Geolocator.requestPermission();
+          }
+          if (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse) {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 10),
+              ),
+            );
+            lat = pos.latitude;
+            lng = pos.longitude;
+          }
+        }
+      } catch (e) {
+        debugPrint('Geolocator fallback failed: $e');
+      }
+    }
+
+    if (lat != null && lng != null) {
+      try {
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final parts = <String>[
+            if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
+            if (p.country != null && p.country!.isNotEmpty) p.country!,
+          ];
+          if (parts.isNotEmpty) name = parts.join(', ');
+        }
+      } catch (e) {
+        debugPrint('Reverse geocode failed: $e');
+      }
+    }
+
+    return (lat: lat, lng: lng, name: name);
   }
 
   Future<
