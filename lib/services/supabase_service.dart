@@ -1744,6 +1744,9 @@ class SupabaseService {
       pinTitle: row['pin_title'] as String?,
       pinThumb: row['pin_thumb'] as String?,
       reactions: reactions,
+      replyToId: row['reply_to_id'] as String?,
+      replyToName: row['reply_to_name'] as String?,
+      replyToText: row['reply_to_text'] as String?,
     );
   }
 
@@ -1758,6 +1761,9 @@ class SupabaseService {
     String? pinId,
     String? pinTitle,
     String? pinThumb,
+    String? replyToId,
+    String? replyToName,
+    String? replyToText,
   }) async {
     if (!isReady) return false;
     return _write('mirrorChatSend', () async {
@@ -1771,6 +1777,9 @@ class SupabaseService {
         if (pinId != null) 'pin_id': pinId,
         if (pinTitle != null) 'pin_title': pinTitle,
         if (pinThumb != null) 'pin_thumb': pinThumb,
+        if (replyToId != null) 'reply_to_id': replyToId,
+        if (replyToName != null) 'reply_to_name': replyToName,
+        if (replyToText != null) 'reply_to_text': replyToText,
       }, onConflict: 'id').timeout(const Duration(seconds: 10));
     });
   }

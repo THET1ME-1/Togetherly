@@ -924,6 +924,9 @@ abstract class AppStrings {
   String get chatEmpty;
   String get chatEditMessage;
   String get chatDeleteMessage;
+  String get chatReply;
+  String chatReplyingTo(String name);
+  String chatTyping(String name);
   String get chatEdited;
   String get chatDeletedPlaceholder;
   String get chatAttachPin;
@@ -2993,6 +2996,12 @@ class _RuStrings extends AppStrings {
   String get chatEditMessage => 'Редактировать';
   @override
   String get chatDeleteMessage => 'Удалить';
+  @override
+  String get chatReply => 'Ответить';
+  @override
+  String chatReplyingTo(String name) => 'В ответ $name';
+  @override
+  String chatTyping(String name) => '$name печатает…';
   @override
   String get chatEdited => 'изменено';
   @override
@@ -5359,6 +5368,12 @@ class _EnStrings extends AppStrings {
   String get chatEditMessage => 'Edit';
   @override
   String get chatDeleteMessage => 'Delete';
+  @override
+  String get chatReply => 'Reply';
+  @override
+  String chatReplyingTo(String name) => 'Replying to $name';
+  @override
+  String chatTyping(String name) => '$name is typing…';
   @override
   String get chatEdited => 'edited';
   @override

@@ -25,6 +25,12 @@ class ChatMsg {
   /// с сообщением — без отдельного listener'а.
   final Map<String, String> reactions;
 
+  /// Ответ на сообщение: id оригинала + СНИМОК имени/текста на момент отправки
+  /// (цитата остаётся читаемой, даже если оригинал потом отредактирован/удалён).
+  final String? replyToId;
+  final String? replyToName;
+  final String? replyToText;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -37,6 +43,9 @@ class ChatMsg {
     this.pinTitle,
     this.pinThumb,
     this.reactions = const {},
+    this.replyToId,
+    this.replyToName,
+    this.replyToText,
   });
 
   bool get isEdited => editedTs != null && !deleted;
@@ -62,6 +71,9 @@ class ChatMsg {
       pinTitle: m['pinTitle'] as String?,
       pinThumb: m['pinThumb'] as String?,
       reactions: reactions,
+      replyToId: m['replyToId'] as String?,
+      replyToName: m['replyToName'] as String?,
+      replyToText: m['replyToText'] as String?,
     );
   }
 }
