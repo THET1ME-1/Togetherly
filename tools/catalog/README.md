@@ -24,3 +24,8 @@ python tools/catalog_publish.py tools/catalog/halloween.json   # маскот
 - Пак: `moods[]` с `id`+`image`. Известный id (happy/sad…) — просто новый стиль.
   НОВАЯ эмоция — добавь `labelRu`/`labelEn`/`color`/`score`.
 - Маскот: одно поле `image`.
+- `unlock` (необяз., маскот или пак) — «задание» для разблокировки:
+  - `{ "type": "level", "level": N }` — откроется на уровне пары N (XP за активность);
+  - `{ "type": "premium" }` — премиум-контент.
+  Без поля — бесплатно. Уровни маскотов привязаны к рангам (см. `lib/models/level.dart`):
+  Спайки ур.3, Лулу ур.6, Искрик ур.10, Жужа ур.15.
