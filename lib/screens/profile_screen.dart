@@ -29,7 +29,7 @@ import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/app_icon_service.dart';
-import '../services/iap_service.dart';
+import '../services/coin_store.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
 
@@ -62,7 +62,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
   String _appIconId = AppIconService.defaultId;
-  final IapService _iap = IapService();
+  final CoinStore _iap = createCoinStore();
   bool _iapLoading = false;
 
 
@@ -3262,8 +3262,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         ...kCoinPacks.map((pack) {
-                          final pd = _iap.product(pack.productId);
-                          final priceLabel = pd?.price ?? '…';
+                          final priceLabel =
+                              _iap.priceLabel(pack.productId) ?? '…';
                           return _coinShopItem(
                             icon: Icons.shopping_bag_outlined,
                             title: _s.coinPackTitle(pack.coins),
