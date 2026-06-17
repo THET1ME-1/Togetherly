@@ -2133,6 +2133,8 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       isDismissible: true,
       enableDrag: true,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => _UpdateBottomSheet(info: info, primaryColor: primary),
     );
   }
@@ -2554,16 +2556,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        16,
-        24,
-        // viewPadding (не padding): внутри прозрачного modal bottom sheet
-        // padding.bottom часто приходит 0, и кнопка «Обновить» уезжала под
-        // системную навигацию телефона. viewPadding всегда отражает реальный
-        // инсет системной панели.
-        MediaQuery.of(context).viewPadding.bottom + 24,
-      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
