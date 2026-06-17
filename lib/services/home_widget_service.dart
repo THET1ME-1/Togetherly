@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_service.dart';
 import 'supabase_service.dart';
 import '../models/timer_item.dart';
+import '../models/mood_entry.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -2182,7 +2183,17 @@ class HomeWidgetService {
       // Если уже скопировано — не копируем повторно
       if (file.existsSync()) return file.path;
 
-      final bytes = await rootBundle.load(assetPath);
+      // Грузим ассет; если его нет в этой сборке (партнёр прислал эмодзи из
+      // пака, которого у нас нет — постепенный раскат) — падаем на эквивалент
+      // из классического пака, чтобы вместо пустоты показать смайлик.
+      ByteData? bytes;
+      try {
+        bytes = await rootBundle.load(assetPath);
+      } catch (_) {
+        final fallback = MoodOption.classicFallbackFor(assetPath);
+        if (fallback != null) bytes = await rootBundle.load(fallback);
+      }
+      if (bytes == null) return '';
       await file.writeAsBytes(
         bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
       );

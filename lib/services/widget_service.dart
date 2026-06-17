@@ -936,9 +936,24 @@ class WidgetService extends ChangeNotifier {
         return;
       }
 
+      // Грузим ассет; если его нет в этой сборке (партнёр прислал эмодзи из
+      // пака, которого у нас нет — постепенный раскат) — падаем на эквивалент
+      // из классического пака, чтобы показать смайлик, а не пустоту с одной
+      // лишь текстовой меткой.
+      ByteData? byteData;
+      try {
+        byteData = await rootBundle.load(assetPath);
+      } catch (_) {
+        final fallback = MoodOption.classicFallbackFor(assetPath);
+        if (fallback != null) byteData = await rootBundle.load(fallback);
+      }
+      if (byteData == null) {
+        await HomeWidget.saveWidgetData<String>(key, '');
+        return;
+      }
+
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/$key.png');
-      final byteData = await rootBundle.load(assetPath);
       await file.writeAsBytes(byteData.buffer.asUint8List());
       await HomeWidget.saveWidgetData<String>(key, file.path);
       await prefs.setString('${key}_cached_asset', assetPath);
