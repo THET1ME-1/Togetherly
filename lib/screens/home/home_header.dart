@@ -1,3 +1,4 @@
+import '../../widgets/mood_image.dart';
 import '../../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/pair_data.dart';
@@ -243,13 +244,11 @@ class HomeHeader extends StatelessWidget {
                 ),
                 child: mood.imagePath.isNotEmpty
                     ? ClipOval(
-                        child: Image.asset(
+                        child: MoodImage(
                           mood.imagePath,
                           width: 22,
                           height: 22,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const SizedBox(width: 22, height: 22),
                         ),
                       )
                     : const SizedBox(width: 22, height: 22),

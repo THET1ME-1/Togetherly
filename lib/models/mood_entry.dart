@@ -9,11 +9,19 @@ class MoodOption {
   final String label;
   final Color color;
 
+  /// Для НОВЫХ эмоций из удалённого каталога, чьего id нет в сборке:
+  /// английская метка и «тир» (score) приходят из манифеста. Для встроенных
+  /// настроений — null (метка/score берутся из switch'ей по id ниже).
+  final String? labelEn;
+  final int? scoreOverride;
+
   const MoodOption({
     required this.id,
     required this.imagePath,
     required this.label,
     required this.color,
+    this.labelEn,
+    this.scoreOverride,
   });
 
   /// Возвращает метку настроения на текущем языке приложения.
@@ -47,11 +55,13 @@ class MoodOption {
       case 'tired':        return 'Tired';
       case 'disappointed': return 'Disappointed';
       case 'upset':        return 'Upset';
-      default:          return label;
+      // Новая эмоция из каталога — английская метка из манифеста.
+      default:          return labelEn ?? label;
     }
   }
 
   int get score {
+    if (scoreOverride != null) return scoreOverride!;
     switch (id) {
       case 'happy':
       case 'love':
@@ -154,13 +164,27 @@ class MoodOption {
     MoodOption(id: 'anger',        imagePath: '$_pinkDir/anger.webp',        label: 'Злость',        color: _red),
   ];
 
-  /// Все настроения всех паков — для поиска по id/пути. Классические идут
+  /// Все ВСТРОЕННЫЕ настроения — для поиска по id/пути. Классические идут
   /// первыми, поэтому для общих id [byId] возвращает каноничный (классический)
   /// вариант (его метку/цвет видно в статистике и календаре).
   static const List<MoodOption> registry = [...all, ...pinkPack];
 
+  /// Настроения из УДАЛЁННОГО каталога (паки, скачанные манифестом). Нужны,
+  /// чтобы у НОВЫХ эмоций (id которых нет в сборке) корректно резолвились
+  /// цвет/score/метка в календаре и статистике. Наполняется CatalogService при
+  /// старте. Встроенные ищем первыми (канон), удалённые — фолбэком.
+  static List<MoodOption> _remote = const [];
+
+  /// Зарегистрировать настроения удалённых паков (вызывает CatalogService).
+  static void registerRemoteMoods(List<MoodOption> moods) {
+    _remote = List.unmodifiable(moods);
+  }
+
   static MoodOption? byId(String id) {
     for (final m in registry) {
+      if (m.id == id) return m;
+    }
+    for (final m in _remote) {
       if (m.id == id) return m;
     }
     return null;
@@ -170,6 +194,9 @@ class MoodOption {
   /// imagePath — напр. при авто-отправке настроения из виджета в календарь).
   static MoodOption? byImagePath(String path) {
     if (path.isEmpty) return null;
+    for (final m in _remote) {
+      if (m.imagePath == path) return m;
+    }
     for (final m in registry) {
       if (m.imagePath == path) return m;
     }

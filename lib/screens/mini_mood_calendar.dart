@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
+import '../widgets/mood_image.dart';
 import '../services/mood_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -573,12 +574,11 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                                 current != null && current.imagePath.isNotEmpty
                                 ? ClipOval(
                                     key: ValueKey(current.id),
-                                    child: Image.asset(
+                                    child: MoodImage(
                                       current.imagePath,
                                       width: 30,
                                       height: 30,
-                                      errorBuilder: (_, _, _) =>
-                                          const SizedBox.shrink(),
+                                      fit: BoxFit.cover,
                                     ),
                                   )
                                 : const SizedBox.shrink(),

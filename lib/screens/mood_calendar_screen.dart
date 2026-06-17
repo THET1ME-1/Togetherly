@@ -9,6 +9,7 @@ import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/mood_image.dart';
 import 'home/widgets/mood_picker_dialog.dart';
 
 /// Экран «Mood Calendar»
@@ -481,12 +482,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                     ),
                     const SizedBox(width: 4),
                     if (m.imagePath.isNotEmpty)
-                      Image.asset(
+                      MoodImage(
                         m.imagePath,
                         width: 22,
                         height: 22,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const SizedBox(width: 22, height: 22),
                       ),
                     const SizedBox(width: 4),
                     Text(
@@ -833,12 +832,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 const SizedBox(width: 4),
                 if (mood != null)
                   if (mood.imagePath.isNotEmpty)
-                    Image.asset(
+                    MoodImage(
                       mood.imagePath,
                       width: 20,
                       height: 20,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const SizedBox(width: 20, height: 20),
                     ),
                 const SizedBox(width: 4),
                 Text(
@@ -1155,17 +1152,11 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: m.imagePath.isNotEmpty
-                                      ? Image.asset(
+                                      ? MoodImage(
                                           m.imagePath,
                                           width: 48,
                                           height: 48,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) =>
-                                              Container(
-                                                width: 48,
-                                                height: 48,
-                                                color: m.color,
-                                              ),
                                         )
                                       : Container(
                                           width: 48,
@@ -1313,12 +1304,11 @@ class _CyclingMoodSquareState extends State<_CyclingMoodSquare> {
           key: ValueKey(mood.id),
           borderRadius: BorderRadius.circular(radius),
           child: size > 20 && mood.imagePath.isNotEmpty
-              ? Image.asset(
+              ? MoodImage(
                   mood.imagePath,
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(color: mood.color),
                 )
               : Container(color: mood.color),
         ),

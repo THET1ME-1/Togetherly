@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mood_pack.dart';
+import 'catalog_service.dart';
 
 /// Хранит выбранный пользователем пак настроений (локально, как выбор языка).
 ///
@@ -18,7 +19,7 @@ class MoodPackService extends ChangeNotifier {
   bool _loaded = false;
 
   String get selectedPackId => _packId;
-  MoodPack get selectedPack => MoodPack.byId(_packId);
+  MoodPack get selectedPack => CatalogService.instance.packById(_packId);
 
   /// Загрузить сохранённый выбор (идемпотентно).
   Future<void> load() async {
@@ -27,7 +28,9 @@ class MoodPackService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_key);
-      if (saved != null && MoodPack.all.any((p) => p.id == saved)) {
+      // Не валидируем против списка жёстко: удалённый пак мог ещё не загрузиться
+      // из каталога. packById() безопасно отдаёт classic, пока пак не появится.
+      if (saved != null && saved.isNotEmpty) {
         _packId = saved;
       }
     } catch (_) {}

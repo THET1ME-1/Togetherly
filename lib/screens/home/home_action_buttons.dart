@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/mood_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/animations.dart';
@@ -101,12 +102,11 @@ class HomeActionButtons extends StatelessWidget {
                 height: 30,
                 child: hasMoodImage
                     ? ClipOval(
-                        child: Image.asset(
+                        child: MoodImage(
                           moodImagePath,
                           width: 30,
                           height: 30,
-                          errorBuilder: (_, _, _) =>
-                              _svgIcon(svgIcon, 30, theme.navActiveIcon),
+                          fit: BoxFit.cover,
                         ),
                       )
                     : _svgIcon(svgIcon, 30, theme.navActiveIcon),

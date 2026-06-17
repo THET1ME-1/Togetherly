@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../widgets/storage_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -888,6 +889,16 @@ class _MascotThumbnail extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.contain,
+      );
+    }
+    if (mascot.catalogUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: mascot.catalogUrl!,
+        width: size == double.infinity ? null : size,
+        height: size == double.infinity ? null : size,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const _PlaceholderBox(),
+        errorWidget: (_, __, ___) => const _PlaceholderBox(),
       );
     }
     if (mascot.imageUrl != null) {
