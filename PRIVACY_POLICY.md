@@ -1,6 +1,6 @@
 # Privacy Policy / Политика конфиденциальности
 
-Last updated / Дата обновления: 8 June 2026 / 8 июня 2026 г.
+Last updated / Дата обновления: 17 June 2026 / 17 июня 2026 г.
 
 This document contains the privacy policy for the Togetherly mobile application in English and Russian.
 Этот документ содержит политику конфиденциальности мобильного приложения Togetherly на английском и русском языках.
@@ -58,6 +58,11 @@ Togetherly представляет собой приложение для ли�
    - push-токен уведомлений Firebase Cloud Messaging;
    - данные, необходимые для работы deep links и invite links;
    - временные файлы, кэш, локально сохраненные изображения и служебные данные приложения.
+
+7. Данные аналитики и статистики использования:
+   - обезличенные данные о действиях в приложении (открытия экранов, события, частота использования функций);
+   - технические характеристики устройства и операционной системы, примерный регион;
+   - агрегированные демографические данные (пол, возраст) и данные об интересах, если включена функция Google Signals. Эти данные предоставляются Google в обобщённом виде только по тем пользователям, которые вошли в аккаунт Google и включили персонализацию рекламы, и не позволяют идентифицировать конкретного человека.
 
 ### 3. Откуда поступают данные
 
@@ -121,8 +126,9 @@ Togetherly представляет собой приложение для ли�
 1. Google Firebase, который используется для аутентификации, облачной базы данных, хранения файлов и push-уведомлений.
 2. Google Sign-In, если вы выбираете вход через аккаунт Google.
 3. Рекламные сети — Google AdMob и Рекламная сеть Яндекса (Yandex Mobile Ads) — для показа рекламы, включая баннеры и видеорекламу за вознаграждение. Эти сети могут обрабатывать рекламный идентификатор устройства, IP-адрес, данные об устройстве, действия в приложении и приблизительное местоположение. Подробнее: [Политика Google](https://policies.google.com/privacy) и [Политика Яндекса](https://yandex.ru/legal/confidential/).
-4. Платформы Apple и Google, если это необходимо для доставки, сетевого взаимодействия, системных разрешений и работы приложения на соответствующей ОС.
-5. Сервисы, на которые вы сами переходите по внешним ссылкам, например музыкальные или видеоплатформы. В таком случае их обработка данных регулируется уже их собственными политиками конфиденциальности.
+4. Google Analytics (Google Analytics для Firebase) — для сбора обезличенной статистики использования приложения и улучшения его работы. Если включена функция **Google Signals**, в Google Analytics активируются расширенные рекламные функции (Google Advertising Features): сервис дополняет статистику агрегированными демографическими данными (пол, возраст) и данными об интересах, а также может формировать аудитории для ремаркетинга и передавать их в связанные рекламные аккаунты Google. Все такие данные используются только в обобщённом (агрегированном) виде. Для пользователей ЕЭЗ/Великобритании сбор регулируется запросом согласия при первом запуске приложения; отключить персонализированную аналитику можно также в настройках аккаунта Google. Подробнее: [Политика Google](https://policies.google.com/privacy), [отказ от Google Analytics](https://tools.google.com/dlpage/gaoptout).
+5. Платформы Apple и Google, если это необходимо для доставки, сетевого взаимодействия, системных разрешений и работы приложения на соответствующей ОС.
+6. Сервисы, на которые вы сами переходите по внешним ссылкам, например музыкальные или видеоплатформы. В таком случае их обработка данных регулируется уже их собственными политиками конфиденциальности.
 
 ### 8. Совместный доступ и видимость данных
 
@@ -257,6 +263,11 @@ Depending on the features you use, the application may process the following cat
    - data required for invite links and deep links;
    - temporary files, cache files, locally saved media, and service data required for app functionality.
 
+7. Analytics and usage data:
+   - de-identified data about in-app activity (screen views, events, feature usage frequency);
+   - device and operating system characteristics, approximate region;
+   - aggregated demographic data (gender, age) and interest data, if the Google Signals feature is enabled. This data is provided by Google in aggregated form only, only for users who are signed in to a Google account and have enabled Ads Personalization, and does not allow identification of an individual.
+
 ### 3. Sources of Data
 
 We may receive data from the following sources:
@@ -319,8 +330,9 @@ Data may be processed by the following categories of infrastructure, advertising
 1. Google Firebase, used for authentication, cloud database, file storage, and push notifications.
 2. Google Sign-In, if you choose to sign in with a Google account.
 3. Advertising networks — Google AdMob and the Yandex Advertising Network (Yandex Mobile Ads) — to display ads, including banners and rewarded video. These networks may process your device's advertising ID, IP address, device data, in-app activity, and approximate location. Learn more: [Google Policy](https://policies.google.com/privacy) and [Yandex Policy](https://yandex.com/legal/confidential/).
-4. Apple and Google platform services when required for delivery, networking, system permissions, and app operation on the relevant operating system.
-5. External services that you choose to open through links, such as music or video platforms. In those cases, data processing is governed by the privacy policies of those third-party services.
+4. Google Analytics (Google Analytics for Firebase) — to collect de-identified usage statistics and improve the app. If the **Google Signals** feature is enabled, Google Advertising Features are activated in Google Analytics: the service augments statistics with aggregated demographic data (gender, age) and interest data, and may build remarketing audiences and share them with linked Google advertising accounts. All such data is used in aggregated form only. For users in the EEA/UK, collection is governed by the consent request shown on first app launch; you can also opt out of personalized analytics in your Google account settings. Learn more: [Google Policy](https://policies.google.com/privacy), [Google Analytics opt-out](https://tools.google.com/dlpage/gaoptout).
+5. Apple and Google platform services when required for delivery, networking, system permissions, and app operation on the relevant operating system.
+6. External services that you choose to open through links, such as music or video platforms. In those cases, data processing is governed by the privacy policies of those third-party services.
 
 ### 8. Shared Visibility of Data
 
