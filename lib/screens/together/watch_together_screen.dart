@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
@@ -53,6 +54,15 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   final ScrollController _chatScroll = ScrollController();
   final List<ChatMessage> _messages = [];
   StreamSubscription<ChatMessage>? _chatSub;
+  StreamSubscription<ChatMessage>? _chatChangesSub;
+
+  /// Сообщение, на которое отвечаем (null — обычная отправка).
+  ChatMessage? _replyingTo;
+
+  /// Палитра реакций (с 💯).
+  static const List<String> _reactionEmojis = [
+    '❤️', '😂', '🔥', '💯', '👍', '😮', '😍', '😢',
+  ];
 
   String get _uid => _fb.uid ?? '';
 
@@ -136,6 +146,13 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       if (!mounted) return;
       setState(() => _messages.add(m));
       _scrollChatToBottom();
+    });
+    // Изменения (реакции мутируют узел) — заменяем сообщение по id.
+    _chatChangesSub =
+        _session.watchChatMessageChanges(widget.pairId).listen((m) {
+      if (!mounted) return;
+      final i = _messages.indexWhere((e) => e.id == m.id);
+      if (i != -1) setState(() => _messages[i] = m);
     });
     _heartbeat = Timer.periodic(const Duration(seconds: 8), (_) => _maybeHeartbeat());
   }
@@ -296,8 +313,71 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   void _sendChat() {
     final t = _chatCtrl.text.trim();
     if (t.isEmpty) return;
-    _session.sendChatMessage(pairId: widget.pairId, text: t);
+    final reply = _replyingTo;
+    _session.sendChatMessage(
+      pairId: widget.pairId,
+      text: t,
+      replyToId: reply?.id,
+      replyToName: reply?.name,
+      replyToText: reply?.text,
+    );
     _chatCtrl.clear();
+    if (reply != null) setState(() => _replyingTo = null);
+  }
+
+  void _startReply(ChatMessage m) {
+    HapticFeedback.mediumImpact();
+    setState(() => _replyingTo = m);
+  }
+
+  void _toggleReaction(ChatMessage m, String emoji) {
+    final mine = m.reactions[_uid];
+    _session.setChatReaction(
+      pairId: widget.pairId,
+      messageId: m.id,
+      emoji: mine == emoji ? null : emoji,
+    );
+  }
+
+  /// Пикер реакций — тёмный bottom-sheet с палитрой (включая 💯).
+  void _showReactionPicker(ChatMessage m) {
+    final mine = m.reactions[_uid];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B1B1F),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final e in _reactionEmojis)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleReaction(m, e);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: mine == e
+                          ? const Color(0xFFEC4899).withOpacity(0.30)
+                          : Colors.transparent,
+                    ),
+                    child: Text(e, style: const TextStyle(fontSize: 30)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _scrollChatToBottom() {
@@ -318,6 +398,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     _sessionSub?.cancel();
     _presenceSub?.cancel();
     _chatSub?.cancel();
+    _chatChangesSub?.cancel();
     _chatCtrl.dispose();
     _chatScroll.dispose();
     _controller.removeListener(_onPlayerEvent);
@@ -561,25 +642,184 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       itemBuilder: (context, i) {
         final m = _messages[i];
         final mine = m.uid == _uid;
-        return Align(
-          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.72,
+        return Dismissible(
+          key: ValueKey('cw_${m.id}'),
+          direction: DismissDirection.endToStart, // свайп влево → ответить
+          dismissThresholds: const {DismissDirection.endToStart: 0.25},
+          movementDuration: const Duration(milliseconds: 180),
+          confirmDismiss: (_) async {
+            _startReply(m);
+            return false;
+          },
+          background: const SizedBox.shrink(),
+          secondaryBackground: const Padding(
+            padding: EdgeInsets.only(right: 24),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Icon(Icons.reply_rounded, color: Colors.white70),
             ),
-            decoration: BoxDecoration(
-              color: mine ? const Color(0xFFEC4899) : Colors.white12,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              m.text,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          child: Align(
+            alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment:
+                  mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onDoubleTap: () => _showReactionPicker(m),
+                  onLongPress: () => _showReactionPicker(m),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.72,
+                    ),
+                    decoration: BoxDecoration(
+                      color: mine ? const Color(0xFFEC4899) : Colors.white12,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (m.replyToId != null) _buildSessionReplyQuote(m),
+                        Text(
+                          m.text,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (m.reactions.isNotEmpty) _buildSessionReactionChips(m),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSessionReplyQuote(ChatMessage m) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            m.replyToName ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            m.replyToText ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionReactionChips(ChatMessage m) {
+    final counts = <String, int>{};
+    for (final e in m.reactions.values) {
+      counts[e] = (counts[e] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return const SizedBox.shrink();
+    final mine = m.reactions[_uid];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Wrap(
+        spacing: 4,
+        children: [
+          for (final entry in counts.entries)
+            GestureDetector(
+              onTap: () => _toggleReaction(m, entry.key),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: mine == entry.key
+                        ? const Color(0xFFEC4899)
+                        : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  '${entry.key} ${entry.value}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionReplyBanner() {
+    final r = _replyingTo!;
+    return Container(
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.reply_rounded, color: Color(0xFFEC4899), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  LocaleService.current.chatReplyingTo(r.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFEC4899),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  r.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white60, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close_rounded,
+                color: Colors.white54, size: 20),
+            onPressed: () => setState(() => _replyingTo = null),
+          ),
+        ],
+      ),
     );
   }
 
@@ -588,7 +828,11 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_replyingTo != null) _buildSessionReplyBanner(),
+            Row(
           children: [
             Expanded(
               child: TextField(
@@ -618,6 +862,8 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
               icon: const Icon(Icons.send_rounded, color: Color(0xFFEC4899)),
               onPressed: _sendChat,
             ),
+          ],
+        ),
           ],
         ),
       ),
