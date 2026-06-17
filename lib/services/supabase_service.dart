@@ -601,13 +601,16 @@ class SupabaseService {
     });
   }
 
-  /// Атомарный инкремент memories_count / drawings_count.
+  /// Атомарный инкремент memories_count / drawings_count / xp.
   Future<bool> incrementGroupCounters(
     String groupId, {
     int memories = 0,
     int drawings = 0,
+    int xp = 0,
   }) async {
-    if (!isReady || groupId.isEmpty || (memories == 0 && drawings == 0)) {
+    if (!isReady ||
+        groupId.isEmpty ||
+        (memories == 0 && drawings == 0 && xp == 0)) {
       return false;
     }
     return _write('incrementGroupCounters', () async {
@@ -615,6 +618,7 @@ class SupabaseService {
         'p_group_id': groupId,
         'p_memories': memories,
         'p_drawings': drawings,
+        'p_xp': xp,
       }).timeout(const Duration(seconds: 10));
     });
   }
@@ -1411,12 +1415,14 @@ class SupabaseService {
               scale: (r['mascot_scale'] as num?)?.toDouble() ?? 1.0,
               streakDays: (r['streak_days'] as num?)?.toInt() ?? 0,
               streakLastOpenedDate: r['streak_last_opened_date'] as String?,
+              xp: (r['xp'] as num?)?.toInt() ?? 0,
             );
           })
           .where((state) {
             final sig =
                 '${state.activeMascotId}|${state.positionX}|${state.positionY}|'
-                '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}';
+                '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}|'
+                '${state.xp}';
             if (sig == prevSig) return false;
             prevSig = sig;
             return true;

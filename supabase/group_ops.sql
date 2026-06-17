@@ -75,15 +75,19 @@ CREATE OR REPLACE FUNCTION public.group_set_member_birthday(
    WHERE id = p_group_id;
 $$ LANGUAGE sql;
 
--- ── Атомарные счётчики ленты/рисунков ──
+-- ── Атомарные счётчики ленты/рисунков/опыта ──
+-- Старую 2-арг сигнатуру дропаем, чтобы не было неоднозначности перегрузок.
+DROP FUNCTION IF EXISTS public.group_inc_counters(TEXT, INT, INT);
 CREATE OR REPLACE FUNCTION public.group_inc_counters(
   p_group_id TEXT,
   p_memories INT DEFAULT 0,
-  p_drawings INT DEFAULT 0
+  p_drawings INT DEFAULT 0,
+  p_xp       INT DEFAULT 0
 ) RETURNS VOID AS $$
   UPDATE public.groups
      SET memories_count = GREATEST(0, COALESCE(memories_count, 0) + p_memories),
-         drawings_count = GREATEST(0, COALESCE(drawings_count, 0) + p_drawings)
+         drawings_count = GREATEST(0, COALESCE(drawings_count, 0) + p_drawings),
+         xp             = GREATEST(0, COALESCE(xp, 0) + p_xp)
    WHERE id = p_group_id;
 $$ LANGUAGE sql;
 
@@ -123,6 +127,6 @@ GRANT EXECUTE ON FUNCTION
   public.group_set_member_name(TEXT, TEXT, TEXT),
   public.group_set_member_avatar(TEXT, TEXT, TEXT),
   public.group_set_member_birthday(TEXT, TEXT, TIMESTAMPTZ),
-  public.group_inc_counters(TEXT, INT, INT),
+  public.group_inc_counters(TEXT, INT, INT, INT),
   public.memory_patch(TEXT, JSONB)
 TO anon, authenticated;

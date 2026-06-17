@@ -13,6 +13,7 @@ import 'dart:io';
 
 import '../models/mascot.dart';
 import '../services/firebase_service.dart';
+import '../services/level_service.dart';
 import '../services/mascot_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -290,6 +291,29 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   // ── Mascot actions ───────────────────────────────────────────────────────
 
   Future<void> _setActive(Mascot mascot) async {
+    // Гейт по разблокировке: каталожный маскот может быть «за уровень»/премиум.
+    final unlocked = mascot.unlock.isUnlocked(
+      level: LevelService.instance.level,
+      owned: false, // премиум-покупки подключим позже (ownedFeatures)
+    );
+    if (!unlocked) {
+      final ru = LocaleService.instance.isRussian;
+      final msg = mascot.unlock.isPremium
+          ? (ru ? 'Премиум-маскот 💎' : 'Premium mascot 💎')
+          : (ru
+              ? 'Откроется на уровне ${mascot.unlock.requiredLevel}'
+              : 'Unlocks at level ${mascot.unlock.requiredLevel}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
     final alreadyActive = _svc.state.activeMascotId == mascot.id;
     await _svc.setActive(alreadyActive ? null : mascot.id);
     if (mounted) {
@@ -755,6 +779,10 @@ class _MascotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locked = !mascot.unlock.isUnlocked(
+      level: LevelService.instance.level,
+      owned: false,
+    );
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -784,12 +812,46 @@ class _MascotCard extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: _MascotThumbnail(
-                      mascot: mascot,
-                      size: double.infinity,
-                      service: service,
+                    child: Opacity(
+                      opacity: locked ? 0.35 : 1.0,
+                      child: _MascotThumbnail(
+                        mascot: mascot,
+                        size: double.infinity,
+                        service: service,
+                      ),
                     ),
                   ),
+                  if (locked)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(140),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.lock_rounded,
+                              color: Colors.white, size: 12),
+                          const SizedBox(width: 3),
+                          Text(
+                            mascot.unlock.isPremium
+                                ? '💎'
+                                : (LocaleService.instance.isRussian
+                                    ? 'Ур. ${mascot.unlock.requiredLevel}'
+                                    : 'Lv ${mascot.unlock.requiredLevel}'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (isActive)
                     Positioned(
                       top: 6,

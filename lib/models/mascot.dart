@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:love_app/services/locale_service.dart';
+import 'level.dart';
 
 enum MascotMoodState { happy, sad, verySad }
 
@@ -23,6 +24,9 @@ class Mascot {
   /// Английское имя каталожного маскота (для localizedName). Null для остальных.
   final String? nameEn;
 
+  /// Требование разблокировки (для каталожных). Бандл/рисованные — всегда free.
+  final Unlock unlock;
+
   final String createdBy;
   final DateTime createdAt;
   final bool isDefault;
@@ -37,6 +41,7 @@ class Mascot {
     this.defaultAsset,
     this.catalogUrl,
     this.nameEn,
+    this.unlock = const Unlock.free(),
     required this.createdBy,
     required this.createdAt,
     this.isDefault = false,
@@ -51,12 +56,14 @@ class Mascot {
     required String nameRu,
     required String nameEn,
     required String url,
+    Unlock unlock = const Unlock.free(),
   }) =>
       Mascot(
         id: id,
         name: nameRu,
         nameEn: nameEn,
         catalogUrl: url,
+        unlock: unlock,
         createdBy: 'catalog',
         createdAt: DateTime(2024),
         isDefault: true,
@@ -136,6 +143,9 @@ class GroupMascotState {
   final int streakDays;
   final String? streakLastOpenedDate; // "YYYY-MM-DD" local time
 
+  /// Общий опыт пары (растёт за действия). Уровень/ранг выводятся из него.
+  final int xp;
+
   const GroupMascotState({
     this.activeMascotId,
     this.positionX = 0.8,
@@ -143,6 +153,7 @@ class GroupMascotState {
     this.scale = 1.0,
     this.streakDays = 0,
     this.streakLastOpenedDate,
+    this.xp = 0,
   });
 
   /// Computes the current mood based on when anyone last opened the app.
@@ -172,6 +183,7 @@ class GroupMascotState {
       scale: (data['mascotScale'] as num?)?.toDouble() ?? 1.0,
       streakDays: (data['streakDays'] as num?)?.toInt() ?? 0,
       streakLastOpenedDate: data['streakLastOpenedDate'] as String?,
+      xp: (data['xp'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -182,6 +194,7 @@ class GroupMascotState {
     'mascotScale': scale,
     'streakDays': streakDays,
     'streakLastOpenedDate': streakLastOpenedDate,
+    'xp': xp,
   };
 
   GroupMascotState copyWith({
@@ -191,6 +204,7 @@ class GroupMascotState {
     double? scale,
     int? streakDays,
     String? streakLastOpenedDate,
+    int? xp,
     bool clearActiveMascot = false,
   }) {
     return GroupMascotState(
@@ -202,6 +216,7 @@ class GroupMascotState {
       scale: scale ?? this.scale,
       streakDays: streakDays ?? this.streakDays,
       streakLastOpenedDate: streakLastOpenedDate ?? this.streakLastOpenedDate,
+      xp: xp ?? this.xp,
     );
   }
 }

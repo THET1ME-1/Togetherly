@@ -21,6 +21,7 @@ import '../models/mood_entry.dart';
 import '../models/memory.dart';
 import '../services/firebase_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
@@ -947,6 +948,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         androidName: className,
       );
       debugPrint('_pinWidget: requestPinWidget completed successfully');
+      unawaited(LevelService.instance.award(XpAction.setWidget));
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
       // For solo mode, we still sync with empty groupId
       if (widgetType != null) {

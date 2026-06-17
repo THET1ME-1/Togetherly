@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
+import '../../services/level_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/rewarded_ad_service.dart';
 import 'watch_together_screen.dart';
@@ -132,6 +133,7 @@ class TogetherLauncher {
     await _requireStartAd(context);
     if (!context.mounted) return;
 
+    unawaited(LevelService.instance.award(XpAction.watchTogether));
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(
@@ -164,6 +166,7 @@ class TogetherLauncher {
     await _requireStartAd(context);
     if (!context.mounted) return;
 
+    unawaited(LevelService.instance.award(XpAction.watchTogether));
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(

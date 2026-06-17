@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/locale_service.dart';
+import 'level.dart';
 import 'mood_entry.dart';
 
 /// Набор настроений («пак») — например классические эмодзи или розовые каваи.
@@ -26,6 +27,9 @@ class MoodPack {
   final String _nameRu;
   final String _nameEn;
 
+  /// Требование разблокировки (для каталожных паков). Встроенные — free.
+  final Unlock unlock;
+
   const MoodPack({
     required this.id,
     required this.isFree,
@@ -33,6 +37,7 @@ class MoodPack {
     required String nameRu,
     required String nameEn,
     this.tileGradient,
+    this.unlock = const Unlock.free(),
   })  : _nameRu = nameRu,
         _nameEn = nameEn;
 
