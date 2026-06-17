@@ -28,6 +28,7 @@ import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/timer_item.dart';
 import 'analytics_service.dart';
+import 'level_service.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
 import 'rate_limiter_service.dart';
@@ -4736,6 +4737,7 @@ class FirebaseService {
         unawaited(_sb.incrementGroupCounters(groupId, memories: 1));
       }
       unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
+      unawaited(LevelService.instance.award(XpAction.addMemory));
       return memory;
     } catch (e) {
       debugPrint('addMemory failed: $e');
@@ -6751,6 +6753,28 @@ class FirebaseService {
     }
   }
 
+  /// Атомарно начислить XP паре (общий счётчик уровня). Растёт как
+  /// memoriesCount: Firebase increment (источник) + зеркало в Supabase.
+  Future<void> addGroupXp(String groupId, int amount) async {
+    if (groupId.isEmpty || amount == 0) return;
+    try {
+      if (_writeFb(groupId)) {
+        unawaited(
+          _db
+              .collection('groups')
+              .doc(groupId)
+              .update({'xp': FieldValue.increment(amount)})
+              .catchError((_) {}),
+        );
+      }
+      if (_dualWrite) {
+        unawaited(_sb.incrementGroupCounters(groupId, xp: amount));
+      }
+    } catch (e) {
+      debugPrint('addGroupXp failed: $e');
+    }
+  }
+
   /// Update the floating mascot's position and scale.
   Future<void> updateMascotPosition({
     required String groupId,
@@ -6911,7 +6935,8 @@ class FirebaseService {
           // the mascot widget rebuilds on every unrelated group-doc change.
           final sig =
               '${state.activeMascotId}|${state.positionX}|${state.positionY}|'
-              '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}';
+              '${state.scale}|${state.streakDays}|${state.streakLastOpenedDate}|'
+              '${state.xp}';
           if (sig == prevSig) return false;
           prevSig = sig;
           return true;

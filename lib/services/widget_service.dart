@@ -13,6 +13,7 @@ import '../models/mood_entry.dart';
 import '../config/migration_config.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
+import 'level_service.dart';
 import 'supabase_service.dart';
 
 /// Сервис для синхронизации виджет-данных между партнёрами.
@@ -354,6 +355,8 @@ class WidgetService extends ChangeNotifier {
       'moodEmoji': emojiPath,
       'moodLabel': label,
     }, groupId: groupId);
+
+    unawaited(LevelService.instance.award(XpAction.changeMood));
 
     // Автоотправка в календарь — только если не пропускаем
     if (!skipCalendar && _autoSendMoodToCalendar && groupId.isNotEmpty) {

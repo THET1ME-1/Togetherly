@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -348,29 +349,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                child: LevelAvatar(
+                  size: 100,
+                  ring: 4,
+                  child: ColoredBox(
                     color: _accentLight,
-                    border: Border.all(
-                      color: _accent.withOpacity(0.25),
-                      width: 3,
-                    ),
-                  ),
-                  child: widget.userData.avatarUrl.isNotEmpty
-                      ? ClipOval(
-                          child: StorageImage(
+                    child: widget.userData.avatarUrl.isNotEmpty
+                        ? StorageImage(
                             imageUrl: widget.userData.avatarUrl,
                             fit: BoxFit.cover,
                             memCacheWidth: 200,
                             memCacheHeight: 200,
                             errorWidget: (context, url, error) =>
                                 _buildAvatarFallback(),
-                          ),
-                        )
-                      : _buildAvatarFallback(),
+                          )
+                        : _buildAvatarFallback(),
+                  ),
                 ),
               ),
               Positioned(

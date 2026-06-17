@@ -109,7 +109,18 @@
       "Bash(rg -v '^\\\\s*[0-9]+:\\\\s*//')",
       "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка|name': '\")",
       "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка|name': '|label: 'Русский'\")",
-      "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка\")"
+      "Bash(rg -v \"//|debugPrint|assets/|print\\\\\\(|RegExp|Яндекс|VK Музыка\")",
+      "Bash(python -c \"import PIL, sys; print\\('Pillow', PIL.__version__, 'python', sys.version.split\\(\\)[0]\\)\")",
+      "Bash(python -m py_compile tools/convert_mascots.py)",
+      "Bash(python -c \"import requests; print\\('requests', requests.__version__\\)\")",
+      "Bash(python -c \"import PIL; print\\('PIL ok'\\)\")",
+      "Bash(python -m py_compile tools/catalog_publish.py)",
+      "Bash(python -c \"import json; json.load\\(open\\('tools/catalog/autumn.json',encoding='utf-8'\\)\\); json.load\\(open\\('tools/catalog/halloween.json',encoding='utf-8'\\)\\); print\\('json OK'\\)\")",
+      "Bash(grep -iE \"togetherly|service|secret|\\\\.json$|key\")",
+      "Bash(grep -iv \"\\\\.svg$\")",
+      "Bash(PYTHONUTF8=1 python tools/_convert_uploaded.py)",
+      "Bash(PYTHONUTF8=1 python tools/_move_src.py)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"

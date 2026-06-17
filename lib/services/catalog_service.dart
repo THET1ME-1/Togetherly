@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/migration_config.dart';
+import '../models/level.dart';
 import '../models/mascot.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
@@ -125,6 +126,7 @@ class CatalogService extends ChangeNotifier {
         nameEn: row['name_en'] as String? ?? '',
         moods: moods,
         tileGradient: _parseGradient(data['tileGradient']),
+        unlock: _parseUnlock(row, data),
       ));
     }
 
@@ -145,7 +147,16 @@ class CatalogService extends ChangeNotifier {
       nameRu: row['name_ru'] as String? ?? id,
       nameEn: row['name_en'] as String? ?? id,
       url: url,
+      unlock: _parseUnlock(row, data),
     );
+  }
+
+  /// Требование разблокировки: поле `unlock` в data, иначе по `is_free`.
+  Unlock _parseUnlock(Map<String, dynamic> row, Map<String, dynamic> data) {
+    final u = data['unlock'];
+    if (u is Map) return Unlock.fromJson(u.cast<String, dynamic>());
+    final free = row['is_free'] as bool? ?? true;
+    return free ? const Unlock.free() : const Unlock.premium();
   }
 
   /// Одно настроение из манифеста. Для известных id цвет/метку берём из сборки,

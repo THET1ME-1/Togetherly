@@ -4,6 +4,7 @@ import '../models/mascot.dart';
 import 'catalog_service.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
+import 'level_service.dart';
 
 /// Manages the mascot gallery and group streak for one group.
 /// Bind to a group via [bindToGroup] when the user is paired.
@@ -68,10 +69,13 @@ class MascotService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    LevelService.instance.bind(groupId);
+
     _groupStateSub = _fb.listenToGroupMascotState(groupId: groupId).listen((
       state,
     ) {
       _state = state;
+      LevelService.instance.setXp(state.xp);
       _syncStreakWidget();
       notifyListeners();
     }, onError: (e) => debugPrint('[MascotService] group state error: $e'));
@@ -88,6 +92,7 @@ class MascotService extends ChangeNotifier {
     _bindGeneration++;
     _mascotsSub?.cancel();
     _groupStateSub?.cancel();
+    LevelService.instance.unbind();
     _groupId = '';
     _mascots = [];
     _state = const GroupMascotState();
@@ -198,6 +203,7 @@ class MascotService extends ChangeNotifier {
   Future<void> recordDailyActivity() async {
     if (_groupId.isEmpty) return;
     await _fb.recordGroupActivity(_groupId);
+    unawaited(LevelService.instance.award(XpAction.dailyStreak));
   }
 
   // ── Active mascot ──────────────────────────────────────────────────────────
