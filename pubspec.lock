@@ -742,6 +742,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.33"
+  flutter_rustore_billing:
+    dependency: "direct main"
+    description:
+      name: flutter_rustore_billing
+      sha256: "31cfaae4ba9c83a4c23893e0bc14cf73df6cea9560eecae54416e5e846e38811"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.1.0"
   flutter_shaders:
     dependency: transitive
     description:

@@ -2,69 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
-/// Описание пака коинов, продаваемого через IAP.
-class CoinPack {
-  const CoinPack({
-    required this.productId,
-    required this.coins,
-  });
+import 'coin_store.dart';
 
-  /// Идентификатор продукта в Google Play / App Store.
-  final String productId;
-
-  /// Количество монет, которое получит пользователь после покупки.
-  final int coins;
-}
-
-/// Все доступные паки монет. Порядок = порядок отображения в UI.
-const List<CoinPack> kCoinPacks = [
-  CoinPack(productId: 'coins_10', coins: 10),
-  CoinPack(productId: 'coins_50', coins: 50),
-  CoinPack(productId: 'coins_120', coins: 120),
-  CoinPack(productId: 'coins_300', coins: 300),
-];
-
-/// Статус обработки одной покупки.
-enum IapStatus {
-  /// Покупка подтверждена и монеты начислены.
-  success,
-
-  /// Платёж был инициирован, но сервер ещё не начислил монеты
-  /// (например, pending-платёж на Android).
-  pending,
-
-  /// Покупка отменена пользователем.
-  cancelled,
-
-  /// Произошла ошибка (сеть, магазин, сервер).
-  error,
-}
-
-/// Результат попытки покупки.
-class IapResult {
-  const IapResult(this.status, {this.coins = 0, this.error});
-
-  final IapStatus status;
-
-  /// Количество начисленных монет (только при [IapStatus.success]).
-  final int coins;
-
-  /// Человекочитаемое описание ошибки (только при [IapStatus.error]).
-  final String? error;
-}
-
-/// Коллбек, который вызывается для подтверждения покупки на сервере
-/// и начисления монет. Возвращает новый баланс или null при ошибке.
-///
-/// Параметры:
-///  - [productId] — идентификатор купленного продукта (например, `coins_50`)
-///  - [purchaseToken] — токен покупки от Google Play / App Store
-typedef GrantCoinsCallback = Future<int?> Function({
-  required String productId,
-  required String purchaseToken,
-});
-
-/// Сервис для работы с In-App Purchases.
+/// Реализация [CoinStore] для Google Play и App Store (через `in_app_purchase`).
 ///
 /// Отвечает за:
 ///  - загрузку ProductDetails из магазина
@@ -72,14 +12,7 @@ typedef GrantCoinsCallback = Future<int?> Function({
 ///  - получение обновлений покупок через [InAppPurchase.purchaseStream]
 ///  - вызов сервера через [GrantCoinsCallback] для начисления монет
 ///  - подтверждение (complete) транзакции перед сторами
-///
-/// **Использование:**
-/// ```dart
-/// final iap = IapService();
-/// await iap.init(onGrantCoins: (productId, token) => ...);
-/// final result = await iap.buy('coins_50');
-/// ```
-class IapService extends ChangeNotifier {
+class IapService extends CoinStore {
   IapService();
 
   // ── Состояние ─────────────────────────────────────────────────────────────
@@ -90,13 +23,16 @@ class IapService extends ChangeNotifier {
   final Map<String, ProductDetails> _products = {};
 
   /// true если магазин доступен на этом устройстве.
+  @override
   bool get isAvailable => _available;
 
   /// true если идёт загрузка продуктов или обработка покупки.
+  @override
   bool get isLoading => _loading;
 
-  /// Продукт по productId. null если ещё не загружен или недоступен.
-  ProductDetails? product(String productId) => _products[productId];
+  /// Готовый ценник продукта (с валютой), либо null если ещё не загружен.
+  @override
+  String? priceLabel(String productId) => _products[productId]?.price;
 
   // ── Внутренние поля ───────────────────────────────────────────────────────
 
@@ -114,6 +50,7 @@ class IapService extends ChangeNotifier {
   ///
   /// [onGrantCoins] — коллбек, который вызывается при успешном платеже
   /// для начисления монет через сервер.
+  @override
   Future<void> init({required GrantCoinsCallback onGrantCoins}) async {
     _onGrantCoins = onGrantCoins;
     _available = await _iap.isAvailable();
@@ -170,6 +107,7 @@ class IapService extends ChangeNotifier {
   ///
   /// Возвращает [IapResult] после того, как транзакция завершена (успех,
   /// отмена или ошибка). Вызов блокируется через Completer до завершения.
+  @override
   Future<IapResult> buy(String productId) async {
     if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
       return const IapResult(
@@ -272,6 +210,7 @@ class IapService extends ChangeNotifier {
   }
 
   /// Ручное восстановление покупок. Вызывается из UI по кнопке "Restore".
+  @override
   Future<void> restorePurchases() async {
     if (!_available) return;
     await _iap.restorePurchases();
