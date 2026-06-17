@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
@@ -67,11 +68,19 @@ class _MissYouButtonState extends State<MissYouButton>
   String? _sentEmoji;
   Timer? _feedbackTimer;
 
+  // ── Saved custom wishes ───────────────────────────────────────────────────────
+  // Свои пожелания запоминаются и показываются в панели как быстрый выбор, чтобы
+  // не набирать заново. Хранятся локально (личные, общие для всех групп).
+  static const String _kCustomWishesKey = 'miss_you_custom_wishes';
+  static const int _maxCustomWishes = 3;
+  List<String> _customWishes = [];
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _loadCustomWishes();
 
     _fillController = AnimationController(
       vsync: this,
@@ -159,6 +168,37 @@ class _MissYouButtonState extends State<MissYouButton>
     );
   }
 
+  // ── Saved custom wishes ───────────────────────────────────────────────────────
+
+  Future<void> _loadCustomWishes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_kCustomWishesKey) ?? [];
+    if (mounted) setState(() => _customWishes = saved);
+  }
+
+  /// Добавляет/поднимает пожелание в начало списка (most-recently-used),
+  /// дедуп без учёта регистра, обрезает до [_maxCustomWishes].
+  Future<void> _saveCustomWish(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final list = List<String>.from(_customWishes)
+      ..removeWhere((w) => w.toLowerCase() == trimmed.toLowerCase());
+    list.insert(0, trimmed);
+    while (list.length > _maxCustomWishes) {
+      list.removeLast();
+    }
+    if (mounted) setState(() => _customWishes = list);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kCustomWishesKey, list);
+  }
+
+  Future<void> _removeCustomWish(String text) async {
+    final list = List<String>.from(_customWishes)..remove(text);
+    if (mounted) setState(() => _customWishes = list);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kCustomWishesKey, list);
+  }
+
   // ── Panel ─────────────────────────────────────────────────────────────────────
 
   void _togglePanel() {
@@ -184,9 +224,12 @@ class _MissYouButtonState extends State<MissYouButton>
         anchorRight: anchorRight,
         myCount: _myCount + _inFlightTaps,
         partnerCount: _partnerCount,
+        customWishes: _customWishes,
         onMissYou: _onMissYouFromPanel,
         onVibe: _onVibeFromPanel,
         onCustom: _onCustomFromPanel,
+        onSavedWish: _onSavedWishFromPanel,
+        onDeleteWish: _removeCustomWish,
         onDismiss: _closePanel,
       ),
     );
@@ -267,6 +310,31 @@ class _MissYouButtonState extends State<MissYouButton>
     });
   }
 
+  /// Повторно отправить сохранённое пожелание прямо из панели — без диалога.
+  Future<void> _onSavedWishFromPanel(String text) async {
+    _closePanel();
+    HapticFeedback.mediumImpact();
+    try {
+      await _fb.sendVibe(
+        groupId: widget.groupId,
+        senderName: widget.senderName,
+        vibeType: 'custom',
+        customText: text,
+      );
+      if (mounted) _showSentFeedback('✏️');
+      // Поднимаем в начало списка (most-recently-used).
+      await _saveCustomWish(text);
+    } on RateLimitException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } catch (e) {
+      debugPrint('sendSavedWish error: $e');
+    }
+  }
+
   Future<void> _showCustomVibeDialog() async {
     final s = LocaleService.current;
     final text = await showDialog<String>(
@@ -289,6 +357,8 @@ class _MissYouButtonState extends State<MissYouButton>
         vibeType: 'custom',
         customText: text.trim(),
       );
+      // Запоминаем пожелание для быстрого выбора в следующий раз.
+      await _saveCustomWish(text.trim());
       if (mounted) _showSentFeedback('✏️');
     } on RateLimitException catch (e) {
       if (mounted) {
@@ -584,9 +654,12 @@ class _VibePanelOverlay extends StatefulWidget {
   final double anchorRight;
   final int myCount;
   final int partnerCount;
+  final List<String> customWishes;
   final VoidCallback onMissYou;
   final void Function(String type, String emoji) onVibe;
   final VoidCallback onCustom;
+  final void Function(String text) onSavedWish;
+  final void Function(String text) onDeleteWish;
   final VoidCallback onDismiss;
 
   const _VibePanelOverlay({
@@ -595,9 +668,12 @@ class _VibePanelOverlay extends StatefulWidget {
     required this.anchorRight,
     required this.myCount,
     required this.partnerCount,
+    required this.customWishes,
     required this.onMissYou,
     required this.onVibe,
     required this.onCustom,
+    required this.onSavedWish,
+    required this.onDeleteWish,
     required this.onDismiss,
   });
 
@@ -611,9 +687,14 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
+  // Локальная копия — чтобы удаление пожелания обновляло панель без её
+  // пересоздания (родитель тем временем сохраняет изменения в prefs).
+  late List<String> _wishes;
+
   @override
   void initState() {
     super.initState();
+    _wishes = List<String>.from(widget.customWishes);
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 190),
@@ -713,6 +794,32 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                           color: color,
                           onTap: () => widget.onVibe('want_hug', '🤗'),
                           showDivider: true,
+                        ),
+                        // Сохранённые свои пожелания — быстрый повтор без диалога.
+                        // Крестик справа убирает пожелание из списка.
+                        ..._wishes.map(
+                          (w) => _VibeRow(
+                            emoji: '✏️',
+                            label: w,
+                            color: color,
+                            onTap: () => widget.onSavedWish(w),
+                            showDivider: true,
+                            trailing: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                setState(() => _wishes.remove(w));
+                                widget.onDeleteWish(w);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 15,
+                                  color: color.withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                         // Custom vibe row
                         _VibeRow(
@@ -824,6 +931,8 @@ class _VibeRowState extends State<_VibeRow> {
                 Expanded(
                   child: Text(
                     widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight:
