@@ -73,22 +73,45 @@ class ChatMessage {
   final String text;
   final int ts;
 
+  /// Реакции: uid → эмодзи (один на пользователя). Лежат в узле сообщения.
+  final Map<String, String> reactions;
+
+  /// Ответ на сообщение: id оригинала + снимок имени/текста.
+  final String? replyToId;
+  final String? replyToName;
+  final String? replyToText;
+
   const ChatMessage({
     required this.id,
     required this.uid,
     required this.name,
     required this.text,
     required this.ts,
+    this.reactions = const {},
+    this.replyToId,
+    this.replyToName,
+    this.replyToText,
   });
 
   factory ChatMessage.fromSnapshot(DataSnapshot snap) {
     final m = (snap.value as Map?) ?? const {};
+    final rawReactions = m['reactions'];
+    final reactions = <String, String>{};
+    if (rawReactions is Map) {
+      rawReactions.forEach((k, v) {
+        if (v is String && v.isNotEmpty) reactions[k.toString()] = v;
+      });
+    }
     return ChatMessage(
       id: snap.key ?? '',
       uid: (m['uid'] as String?) ?? '',
       name: (m['name'] as String?) ?? '',
       text: (m['text'] as String?) ?? '',
       ts: (m['ts'] as num?)?.toInt() ?? 0,
+      reactions: reactions,
+      replyToId: m['replyToId'] as String?,
+      replyToName: m['replyToName'] as String?,
+      replyToText: m['replyToText'] as String?,
     );
   }
 }
@@ -216,10 +239,13 @@ class TogetherSessionService {
   DatabaseReference _chatRef(String pairId) =>
       _sessionRef(pairId).child('chat');
 
-  /// Отправить сообщение в чат сеанса.
+  /// Отправить сообщение в чат сеанса. [replyTo*] — опциональный ответ.
   Future<void> sendChatMessage({
     required String pairId,
     required String text,
+    String? replyToId,
+    String? replyToName,
+    String? replyToText,
   }) async {
     final t = text.trim();
     if (t.isEmpty || pairId.isEmpty || _uid.isEmpty) return;
@@ -230,9 +256,32 @@ class TogetherSessionService {
         'name': _fb.displayName,
         'text': t,
         'ts': ServerValue.timestamp,
+        if (replyToId != null) 'replyToId': replyToId,
+        if (replyToName != null) 'replyToName': replyToName,
+        if (replyToText != null) 'replyToText': replyToText,
       });
     } catch (e) {
       debugPrint('sendChatMessage failed: $e');
+    }
+  }
+
+  /// Поставить/снять свою реакцию на сообщение. [emoji] == null убирает её.
+  Future<void> setChatReaction({
+    required String pairId,
+    required String messageId,
+    required String? emoji,
+  }) async {
+    if (pairId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
+    try {
+      final ref =
+          _chatRef(pairId).child(messageId).child('reactions').child(_uid);
+      if (emoji == null || emoji.isEmpty) {
+        await ref.remove();
+      } else {
+        await ref.set(emoji);
+      }
+    } catch (e) {
+      debugPrint('setChatReaction failed: $e');
     }
   }
 
@@ -242,6 +291,15 @@ class TogetherSessionService {
     return _chatRef(pairId)
         .limitToLast(50)
         .onChildAdded
+        .map((event) => ChatMessage.fromSnapshot(event.snapshot));
+  }
+
+  /// Поток ИЗМЕНЕНИЙ сообщений (реакции мутируют существующий узел —
+  /// onChildAdded их не отдаёт). UI заменяет сообщение по id.
+  Stream<ChatMessage> watchChatMessageChanges(String pairId) {
+    return _chatRef(pairId)
+        .limitToLast(50)
+        .onChildChanged
         .map((event) => ChatMessage.fromSnapshot(event.snapshot));
   }
 
