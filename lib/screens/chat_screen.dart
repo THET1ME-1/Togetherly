@@ -81,6 +81,13 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Выбранное отправителем выражение мордочки (липкое между сообщениями;
   /// null — без лица). Ставит автор сам — лицо больше не угадывается по тексту.
   _FaceExpr? _selectedFace = _FaceExpr.happy;
+  /// Выбранный цвет пузыря (null — цвет темы). Липкий между сообщениями.
+  Color? _selectedColor;
+  /// Позиция мордочки (доли 0..1), по умолчанию низ-центр. Липкая.
+  double _selectedFaceX = 0.5;
+  double _selectedFaceY = 0.78;
+  /// До 5 недавних цветов (глобально, из prefs).
+  List<Color> _recentColors = const [];
 
   /// Текущий @-запрос для подсказок (null — подсказок нет).
   String? _mentionQuery;
@@ -154,6 +161,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadPins();
     _loadBackground();
     _loadSavedScroll();
+    _loadRecentColors();
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
   }
@@ -162,6 +170,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadSavedScroll() async {
     final px = await _chat.loadScrollOffset(_groupId);
     if (mounted) _savedScrollOffset = px;
+  }
+
+  Future<void> _loadRecentColors() async {
+    final ints = await _chat.loadRecentColors();
+    if (mounted) {
+      setState(() => _recentColors = ints.map((i) => Color(i)).toList());
+    }
   }
 
   /// Фиксируем ts последнего прочтения ДО того, как markRead его перезапишет —
@@ -473,6 +488,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? reply.text
                       : (reply.pinTitle ?? '📌'))),
           face: _selectedFace?.name, // выбранное автором лицо (липкое)
+          color: _selectedColor?.toARGB32(),
+          faceX: _selectedFace == null ? null : _selectedFaceX,
+          faceY: _selectedFace == null ? null : _selectedFaceY,
         );
       }
     } finally {
@@ -578,88 +596,43 @@ class _ChatScreenState extends State<ChatScreen> {
     return null;
   }
 
-  /// Пикер мордочки для набираемого сообщения (кнопка-настроение в композере).
-  /// Выбор липкий — держится для следующих сообщений, пока не сменишь.
-  void _showFacePicker() {
-    showModalBottomSheet(
+  /// Оформление сообщения (цвет + мордочка + её позиция). Выбор липкий —
+  /// держится для следующих сообщений, пока не сменишь.
+  void _showStyleSheet() {
+    showModalBottomSheet<_MsgStyle>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final e in _FaceExpr.values) _facePickItem(ctx, e),
-                  _facePickCircle(
-                    selected: _selectedFace == null,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() => _selectedFace = null);
-                    },
-                    child: Icon(Icons.block_rounded,
-                        color: Colors.grey.shade500, size: 20),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      builder: (ctx) => _StyleSheet(
+        theme: _t,
+        initialColor: _selectedColor,
+        initialFace: _selectedFace,
+        initialFx: _selectedFaceX,
+        initialFy: _selectedFaceY,
+        recent: _recentColors,
       ),
-    );
-  }
-
-  Widget _facePickItem(BuildContext ctx, _FaceExpr e) => _facePickCircle(
-        selected: _selectedFace == e,
-        onTap: () {
-          Navigator.pop(ctx);
-          setState(() => _selectedFace = e);
-        },
-        child: CustomPaint(
-          size: const Size(30, 18),
-          painter: _FacePainter(color: Colors.grey.shade800, expr: e),
-        ),
-      );
-
-  Widget _facePickCircle({
-    required bool selected,
-    required VoidCallback onTap,
-    required Widget child,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? _t.primary.withOpacity(0.12) : Colors.grey.shade100,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? _t.primary : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: child,
-      ),
-    );
+    ).then((result) {
+      if (result == null || !mounted) return;
+      setState(() {
+        _selectedColor = result.color;
+        _selectedFace = result.face;
+        _selectedFaceX = result.fx;
+        _selectedFaceY = result.fy;
+        // Недавние (до 5), новый цвет первым (без дублей).
+        final c = result.color;
+        if (c != null) {
+          _recentColors = [
+            c,
+            ..._recentColors.where((x) => x.toARGB32() != c.toARGB32()),
+          ].take(5).toList();
+          _chat.saveRecentColors(
+              _recentColors.map((x) => x.toARGB32()).toList());
+        }
+      });
+    });
   }
 
   void _startReply(ChatMsg msg) {
@@ -1580,20 +1553,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final s = LocaleService.current;
     final seed = msg.id.hashCode;
 
-    // Плоские цвета по теме (без градиента): своё — насыщенный primary,
-    // партнёр — пастельный тон того же цвета, удалённое — серое.
+    // Цвет пузыря: выбранный автором (msg.color) приоритетнее. Иначе — тема:
+    // своё — насыщенный primary, партнёр — пастельный тон. Текст/лицо — авто-
+    // контраст по яркости фона (белый на тёмном, тёмный на светлом).
     final Color bg;
-    final Color fg;
     if (msg.deleted) {
       bg = Colors.grey.shade300;
-      fg = Colors.grey.shade600;
+    } else if (msg.color != null) {
+      bg = Color(msg.color!);
     } else if (isMine) {
       bg = _t.primary;
-      fg = Colors.white;
     } else {
       bg = Color.lerp(_t.primary, Colors.white, 0.62)!;
-      fg = Colors.grey.shade900;
     }
+    final fg = msg.deleted
+        ? Colors.grey.shade600
+        : (bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white);
     final metaColor = fg.withOpacity(0.65);
 
     // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
@@ -1626,13 +1601,6 @@ class _ChatScreenState extends State<ChatScreen> {
               msg.text,
               style: TextStyle(color: fg, fontSize: 15, height: 1.25),
             ),
-          if (expr != null) ...[
-            const SizedBox(height: 6),
-            CustomPaint(
-              size: const Size(28, 15),
-              painter: _FacePainter(color: fg, expr: expr),
-            ),
-          ],
           const SizedBox(height: 4),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -1674,25 +1642,48 @@ class _ChatScreenState extends State<ChatScreen> {
     final hasReactions = msg.reactions.isNotEmpty;
     // Пузырь: форма (кривые углы + хвостик-клювик со стороны отправителя)
     // рисуется painter'ом, текст/лицо — поверх. Тап — реакции, долгое — меню.
+    final core = CustomPaint(
+      painter: _BubblePainter(
+        color: bg,
+        corners: corners,
+        tailLeft: !isMine,
+        tailDrop: tailDrop,
+      ),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth:
+              MediaQuery.of(context).size.width * (hasReactions ? 0.6 : 0.72),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
+        child: content,
+      ),
+    );
     final bubble = GestureDetector(
       onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
       onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
-      child: CustomPaint(
-        painter: _BubblePainter(
-          color: bg,
-          corners: corners,
-          tailLeft: !isMine,
-          tailDrop: tailDrop,
-        ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width *
-                (hasReactions ? 0.6 : 0.72),
-          ),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
-          child: content,
-        ),
-      ),
+      // Мордочка — оверлеем в выбранной автором позиции (доли 0..1), по
+      // умолчанию низ-центр. IgnorePointer — чтобы не перехватывала тапы.
+      child: expr == null
+          ? core
+          : Stack(
+              children: [
+                core,
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment(
+                      (msg.faceX ?? 0.5) * 2 - 1,
+                      (msg.faceY ?? 0.78) * 2 - 1,
+                    ),
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        size: const Size(30, 16),
+                        painter: _FacePainter(color: fg, expr: expr),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
 
     // Лёгкий наклон — «криво расположены».
@@ -1928,21 +1919,35 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-              // Настроение-мордочка для следующего сообщения (выбор автора).
+              // Оформление сообщения: цвет + мордочка + её позиция (выбор автора).
               GestureDetector(
-                onTap: _showFacePicker,
+                onTap: _showStyleSheet,
                 child: Container(
-                  width: 38,
+                  width: 40,
                   height: 44,
                   alignment: Alignment.center,
-                  child: _selectedFace == null
-                      ? Icon(Icons.sentiment_satisfied_alt_outlined,
-                          color: _t.primary, size: 22)
-                      : CustomPaint(
-                          size: const Size(26, 16),
-                          painter: _FacePainter(
-                              color: _t.primary, expr: _selectedFace!),
-                        ),
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _selectedColor ?? _t.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _selectedFace == null
+                        ? null
+                        : CustomPaint(
+                            size: const Size(20, 12),
+                            painter: _FacePainter(
+                              color: (_selectedColor ?? _t.primary)
+                                          .computeLuminance() >
+                                      0.55
+                                  ? Colors.grey.shade900
+                                  : Colors.white,
+                              expr: _selectedFace!,
+                            ),
+                          ),
+                  ),
                 ),
               ),
               Expanded(
@@ -2402,6 +2407,351 @@ class _SwipeToReplyState extends State<_SwipeToReply>
             child: widget.child,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Результат листа оформления сообщения.
+class _MsgStyle {
+  final Color? color; // null — цвет темы
+  final _FaceExpr? face;
+  final double fx;
+  final double fy;
+  const _MsgStyle(this.color, this.face, this.fx, this.fy);
+}
+
+/// Лист «оформление сообщения»: HSV-пикер цвета (любой оттенок) + 5 недавних +
+/// выбор мордочки + перетаскивание её позиции на превью пузыря.
+class _StyleSheet extends StatefulWidget {
+  final AppTheme theme;
+  final Color? initialColor;
+  final _FaceExpr? initialFace;
+  final double initialFx;
+  final double initialFy;
+  final List<Color> recent;
+  const _StyleSheet({
+    required this.theme,
+    required this.initialColor,
+    required this.initialFace,
+    required this.initialFx,
+    required this.initialFy,
+    required this.recent,
+  });
+
+  @override
+  State<_StyleSheet> createState() => _StyleSheetState();
+}
+
+class _StyleSheetState extends State<_StyleSheet> {
+  late HSVColor _hsv;
+  late bool _useTheme; // true → цвет темы (color = null)
+  late _FaceExpr? _face;
+  late double _fx;
+  late double _fy;
+
+  @override
+  void initState() {
+    super.initState();
+    _useTheme = widget.initialColor == null;
+    _hsv = HSVColor.fromColor(widget.initialColor ?? widget.theme.primary);
+    _face = widget.initialFace;
+    _fx = widget.initialFx;
+    _fy = widget.initialFy;
+  }
+
+  Color get _color => _hsv.toColor();
+  Color get _bg => _useTheme ? widget.theme.primary : _color;
+  Color get _fg =>
+      _bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white;
+
+  Widget _thumb() => Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.black26),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3)],
+        ),
+      );
+
+  Widget _circleBtn({
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    final accent = widget.theme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? accent.withOpacity(0.12) : Colors.grey.shade100,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? accent : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _label(String t) => Align(
+        alignment: Alignment.centerLeft,
+        child: Text(t,
+            style: TextStyle(
+                fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+      );
+
+  Widget _preview() {
+    return LayoutBuilder(builder: (ctx, c) {
+      const h = 108.0;
+      final w = c.maxWidth;
+      void upd(Offset p) => setState(() {
+            _fx = (p.dx / w).clamp(0.0, 1.0);
+            _fy = (p.dy / h).clamp(0.0, 1.0);
+          });
+      return GestureDetector(
+        onPanDown: (d) => upd(d.localPosition),
+        onPanUpdate: (d) => upd(d.localPosition),
+        child: Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: _bg,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 12,
+                top: 9,
+                child: Text('перетащи лицо',
+                    style: TextStyle(color: _fg.withOpacity(0.6), fontSize: 11)),
+              ),
+              if (_face != null)
+                Align(
+                  alignment: Alignment(_fx * 2 - 1, _fy * 2 - 1),
+                  child: CustomPaint(
+                    size: const Size(42, 24),
+                    painter: _FacePainter(color: _fg, expr: _face!),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _svSquare() {
+    return LayoutBuilder(builder: (ctx, c) {
+      final w = c.maxWidth;
+      const h = 150.0;
+      void upd(Offset p) => setState(() {
+            _useTheme = false;
+            _hsv = _hsv
+                .withSaturation((p.dx / w).clamp(0.0, 1.0))
+                .withValue((1 - p.dy / h).clamp(0.0, 1.0));
+          });
+      return GestureDetector(
+        onPanDown: (d) => upd(d.localPosition),
+        onPanUpdate: (d) => upd(d.localPosition),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: w,
+            height: h,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ColoredBox(
+                      color: HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor()),
+                ),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          colors: [Colors.white, Colors.transparent]),
+                    ),
+                  ),
+                ),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: _hsv.saturation * w - 7,
+                  top: (1 - _hsv.value) * h - 7,
+                  child: _thumb(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _hueSlider() {
+    return LayoutBuilder(builder: (ctx, c) {
+      final w = c.maxWidth;
+      const h = 22.0;
+      void upd(Offset p) => setState(() {
+            _useTheme = false;
+            _hsv = _hsv.withHue((p.dx / w).clamp(0.0, 1.0) * 360);
+          });
+      return GestureDetector(
+        onPanDown: (d) => upd(d.localPosition),
+        onPanUpdate: (d) => upd(d.localPosition),
+        child: Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(11),
+            gradient: const LinearGradient(colors: [
+              Color(0xFFFF0000),
+              Color(0xFFFFFF00),
+              Color(0xFF00FF00),
+              Color(0xFF00FFFF),
+              Color(0xFF0000FF),
+              Color(0xFFFF00FF),
+              Color(0xFFFF0000),
+            ]),
+          ),
+          child: Stack(children: [
+            Positioned(
+                left: (_hsv.hue / 360) * w - 7, top: h / 2 - 7, child: _thumb()),
+          ]),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.theme.primary;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+            16, 10, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _preview(),
+              const SizedBox(height: 16),
+              _label('Мордочка'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final e in _FaceExpr.values)
+                    _circleBtn(
+                      selected: _face == e,
+                      onTap: () => setState(() => _face = e),
+                      child: CustomPaint(
+                        size: const Size(30, 18),
+                        painter:
+                            _FacePainter(color: Colors.grey.shade800, expr: e),
+                      ),
+                    ),
+                  _circleBtn(
+                    selected: _face == null,
+                    onTap: () => setState(() => _face = null),
+                    child: Icon(Icons.block_rounded,
+                        color: Colors.grey.shade500, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _label('Цвет'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _circleBtn(
+                    selected: _useTheme,
+                    onTap: () => setState(() => _useTheme = true),
+                    child:
+                        Icon(Icons.palette_outlined, color: accent, size: 20),
+                  ),
+                  for (final col in widget.recent)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _useTheme = false;
+                        _hsv = HSVColor.fromColor(col);
+                      }),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: col,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: !_useTheme &&
+                                    col.toARGB32() == _color.toARGB32()
+                                ? accent
+                                : Colors.grey.shade300,
+                            width: !_useTheme &&
+                                    col.toARGB32() == _color.toARGB32()
+                                ? 3
+                                : 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _svSquare(),
+              const SizedBox(height: 12),
+              _hueSlider(),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () => Navigator.pop(
+                    context,
+                    _MsgStyle(_useTheme ? null : _color, _face, _fx, _fy),
+                  ),
+                  child: const Text('Готово',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
