@@ -746,6 +746,9 @@ abstract class AppStrings {
   String get updateButton;
   String get updateLaterButton;
   String get updateRestartButton;
+  String get forceUpdateTitle;
+  String get forceUpdateBody;
+  String get forceUpdateButton;
   String get noteBadge;
   String get youtubeBadge;
   String get photoNotUploaded;
@@ -2591,6 +2594,13 @@ class _RuStrings extends AppStrings {
   String get updateLaterButton => 'Позже';
   @override
   String get updateRestartButton => 'Перезапустить и установить';
+  @override
+  String get forceUpdateTitle => 'Нужно обновить приложение';
+  @override
+  String get forceUpdateBody =>
+      'Вышла новая версия с важными изменениями. Чтобы продолжить пользоваться приложением, обновитесь до актуальной версии.';
+  @override
+  String get forceUpdateButton => 'Обновить';
   @override
   String get noteBadge => 'ЗАМЕТКА';
   @override
@@ -4991,6 +5001,13 @@ class _EnStrings extends AppStrings {
   String get updateLaterButton => 'Later';
   @override
   String get updateRestartButton => 'Restart and install';
+  @override
+  String get forceUpdateTitle => 'App update required';
+  @override
+  String get forceUpdateBody =>
+      'A new version with important changes is out. Please update to the latest version to keep using the app.';
+  @override
+  String get forceUpdateButton => 'Update';
   @override
   String get noteBadge => 'NOTE';
   @override

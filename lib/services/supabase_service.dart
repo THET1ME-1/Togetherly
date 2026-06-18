@@ -40,6 +40,29 @@ class SupabaseService {
   /// Готов ли Supabase (credentials заполнены и SDK инициализирован в main).
   bool get isReady => MigrationConfig.isConfigured;
 
+  /// Минимальная поддерживаемая сборка (force-update kill-switch).
+  /// Читается из публичной строки `app_config(id=1).min_build`.
+  /// Возвращает 0 при любой ошибке/отсутствии конфига — БЛОКИРОВАТЬ НИКОГО
+  /// (fail-open: единственная безопасная политика для гейта на старте).
+  Future<int> fetchMinSupportedBuild() async {
+    if (!isReady) return 0;
+    try {
+      final row = await _client
+          .from('app_config')
+          .select('min_build')
+          .eq('id', 1)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+      final v = row?['min_build'];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return 0;
+    } catch (e) {
+      debugPrint('SupabaseService.fetchMinSupportedBuild failed: $e');
+      return 0;
+    }
+  }
+
   // ══════════════════════════════════════════════
   //  НАДЁЖНАЯ ЗАПИСЬ (повторы + экспоненциальная пауза)
   // ══════════════════════════════════════════════
