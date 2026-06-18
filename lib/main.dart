@@ -358,12 +358,91 @@ class _LoveAppState extends State<LoveApp> {
   bool _loading = true;
   AppLifecycleListener? _lifecycleListener;
 
-  // Cache theme to avoid recreating on every build
-  static final ThemeData _cachedTheme = ThemeData(
-    textTheme: GoogleFonts.rubikTextTheme(),
-    scaffoldBackgroundColor: const Color(0xFFF7F3F0),
-    useMaterial3: true,
-  );
+  // Тема пересобирается при смене темы приложения (акцент берётся из активной
+  // AppTheme). Кэшируем по акценту, чтобы не пересоздавать на каждый
+  // notifyListeners() UserData (монеты, присутствие и т.п.).
+  Color? _lastAccent;
+  ThemeData? _lastTheme;
+
+  ThemeData _themeFor(Color accent) {
+    if (_lastTheme == null || _lastAccent != accent) {
+      _lastAccent = accent;
+      _lastTheme = _buildTheme(accent);
+    }
+    return _lastTheme!;
+  }
+
+  /// Единый стиль для всех меню (диалоги, bottom-sheet, snackbar, popup-меню).
+  /// Цвета — от акцента активной темы, форма/скругления — из общих токенов.
+  static ThemeData _buildTheme(Color accent) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: accent,
+      brightness: Brightness.light,
+    ).copyWith(primary: accent);
+
+    const titleColor = Color(0xFF2A2A2A);
+    const bodyColor = Color(0xFF555555);
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      textTheme: GoogleFonts.rubikTextTheme(),
+      scaffoldBackgroundColor: const Color(0xFFF7F3F0),
+
+      // ── Диалоги ────────────────────────────────────────────────────────
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: GoogleFonts.rubik(
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          color: titleColor,
+        ),
+        contentTextStyle: GoogleFonts.rubik(
+          fontSize: 15,
+          height: 1.4,
+          color: bodyColor,
+        ),
+      ),
+
+      // ── Bottom-sheet ───────────────────────────────────────────────────
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.white,
+        modalBackgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 12,
+        modalElevation: 12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+
+      // ── SnackBar ───────────────────────────────────────────────────────
+      // Тёмная нейтральная подложка — единая и читаемая на всех 20 темах;
+      // акцент темы выводим в цвете кнопки действия.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF2E2A2C),
+        contentTextStyle: GoogleFonts.rubik(
+          color: Colors.white,
+          fontSize: 14,
+        ),
+        actionTextColor: scheme.inversePrimary,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+
+      // ── Popup-меню ─────────────────────────────────────────────────────
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -481,18 +560,17 @@ class _LoveAppState extends State<LoveApp> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: LocaleService.instance,
+      // Слушаем язык И профиль: смена темы (в _userData) пересобирает ThemeData,
+      // поэтому единый стиль меню сразу подхватывает новый акцент.
+      listenable: Listenable.merge([LocaleService.instance, _userData]),
       builder: (context, _) => MaterialApp(
         title: 'Togetherly',
         debugShowCheckedModeBanner: false,
-        theme: _cachedTheme,
+        theme: _themeFor(_userData.themeAccent),
         navigatorObservers: [AnalyticsService.instance.observer],
         home: _loading
             ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
-            : ListenableBuilder(
-                listenable: _userData,
-                builder: (context, _) => _buildInitialScreen(),
-              ),
+            : _buildInitialScreen(),
       ),
     );
   }
