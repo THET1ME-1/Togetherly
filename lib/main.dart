@@ -15,6 +15,7 @@ import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'config/migration_config.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
@@ -24,8 +25,10 @@ import 'services/catalog_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
+import 'services/supabase_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
 
 /// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob SDK.
@@ -356,6 +359,10 @@ class LoveApp extends StatefulWidget {
 class _LoveAppState extends State<LoveApp> {
   final UserData _userData = UserData();
   bool _loading = true;
+  // Установленная сборка ниже минимально поддерживаемой (Supabase
+  // app_config.min_build) → блокирующий экран обновления. fail-open: при любой
+  // ошибке/без конфига остаётся false и никого не блокирует.
+  bool _forceUpdate = false;
   AppLifecycleListener? _lifecycleListener;
 
   // Тема пересобирается при смене темы приложения (акцент берётся из активной
@@ -480,6 +487,22 @@ class _LoveAppState extends State<LoveApp> {
 
   Future<void> _init() async {
     try {
+      // Force-update kill-switch: если сборка ниже min_build из Supabase —
+      // дальше покажем блокирующий ForceUpdateScreen. Только Android (на iOS
+      // обновления гонит App Store). fail-open: minBuild=0 ⇒ не блокируем.
+      if (Platform.isAndroid) {
+        try {
+          final minBuild = await SupabaseService().fetchMinSupportedBuild();
+          if (minBuild > 0) {
+            final info = await PackageInfo.fromPlatform();
+            final current = int.tryParse(info.buildNumber) ?? 0;
+            _forceUpdate = current < minBuild;
+          }
+        } catch (_) {
+          // Любая ошибка чтения конфига — не блокируем пользователя.
+        }
+      }
+
       // Запоминаем, была ли сессия активна ДО loadFromPrefs: внутри него
       // серверная синхронизация коинов/тем выполняется только при уже
       // активной сессии (isLoggedIn). При тихом входе сессия поднимается
@@ -576,6 +599,10 @@ class _LoveAppState extends State<LoveApp> {
   }
 
   Widget _buildInitialScreen() {
+    // 0. Обязательное обновление — блокирующий экран поверх всего.
+    if (_forceUpdate) {
+      return const ForceUpdateScreen();
+    }
     // 1. Первый запуск — показываем welcome
     if (!_userData.hasSeenWelcome) {
       return WelcomeScreen(userData: _userData);
