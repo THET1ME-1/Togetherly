@@ -89,6 +89,16 @@ class _ChatScreenState extends State<ChatScreen> {
   /// До 5 недавних цветов (глобально, из prefs).
   List<Color> _recentColors = const [];
 
+  /// Снимок липкого оформления на время редактирования. Пока правим сообщение,
+  /// _selected* временно держат стиль ИМЕННО этого сообщения (чтобы лист
+  /// оформления показывал и менял его); после выхода из правки восстанавливаем
+  /// липкий выбор для новых сообщений — правка старого не должна его сбивать.
+  Color? _snapColor;
+  _FaceExpr? _snapFace;
+  double _snapFaceX = 0.5;
+  double _snapFaceY = 0.78;
+  bool _hasStyleSnap = false;
+
   /// Текущий @-запрос для подсказок (null — подсказок нет).
   String? _mentionQuery;
   int _lastMessageTs = 0;
@@ -469,7 +479,12 @@ class _ChatScreenState extends State<ChatScreen> {
           groupId: _groupId,
           messageId: editing.id,
           newText: text,
+          face: _selectedFace?.name,
+          color: _selectedColor?.toARGB32(),
+          faceX: _selectedFace == null ? null : _selectedFaceX,
+          faceY: _selectedFace == null ? null : _selectedFaceY,
         );
+        if (mounted) setState(_restoreStyleSnap);
       } else {
         await _chat.send(
           groupId: _groupId,
@@ -504,11 +519,35 @@ class _ChatScreenState extends State<ChatScreen> {
       _attachedPin = null;
       _replyingTo = null;
       _mentionQuery = null;
+      // Подхватываем оформление редактируемого сообщения (сняв снимок липкого),
+      // чтобы лист стиля показал и дал поменять цвет/мордочку/позицию ровно
+      // у этого сообщения.
+      if (!_hasStyleSnap) {
+        _snapColor = _selectedColor;
+        _snapFace = _selectedFace;
+        _snapFaceX = _selectedFaceX;
+        _snapFaceY = _selectedFaceY;
+        _hasStyleSnap = true;
+      }
+      _selectedColor = msg.color != null ? Color(msg.color!) : null;
+      _selectedFace = _faceFromName(msg.face);
+      _selectedFaceX = msg.faceX ?? 0.5;
+      _selectedFaceY = msg.faceY ?? 0.78;
     });
     _controller.text = msg.text;
     _controller.selection =
         TextSelection.collapsed(offset: _controller.text.length);
     _focusNode.requestFocus();
+  }
+
+  /// Восстановить липкое оформление новых сообщений после выхода из правки.
+  void _restoreStyleSnap() {
+    if (!_hasStyleSnap) return;
+    _selectedColor = _snapColor;
+    _selectedFace = _snapFace;
+    _selectedFaceX = _snapFaceX;
+    _selectedFaceY = _snapFaceY;
+    _hasStyleSnap = false;
   }
 
   /// Стабильный GlobalKey бабла [id] — чтобы перейти к оригиналу по тапу на
@@ -612,7 +651,13 @@ class _ChatScreenState extends State<ChatScreen> {
         initialFace: _selectedFace,
         initialFx: _selectedFaceX,
         initialFy: _selectedFaceY,
+        initialText: _controller.text,
         recent: _recentColors,
+        // Превью повторяет настоящий пузырь: при правке — его форма/время,
+        // у нового — текущее время (размер от времени одинаков — 5 символов).
+        seed: _editing?.id.hashCode ?? 0,
+        time: _formatTime(_editing?.ts ?? DateTime.now().millisecondsSinceEpoch),
+        isEdited: _editing != null,
       ),
     ).then((result) {
       if (result == null || !mounted) return;
@@ -621,6 +666,13 @@ class _ChatScreenState extends State<ChatScreen> {
         _selectedFace = result.face;
         _selectedFaceX = result.fx;
         _selectedFaceY = result.fy;
+        // Текст из превью — источник истины: что напечатали/правили в листе,
+        // то и уходит в композер (двусторонняя синхронизация).
+        if (result.text != _controller.text) {
+          _controller.text = result.text;
+          _controller.selection =
+              TextSelection.collapsed(offset: _controller.text.length);
+        }
         // Недавние (до 5), новый цвет первым (без дублей).
         final c = result.color;
         if (c != null) {
@@ -640,6 +692,7 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _replyingTo = msg;
       _editing = null;
+      _restoreStyleSnap();
     });
     _focusNode.requestFocus();
   }
@@ -1889,7 +1942,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     icon: Icons.edit_rounded,
                     label: '${s.chatEditMessage}: ${_editing!.text}',
                     onClose: () {
-                      setState(() => _editing = null);
+                      setState(() {
+                        _editing = null;
+                        _restoreStyleSnap();
+                      });
                       _controller.clear();
                     },
                   ),
@@ -2418,7 +2474,8 @@ class _MsgStyle {
   final _FaceExpr? face;
   final double fx;
   final double fy;
-  const _MsgStyle(this.color, this.face, this.fx, this.fy);
+  final String text; // текст из превью (правится прямо в листе)
+  const _MsgStyle(this.color, this.face, this.fx, this.fy, this.text);
 }
 
 /// Лист «оформление сообщения»: HSV-пикер цвета (любой оттенок) + 5 недавних +
@@ -2429,14 +2486,24 @@ class _StyleSheet extends StatefulWidget {
   final _FaceExpr? initialFace;
   final double initialFx;
   final double initialFy;
+  final String initialText;
   final List<Color> recent;
+  // Для точного совпадения превью с настоящим пузырём: сид формы (углы+наклон),
+  // время в мете и флаг «изменено».
+  final int seed;
+  final String time;
+  final bool isEdited;
   const _StyleSheet({
     required this.theme,
     required this.initialColor,
     required this.initialFace,
     required this.initialFx,
     required this.initialFy,
+    required this.initialText,
     required this.recent,
+    required this.seed,
+    required this.time,
+    required this.isEdited,
   });
 
   @override
@@ -2449,6 +2516,10 @@ class _StyleSheetState extends State<_StyleSheet> {
   late _FaceExpr? _face;
   late double _fx;
   late double _fy;
+  late final TextEditingController _textCtrl;
+  // Ключ пузыря-превью — чтобы перевести глобальные координаты перетаскивания
+  // мордочки в доли 0..1 (мордочка тащится поверх редактируемого текста).
+  final GlobalKey _bubbleKey = GlobalKey();
 
   @override
   void initState() {
@@ -2458,6 +2529,19 @@ class _StyleSheetState extends State<_StyleSheet> {
     _face = widget.initialFace;
     _fx = widget.initialFx;
     _fy = widget.initialFy;
+    _textCtrl = TextEditingController(text: widget.initialText);
+    // Пузырь меряется по содержимому (TextPainter) — пересчитываем на каждый
+    // ввод, чтобы ширина/перенос совпадали с настоящим сообщением вживую.
+    _textCtrl.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() => setState(() {});
+
+  @override
+  void dispose() {
+    _textCtrl.removeListener(_onTextChanged);
+    _textCtrl.dispose();
+    super.dispose();
   }
 
   Color get _color => _hsv.toColor();
@@ -2509,44 +2593,135 @@ class _StyleSheetState extends State<_StyleSheet> {
       );
 
   Widget _preview() {
-    return LayoutBuilder(builder: (ctx, c) {
-      const h = 108.0;
-      final w = c.maxWidth;
-      void upd(Offset p) => setState(() {
-            _fx = (p.dx / w).clamp(0.0, 1.0);
-            _fy = (p.dy / h).clamp(0.0, 1.0);
-          });
-      return GestureDetector(
-        onPanDown: (d) => upd(d.localPosition),
-        onPanUpdate: (d) => upd(d.localPosition),
-        child: Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(
-            color: _bg,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 12,
-                top: 9,
-                child: Text('перетащи лицо',
-                    style: TextStyle(color: _fg.withOpacity(0.6), fontSize: 11)),
-              ),
-              if (_face != null)
-                Align(
-                  alignment: Alignment(_fx * 2 - 1, _fy * 2 - 1),
-                  child: CustomPaint(
-                    size: const Size(42, 24),
-                    painter: _FacePainter(color: _fg, expr: _face!),
-                  ),
+    // Перетаскивание мордочки: глобальная точка → доли 0..1 от РЕАЛЬНОГО размера
+    // пузыря (он обнимает текст, размер плавающий — берём его из RenderBox).
+    void moveFace(Offset global) {
+      final box = _bubbleKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) return;
+      final p = box.globalToLocal(global);
+      final sz = box.size;
+      setState(() {
+        _fx = (p.dx / sz.width).clamp(0.0, 1.0);
+        _fy = (p.dy / sz.height).clamp(0.0, 1.0);
+      });
+    }
+
+    // Та же геометрия, что у настоящего пузыря: кривые углы + наклон по сиду.
+    final seed = widget.seed;
+    final corners = BorderRadius.only(
+      topLeft: Radius.circular(15 + _seededUnit(seed, 1) * 17),
+      topRight: Radius.circular(15 + _seededUnit(seed, 2) * 17),
+      bottomLeft: Radius.circular(15 + _seededUnit(seed, 3) * 17),
+      bottomRight: Radius.circular(15 + _seededUnit(seed, 4) * 17),
+    );
+    final tilt = (_seededUnit(seed, 5) - 0.5) * 0.045;
+    final metaColor = _fg.withOpacity(0.65);
+    final s = LocaleService.current;
+    const tailDrop = 9.0;
+    final maxW = MediaQuery.of(context).size.width * 0.72;
+
+    // Текст меряем РОВНО как настоящий пузырь (тот же стиль, тот же потолок
+    // ширины и тот же textScaler) — и задаём полю эту точную ширину. Так перенос
+    // строк и итоговая ширина пузыря совпадают 1:1 с отправленным сообщением,
+    // а раз размер совпал — мордочка (доля от размера) встаёт туда же.
+    final textStyle = TextStyle(color: _fg, fontSize: 15, height: 1.25);
+    final contentMaxW = maxW - 28; // минус горизонтальный padding 14+14
+    final tp = TextPainter(
+      text: TextSpan(text: _textCtrl.text, style: textStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: null,
+    )..layout(maxWidth: contentMaxW);
+    final textW = _textCtrl.text.isEmpty ? 80.0 : tp.width;
+
+    final core = CustomPaint(
+      painter: _BubblePainter(
+        color: _bg,
+        corners: corners,
+        tailLeft: false, // своё сообщение — хвостик справа
+        tailDrop: tailDrop,
+      ),
+      child: Container(
+        key: _bubbleKey,
+        constraints: BoxConstraints(maxWidth: maxW),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: textW.clamp(0.0, contentMaxW),
+              child: TextField(
+                controller: _textCtrl,
+                maxLines: null,
+                cursorColor: _fg,
+                style: textStyle,
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                  hintText: _textCtrl.text.isEmpty ? s.chatHint : null,
+                  hintStyle: TextStyle(
+                      color: _fg.withOpacity(0.55), fontSize: 15, height: 1.25),
                 ),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.isEdited) ...[
+                  Text(
+                    s.chatEdited,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                      color: metaColor,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Text(widget.time,
+                    style: TextStyle(fontSize: 10, color: metaColor)),
+                const SizedBox(width: 4),
+                Icon(Icons.done_rounded, size: 14, color: metaColor),
+              ],
+            ),
+          ],
         ),
-      );
-    });
+      ),
+    );
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Transform.rotate(
+        angle: tilt,
+        child: _face == null
+            ? core
+            : Stack(
+                children: [
+                  core,
+                  // Мордочка поверх (как в _buildBubble), но перетаскиваемая.
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment(_fx * 2 - 1, _fy * 2 - 1),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanStart: (d) => moveFace(d.globalPosition),
+                        onPanUpdate: (d) => moveFace(d.globalPosition),
+                        // Размер 1:1 как в _buildBubble (30×16) и без отступа —
+                        // иначе центр лица смещается от настоящей позиции.
+                        child: CustomPaint(
+                          size: const Size(30, 16),
+                          painter: _FacePainter(color: _fg, expr: _face!),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 
   Widget _svSquare() {
@@ -2743,7 +2918,8 @@ class _StyleSheetState extends State<_StyleSheet> {
                   ),
                   onPressed: () => Navigator.pop(
                     context,
-                    _MsgStyle(_useTheme ? null : _color, _face, _fx, _fy),
+                    _MsgStyle(_useTheme ? null : _color, _face, _fx, _fy,
+                        _textCtrl.text),
                   ),
                   child: const Text('Готово',
                       style: TextStyle(fontWeight: FontWeight.w700)),

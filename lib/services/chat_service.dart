@@ -223,11 +223,17 @@ class ChatService {
     }
   }
 
-  /// Редактировать своё сообщение.
+  /// Редактировать своё сообщение. Помимо текста переписываем оформление
+  /// (мордочка/цвет/позиция) — null-значения СТИРАЮТ поле (update в RTDB и
+  /// колонку в Supabase), чтобы можно было снять лицо/вернуть цвет темы.
   Future<void> edit({
     required String groupId,
     required String messageId,
     required String newText,
+    String? face,
+    int? color,
+    double? faceX,
+    double? faceY,
   }) async {
     final trimmed = newText.trim();
     if (groupId.isEmpty || messageId.isEmpty || trimmed.isEmpty) return;
@@ -236,12 +242,20 @@ class ChatService {
         await _messagesRef(groupId).child(messageId).update({
           'text': trimmed,
           'editedTs': ServerValue.timestamp,
+          'face': face,
+          'color': color,
+          'faceX': faceX,
+          'faceY': faceY,
         });
       }
       if (_dualWrite) {
         unawaited(_sb.mirrorChatUpdate(messageId, {
           'text': trimmed,
           'edited_ts': DateTime.now().millisecondsSinceEpoch,
+          'face': face,
+          'color': color,
+          'face_x': faceX,
+          'face_y': faceY,
         }));
       }
     } catch (e) {
