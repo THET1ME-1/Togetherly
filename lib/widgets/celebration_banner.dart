@@ -117,11 +117,14 @@ class _CelebrationBannerState extends State<CelebrationBanner>
                       ),
                     ),
                   ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white70,
-                    size: 22,
-                  ),
+                  // Стрелку-аффорданс показываем только когда баннер реально
+                  // кликабелен (задан onTap), иначе он вводит в заблуждение.
+                  if (widget.onTap != null)
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.white70,
+                      size: 22,
+                    ),
                 ],
               ),
             ),
