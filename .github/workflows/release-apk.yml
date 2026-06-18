@@ -358,7 +358,16 @@ jobs:
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_PRIVATE_KEY_PEM: ${{ secrets.RUSTORE_PRIVATE_KEY_PEM }}
         run: |
+          # «Что нового» берём из ТОГО ЖЕ файла, что и Google Play
+          # (distribution/whatsnew/whatsnew-ru-RU) — описание пишется один раз.
+          # Фолбэк на версию, если файла нет.
+          NOTES_FILE="distribution/whatsnew/whatsnew-ru-RU"
+          if [ -f "$NOTES_FILE" ]; then
+            WHATSNEW=$(cat "$NOTES_FILE")
+          else
+            WHATSNEW="Togetherly ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})"
+          fi
           python tool/rustore_upload.py \
             --package com.togetherly.love \
             --aab "${{ steps.stage.outputs.apk }}" \
-            --whatsnew "Togetherly ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})"
+            --whatsnew "$WHATSNEW"
