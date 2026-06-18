@@ -249,10 +249,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final _s = LocaleService.current;
-    final pwd = _passwordController.text;
-    final hasMin8 = pwd.length >= 8;
-    final hasUpper = pwd.contains(RegExp(r'[A-Z]'));
-    final hasSpecial = pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
 
     return Scaffold(
       body: Container(
@@ -394,29 +390,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         _buildLabel(_s.password),
                         const SizedBox(height: 8),
                         _buildPasswordFieldInCard(),
-                        const SizedBox(height: 14),
-                        // Password validation indicators
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 6,
-                          children: [
-                            _PasswordCheck(
-                              label: _s.min8Chars,
-                              passed: hasMin8,
-                              accent: _accent,
-                            ),
-                            _PasswordCheck(
-                              label: _s.oneUppercase,
-                              passed: hasUpper,
-                              accent: _accent,
-                            ),
-                            _PasswordCheck(
-                              label: _s.oneSpecialChar,
-                              passed: hasSpecial,
-                              accent: _accent,
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
@@ -628,7 +601,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      onChanged: (_) => setState(() {}),
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,
@@ -676,40 +648,6 @@ class _LoginScreenState extends State<LoginScreen> {
           horizontal: 16,
         ),
       ),
-    );
-  }
-}
-
-class _PasswordCheck extends StatelessWidget {
-  final String label;
-  final bool passed;
-  final Color accent;
-  const _PasswordCheck({
-    required this.label,
-    required this.passed,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          passed ? Icons.check_circle_rounded : Icons.circle_outlined,
-          size: 16,
-          color: passed ? const Color(0xFF4CAF50) : Colors.grey.shade400,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: passed ? const Color(0xFF4CAF50) : Colors.grey.shade400,
-          ),
-        ),
-      ],
     );
   }
 }

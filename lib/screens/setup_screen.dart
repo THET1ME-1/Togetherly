@@ -196,9 +196,17 @@ class _SetupScreenState extends State<SetupScreen>
 
       // Если пользователь не залогинен (ввёл данные вручную), создаём аккаунт
       if (!fb.isLoggedIn) {
-        // Проверяем пароль только для ручной регистрации
-        if (password.length < 6) {
-          _showError(LocaleService.current.passwordMin6);
+        // Проверяем пароль только для ручной регистрации: 8 символов +
+        // заглавная буква + спецсимвол (те же правила, что индикаторы под полем).
+        final pwdOk = password.length >= 8 &&
+            password.contains(RegExp(r'[A-Z]')) &&
+            password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
+        if (!pwdOk) {
+          _showError(
+            '${LocaleService.current.min8Chars}, '
+            '${LocaleService.current.oneUppercase}, '
+            '${LocaleService.current.oneSpecialChar}',
+          );
           if (mounted) setState(() => _isLoading = false);
           return;
         }
@@ -757,6 +765,8 @@ class _SetupScreenState extends State<SetupScreen>
                 _buildFormLabel(_s.password),
                 const SizedBox(height: 8),
                 _buildFormPasswordField(),
+                const SizedBox(height: 14),
+                _buildPasswordChecks(),
                 const SizedBox(height: 18),
                 // Terms checkbox
                 GestureDetector(
@@ -960,13 +970,14 @@ class _SetupScreenState extends State<SetupScreen>
     return TextField(
       controller: _passwordController,
       obscureText: _obscurePassword,
+      onChanged: (_) => setState(() {}),
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,
         color: Colors.grey.shade900,
       ),
       decoration: InputDecoration(
-        hintText: LocaleService.current.minCharsPassword,
+        hintText: LocaleService.current.yourPassword,
         hintStyle: TextStyle(
           color: Colors.grey.shade400,
           fontWeight: FontWeight.w400,
@@ -1004,6 +1015,48 @@ class _SetupScreenState extends State<SetupScreen>
           horizontal: 16,
         ),
       ),
+    );
+  }
+
+  /// Живые индикаторы требований к паролю (8 символов + заглавная + спецсимвол).
+  /// Те же правила, что проверяет _completeSetup перед регистрацией.
+  Widget _buildPasswordChecks() {
+    final pwd = _passwordController.text;
+    final s = LocaleService.current;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 6,
+      children: [
+        _passwordCheckRow(s.min8Chars, pwd.length >= 8),
+        _passwordCheckRow(s.oneUppercase, pwd.contains(RegExp(r'[A-Z]'))),
+        _passwordCheckRow(
+          s.oneSpecialChar,
+          pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]')),
+        ),
+      ],
+    );
+  }
+
+  Widget _passwordCheckRow(String label, bool passed) {
+    final color = passed ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          passed ? Icons.check_circle_rounded : Icons.circle_outlined,
+          size: 16,
+          color: color,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
