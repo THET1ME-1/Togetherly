@@ -188,6 +188,9 @@ class FirebaseService {
   // В этой сессии уже гарантировали claim role=authenticated (см.
   // ensureSupabaseRole) — повторно не дёргаем Cloud Function.
   bool _supabaseRoleEnsured = false;
+  // In-flight операция выдачи claim. Дедупит параллельные вызовы (на старте
+  // несколько Supabase-запросов зовут accessToken-колбэк разом).
+  Future<void>? _roleEnsureInFlight;
 
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
@@ -2124,11 +2127,22 @@ class FirebaseService {
   /// зовём callable `ensureSupabaseRole` и форс-рефрешим токен, чтобы claim попал
   /// в активную сессию (и в accessToken-колбэк Supabase в main.dart).
   ///
-  /// Вызывать один раз за сессию ПЕРЕД работой с Supabase: на старте (если есть
-  /// сессия) и после каждого входа. Гонок не боится — dual-write fire-and-forget
-  /// с ретраями, источник истины — Firebase.
-  Future<void> ensureSupabaseRole() async {
-    if (!_mig || _supabaseRoleEnsured) return;
+  /// Вызывается из accessToken-колбэка Supabase (main.dart) ПЕРЕД выдачей
+  /// токена на каждый запрос: первый запрос сессии дожидается выдачи claim, и
+  /// только потом уходит в Supabase — поэтому dual-write больше не отлетает
+  /// гонкой со стартом (42501 на users/widget_data + "not a group member").
+  /// Также зовётся на authStateChanges как прогрев. Идемпотентно и дёшево:
+  /// после первого успеха возвращает управление мгновенно.
+  Future<void> ensureSupabaseRole() {
+    if (!_mig || _supabaseRoleEnsured) return Future.value();
+    // Один in-flight Future на всех параллельных вызывающих (см.
+    // _roleEnsureInFlight): не дёргаем Cloud Function и не форс-рефрешим токен
+    // пачкой, когда на старте несколько запросов зовут колбэк разом.
+    return _roleEnsureInFlight ??=
+        _ensureSupabaseRoleImpl().whenComplete(() => _roleEnsureInFlight = null);
+  }
+
+  Future<void> _ensureSupabaseRoleImpl() async {
     final user = _auth.currentUser;
     if (user == null) return;
     try {

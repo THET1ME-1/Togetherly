@@ -233,6 +233,12 @@ void main() async {
       accessToken: () async {
         final user = FirebaseAuth.instance.currentUser;
         if (user == null) return null;
+        // Перед самым первым запросом сессии дожидаемся, чтобы в токен попал
+        // claim role=authenticated. Без него Supabase даёт роль anon и RLS
+        // отбивает все dual-write (42501). Колбэк зовётся перед каждым запросом
+        // и блокирует его до выдачи claim → ни один dual-write не уходит anon'ом.
+        // Идемпотентно: после первого успеха возвращает управление мгновенно.
+        await FirebaseService().ensureSupabaseRole();
         return await user.getIdToken();
       },
     );
