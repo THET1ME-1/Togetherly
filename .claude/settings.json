@@ -120,7 +120,8 @@
       "Bash(grep -iv \"\\\\.svg$\")",
       "Bash(PYTHONUTF8=1 python tools/_convert_uploaded.py)",
       "Bash(PYTHONUTF8=1 python tools/_move_src.py)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "PowerShell(flutter analyze lib/main.dart lib/services/firebase_service.dart 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
