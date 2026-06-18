@@ -1747,6 +1747,7 @@ class SupabaseService {
       replyToId: row['reply_to_id'] as String?,
       replyToName: row['reply_to_name'] as String?,
       replyToText: row['reply_to_text'] as String?,
+      face: row['face'] as String?,
     );
   }
 
@@ -1764,6 +1765,7 @@ class SupabaseService {
     String? replyToId,
     String? replyToName,
     String? replyToText,
+    String? face,
   }) async {
     if (!isReady) return false;
     return _write('mirrorChatSend', () async {
@@ -1780,6 +1782,7 @@ class SupabaseService {
         if (replyToId != null) 'reply_to_id': replyToId,
         if (replyToName != null) 'reply_to_name': replyToName,
         if (replyToText != null) 'reply_to_text': replyToText,
+        if (face != null) 'face': face,
       }, onConflict: 'id').timeout(const Duration(seconds: 10));
     });
   }
