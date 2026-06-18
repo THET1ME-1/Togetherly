@@ -191,6 +191,12 @@ class FirebaseService {
   // In-flight операция выдачи claim. Дедупит параллельные вызовы (на старте
   // несколько Supabase-запросов зовут accessToken-колбэк разом).
   Future<void>? _roleEnsureInFlight;
+  // Когда последняя попытка выдать claim провалилась. Пока кулдаун не вышел —
+  // не дёргаем (возможно недеплоенную/падающую) Cloud Function на КАЖДЫЙ
+  // запрос: иначе accessToken-колбэк вешал бы каждый Supabase-вызов на таймаут.
+  // Деградация мягкая — запрос уходит как сейчас (фоновым ретраем), без блока.
+  DateTime? _roleEnsureFailedAt;
+  static const Duration _roleEnsureCooldown = Duration(minutes: 2);
 
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
@@ -2135,6 +2141,14 @@ class FirebaseService {
   /// после первого успеха возвращает управление мгновенно.
   Future<void> ensureSupabaseRole() {
     if (!_mig || _supabaseRoleEnsured) return Future.value();
+    // Кулдаун после провала: пока он не вышел, не пытаемся снова — запрос уйдёт
+    // как сейчас (фоновым ретраем), а не повиснет повторным таймаутом callable.
+    // Само-восстановление: после деплоя функции следующая попытка пройдёт.
+    final failedAt = _roleEnsureFailedAt;
+    if (failedAt != null &&
+        DateTime.now().difference(failedAt) < _roleEnsureCooldown) {
+      return Future.value();
+    }
     // Один in-flight Future на всех параллельных вызывающих (см.
     // _roleEnsureInFlight): не дёргаем Cloud Function и не форс-рефрешим токен
     // пачкой, когда на старте несколько запросов зовут колбэк разом.
@@ -2149,6 +2163,7 @@ class FirebaseService {
       final res = await user.getIdTokenResult();
       if (res.claims?['role'] == 'authenticated') {
         _supabaseRoleEnsured = true;
+        _roleEnsureFailedAt = null;
         return;
       }
       await _functions
@@ -2158,8 +2173,12 @@ class FirebaseService {
       // Форс-рефреш: новый claim попадает в токен (иначе ждать до ~1ч/истечения).
       await user.getIdToken(true);
       _supabaseRoleEnsured = true;
+      _roleEnsureFailedAt = null;
       debugPrint('[SB] role=authenticated выдан, токен обновлён');
     } catch (e) {
+      // Запоминаем момент провала → кулдаун в ensureSupabaseRole() не даст
+      // дёргать (возможно сломанную) функцию на каждый Supabase-запрос.
+      _roleEnsureFailedAt = DateTime.now();
       debugPrint('ensureSupabaseRole failed: $e');
     }
   }
