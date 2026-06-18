@@ -161,6 +161,9 @@ class ChatService {
     String? replyToName,
     String? replyToText,
     String? face,
+    int? color,
+    double? faceX,
+    double? faceY,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
@@ -184,6 +187,9 @@ class ChatService {
           if (replyToName != null) 'replyToName': replyToName,
           if (replyToText != null) 'replyToText': replyToText,
           if (face != null) 'face': face,
+          if (color != null) 'color': color,
+          if (faceX != null) 'faceX': faceX,
+          if (faceY != null) 'faceY': faceY,
         });
       }
       if (_dualWrite) {
@@ -201,6 +207,9 @@ class ChatService {
           replyToName: replyToName,
           replyToText: replyToText,
           face: face,
+          color: color,
+          faceX: faceX,
+          faceY: faceY,
         ));
       }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
@@ -432,6 +441,30 @@ class ChatService {
     } catch (_) {
       return null;
     }
+  }
+
+  // ── Недавние цвета сообщений (до 5, глобально) ──────────────────────────────
+
+  static const String _kRecentColors = 'chat_recent_colors';
+
+  Future<List<int>> loadRecentColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return (prefs.getStringList(_kRecentColors) ?? const <String>[])
+          .map(int.tryParse)
+          .whereType<int>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveRecentColors(List<int> colors) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+          _kRecentColors, colors.map((c) => '$c').toList());
+    } catch (_) {}
   }
 
   /// Поток: есть ли непрочитанные сообщения от партнёра (для красной точки).

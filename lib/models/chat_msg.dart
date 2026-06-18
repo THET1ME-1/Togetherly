@@ -35,6 +35,14 @@ class ChatMsg {
   /// Лицо больше не угадывается по тексту — его осознанно ставит автор.
   final String? face;
 
+  /// Цвет пузыря, выбранный отправителем (ARGB int). null — цвет темы.
+  final int? color;
+
+  /// Позиция мордочки на пузыре в долях 0..1 (по ширине/высоте).
+  /// null — позиция по умолчанию (низ-центр).
+  final double? faceX;
+  final double? faceY;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -51,6 +59,9 @@ class ChatMsg {
     this.replyToName,
     this.replyToText,
     this.face,
+    this.color,
+    this.faceX,
+    this.faceY,
   });
 
   bool get isEdited => editedTs != null && !deleted;
@@ -80,6 +91,9 @@ class ChatMsg {
       replyToName: m['replyToName'] as String?,
       replyToText: m['replyToText'] as String?,
       face: m['face'] as String?,
+      color: (m['color'] as num?)?.toInt(),
+      faceX: (m['faceX'] as num?)?.toDouble(),
+      faceY: (m['faceY'] as num?)?.toDouble(),
     );
   }
 }
