@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -2472,32 +2473,17 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-  void _showUnpairDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.disconnectQuestion),
-        content: Text(LocaleService.current.disconnectDesc),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              pair.unpair();
-              Navigator.of(context).pop();
-              setState(() {});
-            },
-            child: Text(
-              LocaleService.current.disconnect,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _showUnpairDialog() async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: LocaleService.current.disconnectQuestion,
+      message: LocaleService.current.disconnectDesc,
+      confirmLabel: LocaleService.current.disconnect,
+      destructive: true,
     );
+    if (!ok || !mounted) return;
+    pair.unpair();
+    setState(() {});
   }
 }
 

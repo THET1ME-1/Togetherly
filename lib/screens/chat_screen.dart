@@ -14,6 +14,7 @@ import '../services/chat_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
 
@@ -767,24 +768,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _confirmDelete(ChatMsg msg) async {
     final s = LocaleService.current;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(s.chatDeleteConfirm(msg.text)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
-            child: Text(s.chatDeleteMessage),
-          ),
-        ],
-      ),
+    final ok = await AppDialog.confirm(
+      context,
+      message: s.chatDeleteConfirm(msg.text),
+      confirmLabel: s.chatDeleteMessage,
+      destructive: true,
     );
-    if (ok == true) {
+    if (ok) {
       await _chat.delete(groupId: _groupId, messageId: msg.id);
     }
   }
@@ -899,25 +889,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // Подтверждение с предупреждением о цене каждой смены.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.chatBgTitle),
-        content: Text(s.chatBgConfirmBody(_kChatBgPrice)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: _t.primary),
-            child: Text(s.buyThemeConfirm),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: s.chatBgTitle,
+      message: s.chatBgConfirmBody(_kChatBgPrice),
+      confirmLabel: s.buyThemeConfirm,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     // Сначала выбираем фото — если пользователь отменит, списания не будет.
     final picked = await ImagePicker().pickImage(

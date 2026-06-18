@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
 import '../services/level_service.dart';
@@ -2710,39 +2711,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  RESET MISS YOU COUNT
   // ═══════════════════════════════════════════════════
   Future<void> _handleResetMissYouCount(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.35),
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_s.resetMissYouConfirmTitle),
-        content: Text(_s.resetMissYouConfirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
-            child: Text(_s.reset),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: _s.resetMissYouConfirmTitle,
+      message: _s.resetMissYouConfirmBody,
+      confirmLabel: _s.reset,
+      destructive: true,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final groupId = widget.pairData.pairId;
     if (groupId.isEmpty) return;
     await FirebaseService().resetMyMissYouCount(groupId: groupId);
     if (!mounted) return;
-    ScaffoldMessenger.of(this.context).showSnackBar(
-      SnackBar(
-        content: Text(_s.resetMissYouConfirmTitle),
-        backgroundColor: _accent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    AppSnack.success(this.context, _s.resetMissYouConfirmTitle);
   }
 
   // ═══════════════════════════════════════════════════

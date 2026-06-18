@@ -9,6 +9,7 @@ import '../models/user_data.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
 import 'draw_screen.dart';
 
@@ -144,26 +145,14 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   Future<void> _deleteCanvas(CanvasMeta meta) async {
     final s = LocaleService.current;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(s.deleteCanvas),
-        content: Text(s.deleteCanvasConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            child: Text(s.delete),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: s.deleteCanvas,
+      message: s.deleteCanvasConfirm,
+      confirmLabel: s.delete,
+      destructive: true,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _storage.deleteCanvas(_uid, meta.id, groupId: _groupId);
     _load();
   }
