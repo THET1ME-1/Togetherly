@@ -29,6 +29,52 @@ double _seededUnit(int seed, int salt) {
   return (x % 100000) / 100000.0;
 }
 
+/// true — кодпоинт принадлежит эмодзи (символы, пиктограммы, флаги, стрелки-
+/// символы). Грубо по диапазонам — достаточно, чтобы отличить «только эмодзи».
+bool _isEmojiRune(int r) =>
+    (r >= 0x1F000 && r <= 0x1FAFF) || // основной блок эмодзи
+    (r >= 0x2600 && r <= 0x27BF) || // символы и дингбаты (☀❤✨…)
+    (r >= 0x2B00 && r <= 0x2BFF) || // звёзды/стрелки-символы (⭐⬆…)
+    (r >= 0x2300 && r <= 0x23FF) || // ⌚⏰⏳…
+    (r >= 0x1F1E6 && r <= 0x1F1FF) || // региональные индикаторы (флаги)
+    r == 0x2122 ||
+    r == 0x2139 ||
+    r == 0x2764; // ❤
+
+/// Если текст состоит ТОЛЬКО из эмодзи (1–3 шт., пробелы допустимы) — вернуть
+/// крупный размер шрифта для отрисовки без пузыря; иначе null.
+double? _emojiOnlySize(String text) {
+  final t = text.trim();
+  if (t.isEmpty) return null;
+  var count = 0;
+  for (final ch in t.characters) {
+    if (ch.trim().isEmpty) continue; // пробелы между эмодзи допускаем
+    var hasEmoji = false;
+    var hasText = false;
+    for (final r in ch.runes) {
+      if (_isEmojiRune(r)) {
+        hasEmoji = true;
+      } else if (r == 0x200D || // ZWJ
+          r == 0xFE0F || // вариативный селектор
+          r == 0x20E3 || // комбинирующий keycap
+          (r >= 0x1F3FB && r <= 0x1F3FF)) {
+        // модификаторы тона кожи — нейтральны
+      } else {
+        hasText = true; // обычная буква/цифра/знак → это не «только эмодзи»
+      }
+    }
+    if (hasText || !hasEmoji) return null;
+    count++;
+    if (count > 3) return null; // больше трёх — обычный пузырь
+  }
+  if (count == 0) return null;
+  return count == 1
+      ? 56.0
+      : count == 2
+          ? 48.0
+          : 40.0;
+}
+
 /// Выражение мордочки на пузыре.
 enum _FaceExpr { happy, love, wink, playful, sad, calm }
 
@@ -1636,11 +1682,57 @@ class _ChatScreenState extends State<ChatScreen> {
     // Выражение мордочки — то, что ВЫБРАЛ отправитель (msg.face). Нет → без лица.
     final expr = _faceFromName(msg.face);
 
+    // Сообщение из одних эмодзи (1–3) рисуем крупно и БЕЗ пузыря (как в
+    // мессенджерах). Не трогаем удалённые, с пином, ответом или своей мордочкой.
+    final double? bigEmoji = (msg.deleted ||
+            msg.pinId != null ||
+            msg.replyToId != null ||
+            expr != null)
+        ? null
+        : _emojiOnlySize(msg.text);
+
     Widget content;
     if (msg.deleted) {
       content = Text(
         s.chatDeletedPlaceholder,
         style: TextStyle(color: fg, fontStyle: FontStyle.italic, fontSize: 14),
+      );
+    } else if (bigEmoji != null) {
+      // Крупные эмодзи + мета снизу. Цвета меты — серые (фон-то не пузырь).
+      final meta = Colors.grey.shade500;
+      content = Column(
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(msg.text, style: TextStyle(fontSize: bigEmoji, height: 1.05)),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (msg.isEdited) ...[
+                Text(s.chatEdited,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: meta)),
+                const SizedBox(width: 5),
+              ],
+              Text(_formatTime(msg.editedTs ?? msg.ts),
+                  style: TextStyle(fontSize: 10, color: meta)),
+              if (isMine) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  msg.ts <= _partnerReadTs
+                      ? Icons.done_all_rounded
+                      : Icons.done_rounded,
+                  size: 14,
+                  color: msg.ts <= _partnerReadTs ? _t.primary : meta,
+                ),
+              ],
+            ],
+          ),
+        ],
       );
     } else {
       content = Column(
@@ -1693,54 +1785,74 @@ class _ChatScreenState extends State<ChatScreen> {
 
     const tailDrop = 9.0;
     final hasReactions = msg.reactions.isNotEmpty;
-    // Пузырь: форма (кривые углы + хвостик-клювик со стороны отправителя)
-    // рисуется painter'ом, текст/лицо — поверх. Тап — реакции, долгое — меню.
-    final core = CustomPaint(
-      painter: _BubblePainter(
-        color: bg,
-        corners: corners,
-        tailLeft: !isMine,
-        tailDrop: tailDrop,
-      ),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth:
-              MediaQuery.of(context).size.width * (hasReactions ? 0.6 : 0.72),
+
+    final Widget tilted;
+    if (bigEmoji != null) {
+      // Крупные эмодзи без пузыря: тот же тап-таргет (двойной тап — реакция,
+      // долгий — меню), но без фона/хвоста/наклона.
+      tilted = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onDoubleTap: () => _showReactionPicker(msg),
+        onLongPress: () => _showMessageMenu(msg),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: content,
         ),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
-        child: content,
-      ),
-    );
-    final bubble = GestureDetector(
-      onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
-      onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
-      // Мордочка — оверлеем в выбранной автором позиции (доли 0..1), по
-      // умолчанию низ-центр. IgnorePointer — чтобы не перехватывала тапы.
-      child: expr == null
-          ? core
-          : Stack(
-              children: [
-                core,
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment(
-                      (msg.faceX ?? 0.5) * 2 - 1,
-                      (msg.faceY ?? 0.78) * 2 - 1,
-                    ),
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        size: const Size(30, 16),
-                        painter: _FacePainter(color: fg, expr: expr),
+      );
+    } else {
+      // Пузырь: форма (кривые углы + хвостик-клювик со стороны отправителя)
+      // рисуется painter'ом, текст/лицо — поверх. Тап — реакции, долгое — меню.
+      final core = CustomPaint(
+        painter: _BubblePainter(
+          color: bg,
+          corners: corners,
+          tailLeft: !isMine,
+          tailDrop: tailDrop,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth:
+                MediaQuery.of(context).size.width * (hasReactions ? 0.6 : 0.72),
+          ),
+          // С мордочкой — заметно больше воздуха вокруг текста, чтобы лицу было
+          // куда встать; без неё — компактно (низ = padding + tailDrop 9).
+          padding: expr == null
+              ? const EdgeInsets.fromLTRB(14, 10, 14, 19)
+              : const EdgeInsets.fromLTRB(18, 22, 18, 31),
+          child: content,
+        ),
+      );
+      final bubble = GestureDetector(
+        onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
+        onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
+        // Мордочка — оверлеем в выбранной автором позиции (доли 0..1), по
+        // умолчанию низ-центр. IgnorePointer — чтобы не перехватывала тапы.
+        child: expr == null
+            ? core
+            : Stack(
+                children: [
+                  core,
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment(
+                        (msg.faceX ?? 0.5) * 2 - 1,
+                        (msg.faceY ?? 0.78) * 2 - 1,
+                      ),
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          size: const Size(30, 16),
+                          painter: _FacePainter(color: fg, expr: expr),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-    );
+                ],
+              ),
+      );
 
-    // Лёгкий наклон — «криво расположены».
-    final tilted = Transform.rotate(angle: tilt, child: bubble);
+      // Лёгкий наклон — «криво расположены».
+      tilted = Transform.rotate(angle: tilt, child: bubble);
+    }
 
     // Реакции — сбоку (со стороны центра).
     final chips = hasReactions ? _buildReactionChips(msg, isMine) : null;
@@ -2624,15 +2736,29 @@ class _StyleSheetState extends State<_StyleSheet> {
     // ширины и тот же textScaler) — и задаём полю эту точную ширину. Так перенос
     // строк и итоговая ширина пузыря совпадают 1:1 с отправленным сообщением,
     // а раз размер совпал — мордочка (доля от размера) встаёт туда же.
-    final textStyle = TextStyle(color: _fg, fontSize: 15, height: 1.25);
-    final contentMaxW = maxW - 28; // минус горизонтальный padding 14+14
+    // Шрифт наследуем из темы (как настоящий Text — он берёт Rubik из textTheme).
+    // Иначе TextPainter/поле мерили бы дефолтным Roboto и ширина не совпала бы.
+    final textStyle = DefaultTextStyle.of(context)
+        .style
+        .merge(TextStyle(color: _fg, fontSize: 15, height: 1.25));
+    // Те же отступы, что у настоящего пузыря: с мордочкой — просторнее.
+    final bubblePad = _face == null
+        ? const EdgeInsets.fromLTRB(14, 10, 14, 19)
+        : const EdgeInsets.fromLTRB(18, 22, 18, 31);
+    final contentMaxW = maxW - (bubblePad.left + bubblePad.right);
+    // Пусто → меряем по тексту-подсказке, чтобы «Сообщение…» влезло в одну строку
+    // (а не «Сообщени\nе…»); иначе — по самому тексту.
+    final measureText = _textCtrl.text.isEmpty ? s.chatHint : _textCtrl.text;
     final tp = TextPainter(
-      text: TextSpan(text: _textCtrl.text, style: textStyle),
+      text: TextSpan(text: measureText, style: textStyle),
       textDirection: TextDirection.ltr,
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: null,
     )..layout(maxWidth: contentMaxW);
-    final textW = _textCtrl.text.isEmpty ? 80.0 : tp.width;
+    // +3px — запас под курсор: TextField резервирует место под него в конце
+    // строки, и без запаса последний символ переносится раньше настоящего Text.
+    // На итоговый размер пузыря влияет незаметно (округляем вверх для надёжности).
+    final textW = tp.width.ceilToDouble() + 3;
 
     final core = CustomPaint(
       painter: _BubblePainter(
@@ -2644,7 +2770,7 @@ class _StyleSheetState extends State<_StyleSheet> {
       child: Container(
         key: _bubbleKey,
         constraints: BoxConstraints(maxWidth: maxW),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
+        padding: bubblePad,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
