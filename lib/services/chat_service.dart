@@ -160,6 +160,7 @@ class ChatService {
     String? replyToId,
     String? replyToName,
     String? replyToText,
+    String? face,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
@@ -182,6 +183,7 @@ class ChatService {
           if (replyToId != null) 'replyToId': replyToId,
           if (replyToName != null) 'replyToName': replyToName,
           if (replyToText != null) 'replyToText': replyToText,
+          if (face != null) 'face': face,
         });
       }
       if (_dualWrite) {
@@ -198,6 +200,7 @@ class ChatService {
           replyToId: replyToId,
           replyToName: replyToName,
           replyToText: replyToText,
+          face: face,
         ));
       }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
@@ -406,6 +409,29 @@ class ChatService {
   Future<void> clearBackground(String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_bgKey(groupId));
+  }
+
+  // ── Позиция прокрутки (локально, чтобы вернуться ровно туда же) ──────────────
+
+  String _scrollKey(String groupId) => 'chat_scroll_$groupId';
+
+  /// Сохранить позицию прокрутки чата (px от верха) — при перезаходе вернём
+  /// человека ровно туда, где он остановился.
+  Future<void> saveScrollOffset(String groupId, double px) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_scrollKey(groupId), px);
+    } catch (_) {}
+  }
+
+  /// Сохранённая позиция прокрутки (null — не сохранена).
+  Future<double?> loadScrollOffset(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getDouble(_scrollKey(groupId));
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Поток: есть ли непрочитанные сообщения от партнёра (для красной точки).

@@ -31,6 +31,10 @@ class ChatMsg {
   final String? replyToName;
   final String? replyToText;
 
+  /// Выражение мордочки, выбранное ОТПРАВИТЕЛЕМ (имя варианта). null — без лица.
+  /// Лицо больше не угадывается по тексту — его осознанно ставит автор.
+  final String? face;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -46,6 +50,7 @@ class ChatMsg {
     this.replyToId,
     this.replyToName,
     this.replyToText,
+    this.face,
   });
 
   bool get isEdited => editedTs != null && !deleted;
@@ -74,6 +79,7 @@ class ChatMsg {
       replyToId: m['replyToId'] as String?,
       replyToName: m['replyToName'] as String?,
       replyToText: m['replyToText'] as String?,
+      face: m['face'] as String?,
     );
   }
 }

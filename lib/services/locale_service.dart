@@ -496,6 +496,8 @@ abstract class AppStrings {
   String get member;
   String get online;
   String get offline;
+  String get chatOnline;
+  String get chatTypingShort;
   String get inviteMore;
   String get scanQr;
   String get disconnect;
@@ -2085,6 +2087,10 @@ class _RuStrings extends AppStrings {
   String get online => 'Онлайн';
   @override
   String get offline => 'Не в сети';
+  @override
+  String get chatOnline => 'в сети';
+  @override
+  String get chatTypingShort => 'печатает';
   @override
   String get inviteMore => 'Пригласить ещё';
   @override
@@ -4477,6 +4483,10 @@ class _EnStrings extends AppStrings {
   String get online => 'Online';
   @override
   String get offline => 'Offline';
+  @override
+  String get chatOnline => 'online';
+  @override
+  String get chatTypingShort => 'typing';
   @override
   String get inviteMore => 'Invite More';
   @override

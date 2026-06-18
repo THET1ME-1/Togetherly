@@ -21,6 +21,17 @@ import 'memory_lane_screen.dart';
 const int _kChatBgPrice = 20;
 const String _kChatBgAction = 'chat_background';
 
+/// Детерминированный псевдо-рандом [0..1) из seed+salt — стабилен при
+/// перерисовке (форма/наклон бабла не «прыгают» между кадрами).
+double _seededUnit(int seed, int salt) {
+  var x = (seed ^ (salt * 0x9E3779B1)) & 0x7fffffff;
+  x = (x * 1103515245 + 12345) & 0x7fffffff;
+  return (x % 100000) / 100000.0;
+}
+
+/// Выражение мордочки на пузыре.
+enum _FaceExpr { happy, love, wink, playful, sad, calm }
+
 /// Постоянный текстовый чат пары. История целиком в RTDB → ноль Firestore-чтений.
 class ChatScreen extends StatefulWidget {
   final PairData pairData;
@@ -67,6 +78,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Прикреплённый к набираемому сообщению пин.
   Memory? _attachedPin;
 
+  /// Выбранное отправителем выражение мордочки (липкое между сообщениями;
+  /// null — без лица). Ставит автор сам — лицо больше не угадывается по тексту.
+  _FaceExpr? _selectedFace = _FaceExpr.happy;
+
   /// Текущий @-запрос для подсказок (null — подсказок нет).
   String? _mentionQuery;
   int _lastMessageTs = 0;
@@ -85,6 +100,20 @@ class _ChatScreenState extends State<ChatScreen> {
   double? _retainFromBottom;
   bool _didInitialScroll = false;
   bool _lastIsMine = false;
+  // ts последнего сообщения, под которое уже автоскроллили вниз. Чтобы любой
+  // ребилд (ответ, «печатает», баннер композера) НЕ дёргал камеру вниз —
+  // вниз прыгаем только при ДЕЙСТВИТЕЛЬНО новом сообщении.
+  int _autoScrolledTs = 0;
+  // GlobalKey каждого бабла по id — для перехода к оригиналу по тапу на цитату.
+  final Map<String, GlobalKey> _msgKeys = {};
+  // Сообщение, кратковременно подсвеченное после перехода по цитате.
+  String? _highlightMsgId;
+  // Окно «влёта» сообщений со сторон: true при открытии чата (изначально
+  // видимые баблы анимируются), затем выключается — при скролле без анимации.
+  bool _playEntrance = true;
+  // Эпоха «влёта»: кнопка ↻ в шапке инкрементит её → ключи _EntranceSlide
+  // меняются → виджеты перемонтируются и проигрывают анимацию заново.
+  int _entranceEpoch = 0;
 
   /// Идёт отправка — блокирует повторный тап, чтобы не уехал дубликат при плохой сети.
   bool _sending = false;
@@ -106,6 +135,13 @@ class _ChatScreenState extends State<ChatScreen> {
   int _partnerReadTs = 0;
   StreamSubscription<Map<String, int>>? _readsSub;
 
+  /// Кнопка «вниз» показывается, когда заметно отлистали вверх от низа.
+  bool _showScrollDown = false;
+  /// Сохранённая позиция прокрутки (восстанавливаем при открытии чата).
+  double? _savedScrollOffset;
+  /// Троттлинг сохранения позиции — чтобы не писать prefs на каждый кадр.
+  DateTime _lastScrollSave = DateTime.fromMillisecondsSinceEpoch(0);
+
   @override
   void initState() {
     super.initState();
@@ -117,8 +153,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _chat.ensureMember(_groupId);
     _loadPins();
     _loadBackground();
+    _loadSavedScroll();
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
+  }
+
+  /// Подтягиваем сохранённую позицию прокрутки до первой раскладки списка.
+  Future<void> _loadSavedScroll() async {
+    final px = await _chat.loadScrollOffset(_groupId);
+    if (mounted) _savedScrollOffset = px;
   }
 
   /// Фиксируем ts последнего прочтения ДО того, как markRead его перезапишет —
@@ -165,6 +208,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _readsSub?.cancel();
     _typingStopTimer?.cancel();
     _chat.setTyping(_groupId, false);
+    // Сохраняем точную позицию выхода — вернёмся ровно сюда при перезаходе.
+    if (_scrollController.hasClients) {
+      _chat.saveScrollOffset(_groupId, _scrollController.position.pixels);
+    }
     _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
@@ -176,10 +223,30 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Пагинация истории ───────────────────────────────────────────────────────
 
   void _onScroll() {
-    if (!_scrollController.hasClients || _loadingMore || !_hasMore) return;
+    if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    // Прокрутили к началу списка — подгружаем более старые сообщения.
+    // Кнопка «вниз» — когда заметно отлистали от низа.
+    final show = (pos.maxScrollExtent - pos.pixels) > 320;
+    if (show != _showScrollDown) setState(() => _showScrollDown = show);
+    // Сохраняем позицию (троттлинг) — чтобы при перезаходе вернуть ровно сюда.
+    final now = DateTime.now();
+    if (now.difference(_lastScrollSave).inMilliseconds >= 400) {
+      _lastScrollSave = now;
+      _chat.saveScrollOffset(_groupId, pos.pixels);
+    }
+    // Пагинация: у начала ленты подгружаем старые.
+    if (_loadingMore || !_hasMore) return;
     if (pos.pixels <= pos.minScrollExtent + 80) _loadMore();
+  }
+
+  /// Плавно вернуться к последнему сообщению (кнопка-стрелка «вниз»).
+  void _jumpToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _loadMore() {
@@ -213,16 +280,35 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Первая отрисовка — встаём в самый низ, затем (если есть непрочитанные)
-    // подскролливаем к маркеру «Новые сообщения» — туда, где остановилось чтение.
+    // Первая отрисовка: восстанавливаем сохранённую позицию — ровно туда, где
+    // человек вышел. Нет сохранённой → встаём в самый низ (+ маркер «Новые»).
     if (!_didInitialScroll) {
       _didInitialScroll = true;
-      _scrollController.jumpTo(pos.maxScrollExtent);
-      if (_hasUnreadMarker) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToUnread());
+      _autoScrolledTs = _lastMessageTs;
+      final saved = _savedScrollOffset;
+      if (saved != null && saved > 0) {
+        _scrollController.jumpTo(saved.clamp(0.0, pos.maxScrollExtent));
+      } else {
+        _scrollController.jumpTo(pos.maxScrollExtent);
+        if (_hasUnreadMarker) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _scrollToUnread());
+        }
       }
+      // Изначально видимые баблы уже проиграли «влёт» — дальше (при скролле)
+      // сообщения появляются без анимации.
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) _playEntrance = false;
+      });
       return;
     }
+
+    // Только при ДЕЙСТВИТЕЛЬНО новом сообщении. Иначе любой ребилд (ответ на
+    // старое сообщение, «печатает», баннер композера, клавиатура) дёргал бы
+    // камеру вниз — сравниваем ts последнего сообщения с тем, под который уже
+    // скроллили.
+    if (_lastMessageTs <= _autoScrolledTs) return;
+    _autoScrolledTs = _lastMessageTs;
 
     // Новое сообщение: прокручиваем вниз, только если пользователь уже у низа
     // или это его собственное сообщение (как в мессенджерах).
@@ -386,6 +472,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : (reply.text.isNotEmpty
                       ? reply.text
                       : (reply.pinTitle ?? '📌'))),
+          face: _selectedFace?.name, // выбранное автором лицо (липкое)
         );
       }
     } finally {
@@ -404,6 +491,175 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.selection =
         TextSelection.collapsed(offset: _controller.text.length);
     _focusNode.requestFocus();
+  }
+
+  /// Стабильный GlobalKey бабла [id] — чтобы перейти к оригиналу по тапу на
+  /// цитату (через Scrollable.ensureVisible).
+  GlobalKey _keyFor(String id) => _msgKeys.putIfAbsent(id, () => GlobalKey());
+
+  /// Переход к оригинальному сообщению по тапу на цитату «в ответ на …».
+  /// Если бабл уже на экране — доводим в зону видимости. Если укатился за экран
+  /// (ListView его не построил) — прыгаем примерно к его позиции по индексу в
+  /// ленте, затем доводим точно, когда бабл построится.
+  void _scrollToMessage(String? id) {
+    if (id == null || !_scrollController.hasClients) return;
+    final ctx = _msgKeys[id]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.35,
+      );
+      _flashHighlight(id);
+      return;
+    }
+    // Не построен — оцениваем позицию по индексу сообщения и подскролливаем.
+    final msgs = _lastMessages;
+    final idx = msgs.indexWhere((m) => m.id == id);
+    if (idx < 0) {
+      HapticFeedback.lightImpact(); // не в загруженной ленте
+      return;
+    }
+    final pos = _scrollController.position;
+    final approx = (idx / msgs.length) * pos.maxScrollExtent;
+    _scrollController
+        .animateTo(
+          approx.clamp(0.0, pos.maxScrollExtent),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        )
+        .whenComplete(() {
+      // После прокрутки бабл уже должен быть построен — доводим точно.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final c = _msgKeys[id]?.currentContext;
+        if (c != null) {
+          Scrollable.ensureVisible(
+            c,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: 0.35,
+          );
+        }
+        _flashHighlight(id);
+      });
+    });
+  }
+
+  /// Кратко подсветить сообщение [id] (после перехода — чтобы было заметно).
+  void _flashHighlight(String id) {
+    setState(() => _highlightMsgId = id);
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted && _highlightMsgId == id) {
+        setState(() => _highlightMsgId = null);
+      }
+    });
+  }
+
+  /// Кнопка ↻ в шапке — проиграть «влёт» сообщений заново. Меняем эпоху (ключи
+  /// _EntranceSlide обновляются → перемонтаж → анимация с нуля) и открываем окно.
+  void _replayEntrance() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _entranceEpoch++;
+      _playEntrance = true;
+    });
+    Future.delayed(const Duration(milliseconds: 1300), () {
+      if (mounted) _playEntrance = false;
+    });
+  }
+
+  /// Имя варианта мордочки → enum (или null — без лица / неизвестно).
+  _FaceExpr? _faceFromName(String? name) {
+    if (name == null) return null;
+    for (final e in _FaceExpr.values) {
+      if (e.name == name) return e;
+    }
+    return null;
+  }
+
+  /// Пикер мордочки для набираемого сообщения (кнопка-настроение в композере).
+  /// Выбор липкий — держится для следующих сообщений, пока не сменишь.
+  void _showFacePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final e in _FaceExpr.values) _facePickItem(ctx, e),
+                  _facePickCircle(
+                    selected: _selectedFace == null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() => _selectedFace = null);
+                    },
+                    child: Icon(Icons.block_rounded,
+                        color: Colors.grey.shade500, size: 20),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _facePickItem(BuildContext ctx, _FaceExpr e) => _facePickCircle(
+        selected: _selectedFace == e,
+        onTap: () {
+          Navigator.pop(ctx);
+          setState(() => _selectedFace = e);
+        },
+        child: CustomPaint(
+          size: const Size(30, 18),
+          painter: _FacePainter(color: Colors.grey.shade800, expr: e),
+        ),
+      );
+
+  Widget _facePickCircle({
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? _t.primary.withOpacity(0.12) : Colors.grey.shade100,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? _t.primary : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: child,
+      ),
+    );
   }
 
   void _startReply(ChatMsg msg) {
@@ -822,7 +1078,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final nameColor = isMine ? Colors.white : _t.primary;
     final textColor =
         isMine ? Colors.white.withOpacity(0.85) : Colors.grey.shade700;
-    return Container(
+    // Тап по цитате — переход к оригинальному сообщению (если оно в ленте).
+    return GestureDetector(
+      onTap: () => _scrollToMessage(msg.replyToId),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: BoxDecoration(
@@ -863,11 +1122,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
-  /// Чипы-реакции под баблом: агрегируем эмодзи по количеству. Тап по чипу
-  /// со своей реакцией снимает её, по чужой — ставит такую же себе.
+  /// Чипы-реакции СБОКУ от бабла (вертикальной стопкой, со стороны центра).
+  /// Тап по своей реакции снимает её, по чужой — ставит такую же себе.
+  /// Белая пилюля с рамкой/тенью; своя реакция — акцентная заливка.
   Widget _buildReactionChips(ChatMsg msg, bool isMine) {
     final counts = <String, int>{};
     for (final e in msg.reactions.values) {
@@ -875,18 +1136,15 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (counts.isEmpty) return const SizedBox.shrink();
     final mine = msg.reactions[_myUid];
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 2,
-        bottom: 2,
-        left: isMine ? 0 : 6,
-        right: isMine ? 6 : 0,
-      ),
-      child: Wrap(
-        spacing: 4,
-        children: [
-          for (final entry in counts.entries)
-            GestureDetector(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        for (final entry in counts.entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: GestureDetector(
               onTap: () => _chat.setReaction(
                 groupId: _groupId,
                 messageId: msg.id,
@@ -894,19 +1152,20 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  color: mine == entry.key
+                      ? _t.primary.withOpacity(0.14)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: mine == entry.key
-                        ? _t.primary
-                        : Colors.grey.shade300,
+                    color:
+                        mine == entry.key ? _t.primary : Colors.grey.shade300,
                     width: mine == entry.key ? 1.5 : 1,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withOpacity(0.08),
                       blurRadius: 4,
                       offset: const Offset(0, 1),
                     ),
@@ -915,15 +1174,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(entry.key, style: const TextStyle(fontSize: 13)),
+                    Text(entry.key, style: const TextStyle(fontSize: 14)),
                     if (entry.value > 1) ...[
                       const SizedBox(width: 3),
                       Text(
                         '${entry.value}',
                         style: TextStyle(
                           fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w700,
+                          color: mine == entry.key
+                              ? _t.primary
+                              : Colors.grey.shade700,
                         ),
                       ),
                     ],
@@ -931,8 +1192,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -944,6 +1205,136 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$h:$m';
   }
 
+  /// Хедер чата: аватар партнёра с точкой онлайн + имя с сердечком + статус
+  /// «в сети · печатает…». Presence и «печатает» — живые стримы.
+  Widget _buildHeaderTitle(AppStrings s) {
+    final name = widget.pairData.partnerDisplayName;
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: _fb.streamUserPresence(widget.pairData.partnerUid),
+      builder: (context, presSnap) {
+        final online = presSnap.data?['isOnline'] == true;
+        final hasPres = presSnap.hasData;
+        return Row(
+          children: [
+            _headerAvatar(online),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.favorite_border_rounded,
+                          size: 13, color: _t.primary),
+                    ],
+                  ),
+                  // Статус: «печатает…» (анимированный) приоритетнее presence.
+                  StreamBuilder<bool>(
+                    stream: _chat.watchTyping(_groupId),
+                    builder: (context, tSnap) {
+                      final typing = tSnap.data == true;
+                      if (typing) {
+                        return _TypingStatus(
+                          prefix: online ? '${s.chatOnline} · ' : '',
+                          label: s.chatTypingShort,
+                          color: _t.primary,
+                        );
+                      }
+                      final text =
+                          online ? s.chatOnline : (hasPres ? s.offline : '');
+                      return Text(
+                        text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: online ? _t.primary : Colors.grey.shade500,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Круглый аватар партнёра (картинка или буква-инициал) с зелёной точкой
+  /// «онлайн» в правом нижнем углу.
+  Widget _headerAvatar(bool online) {
+    final url = widget.pairData.partnerAvatarUrl;
+    final name = widget.pairData.partnerDisplayName.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '♥';
+    final fallback = Container(
+      color: _t.primary.withOpacity(0.15),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: _t.primary,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+    );
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipOval(
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: url.isEmpty
+                  ? fallback
+                  : StorageImage(
+                      imageUrl: url,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 120,
+                      memCacheHeight: 120,
+                      errorWidget: (_, _, _) => fallback,
+                    ),
+            ),
+          ),
+          if (online)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
@@ -953,24 +1344,41 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         foregroundColor: Colors.grey.shade900,
-        // Кнопка фона — слева сверху, рядом с «назад».
-        leadingWidth: 96,
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const BackButton(),
-            IconButton(
-              padding: EdgeInsets.zero,
-              tooltip: s.chatBgTitle,
-              icon: Icon(Icons.wallpaper_rounded, color: _t.primary),
-              onPressed: _changeBackground,
+        titleSpacing: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left_rounded, size: 30),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        // Аватар партнёра + имя с сердечком + статус «в сети · печатает…».
+        title: _buildHeaderTitle(s),
+        actions: [
+          IconButton(
+            tooltip: 'Replay',
+            icon: Icon(Icons.refresh_rounded, color: Colors.grey.shade700),
+            onPressed: _replayEntrance,
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_horiz_rounded, color: Colors.grey.shade700),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-          ],
-        ),
-        title: Text(
-          s.chatTitle,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
+            onSelected: (v) {
+              if (v == 'bg') _changeBackground();
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem<String>(
+                value: 'bg',
+                child: Row(
+                  children: [
+                    Icon(Icons.wallpaper_rounded, color: _t.primary, size: 20),
+                    const SizedBox(width: 10),
+                    Text(s.chatBgTitle),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -1027,37 +1435,56 @@ class _ChatScreenState extends State<ChatScreen> {
                 });
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
                   itemCount: items.length,
-                  itemBuilder: (context, i) => _buildItem(items[i]),
+                  itemBuilder: (context, i) =>
+                      _buildItem(items[i], i, items.length),
                 );
               },
             ),
           ),
               if (_mentionQuery != null && _mentionResults.isNotEmpty)
                 _buildMentionList(),
-              StreamBuilder<bool>(
-                stream: _chat.watchTyping(_groupId),
-                builder: (context, snap) {
-                  if (snap.data != true) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        s.chatTyping(widget.pairData.partnerDisplayName),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _t.primary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+              // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
               _buildComposer(s),
             ],
+          ),
+          // Кнопка «вернуться к последнему сообщению» — видна, когда отлистали
+          // заметно вверх. Над композером, справа.
+          Positioned(
+            right: 14,
+            bottom: 84,
+            child: IgnorePointer(
+              ignoring: !_showScrollDown,
+              child: AnimatedScale(
+                scale: _showScrollDown ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: GestureDetector(
+                  onTap: _jumpToBottom,
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _t.primary,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -1091,10 +1518,21 @@ class _ChatScreenState extends State<ChatScreen> {
     return items;
   }
 
-  Widget _buildItem(Object item) {
+  Widget _buildItem(Object item, int index, int total) {
     if (item is _DateHeader) return _buildDateHeader(item.day);
     if (item is _UnreadMarker) return _buildUnreadMarker();
-    return _buildBubble(item as ChatMsg);
+    final msg = item as ChatMsg;
+    // Влёт со стороны при открытии чата: своё — справа, партнёр — слева.
+    // Только для изначально видимых (пока открыто окно _playEntrance); при
+    // скролле сообщения появляются без анимации. Стаггер — снизу вверх.
+    // Эпоха в ключе → кнопка ↻ перезапускает анимацию.
+    return _EntranceSlide(
+      key: ValueKey('enter_${msg.id}_$_entranceEpoch'),
+      fromRight: msg.uid == _myUid,
+      animate: _playEntrance,
+      delay: Duration(milliseconds: (total - 1 - index).clamp(0, 6) * 60),
+      child: _buildBubble(msg),
+    );
   }
 
   Widget _buildDateHeader(DateTime day) {
@@ -1140,140 +1578,163 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildBubble(ChatMsg msg) {
     final isMine = msg.uid == _myUid;
     final s = LocaleService.current;
+    final seed = msg.id.hashCode;
 
-    final bubbleColor = isMine ? _t.primary : Colors.white;
-    final textColor = isMine ? Colors.white : Colors.grey.shade900;
-    final metaColor = isMine
-        ? Colors.white.withOpacity(0.8)
-        : Colors.grey.shade500;
+    // Плоские цвета по теме (без градиента): своё — насыщенный primary,
+    // партнёр — пастельный тон того же цвета, удалённое — серое.
+    final Color bg;
+    final Color fg;
+    if (msg.deleted) {
+      bg = Colors.grey.shade300;
+      fg = Colors.grey.shade600;
+    } else if (isMine) {
+      bg = _t.primary;
+      fg = Colors.white;
+    } else {
+      bg = Color.lerp(_t.primary, Colors.white, 0.62)!;
+      fg = Colors.grey.shade900;
+    }
+    final metaColor = fg.withOpacity(0.65);
+
+    // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
+    // стабильно между кадрами, двух одинаковых пузырей нет).
+    final corners = BorderRadius.only(
+      topLeft: Radius.circular(15 + _seededUnit(seed, 1) * 17),
+      topRight: Radius.circular(15 + _seededUnit(seed, 2) * 17),
+      bottomLeft: Radius.circular(15 + _seededUnit(seed, 3) * 17),
+      bottomRight: Radius.circular(15 + _seededUnit(seed, 4) * 17),
+    );
+    final tilt = (_seededUnit(seed, 5) - 0.5) * 0.045; // ±~1.3°
+    // Выражение мордочки — то, что ВЫБРАЛ отправитель (msg.face). Нет → без лица.
+    final expr = _faceFromName(msg.face);
 
     Widget content;
     if (msg.deleted) {
       content = Text(
         s.chatDeletedPlaceholder,
-        style: TextStyle(
-          color: isMine ? Colors.white70 : Colors.grey.shade400,
-          fontStyle: FontStyle.italic,
-          fontSize: 14,
-        ),
+        style: TextStyle(color: fg, fontStyle: FontStyle.italic, fontSize: 14),
       );
     } else {
       content = Column(
         crossAxisAlignment:
             isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          if (msg.replyToId != null) _buildReplyQuote(msg, isMine),
           if (msg.pinId != null) _buildPinChip(msg, isMine),
           if (msg.text.isNotEmpty)
             Text(
               msg.text,
-              style: TextStyle(color: textColor, fontSize: 15, height: 1.25),
+              style: TextStyle(color: fg, fontSize: 15, height: 1.25),
             ),
+          if (expr != null) ...[
+            const SizedBox(height: 6),
+            CustomPaint(
+              size: const Size(28, 15),
+              painter: _FacePainter(color: fg, expr: expr),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (msg.isEdited) ...[
+                Text(
+                  s.chatEdited,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: metaColor,
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                _formatTime(msg.editedTs ?? msg.ts),
+                style: TextStyle(fontSize: 10, color: metaColor),
+              ),
+              if (isMine && !msg.deleted) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  msg.ts <= _partnerReadTs
+                      ? Icons.done_all_rounded
+                      : Icons.done_rounded,
+                  size: 14,
+                  color: msg.ts <= _partnerReadTs
+                      ? const Color(0xFF8FD3FF)
+                      : metaColor,
+                ),
+              ],
+            ],
+          ),
         ],
       );
     }
 
-    return Dismissible(
-      key: ValueKey('swipe_${msg.id}'),
-      // Свайп влево по ЛЮБОМУ сообщению (как в Telegram) — ответить. Не удаляем:
-      // confirmDismiss возвращает false, бабл сам возвращается на место.
-      direction:
-          msg.deleted ? DismissDirection.none : DismissDirection.endToStart,
-      dismissThresholds: const {DismissDirection.endToStart: 0.25},
-      movementDuration: const Duration(milliseconds: 180),
-      confirmDismiss: (_) async {
-        _startReply(msg); // вибрация — внутри _startReply
-        return false;
-      },
-      background: const SizedBox.shrink(),
-      secondaryBackground: Padding(
-        padding: const EdgeInsets.only(right: 28),
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: Icon(Icons.reply_rounded, color: _t.primary),
+    const tailDrop = 9.0;
+    final hasReactions = msg.reactions.isNotEmpty;
+    // Пузырь: форма (кривые углы + хвостик-клювик со стороны отправителя)
+    // рисуется painter'ом, текст/лицо — поверх. Тап — реакции, долгое — меню.
+    final bubble = GestureDetector(
+      onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
+      onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
+      child: CustomPaint(
+        painter: _BubblePainter(
+          color: bg,
+          corners: corners,
+          tailLeft: !isMine,
+          tailDrop: tailDrop,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width *
+                (hasReactions ? 0.6 : 0.72),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 19), // 10 + tailDrop
+          child: content,
         ),
       ),
-      child: Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            // Двойной тап — реакции (на любое сообщение, кроме удалённого).
-            onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
-            onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
-          margin: const EdgeInsets.symmetric(vertical: 3),
-          padding: const EdgeInsets.fromLTRB(12, 9, 12, 7),
-          decoration: BoxDecoration(
-            color: bubbleColor,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isMine ? 16 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 16),
-            ),
-            boxShadow: isMine
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (msg.replyToId != null) _buildReplyQuote(msg, isMine),
-              content,
-              const SizedBox(height: 3),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (msg.isEdited) ...[
-                    Text(
-                      s.chatEdited,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontStyle: FontStyle.italic,
-                        color: metaColor,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                  ],
-                  Text(
-                    _formatTime(msg.editedTs ?? msg.ts),
-                    style: TextStyle(fontSize: 10, color: metaColor),
-                  ),
-                  // Галочки прочтения только на своих неудалённых сообщениях.
-                  if (isMine && !msg.deleted) ...[
-                    const SizedBox(width: 4),
-                    Icon(
-                      msg.ts <= _partnerReadTs
-                          ? Icons.done_all_rounded
-                          : Icons.done_rounded,
-                      size: 14,
-                      color: msg.ts <= _partnerReadTs
-                          ? const Color(0xFF8FD3FF) // прочитано — голубые ✓✓
-                          : metaColor, // отправлено — приглушённая ✓
-                    ),
-                  ],
-                ],
-              ),
+    );
+
+    // Лёгкий наклон — «криво расположены».
+    final tilted = Transform.rotate(angle: tilt, child: bubble);
+
+    // Реакции — сбоку (со стороны центра).
+    final chips = hasReactions ? _buildReactionChips(msg, isMine) : null;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: isMine
+          ? [
+              if (chips != null) ...[chips, const SizedBox(width: 6)],
+              Flexible(child: tilted),
+            ]
+          : [
+              Flexible(child: tilted),
+              if (chips != null) ...[const SizedBox(width: 6), chips],
             ],
-          ),
-            ),
-          ),
-          if (msg.reactions.isNotEmpty) _buildReactionChips(msg, isMine),
-        ],
-      ),
+    );
+
+    return _SwipeToReply(
+      key: ValueKey('swipe_${msg.id}'),
+      enabled: !msg.deleted,
+      iconColor: _t.primary,
+      onReply: () => _startReply(msg), // вибрация — внутри _startReply
+      child: AnimatedContainer(
+        // Ключ — для перехода по цитате + подсветки. Спокойные отступы между
+        // пузырями (без налезания).
+        key: _keyFor(msg.id),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: _highlightMsgId == msg.id
+              ? _t.primary.withOpacity(0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Align(
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: row,
+        ),
       ),
     );
   }
@@ -1423,22 +1884,33 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_replyingTo != null) _buildReplyComposerBanner(s),
-          if (_editing != null)
-            _buildBanner(
-              icon: Icons.edit_rounded,
-              label: '${s.chatEditMessage}: ${_editing!.text}',
-              onClose: () {
-                setState(() => _editing = null);
-                _controller.clear();
-              },
+          // Баннеры (ответ/редактирование/пин) появляются и схлопываются плавно.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_replyingTo != null) _buildReplyComposerBanner(s),
+                if (_editing != null)
+                  _buildBanner(
+                    icon: Icons.edit_rounded,
+                    label: '${s.chatEditMessage}: ${_editing!.text}',
+                    onClose: () {
+                      setState(() => _editing = null);
+                      _controller.clear();
+                    },
+                  ),
+                if (_attachedPin != null)
+                  _buildBanner(
+                    icon: Icons.push_pin_rounded,
+                    label: _memoryLabel(_attachedPin!),
+                    onClose: () => setState(() => _attachedPin = null),
+                  ),
+              ],
             ),
-          if (_attachedPin != null)
-            _buildBanner(
-              icon: Icons.push_pin_rounded,
-              label: _memoryLabel(_attachedPin!),
-              onClose: () => setState(() => _attachedPin = null),
-            ),
+          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -1454,6 +1926,23 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: _t.primary,
                     size: 22,
                   ),
+                ),
+              ),
+              // Настроение-мордочка для следующего сообщения (выбор автора).
+              GestureDetector(
+                onTap: _showFacePicker,
+                child: Container(
+                  width: 38,
+                  height: 44,
+                  alignment: Alignment.center,
+                  child: _selectedFace == null
+                      ? Icon(Icons.sentiment_satisfied_alt_outlined,
+                          color: _t.primary, size: 22)
+                      : CustomPaint(
+                          size: const Size(26, 16),
+                          painter: _FacePainter(
+                              color: _t.primary, expr: _selectedFace!),
+                        ),
                 ),
               ),
               Expanded(
@@ -1549,4 +2038,371 @@ class _DateHeader {
 /// Элемент-разделитель: маркер «Новые сообщения».
 class _UnreadMarker {
   const _UnreadMarker();
+}
+
+/// Форма пузыря: прямоугольник с кривыми (детерминированными) углами + хвостик-
+/// клювик, свисающий из нижнего угла со стороны отправителя (левый бабл → слева,
+/// правый → справа). Плоская заливка, без тени.
+class _BubblePainter extends CustomPainter {
+  final Color color;
+  final BorderRadius corners;
+  final bool tailLeft;
+  final double tailDrop;
+  const _BubblePainter({
+    required this.color,
+    required this.corners,
+    required this.tailLeft,
+    required this.tailDrop,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bodyH = size.height - tailDrop;
+    final body = Path()
+      ..addRRect(RRect.fromRectAndCorners(
+        Rect.fromLTWH(0, 0, size.width, bodyH),
+        topLeft: corners.topLeft,
+        topRight: corners.topRight,
+        bottomLeft: corners.bottomLeft,
+        bottomRight: corners.bottomRight,
+      ));
+    final tail = Path();
+    final by = bodyH;
+    if (tailLeft) {
+      final cx = corners.bottomLeft.x.clamp(8.0, 26.0);
+      tail.moveTo(cx, by - 5);
+      tail.quadraticBezierTo(2, by + tailDrop, cx + 11, by);
+      tail.close();
+    } else {
+      final cx = size.width - corners.bottomRight.x.clamp(8.0, 26.0);
+      tail.moveTo(cx, by - 5);
+      tail.quadraticBezierTo(size.width - 2, by + tailDrop, cx - 11, by);
+      tail.close();
+    }
+    final full = Path.combine(PathOperation.union, body, tail);
+    canvas.drawPath(
+      full,
+      Paint()
+        ..color = color
+        ..isAntiAlias = true,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BubblePainter old) =>
+      old.color != color ||
+      old.corners != corners ||
+      old.tailLeft != tailLeft ||
+      old.tailDrop != tailDrop;
+}
+
+/// Милая мордочка под текстом: две точки-глаза + выражение рта (в тон текста).
+/// Влюблённость добавляет щёчки, подмигивание — глаз-чёрточку, playful — язычок.
+class _FacePainter extends CustomPainter {
+  final Color color;
+  final _FaceExpr expr;
+  const _FacePainter({required this.color, required this.expr});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final fill = Paint()
+      ..color = color
+      ..isAntiAlias = true;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+
+    final eyeY = h * 0.30;
+    final lx = w * 0.30;
+    final rx = w * 0.70;
+
+    // Глаза.
+    canvas.drawCircle(Offset(lx, eyeY), 1.8, fill);
+    if (expr == _FaceExpr.wink) {
+      canvas.drawLine(Offset(rx - 3, eyeY), Offset(rx + 3, eyeY), stroke);
+    } else {
+      canvas.drawCircle(Offset(rx, eyeY), 1.8, fill);
+    }
+
+    // Щёчки у влюблённости.
+    if (expr == _FaceExpr.love) {
+      final cheek = Paint()..color = const Color(0xFFFF7A93).withOpacity(0.55);
+      canvas.drawCircle(Offset(lx - 4, h * 0.58), 2.4, cheek);
+      canvas.drawCircle(Offset(rx + 4, h * 0.58), 2.4, cheek);
+    }
+
+    // Рот.
+    final my = h * 0.64;
+    final mouth = Path();
+    switch (expr) {
+      case _FaceExpr.happy:
+      case _FaceExpr.love:
+        mouth.moveTo(w * 0.40, my);
+        mouth.quadraticBezierTo(w * 0.50, my + 4.5, w * 0.60, my);
+        canvas.drawPath(mouth, stroke);
+        break;
+      case _FaceExpr.wink:
+        mouth.moveTo(w * 0.42, my);
+        mouth.quadraticBezierTo(w * 0.50, my + 3.5, w * 0.58, my);
+        canvas.drawPath(mouth, stroke);
+        break;
+      case _FaceExpr.playful:
+        canvas.drawCircle(Offset(w * 0.50, my + 1), 2.4, fill);
+        break;
+      case _FaceExpr.sad:
+        mouth.moveTo(w * 0.40, my + 3);
+        mouth.quadraticBezierTo(w * 0.50, my - 2, w * 0.60, my + 3);
+        canvas.drawPath(mouth, stroke);
+        break;
+      case _FaceExpr.calm:
+        mouth.moveTo(w * 0.43, my + 1);
+        mouth.lineTo(w * 0.57, my + 1);
+        canvas.drawPath(mouth, stroke);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FacePainter old) =>
+      old.color != color || old.expr != expr;
+}
+
+/// Влёт сообщения со своей стороны при открытии чата: горизонтальный сдвиг
+/// от края к месту (FractionalTranslation — на свою ширину) + проявление.
+/// Анимация одноразовая; при [animate]=false бабл сразу на месте (скролл/новые).
+class _EntranceSlide extends StatefulWidget {
+  final Widget child;
+  final bool fromRight; // своё влетает справа, партнёра — слева
+  final bool animate;
+  final Duration delay;
+  const _EntranceSlide({
+    super.key,
+    required this.child,
+    required this.fromRight,
+    required this.animate,
+    required this.delay,
+  });
+
+  @override
+  State<_EntranceSlide> createState() => _EntranceSlideState();
+}
+
+class _EntranceSlideState extends State<_EntranceSlide>
+    with SingleTickerProviderStateMixin {
+  // Контроллер создаётся ТОЛЬКО когда нужна анимация — при скролле/новых
+  // сообщениях (animate=false) виджет показан сразу, без тикера.
+  AnimationController? _c;
+  Animation<double>? _t;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.animate) return;
+    final c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _c = c;
+    _t = CurvedAnimation(parent: c, curve: Curves.easeOutCubic);
+    Future.delayed(widget.delay, () {
+      if (mounted) c.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _c?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = _t;
+    if (t == null) return widget.child; // без анимации — сразу на месте
+    return AnimatedBuilder(
+      animation: t,
+      builder: (_, child) {
+        final p = 1 - t.value; // 1 → 0 по ходу анимации
+        final dx = p * (widget.fromRight ? 1.0 : -1.0);
+        // Лёгкий поворот вокруг «своей стены» — сообщение как бы выезжает из неё.
+        final angle = p * (widget.fromRight ? 0.05 : -0.05);
+        return Transform.rotate(
+          angle: angle,
+          alignment:
+              widget.fromRight ? Alignment.centerRight : Alignment.centerLeft,
+          child: FractionalTranslation(
+            translation: Offset(dx, 0),
+            child: Opacity(opacity: t.value.clamp(0.0, 1.0), child: child),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Анимированный статус «печатает…» в хедере: к слову циклично добавляются
+/// 1→3 точки. [prefix] — напр. «в сети · » (или пусто), [label] — «печатает».
+class _TypingStatus extends StatefulWidget {
+  final String prefix;
+  final String label;
+  final Color color;
+  const _TypingStatus({
+    required this.prefix,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  State<_TypingStatus> createState() => _TypingStatusState();
+}
+
+class _TypingStatusState extends State<_TypingStatus>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) {
+        final n = 1 + (_c.value * 3).floor().clamp(0, 2); // 1..3 точки
+        return Text(
+          '${widget.prefix}${widget.label}${'.' * n}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: widget.color,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Свайп-влево по сообщению, чтобы ответить (как в Telegram).
+///
+/// Резисторный свайп: бабл визуально сдвигается максимум на [_kMaxVisual] px и
+/// НЕ уезжает по экрану — сколько бы ни тянули. Срабатывание ответа привязано к
+/// реальному ходу пальца ([_kTriggerRaw] px), а не к смещению бабла, поэтому
+/// случайный короткий свайп не триггерит. По отпусканию — плавный пружинный
+/// возврат на место. Иконка ответа справа проявляется/растёт по ходу свайпа.
+class _SwipeToReply extends StatefulWidget {
+  final Widget child;
+  final bool enabled;
+  final VoidCallback onReply;
+  final Color iconColor;
+  const _SwipeToReply({
+    super.key,
+    required this.child,
+    required this.enabled,
+    required this.onReply,
+    required this.iconColor,
+  });
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply>
+    with SingleTickerProviderStateMixin {
+  // Бабл визуально сдвигается максимум на столько px (rubber-band асимптота).
+  static const double _kMaxVisual = 22;
+  // Сколько пройти пальцем влево (px), чтобы сработал ответ.
+  static const double _kTriggerRaw = 64;
+
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  late final Animation<double> _curve =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+
+  double _raw = 0; // накопленный ход пальца влево, >= 0
+  double _springFrom = 0; // с какого _raw начался пружинный возврат
+  bool _armed = false; // достигнут ли порог ответа
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(() {
+      setState(() => _raw = _springFrom * (1 - _curve.value));
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  // Смещение бабла: rubber-band — растёт всё медленнее, упираясь в _kMaxVisual.
+  double get _visual => -_kMaxVisual * (_raw / (_raw + _kMaxVisual));
+
+  void _onStart(DragStartDetails _) => _ctrl.stop();
+
+  void _onUpdate(DragUpdateDetails d) {
+    final next = (_raw - d.primaryDelta!).clamp(0.0, 400.0);
+    final crossed = next >= _kTriggerRaw;
+    if (crossed && !_armed) HapticFeedback.selectionClick();
+    setState(() {
+      _raw = next;
+      _armed = crossed;
+    });
+  }
+
+  void _onEnd(DragEndDetails _) {
+    if (_armed) widget.onReply();
+    _armed = false;
+    _springFrom = _raw;
+    _ctrl.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    final progress = (_raw / _kTriggerRaw).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: _onStart,
+      onHorizontalDragUpdate: _onUpdate,
+      onHorizontalDragEnd: _onEnd,
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Positioned(
+            right: 8,
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.6 + 0.4 * progress,
+                child: Icon(Icons.reply_rounded,
+                    color: widget.iconColor, size: 22),
+              ),
+            ),
+          ),
+          Transform.translate(
+            offset: Offset(_visual, 0),
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
+  }
 }
