@@ -56,11 +56,19 @@ class RuStoreIapService extends CoinStore {
         RuStoreConfig.deeplinkScheme,
         kDebugMode,
       );
+      // Временно true, чтобы _loadProducts/_resolvePending отработали.
       _available = true;
 
       await _loadProducts();
       // Доводим незавершённые покупки (если приложение закрылось до confirm).
       await _resolvePending();
+
+      // Биллинг считаем доступным ТОЛЬКО если товары реально загрузились. Пока
+      // монетизация в RuStore Консоли не подключена (или товары не созданы),
+      // products пуст → магазин монет авто-скрывается в UI (gate _iap.isAvailable),
+      // а не показывает сломанные паки с пустой ценой. Появится сам, как только
+      // товары заведутся в Консоли.
+      _available = _priceLabels.isNotEmpty;
     } catch (e) {
       debugPrint('RuStoreIapService: init failed: $e');
       _available = false;
