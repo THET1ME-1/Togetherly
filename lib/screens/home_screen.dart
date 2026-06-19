@@ -307,6 +307,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onTimerServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     _scheduleSyncHomeWidgets();
+    // Уведомление-счётчик «дней вместе» считает от даты системного таймера —
+    // при правке этой даты обновляем и его, чтобы число совпадало с видимым
+    // таймером. null НЕ передаём (onStartDateChanged(null) убрал бы уведомление).
+    final start = _timerService.systemTimer?.startDate ?? _pairData.startDate;
+    if (start != null) {
+      unawaited(
+        DaysTogetherNotificationService.instance.onStartDateChanged(start),
+      );
+    }
   }
 
   Future<void> _handlePairChanged() async {
@@ -391,11 +400,14 @@ class _HomeScreenState extends State<HomeScreen> {
         // может свободно редактировать его через UI.
         // updateSystemTimerTitle был удалён, т.к. перезаписывал ручные правки.
 
-        // Постоянный счётчик «дней вместе»: сохраняем дату старта; если фича
-        // включена — обновляем число в шторке уведомлений.
+        // Постоянный счётчик «дней вместе»: считаем от даты СИСТЕМНОГО таймера
+        // (её пользователь может редактировать — это та же дата, что в видимом
+        // круге и в десктоп-виджете «Дни вместе»), а НЕ от даты создания пары
+        // (_pairData.startDate) — иначе уведомление расходится с тем, что видно.
         unawaited(
-          DaysTogetherNotificationService.instance
-              .onStartDateChanged(_pairData.startDate),
+          DaysTogetherNotificationService.instance.onStartDateChanged(
+            _timerService.systemTimer?.startDate ?? _pairData.startDate,
+          ),
         );
       }
 
@@ -2561,7 +2573,10 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      // Отступ снизу учитывает системную навигационную панель (жесты/кнопки),
+      // иначе кнопка «перезапустить» налезает на неё и плохо нажимается.
+      padding: EdgeInsets.fromLTRB(
+          24, 16, 24, 24 + MediaQuery.of(context).viewPadding.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

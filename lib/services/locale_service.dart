@@ -934,6 +934,7 @@ abstract class AppStrings {
   String chatTyping(String name);
   String get chatEdited;
   String get chatDeletedPlaceholder;
+  String get chatSendFailed;
   String get chatAttachPin;
   String get chatSave;
   String chatNotifTitle(String name);
@@ -3022,6 +3023,8 @@ class _RuStrings extends AppStrings {
   String get chatEdited => 'изменено';
   @override
   String get chatDeletedPlaceholder => 'Сообщение удалено';
+  @override
+  String get chatSendFailed => 'Не удалось отправить. Попробуйте ещё раз';
   @override
   String get chatAttachPin => 'Прикрепить пин';
   @override
@@ -5405,6 +5408,8 @@ class _EnStrings extends AppStrings {
   String get chatEdited => 'edited';
   @override
   String get chatDeletedPlaceholder => 'Message deleted';
+  @override
+  String get chatSendFailed => 'Couldn\'t send. Please try again';
   @override
   String get chatAttachPin => 'Attach pin';
   @override
