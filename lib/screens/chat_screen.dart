@@ -533,7 +533,7 @@ class _ChatScreenState extends State<ChatScreen> {
         );
         if (mounted) setState(_restoreStyleSnap);
       } else {
-        await _chat.send(
+        final ok = await _chat.send(
           groupId: _groupId,
           senderName: widget.myDisplayName,
           text: text.isEmpty ? '📌' : text,
@@ -554,6 +554,21 @@ class _ChatScreenState extends State<ChatScreen> {
           faceX: _selectedFace == null ? null : _selectedFaceX,
           faceY: _selectedFace == null ? null : _selectedFaceY,
         );
+        if (!ok && mounted) {
+          // Сообщение не сохранилось (у мигрированной группы Supabase —
+          // единственное хранилище, офлайн-очереди как у RTDB нет). Возвращаем
+          // ввод, чтобы текст не потерялся и можно было повторить отправку.
+          _controller.text = text;
+          _controller.selection =
+              TextSelection.collapsed(offset: text.length);
+          setState(() {
+            _attachedPin = pin;
+            _replyingTo = reply;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(LocaleService.current.chatSendFailed)),
+          );
+        }
       }
     } finally {
       _sending = false;

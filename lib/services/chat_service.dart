@@ -150,7 +150,10 @@ class ChatService {
   }
 
   /// Отправить сообщение. [pinId]/[pinTitle] — опционально прикреплённый пин.
-  Future<void> send({
+  /// Возвращает true при успехе. false = сообщение НЕ сохранено (для
+  /// мигрированной группы Supabase — единственное хранилище без офлайн-очереди;
+  /// экран должен вернуть ввод и дать повторить, иначе текст теряется молча).
+  Future<bool> send({
     required String groupId,
     required String senderName,
     required String text,
@@ -166,14 +169,15 @@ class ChatService {
     double? faceY,
   }) async {
     final trimmed = text.trim();
-    if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return;
+    if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return false;
     try {
       // Двойная запись: RTDB (источник, читают обе версии) + зеркало в Supabase
       // под ОДНИМ id (RTDB push-key — клиентский, доступен без записи), чтобы
       // Stage 3 не задвоил. Stage 4: для мигрированной группы RTDB пропускаем.
       final ref = _messagesRef(groupId).push();
       final id = ref.key ?? DateTime.now().microsecondsSinceEpoch.toString();
-      if (_writeFb(groupId)) {
+      final wroteFb = _writeFb(groupId);
+      if (wroteFb) {
         await ensureMember(groupId);
         await ref.set({
           'uid': _uid,
@@ -193,7 +197,7 @@ class ChatService {
         });
       }
       if (_dualWrite) {
-        unawaited(_sb.mirrorChatSend(
+        final mirror = _sb.mirrorChatSend(
           groupId: groupId,
           id: id,
           uid: _uid,
@@ -210,7 +214,17 @@ class ChatService {
           color: color,
           faceX: faceX,
           faceY: faceY,
-        ));
+        );
+        if (wroteFb) {
+          // RTDB записан, его offline-очередь страхует доставку → зеркало в
+          // Supabase можно фоном (сверочный проход добьёт пропуски).
+          unawaited(mirror);
+        } else {
+          // Мигрированная группа: Supabase — ЕДИНСТВЕННОЕ хранилище, офлайн-
+          // очереди (как у RTDB) тут нет. Ждём подтверждения; провал НЕ глотаем
+          // (иначе сообщение теряется молча) → false, экран вернёт ввод.
+          if (!await mirror) return false;
+        }
       }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).
       unawaited(_fb.sendChatPush(
@@ -218,8 +232,10 @@ class ChatService {
         senderName: senderName,
         text: trimmed,
       ));
+      return true;
     } catch (e) {
       debugPrint('ChatService.send failed: $e');
+      return false;
     }
   }
 
