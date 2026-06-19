@@ -1755,7 +1755,12 @@ class HomeWidgetService {
       debugPrint('  relationship_stats → syncing (activeGroup=$activeGroupId)');
       await refreshRelationshipStats(
         activeGroupId,
-        startDate: activeSysTimer?.startDate ?? activeStartDate,
+        // «Дни вместе» считаем от АКТИВНОГО таймера (тот же, что Days Counter и
+        // круг в приложении — дефолтный/закреплённый), а НЕ от системного: если
+        // основным сделан пользовательский таймер, системный хранит дату пары
+        // (≈сегодня) → виджет показывал 0.
+        startDate:
+            activeTimer?.startDate ?? activeSysTimer?.startDate ?? activeStartDate,
       );
 
       // ── Mood — привязан к пользователю, не к группе ──

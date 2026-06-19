@@ -1102,8 +1102,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         }
         break;
       case 'relationship_stats':
-        final sysTimer = _timerService.systemTimer;
-        final start = sysTimer?.startDate ?? _pair.startDate;
+        // «Дни вместе» от ОСНОВНОГО (дефолтного) таймера — как Days Counter и
+        // круг; системный таймер хранит дату пары (≈сегодня) → давал бы 0.
+        final relTimer = _timerService.defaultTimer ?? _timerService.systemTimer;
+        final start = relTimer?.startDate ?? _pair.startDate;
         await hws.syncRelationshipStats(
           groupId: _pair.pairId,
           daysTogether: start != null

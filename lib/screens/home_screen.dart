@@ -311,10 +311,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onTimerServiceChanged() {
     if (!mounted || !_pairData.isPaired) return;
     _scheduleSyncHomeWidgets();
-    // Уведомление-счётчик «дней вместе» считает от даты системного таймера —
-    // при правке этой даты обновляем и его, чтобы число совпадало с видимым
-    // таймером. null НЕ передаём (onStartDateChanged(null) убрал бы уведомление).
-    final start = _timerService.systemTimer?.startDate ?? _pairData.startDate;
+    // Уведомление-счётчик «дней вместе» считает от даты ОСНОВНОГО (дефолтного)
+    // таймера — той же, что видна в приложении; системный таймер хранит дату
+    // пары (≈сегодня) и дал бы 0, если основным сделан пользовательский таймер.
+    // При правке даты обновляем уведомление. null НЕ передаём (иначе снялось бы).
+    final start = _timerService.defaultTimer?.startDate ??
+        _timerService.systemTimer?.startDate ??
+        _pairData.startDate;
     if (start != null) {
       unawaited(
         DaysTogetherNotificationService.instance.onStartDateChanged(start),
@@ -410,7 +413,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // (_pairData.startDate) — иначе уведомление расходится с тем, что видно.
         unawaited(
           DaysTogetherNotificationService.instance.onStartDateChanged(
-            _timerService.systemTimer?.startDate ?? _pairData.startDate,
+            _timerService.defaultTimer?.startDate ??
+                _timerService.systemTimer?.startDate ??
+                _pairData.startDate,
           ),
         );
       }
