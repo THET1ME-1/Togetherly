@@ -234,6 +234,13 @@ void main() async {
       // ВАЖНО: работает ТОЛЬКО если в панели Supabase включён Third-Party Auth
       // → Firebase. Иначе токен отвергается и все Supabase-вызовы падают.
       accessToken: () async {
+        // Холодный старт: Firebase Auth восстанавливает сессию асинхронно. Ждём
+        // прикрепления личности (или короткий грейс для разлогиненных), иначе
+        // первые запросы уходят анонимно (currentUser ещё null) → RLS их
+        // отбивает. После восстановления authReady уже завершён → мгновенно.
+        try {
+          await FirebaseService().authReady.timeout(const Duration(seconds: 3));
+        } catch (_) {}
         final user = FirebaseAuth.instance.currentUser;
         if (user == null) return null;
         // Перед самым первым запросом сессии дожидаемся, чтобы в токен попал

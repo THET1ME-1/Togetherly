@@ -74,6 +74,26 @@ class SupabaseService {
   /// подсчёта неудач при бэкфилле. Транзиентные сбои (сеть/таймаут/5xx) лечатся
   /// сразу; то, что не вылечилось, доберёт сверочный проход (reconciliation),
   /// потому что Firebase остаётся источником правды.
+  /// Постоянная (не-транзиентная) ошибка записи: RLS-отказ / нет прав / запрос
+  /// без привязанной личности (anon). Ретраить бессмысленно — повтор лишь
+  /// умножает шум в логах (× maxAttempts) и долбит базу. Транзиентное
+  /// (сеть/таймаут/5xx) сюда НЕ попадает и ретраится как раньше.
+  static bool _isPermanent(Object e) {
+    if (e is PostgrestException) {
+      // 42501 = insufficient_privilege: и "new row violates row-level security
+      // policy", и RAISE 'forbidden: not a group member' (ERRCODE =
+      // insufficient_privilege) из SECURITY DEFINER-RPC.
+      if (e.code == '42501') return true;
+      final msg = e.message.toLowerCase();
+      if (msg.contains('row-level security') ||
+          msg.contains('permission denied') ||
+          msg.contains('forbidden')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<bool> _write(
     String label,
     Future<void> Function() op, {
@@ -85,6 +105,12 @@ class SupabaseService {
         await op();
         return true;
       } catch (e) {
+        // RLS/права/личность — постоянная ошибка: повтор не поможет, только
+        // умножит лог и нагрузку. Выходим сразу (одна строка вместо четырёх).
+        if (_isPermanent(e)) {
+          debugPrint('SupabaseService.$label rejected (permanent, no retry): $e');
+          return false;
+        }
         if (attempt >= maxAttempts) {
           debugPrint('SupabaseService.$label failed after $attempt attempts: $e');
           return false;
