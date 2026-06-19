@@ -8,7 +8,9 @@
     ],
     "rewrites": [
       { "source": "/invite/**", "destination": "/invite/index.html" },
-      { "source": "/modapi/memories", "function": { "functionId": "modBrowseMemories", "region": "us-central1" } }
+      { "source": "/modapi/memories", "function": { "functionId": "modBrowseMemories", "region": "us-central1" } },
+      { "source": "/modapi/sb-memories", "function": { "functionId": "modBrowseSupabaseMemories", "region": "us-central1" } },
+      { "source": "/modapi/sb-profiles", "function": { "functionId": "modBrowseSupabaseProfiles", "region": "us-central1" } }
     ],
     "headers": [
       {

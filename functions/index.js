@@ -18,6 +18,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const { getDatabaseWithUrl, ServerValue } = require("firebase-admin/database");
 const { getAuth } = require("firebase-admin/auth");
+const { defineSecret } = require("firebase-functions/params");
 const crypto = require("crypto");
 const https = require("https");
 const { google } = require("googleapis");
@@ -1732,6 +1733,397 @@ exports.modBrowseMemories = onRequest(
       });
     } catch (e) {
       console.error("modBrowseMemories error:", e && e.message);
+      res.status(500).json({ error: "internal" });
+    }
+  }
+);
+
+
+// ─── Модерация: просмотр memory-медиа ТОЛЬКО из Supabase Storage ──────────────
+// Мигрированные пары хранят фото/видео не в Firebase Storage, а в приватном
+// бакете Supabase `media` (путь memories/{groupId}/file, widget/{groupId}/file).
+// Доступ к приватному бакету — только по service-role ключу, поэтому листинг и
+// подпись URL идут через Storage REST API с секретом SUPABASE_SERVICE_ROLE.
+//
+// Бэкфилл миграции КОПИРОВАЛ медиа из Firebase в Supabase по тем же путям, поэтому
+// бакет Supabase содержит и копии. Чтобы не дублировать то, что и так видно в
+// Firebase-режиме, мы вычитаем пути, присутствующие в Firebase Storage, и отдаём
+// ТОЛЬКО Supabase-эксклюзив — медиа полностью мигрированных пар, которое уже не
+// пишется в Firebase (слепая зона старой панели модерации).
+//
+// Формат ответа идентичен modBrowseMemories — страница mod-memories.html рисует
+// оба источника одним и тем же кодом, переключаясь по селектору «Хранилище».
+//
+// Секрет задаётся ДО деплоя:  firebase functions:secrets:set SUPABASE_SERVICE_ROLE
+// (значение — Service Role key из Supabase → Project Settings → API; НИКОГДА не
+// коммить его в репозиторий — он обходит RLS).
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || "https://xxjlzzkhrvyiqaexvymx.supabase.co";
+const SUPABASE_MEDIA_BUCKET = "media";
+const SUPABASE_SERVICE_ROLE = defineSecret("SUPABASE_SERVICE_ROLE");
+
+// Один уровень листинга бакета под [prefix] (Supabase отдаёт лишь непосредственных
+// детей: подпапки приходят с id===null/metadata===null, файлы — с UUID id и
+// metadata.size/mimetype). Постранично, пока возвращается полная страница.
+async function _sbStorageList(prefix, key) {
+  const out = [];
+  const pageSize = 1000;
+  let offset = 0;
+  for (;;) {
+    const resp = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/list/${SUPABASE_MEDIA_BUCKET}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+          apikey: key,
+        },
+        body: JSON.stringify({
+          prefix,
+          limit: pageSize,
+          offset,
+          sortBy: { column: "name", order: "asc" },
+        }),
+      }
+    );
+    if (!resp.ok) throw new Error(`list ${prefix} → HTTP ${resp.status}`);
+    const page = await resp.json();
+    if (!Array.isArray(page) || page.length === 0) break;
+    out.push(...page);
+    if (page.length < pageSize) break;
+    offset += page.length;
+  }
+  return out;
+}
+
+// Собирает файлы под групповым префиксом [base] (memories/ или widget/).
+// При заданном [groupId] листит только его папку, иначе сперва получает список
+// групп-папок, затем файлы в каждой (N+1 list-вызовов — приемлемо для модерации).
+async function _sbCollectFiles(base, groupId, key) {
+  let groupPrefixes;
+  if (groupId) {
+    groupPrefixes = [`${base}${groupId}/`];
+  } else {
+    const top = await _sbStorageList(base, key);
+    groupPrefixes = top
+      .filter((e) => e && e.id === null && e.name) // папки групп
+      .map((e) => `${base}${e.name}/`);
+  }
+  const files = [];
+  for (const gp of groupPrefixes) {
+    const entries = await _sbStorageList(gp, key);
+    for (const e of entries) {
+      if (!e || e.id === null || !e.name) continue; // пропустить подпапки
+      const md = e.metadata || {};
+      files.push({
+        path: gp + e.name,
+        name: e.name,
+        size: Number(md.size || 0),
+        mime: String(md.mimetype || ""),
+        updated: e.updated_at || e.created_at || md.lastModified || null,
+      });
+    }
+  }
+  return files;
+}
+
+// Пакетная подпись приватных путей (один REST-вызов на окно). Возвращает карту
+// path → абсолютный https-URL.
+async function _sbSignUrls(paths, key, expiresIn) {
+  if (paths.length === 0) return {};
+  const resp = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/sign/${SUPABASE_MEDIA_BUCKET}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        apikey: key,
+      },
+      body: JSON.stringify({ expiresIn, paths }),
+    }
+  );
+  if (!resp.ok) throw new Error(`sign → HTTP ${resp.status}`);
+  const arr = await resp.json();
+  const map = {};
+  for (const r of arr || []) {
+    if (r && r.signedURL && !r.error) {
+      map[r.path] = `${SUPABASE_URL}/storage/v1${r.signedURL}`;
+    }
+  }
+  return map;
+}
+
+exports.modBrowseSupabaseMemories = onRequest(
+  {
+    cors: true,
+    memory: "512MiB",
+    timeoutSeconds: 120,
+    secrets: [SUPABASE_SERVICE_ROLE],
+  },
+  async (req, res) => {
+    if (!checkModSecret(req)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    const key = SUPABASE_SERVICE_ROLE.value();
+    if (!key) {
+      res.status(503).json({ error: "supabase_not_configured" });
+      return;
+    }
+
+    const groupId = String((req.query && req.query.groupId) || "").trim();
+    if (groupId.includes("/") || groupId.includes("..")) {
+      res.status(400).json({ error: "bad groupId" });
+      return;
+    }
+
+    const area = String((req.query && req.query.area) || "memories").trim();
+    const bases =
+      area === "widget" ? ["widget/"] :
+      area === "all" ? ["memories/", "widget/"] :
+      ["memories/"];
+
+    const max = Math.min(Number(req.query && req.query.max) || 60, 200);
+    const offset = Math.max(Number(req.query && req.query.offset) || 0, 0);
+    const sort = String((req.query && req.query.sort) || "newest");
+
+    try {
+      // Пути, которые УЖЕ есть в Firebase Storage (их показывает другой режим).
+      // Только list-операции (без скачивания/подписи, 0 Firestore reads) — чтобы
+      // исключить из выдачи копии, перенесённые бэкфиллом по тем же путям.
+      const fbBucket = getStorage().bucket();
+      const sub = groupId ? `${groupId}/` : "";
+      const fbPaths = new Set();
+      for (const base of bases) {
+        const [chunk] = await fbBucket.getFiles({ prefix: base + sub });
+        for (const file of chunk) fbPaths.add(file.name);
+      }
+
+      let all = [];
+      for (const base of bases) {
+        all = all.concat(await _sbCollectFiles(base, groupId, key));
+      }
+
+      // Только фото/видео (по mime или расширению), которых НЕТ в Firebase
+      // (Supabase-эксклюзив) + метка времени для сортировки.
+      const filtered = [];
+      for (const f of all) {
+        if (fbPaths.has(f.path)) continue; // копия из Firebase — пропускаем
+        const isVid = /^video\//.test(f.mime) || _MOD_VIDEO_EXT.test(f.name);
+        const isImg = /^image\//.test(f.mime) || _MOD_IMAGE_EXT.test(f.name);
+        if (!isVid && !isImg) continue;
+        filtered.push({
+          ...f,
+          kind: isVid ? "video" : "image",
+          ms: f.updated ? Date.parse(f.updated) || 0 : 0,
+        });
+      }
+
+      filtered.sort((a, b) =>
+        sort === "oldest" ? a.ms - b.ms : b.ms - a.ms
+      );
+
+      const total = filtered.length;
+      const window = filtered.slice(offset, offset + max);
+
+      const expiresIn = 60 * 60; // 1 час
+      const signed = await _sbSignUrls(
+        window.map((w) => w.path), key, expiresIn
+      );
+      const items = window
+        .map((w) => {
+          const parts = w.path.split("/");
+          return {
+            path: w.path,
+            area: parts[0] || "",
+            groupId: parts[1] || "",
+            name: parts[parts.length - 1],
+            kind: w.kind,
+            size: w.size,
+            updated: w.updated,
+            url: signed[w.path] || "",
+          };
+        })
+        .filter((it) => it.url);
+
+      res.json({
+        items,
+        total,
+        nextOffset: offset + window.length < total ? offset + window.length : null,
+        expiresAt: Date.now() + expiresIn * 1000,
+      });
+    } catch (e) {
+      console.error("modBrowseSupabaseMemories error:", e && e.message);
+      res.status(500).json({ error: "internal" });
+    }
+  }
+);
+
+
+// ─── Модерация: профили (имена / статусы / аватары) из Supabase ───────────────
+// Источник — таблицы public.users (имя, e-mail, аватар) и public.widget_data
+// (статус/сообщение/настроение, что юзер выставил на виджет). Аватары публичного
+// бакета отдаются прямой ссылкой, приватные (sb://media) — подписываются.
+// PostgREST под service-role обходит RLS → 0 чтений Firestore.
+
+// GET к PostgREST (REST API Supabase). Возвращает строки и заголовок Content-Range
+// (для count=exact — общее число записей после слэша: «0-49/1234»).
+async function _sbRestGet(pathAndQuery, key, prefer) {
+  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  if (prefer) headers.Prefer = prefer;
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, { headers });
+  if (!resp.ok) throw new Error(`rest ${pathAndQuery} → HTTP ${resp.status}`);
+  return { rows: await resp.json(), contentRange: resp.headers.get("content-range") };
+}
+
+// avatar_url → отображаемый https. http(s) — как есть; sb://avatars/ (публичный
+// бакет) — прямой public-URL; sb://media/ — берём из карты подписанных URL.
+function _resolveAvatar(url, signedMap) {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("sb://")) {
+    const rest = url.slice("sb://".length);
+    const i = rest.indexOf("/");
+    if (i === -1) return "";
+    const bucket = rest.slice(0, i);
+    const path = rest.slice(i + 1);
+    if (bucket === "avatars") {
+      return `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
+    }
+    if (bucket === "media") return (signedMap && signedMap[path]) || "";
+  }
+  return "";
+}
+
+exports.modBrowseSupabaseProfiles = onRequest(
+  {
+    cors: true,
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    secrets: [SUPABASE_SERVICE_ROLE],
+  },
+  async (req, res) => {
+    if (!checkModSecret(req)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    const key = SUPABASE_SERVICE_ROLE.value();
+    if (!key) {
+      res.status(503).json({ error: "supabase_not_configured" });
+      return;
+    }
+
+    const groupId = String((req.query && req.query.groupId) || "").trim();
+    if (groupId.includes("/") || groupId.includes("..")) {
+      res.status(400).json({ error: "bad groupId" });
+      return;
+    }
+    const q = String((req.query && req.query.q) || "").trim();
+    const max = Math.min(Number(req.query && req.query.max) || 60, 200);
+    const offset = Math.max(Number(req.query && req.query.offset) || 0, 0);
+    const sort = String((req.query && req.query.sort) || "newest");
+    const order = sort === "oldest" ? "updated_at.asc" : "updated_at.desc";
+    const cols = "uid,display_name,email,avatar_url,badge,updated_at";
+
+    try {
+      let users = [];
+      let total = 0;
+
+      if (groupId) {
+        // Профили участников конкретной группы (имя/аватар берём из users,
+        // на отсутствующее поле — фолбэк на member_names/member_avatars группы).
+        const { rows: grows } = await _sbRestGet(
+          `groups?id=eq.${encodeURIComponent(groupId)}` +
+            `&select=members,member_names,member_avatars`,
+          key
+        );
+        const g = grows[0] || {};
+        const members = Array.isArray(g.members) ? g.members : [];
+        total = members.length;
+        const pageUids = members.slice(offset, offset + max);
+        if (pageUids.length > 0) {
+          const inList = pageUids.map(encodeURIComponent).join(",");
+          const { rows } = await _sbRestGet(
+            `users?uid=in.(${inList})&select=${cols}`, key
+          );
+          const byUid = {};
+          for (const u of rows) byUid[u.uid] = u;
+          const names = g.member_names || {};
+          const avatars = g.member_avatars || {};
+          users = pageUids.map((uid) => {
+            const u = byUid[uid] || {};
+            return {
+              uid,
+              display_name: u.display_name || names[uid] || null,
+              email: u.email || null,
+              avatar_url: u.avatar_url || avatars[uid] || null,
+              badge: u.badge || null,
+              updated_at: u.updated_at || null,
+            };
+          });
+        }
+      } else {
+        let path = `users?select=${cols}&order=${order}&offset=${offset}&limit=${max}`;
+        if (q) path += `&display_name=ilike.*${encodeURIComponent(q)}*`;
+        const { rows, contentRange } = await _sbRestGet(path, key, "count=exact");
+        users = rows;
+        total = contentRange
+          ? Number(contentRange.split("/")[1]) || rows.length
+          : rows.length;
+      }
+
+      // Статусы/сообщения с виджета по этим uid (последняя запись на uid).
+      const uids = users.map((u) => u.uid).filter(Boolean);
+      const statusByUid = {};
+      if (uids.length > 0) {
+        const inList = uids.map(encodeURIComponent).join(",");
+        const { rows: wd } = await _sbRestGet(
+          `widget_data?user_uid=in.(${inList})` +
+            `&select=user_uid,status,message,mood_label,music_title,updated_at` +
+            `&order=updated_at.desc`,
+          key
+        );
+        for (const w of wd) {
+          if (!statusByUid[w.user_uid]) statusByUid[w.user_uid] = w;
+        }
+      }
+
+      // Подписать приватные аватары (sb://media) пакетно; публичные — прямой URL.
+      const mediaPaths = [];
+      for (const u of users) {
+        const a = u.avatar_url;
+        if (a && a.startsWith("sb://media/")) {
+          mediaPaths.push(a.slice("sb://media/".length));
+        }
+      }
+      const signed = await _sbSignUrls(mediaPaths, key, 3600);
+
+      const items = users.map((u) => {
+        const w = statusByUid[u.uid] || {};
+        return {
+          kind: "profile",
+          uid: u.uid,
+          name: u.display_name || "",
+          email: u.email || "",
+          badge: u.badge || "",
+          avatarUrl: _resolveAvatar(u.avatar_url, signed),
+          status: w.status || "",
+          message: w.message || "",
+          moodLabel: w.mood_label || "",
+          music: w.music_title || "",
+          updated: u.updated_at || null,
+        };
+      });
+
+      res.json({
+        items,
+        total,
+        nextOffset: offset + users.length < total ? offset + users.length : null,
+      });
+    } catch (e) {
+      console.error("modBrowseSupabaseProfiles error:", e && e.message);
       res.status(500).json({ error: "internal" });
     }
   }
