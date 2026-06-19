@@ -60,9 +60,14 @@ class FirebaseService {
       if (user == null) {
         _supabaseRoleEnsured = false;
       } else {
+        // Личность восстановлена/вошли → Supabase можно выдавать токен.
+        _markAuthReady();
         unawaited(ensureSupabaseRole());
       }
     });
+    // Разлогиненный юзер: непустого события не будет — не висим вечно, считаем
+    // сессию отсутствующей через короткий грейс (idempotent, один раз).
+    Future.delayed(const Duration(seconds: 2), _markAuthReady);
   }
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -197,6 +202,17 @@ class FirebaseService {
   // Деградация мягкая — запрос уходит как сейчас (фоновым ретраем), без блока.
   DateTime? _roleEnsureFailedAt;
   static const Duration _roleEnsureCooldown = Duration(minutes: 2);
+
+  // Завершается, когда Firebase Auth восстановил сессию на старте (первое
+  // непустое событие authStateChanges) ЛИБО истёк короткий грейс (юзер
+  // разлогинен). accessToken-колбэк Supabase (main.dart) ждёт его ПЕРЕД выдачей
+  // токена — иначе первые запросы холодного старта уходят анонимно (currentUser
+  // ещё null) и RLS их отбивает (см. _write / «not a group member»).
+  final Completer<void> _authReady = Completer<void>();
+  Future<void> get authReady => _authReady.future;
+  void _markAuthReady() {
+    if (!_authReady.isCompleted) _authReady.complete();
+  }
 
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.

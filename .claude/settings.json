@@ -124,7 +124,9 @@
       "PowerShell(flutter analyze lib/main.dart lib/services/firebase_service.dart 2>&1)",
       "PowerShell(git check-ignore -v lib/main.dart 2>&1)",
       "PowerShell(git add lib/services/firebase_service.dart)",
-      "PowerShell(git push origin main 2>&1; Write-Output \"=== EXIT $LASTEXITCODE ===\"; git status -sb | Select-Object -First 1)"
+      "PowerShell(git push origin main 2>&1; Write-Output \"=== EXIT $LASTEXITCODE ===\"; git status -sb | Select-Object -First 1)",
+      "PowerShell(flutter analyze lib/services/supabase_service.dart)",
+      "PowerShell(flutter analyze lib/services/firebase_service.dart lib/main.dart)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
