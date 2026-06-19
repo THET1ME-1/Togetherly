@@ -54,6 +54,7 @@ import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
+import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -185,6 +186,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Обновляем число в постоянном счётчике «дней вместе» (могла смениться
         // дата за полночь). No-op, если фича выключена.
         unawaited(DaysTogetherNotificationService.instance.refresh());
+        // Lock-screen mood-уведомление: освежаем при возврате (день мог
+        // смениться за полночь, настроение могло поменяться вне приложения).
+        unawaited(_refreshLockScreenMoodNotification());
         // Попытка ежедневного бонуса при возврате в приложение
         _tryClaimDailyBonus();
       },
@@ -577,6 +581,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Lock-screen mood-уведомление (Android) живёт отдельно от десктоп-виджета и
+  /// раньше обновлялось ТОЛЬКО с экрана виджетов → если настроение задавали в
+  /// другом месте (главный экран/календарь), оно застывало на «Настроение не
+  /// задано». Держим его в синхроне с настроением здесь — как десктоп-виджет.
+  /// No-op, если пары нет или фича выключена.
+  Future<void> _refreshLockScreenMoodNotification() async {
+    if (!_pairData.isPaired) return;
+    final enabled =
+        await HomeWidgetService.instance.getLockScreenMoodEnabled();
+    if (!enabled) return;
+    final today = DateTime.now();
+    final myEntries = _moodService.myEntriesForDay(today);
+    final myEntry = myEntries.isNotEmpty ? myEntries.first : null;
+    final partnerUid =
+        _pairData.partners.isNotEmpty ? _pairData.partners.first.uid : '';
+    final partnerEntries = partnerUid.isNotEmpty
+        ? _moodService.partnerEntriesForDay(partnerUid, today)
+        : <MoodEntry>[];
+    final partnerEntry =
+        partnerEntries.isNotEmpty ? partnerEntries.first : null;
+    await MoodNotificationService.instance.show(
+      myMood: myEntry?.localizedLabel ?? '',
+      myName: widget.userData.displayName,
+      partnerMood: partnerEntry?.localizedLabel ?? '',
+      partnerName: _pairData.partnerDisplayName,
+    );
+  }
+
   void _startMemoryListener() {
     _memorySub?.cancel();
     final groupId = _pairData.pairId;
@@ -613,6 +645,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _syncMoodWidgetDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
       _syncMoodWidget();
+      // Lock-screen mood-уведомление держим в синхроне с настроением (раньше
+      // обновлялось только с экрана виджетов → показывало «не задано»).
+      unawaited(_refreshLockScreenMoodNotification());
     });
     if (mounted) setState(() {});
 
