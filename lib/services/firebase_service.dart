@@ -261,6 +261,23 @@ class FirebaseService {
         }
       }
 
+      // ── 0.5. Готовность к записи (claim role=authenticated) ─────────────────
+      // Бэкфилл — это десятки записей под RLS `TO authenticated`. Без claim вся
+      // пачка отлетит по 42501 и проход НИКОГДА не достигнет 0 неудач. Поэтому
+      // если роль не подтверждена — НЕ жжём проход (не плодим failures и шум в
+      // логах), а откладываем: claim уже инициируется на сервере, следующий
+      // проход застанет токен с ним и отработает вчистую.
+      if (!dataDone || !mediaDone) {
+        await ensureSupabaseRole();
+        if (!_supabaseRoleEnsured) {
+          debugPrint(
+            '[MIG] $groupId: роль Supabase не подтверждена → откладываем бэкфилл',
+          );
+          _scheduleMigrationRetry(groupId);
+          return;
+        }
+      }
+
       // ── 1. Бэкфилл исторических данных ──────────────────────────────────────
       if (!dataDone) {
         final failures = await _backfillDataToSupabase(groupId);
@@ -416,7 +433,22 @@ class FirebaseService {
       // не трогаем, чтобы не затереть свежие memberMoods/статус/таймеры.
       final existing = await _sb.fetchGroupColumns(groupId, ['id']);
       if (existing == null) {
-        if (!await _sb.mirrorGroupRaw(groupId, groupData)) failures++;
+        if (!await _sb.mirrorGroupRaw(groupId, groupData)) {
+          // Группа не записалась (RLS/identity) — ВСЁ остальное упрётся в
+          // is_group_member и отлетит. Не жжём проход на десятках обречённых
+          // записей: прерываемся, проход повторится позже.
+          debugPrint('[MIG] backfill($groupId): группа не записалась — прерываем');
+          return 1;
+        }
+      }
+      // Предусловие: строка группы есть в Supabase и ЧИТАЕТСЯ под нашей личностью
+      // (claim + членство в RLS). Если нет — все последующие записи упрутся в
+      // is_group_member(group_id); прерываем проход (не плодим 42501-неудачи).
+      if (!await _sb.probeGroupReadable(groupId)) {
+        debugPrint(
+          '[MIG] backfill($groupId): группа не читается под личностью — прерываем проход',
+        );
+        return 1;
       }
 
       final members = (groupData['members'] as List?)
@@ -2244,9 +2276,29 @@ class FirebaseService {
           .timeout(const Duration(seconds: 15));
       // Форс-рефреш: новый claim попадает в токен (иначе ждать до ~1ч/истечения).
       await user.getIdToken(true);
+      // ⚠️ КРИТИЧНО: setCustomUserClaims имеет лаг propagation — первый
+      // force-refresh нередко возвращает токен БЕЗ свежего claim. Если в этот
+      // момент пометить роль «выдана», то на всю сессию закэшируется токен без
+      // claim → каждая запись летит anon (42501), бэкфилл не доходит до 0 неудач
+      // и пара НЕ мигрирует (наблюдалось: data done лишь у 28 из 18075).
+      // Поэтому ПОДТВЕРЖДАЕМ, что claim реально в токене; если нет — короткая
+      // пауза и повторный force-refresh; всё ещё нет → не помечаем «выдана»,
+      // повторим в следующем проходе (claim уже стоит на сервере → дойдёт).
+      var verified =
+          (await user.getIdTokenResult()).claims?['role'] == 'authenticated';
+      if (!verified) {
+        await Future.delayed(const Duration(seconds: 2));
+        verified =
+            (await user.getIdTokenResult(true)).claims?['role'] == 'authenticated';
+      }
+      if (!verified) {
+        _roleEnsureFailedAt = DateTime.now();
+        debugPrint('[SB] claim role ещё не в токене (propagation) — повтор позже');
+        return;
+      }
       _supabaseRoleEnsured = true;
       _roleEnsureFailedAt = null;
-      debugPrint('[SB] role=authenticated выдан, токен обновлён');
+      debugPrint('[SB] role=authenticated подтверждён в токене');
     } catch (e) {
       // Запоминаем момент провала → кулдаун в ensureSupabaseRole() не даст
       // дёргать (возможно сломанную) функцию на каждый Supabase-запрос.
