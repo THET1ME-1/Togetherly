@@ -115,19 +115,22 @@ jobs:
 
       - name: Generate changelog
         run: |
-          # Список коммитов с предыдущего тега — попадёт в тело релиза.
-          PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.ver.outputs.tag }}^" 2>/dev/null || echo "")
+          # Тело релиза — РУЧНОЕ описание из distribution/whatsnew/whatsnew-ru-RU
+          # (тот же полный текст, что в попапе приложения и RuStore). Фолбэк на
+          # список коммитов, только если файла нет.
+          NOTES_FILE="distribution/whatsnew/whatsnew-ru-RU"
           {
             echo "## Togetherly ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})"
             echo ""
-            if [ -n "$PREV_TAG" ]; then
-              echo "Изменения с $PREV_TAG:"
-              echo ""
-              git log --no-merges --pretty=format:'- %s' "$PREV_TAG"..HEAD
+            if [ -f "$NOTES_FILE" ]; then
+              cat "$NOTES_FILE"
             else
-              echo "Последние изменения:"
-              echo ""
-              git log --no-merges --pretty=format:'- %s' -n 20
+              PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.ver.outputs.tag }}^" 2>/dev/null || echo "")
+              if [ -n "$PREV_TAG" ]; then
+                git log --no-merges --pretty=format:'- %s' "$PREV_TAG"..HEAD
+              else
+                git log --no-merges --pretty=format:'- %s' -n 20
+              fi
             fi
           } > dist/notes.md
           echo "---- generated notes ----"; cat dist/notes.md
