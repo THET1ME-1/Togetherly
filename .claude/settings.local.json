@@ -93,7 +93,14 @@
       "Bash(grep -A5 \"name: connectivity_plus$\" pubspec.lock)",
       "Bash(echo \"error-count: $\\(flutter analyze lib/services/firebase_service.dart 2>&1)",
       "Bash(awk '/const COIN_PACKS/,/\\\\};/' functions/index.js)",
-      "Bash(echo \"error-count: $\\(flutter analyze lib/services/supabase_service.dart lib/services/firebase_service.dart 2>&1)"
+      "Bash(echo \"error-count: $\\(flutter analyze lib/services/supabase_service.dart lib/services/firebase_service.dart 2>&1)",
+      "Bash(echo \"=== anon GET groups \\(RLS check\\) ===\")",
+      "Bash(curl -s -o /tmp/g.json -w 'http=%{http_code}\\\\n' 'https://xxjlzzkhrvyiqaexvymx.supabase.co/rest/v1/groups?select=id&limit=3' -H 'apikey: sb_publishable_CjlP42zWZwPWGiUcbHC07w_qH9GZyuO' -H 'Authorization: Bearer sb_publishable_CjlP42zWZwPWGiUcbHC07w_qH9GZyuO')",
+      "Bash(echo \"body:\")",
+      "Bash(head -c 400 /tmp/g.json)",
+      "Bash(echo)",
+      "Bash(timeout 90 firebase functions:log --only ensureSupabaseRole)",
+      "Bash(timeout 120 node scripts/check_migration_state.js)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"

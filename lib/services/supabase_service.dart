@@ -364,6 +364,31 @@ class SupabaseService {
     }
   }
 
+  /// Живая проба: реально ли аутентифицированное чтение группы возвращает строку
+  /// текущему участнику. true ТОЛЬКО когда токен принят, RLS пропустил (мы в
+  /// members) И строка группы есть в Supabase. Используется как гейт перевода
+  /// пары на чтение из Supabase и отключения Firebase-записи (Stage 3/4): без
+  /// подтверждённого здоровья Supabase пару НЕ переводим (иначе пустой чат, как
+  /// в баге «чат пропал»). Возвращает false на любой ошибке/пусто (fail-safe).
+  ///
+  /// ВАЖНО: отличается от loadPairById тем, что НЕ маскирует «строки нет» под
+  /// успех — нам нужен именно факт «чтение вернуло мою группу».
+  Future<bool> probeGroupReadable(String groupId) async {
+    if (!isReady || groupId.isEmpty) return false;
+    try {
+      final row = await _client
+          .from('groups')
+          .select('id')
+          .eq('id', groupId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+      return row != null;
+    } catch (e) {
+      debugPrint('SupabaseService.probeGroupReadable($groupId) failed: $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> loadPairData(String currentUid) async {
     if (!isReady) return null;
     try {
@@ -1979,6 +2004,9 @@ class SupabaseService {
     try {
       final isPrivate = _isPrivateStoragePath(storagePath);
       final bucket = isPrivate ? _mediaBucket : _avatarsBucket;
+      // Таймаут: иначе зависшая загрузка (плохая сеть/авторизация) крутила бы
+      // спиннер бесконечно — по истечении бросает → catch вернёт null, экран
+      // покажет ошибку вместо вечной загрузки.
       await _client.storage.from(bucket).uploadBinary(
         storagePath,
         bytes,
@@ -1986,7 +2014,7 @@ class SupabaseService {
           contentType: contentType ?? 'application/octet-stream',
           upsert: true,
         ),
-      );
+      ).timeout(const Duration(minutes: 2));
       if (isPrivate) {
         return '$_sbScheme$bucket/$storagePath';
       } else {

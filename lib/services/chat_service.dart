@@ -134,8 +134,16 @@ class ChatService {
   /// Поток последних [limit] сообщений, отсортированных по времени.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
-    // Читаем сообщения из RTDB (общий источник); Stage 3 — из Supabase.
-    if (_readSb(groupId)) return _sb.watchMessages(groupId, limit: limit);
+    // Читаем сообщения из RTDB (общий источник); Stage 3 — из Supabase, но с
+    // живым фолбэком на RTDB (см. _messagesWithFallback): если Supabase молчит/
+    // отдаёт пусто из-за RLS-гонки или устаревшего флага «читать Supabase», а в
+    // RTDB сообщения есть — чат не остаётся пустым (баг «чат пропал»).
+    if (_readSb(groupId)) return _messagesWithFallback(groupId, limit);
+    return _rtdbMessages(groupId, limit);
+  }
+
+  /// Поток сообщений напрямую из RTDB (общий источник до миграции группы).
+  Stream<List<ChatMsg>> _rtdbMessages(String groupId, int limit) {
     return _messagesRef(groupId)
         .orderByChild('ts')
         .limitToLast(limit)
@@ -147,6 +155,66 @@ class ChatService {
         ..sort((a, b) => a.ts.compareTo(b.ts));
       return children;
     });
+  }
+
+  /// Supabase-поток сообщений с одноразовым фолбэком на RTDB. Здоровая
+  /// мигрированная пара получает данные из Supabase — фолбэк не срабатывает.
+  /// Если же Supabase отдал пусто (или промолчал ~5с), а в RTDB история есть —
+  /// один раз до конца сессии переключаемся на RTDB. Реально пустой чат (пусто
+  /// и там и там) остаётся на Supabase, чтобы будущие сообщения дошли realtime'ом.
+  /// Переключение происходит ТОЛЬКО в сбойном случае → сообщения не теряются.
+  Stream<List<ChatMsg>> _messagesWithFallback(String groupId, int limit) {
+    final controller = StreamController<List<ChatMsg>>();
+    StreamSubscription<List<ChatMsg>>? sbSub;
+    StreamSubscription<List<ChatMsg>>? fbSub;
+    Timer? grace;
+    var switched = false;
+    var sbHadData = false;
+
+    void switchToRtdb(String why) {
+      if (switched || controller.isClosed) return;
+      switched = true;
+      grace?.cancel();
+      sbSub?.cancel();
+      debugPrint('ChatService: чат $groupId — фолбэк Supabase→RTDB ($why)');
+      fbSub = _rtdbMessages(groupId, limit).listen(
+        (msgs) {
+          if (!controller.isClosed) controller.add(msgs);
+        },
+        onError: (Object e) => debugPrint('chat RTDB fallback error: $e'),
+      );
+    }
+
+    sbSub = _sb.watchMessages(groupId, limit: limit).listen(
+      (msgs) {
+        if (msgs.isNotEmpty) sbHadData = true;
+        if (!switched && !controller.isClosed) controller.add(msgs);
+      },
+      onError: (Object e) {
+        debugPrint('chat Supabase stream error: $e');
+        switchToRtdb('stream error');
+      },
+    );
+
+    // Грейс: Supabase так и не отдал данных → если в RTDB что-то есть, это
+    // сломанное Supabase-чтение, а не пустой чат — переключаемся.
+    grace = Timer(const Duration(seconds: 5), () async {
+      if (switched || sbHadData || controller.isClosed) return;
+      try {
+        final snap = await _messagesRef(groupId)
+            .orderByChild('ts')
+            .limitToLast(1)
+            .get();
+        if (snap.children.isNotEmpty) switchToRtdb('grace: RTDB has data');
+      } catch (_) {}
+    });
+
+    controller.onCancel = () {
+      grace?.cancel();
+      sbSub?.cancel();
+      fbSub?.cancel();
+    };
+    return controller.stream;
   }
 
   /// Отправить сообщение. [pinId]/[pinTitle] — опционально прикреплённый пин.
@@ -176,54 +244,68 @@ class ChatService {
       // Stage 3 не задвоил. Stage 4: для мигрированной группы RTDB пропускаем.
       final ref = _messagesRef(groupId).push();
       final id = ref.key ?? DateTime.now().microsecondsSinceEpoch.toString();
+      // Полезная нагрузка сообщения для RTDB — одна и та же для основной записи и
+      // для фолбэка (ниже), чтобы не дублировать поля.
+      Map<String, Object?> rtdbPayload() => {
+            'uid': _uid,
+            'name': senderName,
+            'text': trimmed,
+            'ts': ServerValue.timestamp,
+            if (pinId != null) 'pinId': pinId,
+            if (pinTitle != null) 'pinTitle': pinTitle,
+            if (pinThumb != null) 'pinThumb': pinThumb,
+            if (replyToId != null) 'replyToId': replyToId,
+            if (replyToName != null) 'replyToName': replyToName,
+            if (replyToText != null) 'replyToText': replyToText,
+            if (face != null) 'face': face,
+            if (color != null) 'color': color,
+            if (faceX != null) 'faceX': faceX,
+            if (faceY != null) 'faceY': faceY,
+          };
+      Future<bool> mirror() => _sb.mirrorChatSend(
+            groupId: groupId,
+            id: id,
+            uid: _uid,
+            name: senderName,
+            text: trimmed,
+            ts: DateTime.now().millisecondsSinceEpoch,
+            pinId: pinId,
+            pinTitle: pinTitle,
+            pinThumb: pinThumb,
+            replyToId: replyToId,
+            replyToName: replyToName,
+            replyToText: replyToText,
+            face: face,
+            color: color,
+            faceX: faceX,
+            faceY: faceY,
+          );
       final wroteFb = _writeFb(groupId);
       if (wroteFb) {
         await ensureMember(groupId);
-        await ref.set({
-          'uid': _uid,
-          'name': senderName,
-          'text': trimmed,
-          'ts': ServerValue.timestamp,
-          if (pinId != null) 'pinId': pinId,
-          if (pinTitle != null) 'pinTitle': pinTitle,
-          if (pinThumb != null) 'pinThumb': pinThumb,
-          if (replyToId != null) 'replyToId': replyToId,
-          if (replyToName != null) 'replyToName': replyToName,
-          if (replyToText != null) 'replyToText': replyToText,
-          if (face != null) 'face': face,
-          if (color != null) 'color': color,
-          if (faceX != null) 'faceX': faceX,
-          if (faceY != null) 'faceY': faceY,
-        });
+        await ref.set(rtdbPayload());
       }
       if (_dualWrite) {
-        final mirror = _sb.mirrorChatSend(
-          groupId: groupId,
-          id: id,
-          uid: _uid,
-          name: senderName,
-          text: trimmed,
-          ts: DateTime.now().millisecondsSinceEpoch,
-          pinId: pinId,
-          pinTitle: pinTitle,
-          pinThumb: pinThumb,
-          replyToId: replyToId,
-          replyToName: replyToName,
-          replyToText: replyToText,
-          face: face,
-          color: color,
-          faceX: faceX,
-          faceY: faceY,
-        );
         if (wroteFb) {
           // RTDB записан, его offline-очередь страхует доставку → зеркало в
           // Supabase можно фоном (сверочный проход добьёт пропуски).
-          unawaited(mirror);
-        } else {
-          // Мигрированная группа: Supabase — ЕДИНСТВЕННОЕ хранилище, офлайн-
-          // очереди (как у RTDB) тут нет. Ждём подтверждения; провал НЕ глотаем
-          // (иначе сообщение теряется молча) → false, экран вернёт ввод.
-          if (!await mirror) return false;
+          unawaited(mirror());
+        } else if (!await mirror()) {
+          // Мигрированная группа: Supabase — основное хранилище, но он не принял
+          // (RLS/сеть/недоступность). НЕ теряем сообщение и НЕ отбиваем ввод —
+          // пишем напрямую в RTDB как фолбэк (его offline-очередь добьёт
+          // доставку), а зеркало в Supabase добиваем фоном (когда восстановится,
+          // партнёр-Supabase-читатель его увидит). Снимает баг «сообщения
+          // исчезают» у пары, чьё Supabase-чтение/запись сбоит.
+          try {
+            await _db.ref('chats/$groupId/members/$_uid').set(true);
+            await ref.set(rtdbPayload());
+            unawaited(mirror());
+            debugPrint('ChatService.send: фолбэк Supabase→RTDB ($groupId)');
+          } catch (e) {
+            debugPrint('ChatService.send RTDB fallback failed: $e');
+            return false;
+          }
         }
       }
       // Триггер push-уведомления через Firestore-событие (его удаляет CF).

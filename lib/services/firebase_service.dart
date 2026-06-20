@@ -1164,7 +1164,12 @@ class FirebaseService {
   bool _writeFb(String groupId) =>
       !(MigrationConfig.stage4DropFirebaseWrites &&
           _readSb(groupId) &&
-          (_groupBothRead[groupId] ?? false));
+          (_groupBothRead[groupId] ?? false) &&
+          // Не отключаем Firebase-запись, пока в ЭТОЙ сессии живая проба не
+          // подтвердила, что Supabase реально читается участником. Иначе при
+          // сломанном/недоступном Supabase запись ушла бы только туда и молча
+          // терялась (баг «сообщения исчезают»). До подтверждения — дуал-райт.
+          _sbReadVerified.contains(groupId));
 
   /// Публично для сервисов (ChatService): писать ли данные группы в Firebase.
   bool writeToFirebase(String groupId) => _writeFb(groupId);
@@ -1209,9 +1214,19 @@ class FirebaseService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = '$_kReadFromSupabase.$groupId';
+      // Право читать группу из Supabase со следующей сессии:
+      //   • оба партнёра на новой сборке (_groupMixed == false);
+      //   • исторические ДАННЫЕ перенесены (data-бэкфилл завершён);
+      //   • живая authed-проба ЭТОЙ сессии подтвердила, что Supabase реально
+      //     отдаёт группу участнику (_sbReadVerified) — защита от пустого чата.
+      // Media-проход НАМЕРЕННО исключён из условия: старое медиа остаётся в
+      // Firebase Storage и отдаётся через signed URL (StorageImage/getSignedUrl),
+      // поэтому чтению данных оно не нужно. Раньше зависимость от media-прохода
+      // (самый хрупкий шаг) часто не доходила до конца → флип не случался НИКОГДА
+      // и вся база продолжала читаться из Firebase.
       final eligible = _groupMixed[groupId] == false &&
           prefs.getBool('$_kDataBackfillDone.$groupId') == true &&
-          prefs.getBool('$_kMediaMigrationDone.$groupId') == true;
+          _sbReadVerified.contains(groupId);
       if (eligible) {
         if (prefs.getBool(key) != true) {
           await prefs.setBool(key, true);
@@ -1223,6 +1238,31 @@ class FirebaseService {
       }
     } catch (e) {
       debugPrint('_maybeMarkReadFromSupabase($groupId) failed: $e');
+    }
+  }
+
+  /// Живая проба здоровья Supabase-чтения для группы (раз за сессию). Сначала
+  /// гарантирует claim role=authenticated (иначе проба ушла бы anon и ложно
+  /// провалилась), затем читает строку группы под личностью участника. Успех →
+  /// заносим в [_sbReadVerified]: только после этого разрешаем перевод пары на
+  /// чтение из Supabase ([_maybeMarkReadFromSupabase]) и отключение Firebase-
+  /// записи ([_writeFb]). Провал/недоступность → молча остаёмся на Firebase
+  /// (дуал-райт продолжается, данные не теряются).
+  Future<void> _verifySupabaseReadable(String groupId) async {
+    if (!_mig || groupId.isEmpty || _sbReadVerified.contains(groupId)) return;
+    try {
+      await ensureSupabaseRole();
+      final ok = await _sb.probeGroupReadable(groupId);
+      if (ok) {
+        _sbReadVerified.add(groupId);
+        debugPrint('[STAGE3] $groupId: Supabase-чтение подтверждено живой пробой');
+      } else {
+        debugPrint(
+          '[STAGE3] $groupId: проба Supabase-чтения не прошла — остаёмся на Firebase',
+        );
+      }
+    } catch (e) {
+      debugPrint('_verifySupabaseReadable($groupId) failed: $e');
     }
   }
 
@@ -1254,6 +1294,18 @@ class FirebaseService {
   // как только оба на Supabase — Firebase-запись прекращается. Безопасный
   // дефолт — отсутствие записи (== не оба, держим Firebase-запись).
   final Map<String, bool> _groupBothRead = {};
+
+  // groupId → в ЭТОЙ сессии живая authed-проба подтвердила, что Supabase реально
+  // отдаёт строку группы участнику (токен принят + RLS пропустил + данные на
+  // месте). Гейтит ДВА перехода на Supabase-only, чтобы не повторился баг «чат
+  // пропал» (флипнутая пара, но Supabase отдаёт пусто из-за RLS-гонки):
+  //   • установку per-group флага «со следующей сессии читать из Supabase»
+  //     (_maybeMarkReadFromSupabase) — раньше гейтилось media-проходом, который
+  //     часто не доходил до конца и флип не случался НИКОГДА;
+  //   • отключение Firebase-записи Stage 4 (_writeFb) — пока проба не прошла,
+  //     ПРОДОЛЖАЕМ дуал-райт в Firebase, чтобы сообщения не терялись молча.
+  // Безопасный дефолт — отсутствие записи (== не подтверждено).
+  final Set<String> _sbReadVerified = {};
 
   /// Группа полностью на новой сборке — можно Supabase как источник.
   /// Дефолт безопасный: пока НЕ доказано, что партнёр на старом билде, ведём
@@ -1327,6 +1379,10 @@ class FirebaseService {
         }
       }
       _groupBothRead[groupId] = allRead;
+      // Пара полная (оба на новой сборке) → живой пробой проверяем, что Supabase
+      // реально отдаёт группу участнику. Только при успехе разрешим перевод на
+      // Supabase и отключение Firebase-записи (см. _sbReadVerified).
+      if (allFresh) await _verifySupabaseReadable(groupId);
       // Compat подтверждён → пере-оценить право группы читать из Supabase
       // (применится со следующей сессии). Снимет флаг, если пара снова смешанная.
       unawaited(_maybeMarkReadFromSupabase(groupId));
@@ -4555,6 +4611,12 @@ class FirebaseService {
           final tempDir = await getTemporaryDirectory();
           final targetPath =
               '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
+          // ⚠️ Таймаут обязателен: на части устройств (напр. realme/ColorOS,
+          // Android 16) нативный кодек flutter_image_compress зависает на
+          // некоторых снимках и НИКОГДА не возвращает future. try/catch такой
+          // «вечный» вызов НЕ ловит (зависший future не бросает) → бесконечный
+          // спиннер загрузки. Таймаут превращает зависание в исключение →
+          // падаем в catch ниже и грузим оригинал.
           final xFile = await FlutterImageCompress.compressAndGetFile(
             path,
             targetPath,
@@ -4562,7 +4624,7 @@ class FirebaseService {
             format: CompressFormat.webp,
             autoCorrectionAngle: true,
             keepExif: false,
-          );
+          ).timeout(const Duration(seconds: 20));
           if (xFile != null) {
             final webpFile = File(xFile.path);
             final webpSize = await webpFile.length();
@@ -4657,7 +4719,17 @@ class FirebaseService {
         );
       });
 
-      final snapshot = await uploadTask;
+      // Таймаут: зависшая (без ошибки) загрузка на плохой сети иначе крутила бы
+      // спиннер вечно. По истечении — отменяем задачу и пробрасываем исключение
+      // (внешний catch вернёт null → экран покажет «не удалось загрузить»).
+      final snapshot = await uploadTask.timeout(
+        const Duration(minutes: 2),
+        onTimeout: () {
+          debugPrint('uploadFile: Firebase upload timed out (2 min) — cancel');
+          uploadTask.cancel();
+          throw TimeoutException('Firebase upload timed out');
+        },
+      );
 
       // Для групповых путей возвращаем gs:// — доступ только через Signed URL.
       // Для аватарок (avatars/) оставляем download URL: они намеренно доступны
