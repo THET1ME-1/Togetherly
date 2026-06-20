@@ -100,7 +100,11 @@
       "Bash(head -c 400 /tmp/g.json)",
       "Bash(echo)",
       "Bash(timeout 90 firebase functions:log --only ensureSupabaseRole)",
-      "Bash(timeout 120 node scripts/check_migration_state.js)"
+      "Bash(timeout 120 node scripts/check_migration_state.js)",
+      "Bash(git tag *)",
+      "Bash(gh run *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"cancel exit: $?\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"
