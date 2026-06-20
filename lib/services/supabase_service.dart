@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -104,15 +105,19 @@ class SupabaseService {
       try {
         await op();
         return true;
-      } catch (e) {
+      } catch (e, st) {
         // RLS/права/личность — постоянная ошибка: повтор не поможет, только
         // умножит лог и нагрузку. Выходим сразу (одна строка вместо четырёх).
         if (_isPermanent(e)) {
           debugPrint('SupabaseService.$label rejected (permanent, no retry): $e');
+          // Постоянный отказ Supabase-записи (RLS/права) = МОЛЧАЛИВАЯ потеря
+          // зеркала → расхождение Firebase/Supabase. Главный риск миграции.
+          unawaited(_recordWriteFailure(label, e, st, permanent: true));
           return false;
         }
         if (attempt >= maxAttempts) {
           debugPrint('SupabaseService.$label failed after $attempt attempts: $e');
+          unawaited(_recordWriteFailure(label, e, st, permanent: false));
           return false;
         }
         await Future.delayed(delay);
@@ -120,6 +125,32 @@ class SupabaseService {
       }
     }
     return false;
+  }
+
+  /// Фиксирует провал Supabase-записи в Crashlytics (non-fatal). Это ядро
+  /// мониторинга миграции: если зеркало молча не записалось — данные Firebase и
+  /// Supabase расходятся. `label` = имя операции (mirrorMemory/…); permanent =
+  /// постоянный отказ (RLS/права) против исчерпания ретраев (сеть).
+  Future<void> _recordWriteFailure(
+    String label,
+    Object error,
+    StackTrace st, {
+    required bool permanent,
+  }) async {
+    try {
+      final cr = FirebaseCrashlytics.instance;
+      await cr.setCustomKey('sb_write_op', label);
+      await cr.setCustomKey('sb_write_permanent', permanent);
+      await cr.recordError(
+        error,
+        st,
+        reason: 'Supabase write failed: $label '
+            '(${permanent ? 'permanent/RLS' : 'retries exhausted'})',
+        fatal: false,
+      );
+    } catch (_) {
+      // Телеметрия не должна влиять на основной поток.
+    }
   }
 
   // ══════════════════════════════════════════════

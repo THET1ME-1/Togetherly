@@ -1336,9 +1336,63 @@ class FirebaseService {
         debugPrint(
           '[STAGE3] $groupId: проба Supabase-чтения не прошла — остаёмся на Firebase',
         );
+        // При новой модели (Supabase — дефолт) непрошедшая проба = Supabase не
+        // отдаёт группу участнику, хотя мы из него читаем → риск «пусто». Лог.
+        unawaited(_recordMigrationIssue(
+          'supabase_probe_not_readable',
+          groupId,
+          null,
+        ));
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('_verifySupabaseReadable($groupId) failed: $e');
+      unawaited(_recordMigrationIssue('supabase_probe_threw', groupId, e, st));
+    }
+  }
+
+  /// Единая точка логирования проблем миграции в Crashlytics с контекстом
+  /// (мигрирует ли юзер, источник чтения группы, groupId). Non-fatal.
+  Future<void> _recordMigrationIssue(
+    String kind,
+    String groupId,
+    Object? error, [
+    StackTrace? st,
+  ]) async {
+    try {
+      final cr = FirebaseCrashlytics.instance;
+      await cr.setCustomKey('mig_user', _mig);
+      await cr.setCustomKey('mig_group', groupId);
+      await cr.setCustomKey(
+        'mig_read_source',
+        _readSb(groupId) ? 'supabase' : 'firebase',
+      );
+      await cr.recordError(
+        error ?? 'migration issue: $kind ($groupId)',
+        st,
+        reason: 'migration: $kind',
+        fatal: false,
+      );
+    } catch (_) {
+      // Телеметрия не должна ломать основной поток.
+    }
+  }
+
+  /// Единая точка логирования проблем авторизации/Supabase-claim в Crashlytics.
+  /// `kind` = google_sign_in / email_password_sign_in / email_link_sign_in /
+  /// silent_session_restore / supabase_role_claim. Non-fatal.
+  Future<void> _recordAuthIssue(String kind, Object error, StackTrace st) async {
+    try {
+      final cr = FirebaseCrashlytics.instance;
+      await cr.setCustomKey('auth_op', kind);
+      await cr.setCustomKey('mig_user', _mig);
+      await cr.recordError(
+        error,
+        st,
+        reason: 'auth: $kind',
+        fatal: false,
+      );
+    } catch (_) {
+      // Телеметрия не должна ломать основной поток.
     }
   }
 
@@ -1530,8 +1584,9 @@ class FirebaseService {
       }
 
       return user;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('signInWithGoogle failed: $e');
+      unawaited(_recordAuthIssue('google_sign_in', e, st));
       rethrow;
     }
   }
@@ -1675,8 +1730,9 @@ class FirebaseService {
           .signInWithEmailAndPassword(email: email, password: password)
           .timeout(const Duration(seconds: 15));
       return userCredential.user;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('signInWithEmailPassword failed: $e');
+      unawaited(_recordAuthIssue('email_password_sign_in', e, st));
       rethrow;
     }
   }
@@ -1727,8 +1783,10 @@ class FirebaseService {
       final userCredential = await _auth.signInWithCredential(credential);
       debugPrint('signInSilently success: ${userCredential.user?.uid}');
       return userCredential.user;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('signInSilently failed: $e');
+      // Тихое восстановление сессии не удалось → юзер «вдруг разлогинен».
+      unawaited(_recordAuthIssue('silent_session_restore', e, st));
       return null;
     }
   }
@@ -2212,8 +2270,9 @@ class FirebaseService {
       }
 
       return user;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('signInWithEmailLink failed: $e');
+      unawaited(_recordAuthIssue('email_link_sign_in', e, st));
       rethrow;
     }
   }
@@ -2351,11 +2410,14 @@ class FirebaseService {
       _supabaseRoleEnsured = true;
       _roleEnsureFailedAt = null;
       debugPrint('[SB] role=authenticated подтверждён в токене');
-    } catch (e) {
+    } catch (e, st) {
       // Запоминаем момент провала → кулдаун в ensureSupabaseRole() не даст
       // дёргать (возможно сломанную) функцию на каждый Supabase-запрос.
       _roleEnsureFailedAt = DateTime.now();
       debugPrint('ensureSupabaseRole failed: $e');
+      // Без claim role=authenticated RLS режет ВСЕ Supabase-записи юзера —
+      // критично для миграции (тихая потеря данных). Логируем.
+      unawaited(_recordAuthIssue('supabase_role_claim', e, st));
     }
   }
 
