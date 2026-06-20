@@ -242,8 +242,10 @@ jobs:
           # userFraction указывать НЕЛЬЗЯ (это взаимоисключающие режимы).
           status: completed
           # «Что нового» Google Play (≤500 символов на язык). Файлы named
-          # whatsnew-<lang>, напр. whatsnew-ru-RU.
-          whatsNewDirectory: distribution/whatsnew
+          # whatsnew-<lang>, напр. whatsnew-ru-RU. ОТДЕЛЬНАЯ папка от RuStore:
+          # у Play жёсткий лимит 500 символов, а RuStore/попап берут полный текст
+          # из distribution/whatsnew (без лимита).
+          whatsNewDirectory: distribution/whatsnew-play
           releaseName: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
 
   # ── Гейт: публикуем в RuStore только если задан ключ API ────────────────────
