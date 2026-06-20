@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart' hide Query;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -53,6 +54,9 @@ class FirebaseService {
     // прошлой сессии). Грузим один раз на старте — набор стабилен в течение
     // сессии, источник чтения не меняется в середине (без ребинда листенеров).
     unawaited(_loadReadSbGroups());
+    // Новая модель: Supabase — дефолт, Firebase — только для пар с персист-
+    // отметкой «партнёр на старой версии». Грузим её на старте (стабильно сессию).
+    unawaited(_loadSessionMixedGroups());
     // Как только появляется авторизованный пользователь (восстановление сессии
     // при старте ИЛИ свежий вход) — гарантируем Supabase-claim role=authenticated.
     // Без него RLS отклоняет все dual-write (см. ensureSupabaseRole).
@@ -135,6 +139,13 @@ class FirebaseService {
   // сборке И бэкфилл (данные+медиа) завершён. Подхватывается на следующем
   // холодном старте (_readSbGroups) — источник чтения стабилен в течение сессии.
   static const _kReadFromSupabase = 'supabase_read_from_v1';
+  // Персист вердикта совместимости пары: '$_kGroupMixedPersist.$groupId' = true,
+  // если на ПРОШЛОЙ сессии compat-резолв увидел партнёра на СТАРОЙ версии.
+  // Новая модель чтения (см. _readSb): Supabase — дефолт для всех (в т.ч. свежих
+  // установок из Google Play), Firebase — ТОЛЬКО для групп с этой отметкой.
+  // Решение фиксируется на старте (источник чтения стабилен в течение сессии,
+  // листенеры не ребиндятся), а связь при подключении лишь обновляет отметку.
+  static const _kGroupMixedPersist = 'supabase_group_mixed_v1';
 
   /// Группы, для которых уже засеян Supabase-счётчик «Я скучаю» из RTDB в этой
   /// сессии (Фаза 1).
@@ -1146,6 +1157,34 @@ class FirebaseService {
   /// без mid-session ребинда листенеров (защита от потери сообщений из рунбука).
   final Set<String> _readSbGroups = {};
 
+  /// Сессионный снапшот «смешанных» групп (партнёр на СТАРОЙ версии по вердикту
+  /// прошлой сессии). Грузится из prefs на старте и НЕ меняется в течение сессии
+  /// (источник чтения стабилен, без mid-session ребинда). Дефолт — пусто, т.е.
+  /// все группы (включая свежие установки) читают Supabase; сюда попадают только
+  /// пары, где партнёр подтверждён старым. См. [_readSb], [_kGroupMixedPersist].
+  final Set<String> _sessionMixedGroups = {};
+
+  /// Подтягивает на старте отметки «партнёр старый» ([_kGroupMixedPersist]).
+  /// Новые/неизвестные группы остаются вне набора → читают Supabase по умолчанию.
+  Future<void> _loadSessionMixedGroups() async {
+    if (!MigrationConfig.stage3ReadFromSupabase) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final prefix = '$_kGroupMixedPersist.';
+      for (final key in prefs.getKeys()) {
+        if (key.startsWith(prefix) && prefs.getBool(key) == true) {
+          _sessionMixedGroups.add(key.substring(prefix.length));
+        }
+      }
+      if (_sessionMixedGroups.isNotEmpty) {
+        debugPrint('[STAGE3] на Firebase (партнёр на старой версии): '
+            '${_sessionMixedGroups.length} групп(ы)');
+      }
+    } catch (e) {
+      debugPrint('_loadSessionMixedGroups failed: $e');
+    }
+  }
+
   /// Подтягивает per-group флаги Stage 3 из prefs (ключи [_kReadFromSupabase]).
   Future<void> _loadReadSbGroups() async {
     if (!MigrationConfig.stage3ReadFromSupabase) return;
@@ -1165,16 +1204,21 @@ class FirebaseService {
     }
   }
 
-  /// Можно ли ЧИТАТЬ эту группу из Supabase (Stage 3). True ТОЛЬКО когда мастер-
-  /// флаг включён, юзер мигрирует и группа была помечена в ПРОШЛОЙ сессии
-  /// (_readSbGroups — оба партнёра на новой сборке + бэкфилл завершён). Иначе
-  /// читаем из Firebase (общий источник, дуал-райт держит его актуальным —
-  /// безопасный дефолт; пустой groupId/per-user чтения никогда не флипаются).
+  /// Можно ли ЧИТАТЬ эту группу из Supabase (Stage 3). НОВАЯ МОДЕЛЬ: Supabase —
+  /// дефолт для всех мигрирующих пользователей (в т.ч. свежих установок из
+  /// Google Play — сразу, без «ждать следующей сессии»). На Firebase откатываемся
+  /// ТОЛЬКО когда compat-резолв прошлой сессии увидел партнёра на СТАРОЙ версии
+  /// (группа в [_sessionMixedGroups]) — тогда оба держатся на Firebase, пока
+  /// партнёр не обновится. Решение стабильно в течение сессии (без mid-session
+  /// ребинда листенеров); связь при подключении лишь обновляет персист-отметку
+  /// для следующего старта. Пустой groupId/per-user чтения никогда не флипаются.
+  /// Запись при этом остаётся дуальной (см. [_writeFb]), пока оба партнёра не
+  /// подтвердят чтение из Supabase — старый партнёр продолжает видеть наши данные.
   bool _readSb(String groupId) =>
       MigrationConfig.stage3ReadFromSupabase &&
       _mig &&
       groupId.isNotEmpty &&
-      _readSbGroups.contains(groupId);
+      !_sessionMixedGroups.contains(groupId);
 
   /// Публичный маршрутизатор чтения для сервисов (ChatService / WidgetService /
   /// HomeWidgetService): читать ли ресурс группы из Supabase. См. [_readSb].
@@ -1396,6 +1440,14 @@ class FirebaseService {
       }
       final wasMixed = _groupMixed[groupId] ?? false;
       _groupMixed[groupId] = !allFresh;
+      // Персистим вердикт для СЛЕДУЮЩЕГО старта: смешанная (партнёр старый) →
+      // следующая сессия читает Firebase; оба на новой → читает Supabase. На
+      // ТЕКУЩУЮ сессию источник чтения не меняем (стабильность, без ребинда).
+      unawaited(
+        SharedPreferences.getInstance()
+            .then((p) => p.setBool('$_kGroupMixedPersist.$groupId', !allFresh))
+            .catchError((_) => false),
+      );
 
       // Оба ли партнёра уже ЧИТАЮТ из Supabase (свежесть маркеров sbRead). Пока
       // не оба — Stage 4 не срезает Firebase-запись (см. [_writeFb]): партнёр,
@@ -4711,11 +4763,20 @@ class FirebaseService {
       File? _compressedTempFile;
       if (!kIsWeb && ['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
         try {
+          // Таймаут обязателен: VideoCompress на части устройств/кодеков виснет
+          // и future НИКОГДА не возвращается (как FlutterImageCompress выше) →
+          // экран добавления воспоминания крутил бы спиннер вечно, видео «не
+          // отражается». 3 минуты — анти-зависание (легитимное сжатие успевает),
+          // по истечении бросаем → catch ниже грузит оригинал.
           final info = await VideoCompress.compressVideo(
             path,
             quality: VideoQuality.HighestQuality,
             deleteOrigin: false,
             includeAudio: true,
+          ).timeout(
+            const Duration(minutes: 3),
+            onTimeout: () =>
+                throw TimeoutException('VideoCompress.compressVideo timed out'),
           );
           if (info?.file != null) {
             _compressedTempFile = info!.file!;
@@ -4732,6 +4793,16 @@ class FirebaseService {
         } catch (e) {
           debugPrint(
             'uploadFile: Video compression failed, uploading original: $e',
+          );
+          // Фиксируем в Crashlytics: сжатие зависло/упало — частая причина жалоб
+          // «своё видео не добавляется». Non-fatal, дальше грузим оригинал.
+          unawaited(
+            FirebaseCrashlytics.instance.recordError(
+              e,
+              null,
+              reason: 'video compress failed → uploading original',
+              fatal: false,
+            ),
           );
           // cancelCompression only on error — calling it after success on some
           // Android devices leaves the native codec spinning and freezes the UI.

@@ -1161,6 +1161,7 @@ abstract class AppStrings {
   String get videoCannotWatchTogether;
   String get videoEmbedBlockedHint;
   String get chooseAnother;
+  String get openOnYoutube;
   String get watchingTogether;
   String get partnerJoined;
   String get waitingForPartner;
@@ -3526,10 +3527,15 @@ class _RuStrings extends AppStrings {
   String get videoCannotWatchTogether => 'Это видео нельзя смотреть вместе';
   @override
   String get videoEmbedBlockedHint =>
-      'Автор ролика запретил воспроизведение вне YouTube. '
-      'Выберите другое видео — большинство роликов работает.';
+      'Это видео нельзя встроить: автор запретил воспроизведение вне YouTube, '
+      'либо у ролика возрастное/региональное ограничение. Если видео не '
+      'открывается только на одном телефоне — обновите на нём «Android System '
+      'WebView» и Chrome в Google Play. Можно открыть ролик прямо на YouTube '
+      'или выбрать другое — большинство работает.';
   @override
   String get chooseAnother => 'Выбрать другое';
+  @override
+  String get openOnYoutube => 'Открыть на YouTube';
   @override
   String get watchingTogether => 'Смотрим вместе';
   @override
@@ -5893,10 +5899,15 @@ class _EnStrings extends AppStrings {
   String get videoCannotWatchTogether => 'This video can\'t be watched together';
   @override
   String get videoEmbedBlockedHint =>
-      'The author disabled playback outside YouTube. '
-      'Pick another video — most of them work.';
+      'This video can\'t be embedded: the author disabled playback outside '
+      'YouTube, or it has an age/region restriction. If it fails on just one '
+      'phone, update "Android System WebView" and Chrome from Google Play on '
+      'that device. You can open it on YouTube directly or pick another — '
+      'most of them work.';
   @override
   String get chooseAnother => 'Choose another';
+  @override
+  String get openOnYoutube => 'Open on YouTube';
   @override
   String get watchingTogether => 'Watching together';
   @override
