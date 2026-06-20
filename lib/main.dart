@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
@@ -220,9 +221,36 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
+  // Crashlytics — перехват ошибок. До этого момента краш-репортинга в проекте не
+  // было вообще, поэтому жалобы из отзывов («приложение вылетает») приходили без
+  // стектрейса и не локализовались. Теперь:
+  //  • FlutterError.onError — синхронные ошибки фреймворка (build/layout/paint);
+  //  • PlatformDispatcher.onError — необработанные асинхронные ошибки (Future/
+  //    Stream), которые иначе просто молча гасились.
+  // В debug — не шлём в Crashlytics, чтобы не засорять консоль production-данными.
+  await FirebaseCrashlytics.instance
+      .setCrashlyticsCollectionEnabled(!kDebugMode);
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    FirebaseCrashlytics.instance.recordFlutterError(details);
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+  // Привязываем UID к отчётам, чтобы видеть, у кого именно падает.
+  unawaited(
+    FirebaseCrashlytics.instance.setUserIdentifier(FirebaseService().uid ?? ''),
+  );
+
   // Supabase — инициализируем рядом с Firebase.
   // Пока credentials не заполнены в MigrationConfig — пропускаем без ошибок.
+  // Оборачиваем в try/catch: Supabase — опциональный слой миграции, и его падение
+  // на старте (нет сети, неверные credentials, отключённый Third-Party Auth) НЕ
+  // должно ронять запуск всего приложения до runApp (это выглядело бы как
+  // «приложение само вылетает»). Firebase-путь продолжает работать.
   if (MigrationConfig.isConfigured) {
+    try {
     await Supabase.initialize(
       url: MigrationConfig.supabaseUrl,
       publishableKey: MigrationConfig.supabasePublishableKey,
@@ -252,6 +280,11 @@ void main() async {
         return await user.getIdToken();
       },
     );
+    } catch (e, st) {
+      debugPrint('Supabase init failed (продолжаем на Firebase): $e');
+      FirebaseCrashlytics.instance
+          .recordError(e, st, reason: 'Supabase.initialize', fatal: false);
+    }
   }
 
   // Google UMP + AdMob — consent должен быть получен ДО инициализации SDK

@@ -22,6 +22,7 @@ import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
@@ -6673,13 +6674,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         final fileName = 'memory_$timestamp.$ext';
         final destination = 'memories/$_groupId/$fileName';
 
-        // Generate and upload thumbnail so the preview card has an image
+        // Generate and upload thumbnail so the preview card has an image.
+        // Таймаут обязателен: VideoCompress.getByteThumbnail на части устройств
+        // виснет и future не возвращается → сохранение воспоминания крутится
+        // вечно. По таймауту возвращаем null → создаём воспоминание без превью
+        // (тайл покажет заглушку с кнопкой play), но НЕ блокируем сохранение.
         try {
           final thumbBytes = await VideoCompress.getByteThumbnail(
             mediaPath,
             quality: 80,
             position: -1,
-          );
+          ).timeout(const Duration(seconds: 30), onTimeout: () => null);
           if (thumbBytes != null) {
             final tempDir = await getTemporaryDirectory();
             final thumbFile =
@@ -6694,12 +6699,30 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           }
         } catch (e) {
           debugPrint('Video thumbnail upload failed: $e');
+          unawaited(
+            FirebaseCrashlytics.instance.recordError(
+              e,
+              null,
+              reason: 'video thumbnail generation/upload failed',
+              fatal: false,
+            ),
+          );
         }
 
         final url = await _fb.uploadFile(mediaPath, destination);
         if (url != null) {
           uploadedVideoUrl = url;
         } else {
+          // Загрузка видео не удалась (таймаут сети / отказ Storage / RLS).
+          // Фиксируем в Crashlytics, чтобы видеть реальную причину по жалобам.
+          unawaited(
+            FirebaseCrashlytics.instance.recordError(
+              'video upload returned null (memories/$_groupId)',
+              null,
+              reason: 'memory video upload failed',
+              fatal: false,
+            ),
+          );
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(

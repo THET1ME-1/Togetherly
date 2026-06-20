@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
@@ -209,6 +210,12 @@ class RewardedAdService {
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         debugPrint('RewardedAd show failed: $error');
+        unawaited(FirebaseCrashlytics.instance.recordError(
+          'AdMob rewarded failed to show: ${error.code} ${error.message}',
+          null,
+          reason: 'admob rewarded show failed',
+          fatal: false,
+        ));
         ad.dispose();
         if (!completer.isCompleted) completer.complete(false);
       },
@@ -219,7 +226,14 @@ class RewardedAdService {
         earned = true;
       },
     );
-    return completer.future;
+    final result = await completer.future;
+    if (!result) {
+      // Закрыл рекламу до награды (или SSV не сработал) — коинов не будет.
+      // Breadcrumb (не ошибка: чаще это просто ранний выход пользователя).
+      unawaited(FirebaseCrashlytics.instance
+          .log('ad_reward: AdMob dismissed without earned reward'));
+    }
+    return result;
   }
 
   Future<bool> _showYandex(yandex.RewardedAd ad) async {
@@ -264,6 +278,16 @@ class RewardedAdService {
     if (grantFuture != null) {
       await grantFuture;
     }
+    if (!earned) {
+      // Реклама показана и закрыта, но onRewarded так и не пришёл → грант не
+      // вызывался, коинов нет. Это ядро жалоб «посмотрел рекламу — монет нет».
+      unawaited(FirebaseCrashlytics.instance.recordError(
+        'Yandex rewarded shown but no reward earned (onRewarded missing)',
+        null,
+        reason: 'rewarded ad shown without reward callback',
+        fatal: false,
+      ));
+    }
     return earned;
   }
 
@@ -272,6 +296,7 @@ class RewardedAdService {
   /// [lastServerCoins]/[lastRewardGranted]/[lastRateLimited]: вызывающий
   /// применяет точный баланс и не рисует фейк при лимите.
   Future<void> _grantYandexReward() async {
+    final cr = FirebaseCrashlytics.instance;
     try {
       final res = await FirebaseService().callGrantAdReward();
       if (res != null) {
@@ -280,16 +305,43 @@ class RewardedAdService {
         final c = res['coins'];
         if (c is num) _lastServerCoins = c.toInt();
         if (_lastRateLimited) {
+          // Лимит 3/сутки — это НЕ баг, поэтому breadcrumb, а не recordError.
+          // Но в панели видно «дошёл до лимита» → отличаем от реального отказа.
           debugPrint('Yandex reward: daily limit reached, not granted');
+          unawaited(cr.log('ad_reward: rate-limited (daily cap), coins=$c'));
+        } else if (!_lastRewardGranted) {
+          // ok=false без rateLimited — неожиданный отказ начисления.
+          unawaited(cr.recordError(
+            'grantAdReward ok=false (not rate-limited): $res',
+            null,
+            reason: 'ad reward not granted (server said no)',
+            fatal: false,
+          ));
+        } else {
+          unawaited(cr.log('ad_reward: granted +3, coins=$c'));
         }
       } else {
         // null = функция не ответила. Самая частая причина — grantAdReward
         // не задеплоена: `firebase deploy --only functions:grantAdReward`.
+        // Это и есть «посмотрел рекламу — коинов нет». Фиксируем как ошибку.
         debugPrint('grantAdReward returned null '
             '(not deployed / offline?) — coins not credited');
+        unawaited(cr.recordError(
+          'grantAdReward returned null — coins NOT credited '
+          '(function not deployed / offline?)',
+          null,
+          reason: 'ad reward grant call returned null',
+          fatal: false,
+        ));
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('grantAdReward (Yandex) failed: $e');
+      unawaited(cr.recordError(
+        e,
+        st,
+        reason: 'ad reward grant call threw',
+        fatal: false,
+      ));
     }
   }
 

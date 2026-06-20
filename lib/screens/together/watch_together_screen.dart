@@ -1,6 +1,12 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart'
+    show InAppWebViewController;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
@@ -90,6 +96,15 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   /// сайта/приложения YouTube — показываем понятное сообщение.
   bool _embedError = false;
 
+  // Сторож готовности плеера: если YouTube-плеер не вышел в ready за окно ниже —
+  // почти наверняка WebView/встраивание не поднялось (чёрный экран без явной
+  // ошибки 101/150). Показываем тот же fallback-оверлей и логируем в Crashlytics.
+  Timer? _readyTimeout;
+  static const Duration _readyTimeoutWindow = Duration(seconds: 12);
+  // Лог отказа плеера шлём один раз за сеанс (и embed-error, и timeout — это про
+  // одну поломку; не хотим дублей в панели).
+  bool _failureLogged = false;
+
   // Эхо-подавление по времени, а не флагом: seekTo/play/pause у плеера
   // применяются АСИНХРОННО (JS round-trip), и их событие приходит уже после
   // того, как синхронный флаг сброшен. Поэтому после применения удалённого
@@ -118,6 +133,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
       ),
     )..addListener(_onPlayerEvent);
 
+    _readyTimeout = Timer(_readyTimeoutWindow, _onReadyTimeout);
     _bootstrap();
   }
 
@@ -230,12 +246,24 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     if (_ended) return;
     final v = _controller.value;
 
+    // Плеер вышел в ready → снимаем сторож таймаута (всё нормально загрузилось).
+    if (v.isReady) {
+      _readyTimeout?.cancel();
+      _readyTimeout = null;
+    }
+
     // Ошибки встраивания YouTube: 101 и 150 — владелец запретил
     // воспроизведение вне youtube.com. 100 — видео удалено/приватное.
     final embedBlocked =
         v.errorCode == 101 || v.errorCode == 150 || v.errorCode == 100;
     if (embedBlocked != _embedError && mounted) {
       setState(() => _embedError = embedBlocked);
+      if (embedBlocked) {
+        _readyTimeout?.cancel();
+        _readyTimeout = null;
+        // Логируем с телеметрией устройства/WebView (см. _logPlayerFailure).
+        unawaited(_logPlayerFailure('embed_error', v.errorCode));
+      }
     }
 
     // Во время буферизации/догрузки YouTube кратко отдаёт isPlaying=false и
@@ -395,6 +423,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   @override
   void dispose() {
     _heartbeat?.cancel();
+    _readyTimeout?.cancel();
     _sessionSub?.cancel();
     _presenceSub?.cancel();
     _chatSub?.cancel();
@@ -471,20 +500,97 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
                 color: Colors.white60, fontSize: 13, height: 1.3),
           ),
           const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: () => _exit(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _openCurrentOnYoutube,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: Text(LocaleService.current.openOnYoutube),
               ),
-            ),
-            icon: const Icon(Icons.search_rounded, size: 18),
-            label: Text(LocaleService.current.chooseAnother),
+              ElevatedButton.icon(
+                onPressed: () => _exit(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.search_rounded, size: 18),
+                label: Text(LocaleService.current.chooseAnother),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  /// Открыть текущий ролик в приложении/на сайте YouTube — запасной выход, когда
+  /// встраивание заблокировано на этом устройстве (регион/возраст/старый WebView).
+  Future<void> _openCurrentOnYoutube() async {
+    final id = _currentMediaId;
+    if (id.isEmpty) return;
+    final uri = Uri.parse('https://www.youtube.com/watch?v=$id');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Плеер не поднялся за окно ожидания. На практике это «чёрный экран» без
+  /// кода 101/150 — встроенный YouTube не запустился (старый/выключенный
+  /// WebView, VPN/блокировщик, нет сервисов Google). Показываем тот же
+  /// fallback-оверлей с «Открыть на YouTube» и логируем телеметрию.
+  void _onReadyTimeout() {
+    _readyTimeout = null;
+    if (_ended || !mounted) return;
+    if (_controller.value.isReady) return; // успел — ничего не делаем
+    setState(() => _embedError = true);
+    unawaited(
+      _logPlayerFailure('player_not_ready_timeout', _controller.value.errorCode),
+    );
+  }
+
+  /// Единая точка логирования отказа co-watch плеера в Crashlytics — с моделью
+  /// устройства и ВЕРСИЕЙ системного WebView (её Crashlytics сам не собирает, а
+  /// именно она — главная подозреваемая). Шлём один раз за сеанс. Лог не должен
+  /// влиять на UI, поэтому всё в try/catch и fire-and-forget.
+  Future<void> _logPlayerFailure(String kind, int? errorCode) async {
+    if (_failureLogged) return;
+    _failureLogged = true;
+    final cr = FirebaseCrashlytics.instance;
+    try {
+      await cr.setCustomKey('cw_failure_kind', kind);
+      await cr.setCustomKey('cw_yt_error_code', errorCode ?? -1);
+      await cr.setCustomKey('cw_is_host', widget.isHost);
+      await cr.setCustomKey('cw_video_id', _currentMediaId);
+      if (Platform.isAndroid) {
+        final wv = await InAppWebViewController.getCurrentWebViewPackage();
+        await cr.setCustomKey('cw_webview_pkg', wv?.packageName ?? 'unknown');
+        await cr.setCustomKey(
+          'cw_webview_version',
+          wv?.versionName ?? 'unknown',
+        );
+        final dev = await DeviceInfoPlugin().androidInfo;
+        await cr.setCustomKey('cw_device', '${dev.manufacturer} ${dev.model}');
+        await cr.setCustomKey('cw_android_sdk', dev.version.sdkInt);
+      }
+    } catch (_) {
+      // Сбор телеметрии не критичен — основной recordError ниже всё равно уйдёт.
+    }
+    await cr.recordError(
+      'watch_together player failure: $kind (yt code=$errorCode)',
+      null,
+      reason: 'co-watch player failure',
+      fatal: false,
     );
   }
 

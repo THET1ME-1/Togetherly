@@ -17,6 +17,7 @@ dependencies:
   google_sign_in: ^6.2.2
   firebase_core: ^3.12.1
   firebase_auth: ^5.5.1
+  firebase_crashlytics: ^4.3.0
   cloud_firestore: ^5.6.5
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.1.4
@@ -51,6 +52,10 @@ dependencies:
   latlong2: ^0.9.1
   exif: ^3.3.0
   youtube_player_flutter: ^9.1.1
+  # Транзитивно тянется youtube_player_flutter; объявляем явно, т.к. напрямую
+  # зовём InAppWebViewController.getCurrentWebViewPackage() (версия WebView в
+  # телеметрию отказов co-watch плеера).
+  flutter_inappwebview: ^6.1.5
   timezone: ^0.11.0
   package_info_plus: ^8.0.0
   device_info_plus: ^11.1.0
