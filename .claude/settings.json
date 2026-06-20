@@ -126,10 +126,14 @@
       "PowerShell(git add lib/services/firebase_service.dart)",
       "PowerShell(git push origin main 2>&1; Write-Output \"=== EXIT $LASTEXITCODE ===\"; git status -sb | Select-Object -First 1)",
       "PowerShell(flutter analyze lib/services/supabase_service.dart)",
-      "PowerShell(flutter analyze lib/services/firebase_service.dart lib/main.dart)"
+      "PowerShell(flutter analyze lib/services/firebase_service.dart lib/main.dart)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('C:/Users/Alex/.claude/settings.json','utf8'\\)\\); console.log\\('valid JSON; defaultMode =', JSON.parse\\(require\\('fs'\\).readFileSync\\('C:/Users/Alex/.claude/settings.json','utf8'\\)\\).permissions.defaultMode\\)\")"
     ],
     "additionalDirectories": [
-      "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory"
+      "c:\\Users\\Alex\\.claude\\projects\\c--Users-Alex-Documents-GitHub-love-app\\memory",
+      "C:\\Users\\Alex\\.claude"
     ]
   }
 }
