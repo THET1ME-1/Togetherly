@@ -3,6 +3,7 @@ import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../models/user_data.dart';
 import '../services/firebase_service.dart';
@@ -338,11 +339,13 @@ class _SetupScreenState extends State<SetupScreen>
 
   Future<void> _pickAvatar() async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-      maxWidth: 1024,
-      maxHeight: 1024,
+    final XFile? image = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      ),
     );
 
     if (image == null || !mounted) return;

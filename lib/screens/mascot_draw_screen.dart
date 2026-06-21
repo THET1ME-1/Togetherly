@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 
 import '../models/draw_stroke.dart';
 import '../services/locale_service.dart';
@@ -791,7 +792,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   // ── Reference image ───────────────────────────────────────────────────────
 
   Future<void> _pickRefImage() async {
-    final xFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final xFile = await safePick(
+      () => ImagePicker().pickImage(source: ImageSource.gallery),
+    );
     if (xFile == null) return;
     final bytes = await xFile.readAsBytes();
     // Always use _loadRefImage so the old _refImage is never confused

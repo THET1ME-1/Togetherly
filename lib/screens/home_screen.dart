@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/photo_crop.dart';
+import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
@@ -1421,11 +1422,30 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
 
     final picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-      maxWidth: 1920,
-      maxHeight: 1920,
+    // Отказ в доступе к камере раньше улетал в Crashlytics как Fatal. safePick
+    // глотает сбой пикера; onError показывает подсказку про настройки.
+    final XFile? photo = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      ),
+      onError: (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LocaleService.current.cameraPermissionDenied),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      },
     );
     if (photo == null || !mounted) return;
 

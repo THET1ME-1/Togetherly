@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../utils/safe_pick.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/pair_data.dart';
@@ -83,7 +84,9 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
 
   Future<void> _pickPolaroidPhoto() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
+    final picked = await safePick(
+      () => picker.pickImage(source: ImageSource.gallery),
+    );
     if (picked != null && mounted) {
       setState(() {
         _polaroidImagePath = picked.path;

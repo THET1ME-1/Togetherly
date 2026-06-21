@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../logic/photo_day_widget_logic.dart';
 import '../models/pair_data.dart';
@@ -4568,7 +4569,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (source == null) return;
 
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 85);
+    final picked = await safePick(
+      () => picker.pickImage(source: source, imageQuality: 85),
+    );
     if (picked == null) return;
 
     setState(() {
@@ -4873,11 +4876,13 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (source == null || !mounted) return;
 
     final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1920,
-      maxHeight: 1920,
+    final file = await safePick(
+      () => picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      ),
     );
     if (file == null || !mounted) return;
 

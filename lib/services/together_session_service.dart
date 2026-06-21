@@ -164,7 +164,9 @@ class TogetherSessionService {
     // на disconnect, чтобы случайный обрыв у одного не выкидывал второго.
     final presence = _sessionRef(pairId).child('presence').child(_uid);
     await presence.set(true);
-    presence.onDisconnect().remove();
+    // .ignore() — отказ onDisconnect (напр. permission-denied) иначе улетает в
+    // глобальный обработчик как краш.
+    presence.onDisconnect().remove().ignore();
   }
 
   /// Регистрирует текущего пользователя в members сеанса — нужно для
@@ -187,7 +189,9 @@ class TogetherSessionService {
     await ensureMember(pairId);
     final presence = _sessionRef(pairId).child('presence').child(_uid);
     await presence.set(true);
-    presence.onDisconnect().remove();
+    // .ignore() — отказ onDisconnect (напр. permission-denied) иначе улетает в
+    // глобальный обработчик как краш.
+    presence.onDisconnect().remove().ignore();
   }
 
   /// Поток присутствия: множество uid, кто сейчас в сеансе. Отдельный листенер

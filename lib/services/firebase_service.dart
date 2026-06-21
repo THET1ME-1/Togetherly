@@ -4897,12 +4897,21 @@ class FirebaseService {
       final uploadTask = ref.putFile(fileToUpload, metadata);
 
       // Monitor upload progress
-      uploadTask.snapshotEvents.listen((event) {
-        final progress = event.bytesTransferred / event.totalBytes;
-        debugPrint(
-          'uploadFile: Progress ${(progress * 100).toStringAsFixed(1)}%',
-        );
-      });
+      uploadTask.snapshotEvents.listen(
+        (event) {
+          final progress = event.bytesTransferred / event.totalBytes;
+          debugPrint(
+            'uploadFile: Progress ${(progress * 100).toStringAsFixed(1)}%',
+          );
+        },
+        // Поток snapshotEvents отдельно эмитит ошибку при провале загрузки
+        // (например firebase_storage/unauthorized). Без onError она становится
+        // НЕОБРАБОТАННОЙ async-ошибкой → PlatformDispatcher.onError → Fatal-краш,
+        // хотя сама загрузка уже обработана внешним catch (вернёт null). Глушим
+        // здесь — ошибку обрабатывает await uploadTask ниже.
+        onError: (Object e) =>
+            debugPrint('uploadFile: progress stream error: $e'),
+      );
 
       // Таймаут: зависшая (без ошибки) загрузка на плохой сети иначе крутила бы
       // спиннер вечно. По истечении — отменяем задачу и пробрасываем исключение

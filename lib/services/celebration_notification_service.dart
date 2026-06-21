@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../utils/notification_permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -143,7 +144,8 @@ class CelebrationNotificationService {
 
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.requestNotificationsPermission();
+    // Общий сериализатор: не падаем на параллельном запросе (permissionRequestInProgress).
+    await requestNotificationPermissionSafely(androidPlugin);
 
     final s = LocaleService.current;
 

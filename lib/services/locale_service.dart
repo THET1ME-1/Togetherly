@@ -654,6 +654,7 @@ abstract class AppStrings {
   String failedSelectVideo(String e);
   String get locationServicesDisabled;
   String get locationPermissionDenied;
+  String get cameraPermissionDenied;
   String get failedGetLocation;
   String get tapToSelectPhotos;
   String get tapToSelectVideo;
@@ -2418,6 +2419,9 @@ class _RuStrings extends AppStrings {
   String get locationServicesDisabled => 'Геолокация отключена';
   @override
   String get locationPermissionDenied => 'Доступ к геолокации запрещён';
+  @override
+  String get cameraPermissionDenied =>
+      'Нет доступа к камере. Разрешите его в настройках приложения.';
   @override
   String get failedGetLocation => 'Не удалось определить местоположение';
   @override
@@ -4835,6 +4839,9 @@ class _EnStrings extends AppStrings {
   String get locationServicesDisabled => 'Location services are disabled';
   @override
   String get locationPermissionDenied => 'Location permission denied';
+  @override
+  String get cameraPermissionDenied =>
+      'No camera access. Enable it in the app settings.';
   @override
   String get failedGetLocation => 'Failed to get location';
   @override

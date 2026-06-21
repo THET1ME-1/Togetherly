@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../utils/notification_permission.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -96,7 +97,7 @@ class MascotInactivityNotificationService {
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
-      await androidPlugin?.requestNotificationsPermission();
+      await requestNotificationPermissionSafely(androidPlugin);
 
       final scheduledAt = tz.TZDateTime.now(tz.local).add(delay);
 

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
@@ -913,10 +914,12 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!confirmed) return;
 
     // Сначала выбираем фото — если пользователь отменит, списания не будет.
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1600,
+    final picked = await safePick(
+      () => ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1600,
+      ),
     );
     if (picked == null) return;
 
