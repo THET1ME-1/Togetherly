@@ -76,10 +76,14 @@ def _headers(token: str) -> dict:
 
 
 def create_version(token: str, package: str, whatsnew: str) -> int:
+    # publishType=INSTANTLY → версия публикуется АВТОМАТИЧЕСКИ сразу после
+    # прохождения модерации. С MANUAL версия проходила модерацию, но зависала
+    # в «готова к публикации» и требовала ручного нажатия «Опубликовать» в
+    # консоли — снаружи выглядело как «сборка по тегу не доходит до публикации».
     resp = requests.post(
         f"{API}/public/v1/application/{package}/version",
         headers={**_headers(token), "Content-Type": "application/json"},
-        json={"whatsNew": whatsnew, "publishType": "MANUAL"},
+        json={"whatsNew": whatsnew, "publishType": "INSTANTLY"},
         timeout=30,
     )
     resp.raise_for_status()

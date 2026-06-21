@@ -264,6 +264,13 @@ class LiveLocationService {
           notificationText: LocaleService.current.liveLocationServiceText,
           enableWakeLock: true,
           setOngoing: false,
+          // Та же монохромная иконка, что у всех уведомлений приложения
+          // (FCM/локальные). Без неё geolocator ставит свой дефолт — отсюда
+          // была «не та» иконка на уведомлении.
+          notificationIcon: const AndroidResource(
+            name: 'ic_notification',
+            defType: 'drawable',
+          ),
         ),
       );
     }
