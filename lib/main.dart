@@ -292,15 +292,28 @@ void main() async {
       // ВАЖНО: работает ТОЛЬКО если в панели Supabase включён Third-Party Auth
       // → Firebase. Иначе токен отвергается и все Supabase-вызовы падают.
       accessToken: () async {
-        // Холодный старт: Firebase Auth восстанавливает сессию асинхронно. Ждём
-        // прикрепления личности (или короткий грейс для разлогиненных), иначе
-        // первые запросы уходят анонимно (currentUser ещё null) → RLS их
-        // отбивает. После восстановления authReady уже завершён → мгновенно.
-        try {
-          await FirebaseService().authReady.timeout(const Duration(seconds: 3));
-        } catch (_) {}
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return null;
+        // Быстрый путь: сессия уже поднята (после первого успеха — мгновенно).
+        var user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          // Сессия ещё не прикреплена. Раньше здесь ждали authReady лишь 3 сек и
+          // при null возвращали анонимный токен — но authReady завершается и по
+          // 2-сек грейсу для гостя, так что у зарегистрированного аккаунта на
+          // холодном старте (особенно после обновления) запрос уходил анонимно →
+          // RLS отдаёт 0 строк → «всё сбросилось». Поэтому теперь: для
+          // ЗАРЕГИСТРИРОВАННОГО локально аккаунта дожидаемся восстановления
+          // личности, а не читаем анонимно. Настоящий гость → null сразу.
+          final prefs = await SharedPreferences.getInstance();
+          final registered = prefs.getBool('isRegistered') ?? false;
+          if (!registered) return null;
+          user = await FirebaseService()
+              .awaitRestoredUser(const Duration(seconds: 15));
+          if (user == null) {
+            // Восстановить не удалось — лучше не отдавать анонимный токен (пустой
+            // экран). Бросаем: supabase_flutter повторит колбэк на следующем
+            // запросе, к тому времени сессия обычно уже поднимется.
+            throw StateError('auth session not ready');
+          }
+        }
         // Перед самым первым запросом сессии дожидаемся, чтобы в токен попал
         // claim role=authenticated. Без него Supabase даёт роль anon и RLS
         // отбивает все dual-write (42501). Колбэк зовётся перед каждым запросом
