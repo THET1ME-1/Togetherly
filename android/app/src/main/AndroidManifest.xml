@@ -16,8 +16,13 @@
     <!-- Permissions для геолокации -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Фоновый шеринг локации с партнёром (карта «где мы») -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Карта «где мы»: шеринг локации с партнёром идёт через foreground-сервис
+         (FOREGROUND_SERVICE_LOCATION) с постоянным уведомлением. Пока сервис
+         активен, приложение считается «in use» и получает локацию в фоне БЕЗ
+         ACCESS_BACKGROUND_LOCATION. Это разрешение намеренно НЕ объявляем, чтобы
+         не проходить декларацию фоновой геолокации в Google Play (форма+видео).
+         Вернуть только если понадобится headless-автозапуск (напр. после ребута
+         без открытия приложения) — тогда нужен boot-receiver и декларация. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Переопределяем неявные требования GPS, чтобы не блокировать планшеты и Chromebook -->
