@@ -107,7 +107,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
       _fitBoth();
     });
     if (_myUid.isNotEmpty) {
-      _meSub = svc.watchPartner(widget.pairId, _myUid).listen((p) {
+      _meSub = svc.watchSelf(widget.pairId, widget.partnerUid).listen((p) {
         if (!mounted) return;
         setState(() => _me = p);
         _fitBoth();
@@ -148,8 +148,11 @@ class _LiveMapCardState extends State<LiveMapCard> {
   }
 
   Future<void> _enableSharing() async {
-    final ok = await LiveLocationService.instance
-        .setSharingEnabled(true, pairId: widget.pairId);
+    final ok = await LiveLocationService.instance.setSharingEnabled(
+      true,
+      pairId: widget.pairId,
+      partnerUid: widget.partnerUid,
+    );
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(LocaleService.current.liveMapPermissionDenied)),
