@@ -225,6 +225,42 @@ class FirebaseService {
     if (!_authReady.isCompleted) _authReady.complete();
   }
 
+  // Тихий вход пробуем не чаще одного раза за процесс (внутри awaitRestoredUser).
+  bool _silentRestoreTried = false;
+
+  /// Дожидается ПРИКРЕПЛЕНИЯ авторизованного пользователя — в отличие от
+  /// [authReady], который завершается и по 2-сек грейсу для гостя (тогда сессия
+  /// зарегистрированного аккаунта может быть ещё НЕ восстановлена). Firebase SDK
+  /// поднимает `currentUser` с диска асинхронно на холодном старте, поэтому здесь
+  /// опрашиваем именно его. Если за грейс сессия не появилась — пробуем тихий
+  /// вход (Google) один раз. Возвращает user или null по истечении [budget].
+  ///
+  /// КРИТИЧНО для Supabase: зарегистрированный юзер НИКОГДА не должен читать
+  /// анонимно — анонимный запрос проходит RLS как 0 строк = пустой экран
+  /// («всё сбросилось»). Лучше короткая пауза на первом запросе холодного
+  /// старта, чем пустые данные.
+  Future<User?> awaitRestoredUser(Duration budget) async {
+    var user = _auth.currentUser;
+    if (user != null) return user;
+    final sw = Stopwatch()..start();
+    while (sw.elapsed < budget) {
+      user = _auth.currentUser;
+      if (user != null) return user;
+      // Сессия не поднялась за 2 сек — возможно, нужен тихий вход (Google).
+      // Для email/password сессия восстанавливается SDK сама — опрос её поймает.
+      if (!_silentRestoreTried && sw.elapsed > const Duration(seconds: 2)) {
+        _silentRestoreTried = true;
+        try {
+          await signInSilently();
+        } catch (_) {}
+        user = _auth.currentUser;
+        if (user != null) return user;
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    return _auth.currentUser;
+  }
+
   /// Полный миграционный проход для группы: сначала бэкфилл исторических ДАННЫХ
   /// (профиль/группа/воспоминания/настроения/чат), затем медиафайлы.
   ///
