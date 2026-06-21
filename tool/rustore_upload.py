@@ -50,9 +50,11 @@ def _load_private_key(pem: str):
 def get_token(key_id: str, private_key_pem: str) -> str:
     """Авторизация: подпись (keyId + timestamp) ключом по SHA512withRSA."""
     key = _load_private_key(private_key_pem)
-    # RuStore ждёт ISO-8601 с миллисекундами и смещением, напр. 2024-01-01T00:00:00.000+0000
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + \
-        f"{datetime.now(timezone.utc).microsecond // 1000:03d}+0000"
+    # RuStore парсит timestamp как ISO-8601 OffsetDateTime: миллисекунды и
+    # смещение ЧЕРЕЗ ДВОЕТОЧИЕ (напр. 2024-01-01T00:00:00.123+00:00). Прежний
+    # формат «+0000» (без двоеточия) сервер не парсил → 400 Bad Request на
+    # /public/auth, и публикация падала на самом первом шаге.
+    ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     message = (key_id + ts).encode()
     signature = base64.b64encode(
         key.sign(message, padding.PKCS1v15(), hashes.SHA512())
@@ -63,7 +65,13 @@ def get_token(key_id: str, private_key_pem: str) -> str:
         json={"keyId": key_id, "timestamp": ts, "signature": signature},
         timeout=30,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        # Тело ответа RuStore содержит причину (формат timestamp, подпись,
+        # ключ). raise_for_status его прятал — падение выглядело «немым».
+        sys.exit(
+            f"RuStore auth {resp.status_code} на /public/auth: {resp.text}\n"
+            f"(отправленный timestamp={ts})"
+        )
     data = resp.json()
     token = (data.get("body") or {}).get("jwe")
     if not token:
