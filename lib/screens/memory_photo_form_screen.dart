@@ -92,7 +92,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   Future<void> _pickMedia() async {
     try {
       final picked = await ImagePicker().pickMultipleMedia();
-      if (picked.isEmpty) return;
+      if (picked.isEmpty || !mounted) return;
       setState(() => _media = [..._media, ...picked]);
       if (_lat == null) {
         final firstPhoto =

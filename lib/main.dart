@@ -23,6 +23,7 @@ import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/firebase_service.dart';
 import 'services/catalog_service.dart';
+import 'services/live_location_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
@@ -388,6 +389,10 @@ void main() async {
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
+
+  // Восстанавливаем флаг шеринга геопозиции (карта «Где мы»). Сам трекинг
+  // стартует из home_screen после привязки к группе (resumeIfEnabled).
+  await LiveLocationService.instance.init();
 
   // Выбранный пак настроений (локальный выбор, как язык) — грузим заранее,
   // чтобы пикер сразу открывался на нужном наборе без мигания.

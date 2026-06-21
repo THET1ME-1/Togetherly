@@ -185,6 +185,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return GestureDetector(
       onTap: () async {
         await pair.manager.switchToSolo();
+        if (!mounted) return;
         _resetCodeInput();
         setState(() {});
       },
@@ -229,6 +230,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return GestureDetector(
       onTap: () async {
         await pair.manager.switchToConnection(index);
+        if (!mounted) return;
         _resetCodeInput();
         setState(() {});
       },
@@ -2055,8 +2057,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                       await pair.deleteCustomRelationshipType(
                                         entry['id'] ?? '',
                                       );
-                                      setDialogState(() {});
-                                      setState(() {});
+                                      // await мог размонтировать диалог/экран.
+                                      if (ctx.mounted) setDialogState(() {});
+                                      if (mounted) setState(() {});
                                     },
                                     child: Icon(
                                       Icons.delete_outline,
@@ -2320,6 +2323,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           customLabel: customLabel,
           customEmoji: customEmoji,
         );
+        if (!mounted) return;
         Navigator.of(context).pop();
         _resetCodeInput();
         setState(() {});
@@ -2414,7 +2418,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               onPressed: () async {
                 await pair.clearNickname(member.uid);
                 if (ctx.mounted) Navigator.of(ctx).pop();
-                setState(() {});
+                if (mounted) setState(() {});
               },
               child: Text(
                 LocaleService.current.resetNickname,
@@ -2429,7 +2433,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             onPressed: () async {
               await pair.setNickname(member.uid, controller.text);
               if (ctx.mounted) Navigator.of(ctx).pop();
-              setState(() {});
+              if (mounted) setState(() {});
             },
             child: Text(
               LocaleService.current.save,

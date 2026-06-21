@@ -1275,7 +1275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           themeIndex: widget.userData.themeId,
         );
 
-        setState(() {});
+        if (mounted) setState(() {});
       }
     }
   }
@@ -2530,14 +2530,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         await launchUrl(androidUri);
                       } catch (_) {
                         // fallback: open general app settings
-                        await launchUrl(
-                          Uri.parse(
-                            'intent:#Intent;'
-                            'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
-                            'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
-                            'end',
-                          ),
-                        );
+                        try {
+                          await launchUrl(
+                            Uri.parse(
+                              'intent:#Intent;'
+                              'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
+                              'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+                              'end',
+                            ),
+                          );
+                        } catch (e) {
+                          // На некоторых прошивках нет Activity ни для одного из
+                          // этих интентов — раньше падало в Crashlytics. Не падаем.
+                          debugPrint('Open app settings failed: $e');
+                        }
                       }
                     } else {
                       final iosUri = Uri.parse('app-settings:');
@@ -4247,7 +4253,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ? null
                                 : () async {
                                     await widget.userData.setBadgeIcon(null);
-                                    setSheet(() {});
+                                    // Шторка могла закрыться за время await.
+                                    if (ctx.mounted) setSheet(() {});
                                     if (mounted) setState(() {});
                                   },
                           ),
@@ -4282,7 +4289,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       await widget.userData.setBadgeIcon(icon.id);
                                     }
                                   }
-                                  setSheet(() {});
+                                  // После await шторка могла закрыться — setSheet
+                                  // на размонтированном StatefulBuilder иначе
+                                  // падает (_element! == null внутри setState).
+                                  if (ctx.mounted) setSheet(() {});
                                   if (mounted) setState(() {});
                                 },
                               );

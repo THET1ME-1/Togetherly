@@ -198,6 +198,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           perm == LocationPermission.deniedForever) return;
       final pos = await Geolocator.getCurrentPosition();
       final loc = LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
       setState(() {
         _selected = loc;
         _showSugg = false;

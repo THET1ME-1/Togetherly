@@ -557,7 +557,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _toggleSavePhotoAsMemory(bool value) async {
     final hws = HomeWidgetService.instance;
     await hws.setPhotoDaySaveMemory(_pair.pairId, value);
-    setState(() => _savePhotoAsMemory = value);
+    if (mounted) setState(() => _savePhotoAsMemory = value);
   }
 
   String? get _partnerSharedPreviewPath {
@@ -603,7 +603,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _toggleLockScreenMood(bool value) async {
     final hws = HomeWidgetService.instance;
     await hws.setLockScreenMoodEnabled(value);
-    setState(() => _lockScreenMoodEnabled = value);
+    if (mounted) setState(() => _lockScreenMoodEnabled = value);
     await _syncLockScreenMoodWidget(value);
   }
 
@@ -880,7 +880,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _selectWidgetTimer(TimerItem timer) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_widgetTimerKey, timer.id);
-    setState(() => _widgetTimerId = timer.id);
+    if (mounted) setState(() => _widgetTimerId = timer.id);
     await HomeWidgetService.instance.syncTimer(timer, groupId: _pair.pairId);
   }
 
@@ -4572,7 +4572,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final picked = await safePick(
       () => picker.pickImage(source: source, imageQuality: 85),
     );
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
 
     setState(() {
       final paths = List<String>.from(_photoGridPaths);

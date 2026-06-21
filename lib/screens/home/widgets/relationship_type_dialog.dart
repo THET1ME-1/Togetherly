@@ -140,7 +140,8 @@ void showRelationshipTypeDialog({
                             await pairData.deleteCustomRelationshipType(
                               entry['id'] ?? '',
                             );
-                            setDialogState(() {});
+                            // Диалог мог закрыться за время await.
+                            if (ctx.mounted) setDialogState(() {});
                             onStateChanged();
                           },
                         ),

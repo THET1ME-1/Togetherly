@@ -58,10 +58,18 @@
 	
 	<!-- Permissions для геолокации -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need your location to add location-based memories</string>
+	<string>We use your location to add location-based memories and to share your live position on the map with your partner.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>We need your location to add location-based memories</string>
-	
+	<string>We use your location in the background to keep your live position on the shared map up to date for your partner.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We use your location in the background to keep your live position on the shared map up to date for your partner.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 	<!-- Permissions для камеры (если будет добавлено позже) -->
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to take photos for your memories</string>

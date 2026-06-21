@@ -1225,6 +1225,28 @@ abstract class AppStrings {
   String get chatBgSaveFailed;
   String get timeFormatHint;
   String get bookTitleLanguageHint;
+
+  // ── Live location map ──
+  String get liveMapTitle;
+  String get liveMapEnableCta;
+  String get liveMapEnableHint;
+  String get liveMapPermissionDenied;
+  String get liveMapWaitingPartner;
+  String get liveMapYou;
+  String get liveMapCenterMe;
+  String get liveMapShowBoth;
+  String get liveMapOpenFull;
+  String get liveMapNotPaired;
+  String get liveLocationServiceTitle;
+  String get liveLocationServiceText;
+  String get liveLocationJustNow;
+  String liveLocationAgo(String value);
+  String get unitCm;
+  String get unitM;
+  String get unitKm;
+  String get unitMinShort;
+  String get unitHourShort;
+  String get unitDayShort;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3643,6 +3665,50 @@ class _RuStrings extends AppStrings {
     }
     return 'воспоминаний';
   }
+
+  // ── Live location map ──
+  @override
+  String get liveMapTitle => 'Где мы';
+  @override
+  String get liveMapEnableCta => 'Показывать мою геопозицию';
+  @override
+  String get liveMapEnableHint =>
+      'Включите, чтобы видеть друг друга на карте в реальном времени';
+  @override
+  String get liveMapPermissionDenied =>
+      'Нет доступа к геолокации. Разрешите его в настройках телефона.';
+  @override
+  String get liveMapWaitingPartner => 'Ждём геопозицию партнёра…';
+  @override
+  String get liveMapYou => 'Вы';
+  @override
+  String get liveMapCenterMe => 'Ко мне';
+  @override
+  String get liveMapShowBoth => 'Показать обоих';
+  @override
+  String get liveMapOpenFull => 'Открыть карту';
+  @override
+  String get liveMapNotPaired => 'Подключите партнёра, чтобы видеть карту';
+  @override
+  String get liveLocationServiceTitle => 'Геопозиция включена';
+  @override
+  String get liveLocationServiceText => 'Партнёр видит вас на карте «Где мы»';
+  @override
+  String get liveLocationJustNow => 'только что';
+  @override
+  String liveLocationAgo(String value) => '$value назад';
+  @override
+  String get unitCm => 'см';
+  @override
+  String get unitM => 'м';
+  @override
+  String get unitKm => 'км';
+  @override
+  String get unitMinShort => 'мин';
+  @override
+  String get unitHourShort => 'ч';
+  @override
+  String get unitDayShort => 'д';
 }
 
 class _EnStrings extends AppStrings {
@@ -6011,4 +6077,49 @@ class _EnStrings extends AppStrings {
       'Title may be in English — feel free to edit';
   @override
   String memoriesUnit(int n) => n == 1 ? 'memory' : 'memories';
+
+  // ── Live location map ──
+  @override
+  String get liveMapTitle => 'Where we are';
+  @override
+  String get liveMapEnableCta => 'Share my location';
+  @override
+  String get liveMapEnableHint =>
+      'Turn on to see each other on the map in real time';
+  @override
+  String get liveMapPermissionDenied =>
+      'Location access denied. Enable it in your phone settings.';
+  @override
+  String get liveMapWaitingPartner => 'Waiting for partner\'s location…';
+  @override
+  String get liveMapYou => 'You';
+  @override
+  String get liveMapCenterMe => 'Center on me';
+  @override
+  String get liveMapShowBoth => 'Show both';
+  @override
+  String get liveMapOpenFull => 'Open map';
+  @override
+  String get liveMapNotPaired => 'Connect a partner to see the map';
+  @override
+  String get liveLocationServiceTitle => 'Location sharing on';
+  @override
+  String get liveLocationServiceText =>
+      'Your partner can see you on the “Where we are” map';
+  @override
+  String get liveLocationJustNow => 'just now';
+  @override
+  String liveLocationAgo(String value) => '$value ago';
+  @override
+  String get unitCm => 'cm';
+  @override
+  String get unitM => 'm';
+  @override
+  String get unitKm => 'km';
+  @override
+  String get unitMinShort => 'min';
+  @override
+  String get unitHourShort => 'h';
+  @override
+  String get unitDayShort => 'd';
 }

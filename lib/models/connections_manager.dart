@@ -71,7 +71,9 @@ class ConnectionsManager extends ChangeNotifier {
       }
     }
 
-    for (var connection in _connections) {
+    // Снимок: в теле есть await'ы (генерация/валидация инвайт-кодов,
+    // refreshPairStatus), во время которых _connections может перестроиться.
+    for (var connection in _connections.toList()) {
       if (_fb.isLoggedIn) {
         if (connection.pairId.isNotEmpty) {
           // Paired connection: always refresh with a group-tied code.
@@ -306,8 +308,10 @@ class ConnectionsManager extends ChangeNotifier {
   Future<void> _cleanupStaleConnections() async {
     final toRemove = <Connection>[];
 
-    // 1) Orphaned groups — paired but no partners left
-    for (final conn in _connections) {
+    // 1) Orphaned groups — paired but no partners left.
+    // Снимок: внутри await (removeStaleGroupFromUser), во время которого
+    // _connections может перестроиться → иначе «Concurrent modification».
+    for (final conn in _connections.toList()) {
       if (conn.isSolo) continue;
       if (!conn.isPaired || conn.pairId.isEmpty) continue;
       if (conn.partners.isNotEmpty) continue;
@@ -400,7 +404,10 @@ class ConnectionsManager extends ChangeNotifier {
     //    Fires once per app start; the group listener will re-emit clean data
     //    after the Firestore write resolves.
     if (!_fb.isLoggedIn) return;
-    for (final conn in _connections) {
+    // Снимок: внутри цикла есть await, во время которого листенер user-doc
+    // может перестроить _connections → итерация по живому списку падала с
+    // «Concurrent modification during iteration».
+    for (final conn in _connections.toList()) {
       if (conn.isSolo) continue;
       if (!conn.isPaired || conn.pairId.isEmpty) continue;
       if (conn.members.length <= 1) continue;

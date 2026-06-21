@@ -4857,6 +4857,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     imageQuality: 85,
                                   );
                                   if (picked.isNotEmpty) {
+                                    if (!context.mounted) return;
                                     setState(() => selectedPhotos.addAll(picked));
                                     if (lat == null) {
                                       _extractExifGps(picked.first.path).then((coords) async {
@@ -4954,6 +4955,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             imageQuality: 85,
                           );
                           if (picked.isNotEmpty) {
+                            if (!context.mounted) return;
                             setState(() => selectedPhotos = picked);
                             if (lat == null) {
                               _extractExifGps(picked.first.path).then((coords) async {
@@ -5154,7 +5156,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                             ),
                                           );
                                         }
-                                        setState(() => isLoadingLocation = false);
+                                        if (context.mounted) setState(() => isLoadingLocation = false);
                                         return;
                                       }
                                       LocationPermission perm = await Geolocator.checkPermission();
@@ -5170,7 +5172,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                             ),
                                           );
                                         }
-                                        setState(() => isLoadingLocation = false);
+                                        if (context.mounted) setState(() => isLoadingLocation = false);
                                         return;
                                       }
                                       final pos = await Geolocator.getCurrentPosition();
@@ -5190,7 +5192,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     } catch (e) {
                                       debugPrint('Get location error: $e');
                                     }
-                                    setState(() => isLoadingLocation = false);
+                                    if (context.mounted) setState(() => isLoadingLocation = false);
                                   },
                             icon: isLoadingLocation
                                 ? SizedBox(
@@ -5369,6 +5371,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             source: ImageSource.gallery,
                           );
                           if (picked != null) {
+                            if (!context.mounted) return;
                             setState(() {
                               selectedMedia = picked;
                               videoThumbnailBytes = null;
@@ -5381,13 +5384,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 quality: 60,
                                 position: -1,
                               );
+                              if (!context.mounted) return;
                               setState(() {
                                 videoThumbnailBytes = thumb;
                                 isGeneratingThumbnail = false;
                               });
                             } catch (e) {
                               debugPrint('Thumbnail preview failed: $e');
-                              setState(() => isGeneratingThumbnail = false);
+                              if (context.mounted) setState(() => isGeneratingThumbnail = false);
                             }
                           }
                         } catch (e) {
@@ -5557,6 +5561,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           () => isFetchingVideoMeta = true,
                                         );
                                         final meta = await _fetchVideoMeta(url);
+                                        if (!context.mounted) return;
                                         setState(() {
                                           isFetchingVideoMeta = false;
                                           if (meta['title'] != null &&
@@ -5901,7 +5906,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           ),
                                         );
                                       }
-                                      setState(() => isLoadingLocation = false);
+                                      if (context.mounted) setState(() => isLoadingLocation = false);
                                       return;
                                     }
 
@@ -5929,7 +5934,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           ),
                                         );
                                       }
-                                      setState(() => isLoadingLocation = false);
+                                      if (context.mounted) setState(() => isLoadingLocation = false);
                                       return;
                                     }
 
@@ -6287,6 +6292,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             if (url.isEmpty) return;
                             setState(() => isFetchingMeta = true);
                             final meta = await _fetchMusicMeta(url);
+                            if (!context.mounted) return;
                             setState(() {
                               isFetchingMeta = false;
                               if ((meta['title']?.isNotEmpty ?? false) &&
@@ -6338,6 +6344,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       if (url.isEmpty) return;
                                       setState(() => isFetchingMeta = true);
                                       final meta = await _fetchMusicMeta(url);
+                                      if (!context.mounted) return;
                                       setState(() {
                                         isFetchingMeta = false;
                                         if ((meta['title']?.isNotEmpty ??
@@ -6417,6 +6424,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               final result = await FilePicker.platform
                                   .pickFiles(type: FileType.audio);
                               if (result != null && result.files.isNotEmpty) {
+                                if (!context.mounted) return;
                                 setState(
                                   () => selectedMusicPath =
                                       result.files.first.path,

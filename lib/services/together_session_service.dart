@@ -197,7 +197,9 @@ class TogetherSessionService {
   /// Поток присутствия: множество uid, кто сейчас в сеансе. Отдельный листенер
   /// на presence-узле, чтобы не путаться с подавлением эха в плеер-синке.
   Stream<Set<String>> watchPresence(String pairId) {
-    return _sessionRef(pairId).child('presence').onValue.map((event) {
+    return _sessionRef(pairId).child('presence').onValue
+        .handleError((e) => debugPrint('together presence rtdb error: $e'))
+        .map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return <String>{};
       return v.keys.map((k) => k.toString()).toSet();
@@ -206,7 +208,9 @@ class TogetherSessionService {
 
   /// Поток состояния сеанса. null — сеанса нет (узел удалён).
   Stream<LiveSessionState?> watch(String pairId) {
-    return _sessionRef(pairId).onValue.map((event) {
+    return _sessionRef(pairId).onValue
+        .handleError((e) => debugPrint('together session rtdb error: $e'))
+        .map((event) {
       final v = event.snapshot.value;
       if (v is! Map || v['mediaId'] == null) return null;
       return LiveSessionState.fromMap(v);

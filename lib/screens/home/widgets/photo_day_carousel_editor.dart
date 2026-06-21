@@ -76,7 +76,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
     final remaining = PhotoDayCarouselEditor.kMaxPhotos - _paths.length;
     if (remaining <= 0 || widget.onPickFromMemories == null) return;
     final picked = await widget.onPickFromMemories!(remaining);
-    if (picked.isEmpty) return;
+    if (picked.isEmpty || !mounted) return;
     setState(() {
       for (final url in picked) {
         if (!_paths.contains(url) &&

@@ -818,7 +818,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       return;
     }
     final name = await _showNameDialog();
-    if (name == null) return;
+    if (name == null || !mounted) return;
     setState(() => _saving = true);
     try {
       final boundary =
