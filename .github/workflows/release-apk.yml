@@ -1,4 +1,4 @@
-name: Release → GitHub + Play + RuStore
+name: Release → GitHub + RuStore (Play — вручную из AAB)
 
 # ── Когда запускается сборка ──────────────────────────────────────────────
 #  1) Пуш тега вида v1.12.9  →  git tag v1.12.9 && git push origin v1.12.9
@@ -163,7 +163,11 @@ jobs:
         env:
           PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ -z "$PLAY_JSON" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "Пуш тега → в Google Play публикуем ВРУЧНУЮ (AAB собирается локально). Job пропущен."
+            echo "Чтобы всё же выложить в Play из CI — запусти workflow вручную (Run workflow)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$PLAY_JSON" ]; then
             echo "PLAY_SERVICE_ACCOUNT_JSON не задан — публикация в Play пропущена."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
