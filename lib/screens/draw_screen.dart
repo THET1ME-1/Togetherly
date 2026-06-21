@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -1059,9 +1060,11 @@ class _DrawScreenState extends State<DrawScreen>
 
   Future<void> _pickAndAddImage() async {
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
+    final xFile = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      ),
     );
     if (xFile == null || !mounted) return;
 

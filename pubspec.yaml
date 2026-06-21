@@ -96,3 +96,7 @@ flutter:
     - assets/images/logo/
     - assets/icons/
     - assets/mascots/
+    # Статические инстансы Rubik (веса 300–900 + Italic) — google_fonts берёт их
+    # из ассетов вместо загрузки с fonts.gstatic.com (офлайн, мгновенно, без
+    # сетевых ошибок). Имена файлов соответствуют конвенции пакета (Rubik-<Вес>).
+    - google_fonts/

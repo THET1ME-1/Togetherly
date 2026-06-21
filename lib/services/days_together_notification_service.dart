@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../utils/notification_permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -139,7 +140,8 @@ class DaysTogetherNotificationService {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     // Android 13+ требует явного разрешения POST_NOTIFICATIONS.
-    await androidPlugin?.requestNotificationsPermission();
+    // Общий сериализатор: не падаем на параллельном запросе (permissionRequestInProgress).
+    await requestNotificationPermissionSafely(androidPlugin);
 
     // 1) Показать прямо сейчас с актуальным числом.
     await _show(_daysAt(start, DateTime.now()));

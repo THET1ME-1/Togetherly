@@ -1769,6 +1769,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       return;
     }
     final ok = await pair.acceptCode(code);
+    // После await экран мог уйти (при успешном коннекте приложение само
+    // переключается с этого экрана) → setState на размонтированном State падает
+    // (_element! == null внутри setState).
+    if (!mounted) return;
     if (ok) {
       setState(() {});
       _showSnack('\u{1F389} ${_getConnectedSuccessMessage()}');

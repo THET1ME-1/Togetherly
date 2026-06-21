@@ -434,7 +434,10 @@ class ChatService {
     try {
       final ref = _typingRef(groupId).child(_uid);
       if (typing) {
-        unawaited(ref.onDisconnect().remove());
+        // .ignore() глушит и «unhandled future», и саму ошибку (напр.
+        // permission-denied) — иначе отказ onDisconnect улетал бы в глобальный
+        // обработчик как краш.
+        ref.onDisconnect().remove().ignore();
         await ref.set(ServerValue.timestamp);
       } else {
         await ref.remove();

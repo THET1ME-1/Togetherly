@@ -7,6 +7,7 @@ import '../widgets/storage_image.dart';
 import '../services/level_service.dart';
 import 'level_tasks_screen.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -643,11 +644,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _changeAvatar() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-      maxWidth: 1024,
-      maxHeight: 1024,
+    final image = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      ),
     );
 
     if (image == null || !mounted) return;
@@ -3943,7 +3946,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 // result == true → тема куплена
                               }
                               await widget.userData.setThemeId(i);
-                              setSheet(() {});
+                              // После await шит мог закрыться — setSheet на
+                              // размонтированном StatefulBuilder иначе падает
+                              // (_element! == null внутри setState).
+                              if (ctx.mounted) setSheet(() {});
                               if (mounted) setState(() {});
                             },
                             child: Stack(

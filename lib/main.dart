@@ -207,6 +207,24 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
   }
 }
 
+/// Ошибки, прилетающие в глобальный async-обработчик из фоновых операций,
+/// которые НЕ роняют приложение (выполнение продолжается, есть деградация):
+///  • Firebase права/доступ: presence onDisconnect при недокаченных RTDB-правилах,
+///    фоновая загрузка в Storage без прав;
+///  • google_fonts: офлайн-загрузка шрифта с fonts.gstatic.com падает → текст
+///    рисуется системным шрифтом, не краш.
+/// Помечаем их non-fatal, чтобы не путать с настоящими падениями.
+bool _isBenignBackgroundError(Object error) {
+  final s = error.toString();
+  return s.contains('permission-denied') ||
+      s.contains('permission_denied') ||
+      s.contains('firebase_storage/unauthorized') ||
+      s.contains('Failed to load font') ||
+      // На случай редкого варианта Rubik, не вошедшего в бандл: текст просто
+      // рисуется системным шрифтом, не краш.
+      s.contains('allowRuntimeFetching');
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -217,6 +235,11 @@ void main() async {
   if (imagePickerImpl is ImagePickerAndroid) {
     imagePickerImpl.useAndroidPhotoPicker = true;
   }
+
+  // Шрифт Rubik зашит в сборку (assets google_fonts/) — запрещаем загрузку с
+  // fonts.gstatic.com во время работы. Это убирает сетевую зависимость, мерцание
+  // шрифта при старте и офлайн-ошибки «Failed to load font».
+  GoogleFonts.config.allowRuntimeFetching = false;
 
   // Firebase — инициализация
   await Firebase.initializeApp();
@@ -235,7 +258,13 @@ void main() async {
     FirebaseCrashlytics.instance.recordFlutterError(details);
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    // Возвращаем true → приложение НЕ падает, выполнение продолжается. Поэтому
+    // часть ошибок, прилетающих сюда из фоновых Firebase-операций (presence
+    // onDisconnect, фоновая загрузка медиа), фактически не являются крашами.
+    // Ошибки прав/доступа Firebase (permission-denied / unauthorized) пишем как
+    // non-fatal, чтобы не завышать счётчик падений; остальное — как фатальное.
+    final fatal = !_isBenignBackgroundError(error);
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: fatal);
     return true;
   };
   // Привязываем UID к отчётам, чтобы видеть, у кого именно падает.

@@ -104,7 +104,14 @@
       "Bash(git tag *)",
       "Bash(gh run *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(echo \"cancel exit: $?\")"
+      "Bash(echo \"cancel exit: $?\")",
+      "PowerShell(flutter analyze lib/screens/home_screen.dart lib/services/locale_service.dart lib/services/supabase_service.dart)",
+      "PowerShell(firebase --version)",
+      "PowerShell(firebase projects:list 2>&1)",
+      "PowerShell(firebase deploy --only database --project togetherly-d4856 --non-interactive 2>&1)",
+      "Bash(curl -s \"https://api.github.com/repos/google/fonts/contents/ofl/rubik/static\")",
+      "Bash(curl -s \"https://api.github.com/repos/google/fonts/contents/ofl/rubik\")",
+      "PowerShell(flutter analyze lib/main.dart 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"

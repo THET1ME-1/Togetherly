@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../utils/notification_permission.dart';
 
 /// Сервис постоянного уведомления с настроением на Android.
 ///
@@ -87,7 +88,7 @@ class MoodNotificationService {
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
-    final granted = await androidPlugin?.requestNotificationsPermission() ?? true;
+    final granted = await requestNotificationPermissionSafely(androidPlugin);
     if (!granted) {
       debugPrint('MoodNotificationService: notification permission denied');
       return;
@@ -117,13 +118,17 @@ class MoodNotificationService {
       onlyAlertOnce: true,
     );
 
-    await _plugin.show(
-      id: _kNotificationId,
-      title: title,
-      body: body.isNotEmpty ? body : null,
-      notificationDetails: NotificationDetails(android: androidDetails),
-    );
-    debugPrint('MoodNotificationService: shown — $title | $body');
+    try {
+      await _plugin.show(
+        id: _kNotificationId,
+        title: title,
+        body: body.isNotEmpty ? body : null,
+        notificationDetails: NotificationDetails(android: androidDetails),
+      );
+      debugPrint('MoodNotificationService: shown — $title | $body');
+    } catch (e) {
+      debugPrint('MoodNotificationService.show failed: $e');
+    }
   }
 
   /// Скрыть постоянное уведомление.

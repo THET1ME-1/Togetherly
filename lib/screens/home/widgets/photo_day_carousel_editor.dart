@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../utils/safe_pick.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/storage_image.dart';
@@ -111,11 +112,13 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         if (mounted) setState(() => _paths.addAll(taken.map((x) => x.path)));
       }
     } catch (_) {
-      final XFile? single = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
+      final XFile? single = await safePick(
+        () => _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+          maxWidth: 1920,
+          maxHeight: 1920,
+        ),
       );
       if (single == null) return;
       final croppedPath = await cropPhoto(
@@ -127,11 +130,13 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   }
 
   void _replacePhoto(int index) async {
-    final XFile? picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1920,
-      maxHeight: 1920,
+    final XFile? picked = await safePick(
+      () => _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      ),
     );
     if (picked == null) return;
     final croppedPath = await cropPhoto(
