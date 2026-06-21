@@ -61,9 +61,21 @@ class LiveLocationService {
   FirebaseDatabase get _db =>
       FirebaseDatabase.instanceFor(app: Firebase.app(), databaseURL: _kRtdbUrl);
 
-  DatabaseReference _pairRef(String pairId) => _db.ref('liveLocation/$pairId');
+  DatabaseReference _pairRef(String channel) => _db.ref('liveLocation/$channel');
 
   String get _uid => _fb.uid ?? '';
+
+  /// Общий для ОБОИХ партнёров узел live-локации: детерминированный ключ из
+  /// пары uid, отсортированных лексикографически. В отличие от pairId он НЕ
+  /// зависит от того, какой из (возможно дублирующихся) групповых документов
+  /// сейчас активен на конкретном телефоне — оба партнёра всегда вычисляют
+  /// один и тот же узел и потому видят друг друга. Фолбэк на pairId, если
+  /// партнёр неизвестен (например, группа из 3+ участников).
+  String _channel(String pairId, String partnerUid) {
+    if (_uid.isEmpty || partnerUid.isEmpty) return pairId;
+    final ids = [_uid, partnerUid]..sort();
+    return 'pair_${ids[0]}_${ids[1]}';
+  }
 
   StreamSubscription<Position>? _posSub;
   String? _activePairId;
@@ -114,7 +126,11 @@ class LiveLocationService {
   /// разрешение и стартует стрим; при выключении — гасит стрим и удаляет
   /// свою точку из RTDB. Возвращает фактическое состояние (false при отказе
   /// в разрешении).
-  Future<bool> setSharingEnabled(bool enabled, {required String pairId}) async {
+  Future<bool> setSharingEnabled(
+    bool enabled, {
+    required String pairId,
+    String partnerUid = '',
+  }) async {
     if (enabled) {
       final granted = await ensurePermission();
       if (!granted) {
@@ -122,7 +138,7 @@ class LiveLocationService {
         return false;
       }
       await _persist(true);
-      await startSharing(pairId);
+      await startSharing(pairId, partnerUid: partnerUid);
       return true;
     } else {
       await _persist(false);
@@ -141,30 +157,31 @@ class LiveLocationService {
 
   /// Запускает стрим позиции и пишет её в RTDB. Идемпотентно для того же
   /// pairId. Не делает ничего, если шеринг выключен флагом.
-  Future<void> startSharing(String pairId) async {
+  Future<void> startSharing(String pairId, {String partnerUid = ''}) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
     if (!sharingEnabled.value) return;
-    if (_activePairId == pairId && _posSub != null) return;
+    final channel = _channel(pairId, partnerUid);
+    if (_activePairId == channel && _posSub != null) return;
 
-    // Сменилась пара — гасим прежний стрим, точку прежней пары оставляем.
+    // Сменился канал — гасим прежний стрим, точку прежнего канала оставляем.
     await _cancelStream();
-    _activePairId = pairId;
+    _activePairId = channel;
 
-    // Членство (для security-rules RTDB) — каждый пишет своё.
+    // Членство (для security-rules RTDB) — каждый пишет своё в ОБЩИЙ узел пары.
     try {
-      await _pairRef(pairId).child('members').child(_uid).set(true);
+      await _pairRef(channel).child('members').child(_uid).set(true);
     } catch (e) {
       debugPrint('LiveLocationService membership failed: $e');
     }
 
     // Немедленный первый фикс, чтобы партнёр сразу увидел точку.
-    unawaited(_pushCurrent(pairId));
+    unawaited(_pushCurrent(channel));
 
     try {
       _posSub = Geolocator.getPositionStream(
         locationSettings: _locationSettings(),
       ).listen(
-        (pos) => _push(pairId, pos),
+        (pos) => _push(channel, pos),
         onError: (e) => debugPrint('live location stream error: $e'),
       );
     } catch (e) {
@@ -174,8 +191,8 @@ class LiveLocationService {
 
   /// Подхватывает шеринг на старте приложения / при привязке к группе, если
   /// пользователь его раньше включал. Безопасно вызывать многократно.
-  Future<void> resumeIfEnabled(String pairId) async {
-    if (sharingEnabled.value) await startSharing(pairId);
+  Future<void> resumeIfEnabled(String pairId, {String partnerUid = ''}) async {
+    if (sharingEnabled.value) await startSharing(pairId, partnerUid: partnerUid);
   }
 
   Future<void> _pushCurrent(String pairId) async {
@@ -231,16 +248,29 @@ class LiveLocationService {
 
   // ── Чтение позиции партнёра ───────────────────────────────────────────────
 
-  /// Поток последней точки партнёра. null — точки ещё нет.
+  /// Поток последней точки партнёра. null — точки ещё нет. Читает из ОБЩЕГО
+  /// узла пары (канонический ключ), а не из pairId активной группы.
   Stream<LivePoint?> watchPartner(String pairId, String partnerUid) {
     if (pairId.isEmpty || partnerUid.isEmpty) {
       return Stream<LivePoint?>.value(null);
     }
-    return _pairRef(pairId)
+    return _watchPoint(_channel(pairId, partnerUid), partnerUid);
+  }
+
+  /// Поток своей последней точки в том же общем узле пары (чтобы своя аватарка
+  /// рисовалась из RTDB ровно из того узла, куда мы пишем). [partnerUid] нужен
+  /// для вычисления канонического ключа канала.
+  Stream<LivePoint?> watchSelf(String pairId, String partnerUid) {
+    if (_uid.isEmpty) return Stream<LivePoint?>.value(null);
+    return _watchPoint(_channel(pairId, partnerUid), _uid);
+  }
+
+  Stream<LivePoint?> _watchPoint(String channel, String uid) {
+    return _pairRef(channel)
         .child('points')
-        .child(partnerUid)
+        .child(uid)
         .onValue
-        .handleError((e) => debugPrint('live location partner error: $e'))
+        .handleError((e) => debugPrint('live location point error: $e'))
         .map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return null;

@@ -398,7 +398,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // Возобновляем фоновый шеринг геопозиции (карта «Где мы»), если
         // пользователь его включал. Идемпотентно; при выключенном флаге — no-op.
         unawaited(
-          LiveLocationService.instance.resumeIfEnabled(_pairData.pairId),
+          LiveLocationService.instance.resumeIfEnabled(
+            _pairData.pairId,
+            partnerUid: _pairData.partnerUid,
+          ),
         );
       }
 
