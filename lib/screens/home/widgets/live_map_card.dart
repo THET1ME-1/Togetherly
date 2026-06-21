@@ -193,7 +193,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
     if (!_prefsLoaded) return const SizedBox.shrink();
     final t = widget.theme;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
         color: t.cardSurface,
         borderRadius: BorderRadius.circular(20),
