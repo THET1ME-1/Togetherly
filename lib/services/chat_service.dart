@@ -148,6 +148,7 @@ class ChatService {
         .orderByChild('ts')
         .limitToLast(limit)
         .onValue
+        .handleError((e) => debugPrint('chat messages rtdb error: $e'))
         .map((event) {
       final children = event.snapshot.children
           .map(ChatMsg.fromSnapshot)
@@ -450,7 +451,9 @@ class ChatService {
   /// true — партнёр сейчас печатает (его маркер свежий, < 8с).
   Stream<bool> watchTyping(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
-    return _typingRef(groupId).onValue.map((event) {
+    return _typingRef(groupId).onValue
+        .handleError((e) => debugPrint('chat typing rtdb error: $e'))
+        .map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return false;
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -498,7 +501,9 @@ class ChatService {
   Stream<Map<String, int>> watchReads(String groupId) {
     if (groupId.isEmpty) return const Stream.empty();
     if (_readSb(groupId)) return _sb.watchChatReads(groupId);
-    return _readsRef(groupId).onValue.map((event) {
+    return _readsRef(groupId).onValue
+        .handleError((e) => debugPrint('chat reads rtdb error: $e'))
+        .map((event) {
       final v = event.snapshot.value;
       if (v is! Map) return <String, int>{};
       final out = <String, int>{};
@@ -596,7 +601,9 @@ class ChatService {
         return last.ts > lastRead;
       });
     }
-    return _messagesRef(groupId).orderByChild('ts').limitToLast(1).onValue.asyncMap(
+    return _messagesRef(groupId).orderByChild('ts').limitToLast(1).onValue
+        .handleError((e) => debugPrint('chat unread rtdb error: $e'))
+        .asyncMap(
       (event) async {
         if (event.snapshot.children.isEmpty) return false;
         final last = ChatMsg.fromSnapshot(event.snapshot.children.first);

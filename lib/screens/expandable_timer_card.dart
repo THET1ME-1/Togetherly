@@ -381,7 +381,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                             firstDate: DateTime(1900),
                             lastDate: DateTime(2100),
                           );
-                          if (d == null) return;
+                          if (d == null || !ctx.mounted) return;
                           setSheetState(() {
                             pickedDate = DateTime(
                               d.year, d.month, d.day,
@@ -411,7 +411,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                             context: ctx,
                             initialTime: TimeOfDay.fromDateTime(pickedDate),
                           );
-                          if (t == null) return;
+                          if (t == null || !ctx.mounted) return;
                           setSheetState(() {
                             pickedDate = DateTime(
                               pickedDate.year, pickedDate.month, pickedDate.day,

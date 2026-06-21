@@ -46,8 +46,10 @@ import '../models/mascot.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/emotion_migration_service.dart';
 import '../services/mascot_service.dart';
+import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
 import '../widgets/common/coin_reward_toast.dart';
+import 'home/widgets/live_map_card.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
 
@@ -392,6 +394,12 @@ class _HomeScreenState extends State<HomeScreen> {
         // calling it on every group-doc update (e.g. memoriesUpdatedAt) causes
         // a cascade: write → group listener fires → _handlePairChanged → write …
         _bindMascotService(_pairData.pairId);
+
+        // Возобновляем фоновый шеринг геопозиции (карта «Где мы»), если
+        // пользователь его включал. Идемпотентно; при выключенном флаге — no-op.
+        unawaited(
+          LiveLocationService.instance.resumeIfEnabled(_pairData.pairId),
+        );
       }
 
       // Create system timer only when startDate is known.
@@ -446,6 +454,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!isPaired) {
       unawaited(
         DaysTogetherNotificationService.instance.onStartDateChanged(null),
+      );
+      // Нет пары → гасим фоновый шеринг геопозиции и убираем свою точку.
+      unawaited(
+        LiveLocationService.instance.stopSharing(removePoint: true),
       );
     }
 
@@ -943,6 +955,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 380),
                     child: _buildMascotRow(),
+                  ),
+                  // Карта «Где мы»: live-геопозиция обоих партнёров.
+                  AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 420),
+                    child: LiveMapCard(
+                      pairId: _pairData.pairId,
+                      partnerUid: _pairData.partnerUid,
+                      partnerName: _pairData.partnerDisplayName,
+                      partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                      theme: _t,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 40),

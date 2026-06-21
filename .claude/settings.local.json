@@ -111,7 +111,15 @@
       "PowerShell(firebase deploy --only database --project togetherly-d4856 --non-interactive 2>&1)",
       "Bash(curl -s \"https://api.github.com/repos/google/fonts/contents/ofl/rubik/static\")",
       "Bash(curl -s \"https://api.github.com/repos/google/fonts/contents/ofl/rubik\")",
-      "PowerShell(flutter analyze lib/main.dart 2>&1)"
+      "PowerShell(flutter analyze lib/main.dart 2>&1)",
+      "PowerShell(node tools/admin_groups.js lookup marinasimakova13@gmail.com)",
+      "PowerShell(node tools/admin_groups.js group rE4pmRtCIB1cEM0Dzta1)",
+      "PowerShell(node tools/_tmp_memcount.js rE4pmRtCIB1cEM0Dzta1)",
+      "PowerShell(node tools/_tmp_mig.js rE4pmRtCIB1cEM0Dzta1)",
+      "PowerShell(node tools/_tmp_sbcheck.js)",
+      "PowerShell(node tools/_tmp_backfill.js)",
+      "PowerShell(node tools/_tmp_bulk_backfill.js)",
+      "PowerShell(node tools/_tmp_classify.js)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Alex\\Documents\\GitHub\\love_app\\assets\\images\\mood_packs"

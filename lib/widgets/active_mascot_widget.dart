@@ -99,10 +99,12 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final hidden = prefs.getBool(_kHiddenKey) ?? false;
-    setState(() {
-      _hidden = hidden;
-      _onboardingShown = prefs.getBool(_kOnboardingKey) ?? false;
-    });
+    if (mounted) {
+      setState(() {
+        _hidden = hidden;
+        _onboardingShown = prefs.getBool(_kOnboardingKey) ?? false;
+      });
+    }
     mascotHiddenNotifier.value = hidden;
   }
 

@@ -180,6 +180,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
       final result = await FilePicker.platform.pickFiles(type: FileType.audio);
       if (result == null || result.files.isEmpty) return;
       final f = result.files.first;
+      if (!mounted) return;
       setState(() {
         _musicPath = f.path;
         _musicFileName = f.name;

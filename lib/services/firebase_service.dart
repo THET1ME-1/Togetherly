@@ -6521,7 +6521,9 @@ class FirebaseService {
   /// online/lastSeen — из RTDB (ноль Firestore-чтений); badge — разовый
   /// кешируемый Firestore-get.
   Stream<Map<String, dynamic>> streamUserPresence(String uid) {
-    return _presenceRef(uid).onValue.asyncMap((event) async {
+    return _presenceRef(uid).onValue
+        .handleError((e) => debugPrint('presence rtdb error: $e'))
+        .asyncMap((event) async {
       final v = event.snapshot.value;
       bool isOnline = false;
       DateTime? lastSeen;
