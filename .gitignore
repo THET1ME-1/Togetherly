@@ -64,3 +64,5 @@ play-publisher*.json
 .firebase/hosting.aG9zdGluZw.cache
 
 .claude/worktrees/
+# Локальные настройки/разрешения Claude Code — у каждого свои, не версионируем
+.claude/settings.local.json
