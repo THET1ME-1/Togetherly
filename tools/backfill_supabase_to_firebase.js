@@ -275,6 +275,10 @@ async function fbPatchMonthEntries(token, rel, entFields, maskPaths) {
 
 // Собрать create-only writes из (id → fields-map) и опционально закоммитить.
 async function commitCreateOnly(token, items) {
+  // Дедуп по пути: в Supabase бывают дубликаты id → один и тот же док дважды в
+  // commit-батче = 400 "Cannot insert then insert an entity in the same request".
+  const seen = new Set();
+  items = items.filter((it) => (seen.has(it.path) ? false : (seen.add(it.path), true)));
   const writes = items.map((it) => ({
     update: {
       name: `projects/${PROJECT}/databases/(default)/documents/${it.path}`,
