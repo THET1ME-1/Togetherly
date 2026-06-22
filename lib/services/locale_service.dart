@@ -2626,7 +2626,7 @@ class _RuStrings extends AppStrings {
   String get forceUpdateTitle => 'Нужно обновить приложение';
   @override
   String get forceUpdateBody =>
-      'Вышла новая версия с важными изменениями. Чтобы продолжить пользоваться приложением, обновитесь до актуальной версии.';
+      'Это обновление обязательно. Мы перенесли хранение данных, и без него часть ваших записей, фото и истории может не отображаться. Обновитесь, чтобы снова видеть все свои данные.';
   @override
   String get forceUpdateButton => 'Обновить';
   @override
@@ -5087,7 +5087,7 @@ class _EnStrings extends AppStrings {
   String get forceUpdateTitle => 'App update required';
   @override
   String get forceUpdateBody =>
-      'A new version with important changes is out. Please update to the latest version to keep using the app.';
+      'This update is required. We moved where your data is stored, and without it some of your notes, photos and history may not show up. Please update to see all your data again.';
   @override
   String get forceUpdateButton => 'Update';
   @override

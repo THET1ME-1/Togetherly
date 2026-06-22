@@ -1,9 +1,11 @@
-name: Release → GitHub + RuStore (Play — вручную из AAB)
+name: Release → GitHub + RuStore + Google Play (100%)
 
 # ── Когда запускается сборка ──────────────────────────────────────────────
 #  1) Пуш тега вида v1.12.9  →  git tag v1.12.9 && git push origin v1.12.9
 #  2) Вручную: вкладка Actions → "Build APK → GitHub Release" → Run workflow
 #  Обычные коммиты в main сборку НЕ запускают.
+#  ⚠️ И пуш тега, и ручной запуск выкатывают Google Play на 100% сразу
+#     (track: production, status: completed). Тега достаточно — раскат полный.
 on:
   push:
     tags:
@@ -163,11 +165,10 @@ jobs:
         env:
           PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "Пуш тега → в Google Play публикуем ВРУЧНУЮ (AAB собирается локально). Job пропущен."
-            echo "Чтобы всё же выложить в Play из CI — запусти workflow вручную (Run workflow)."
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          elif [ -z "$PLAY_JSON" ]; then
+          # И пуш тега, и ручной запуск публикуют в Google Play (production,
+          # 100% сразу — см. publish-play). Единственное условие — задан секрет
+          # сервис-аккаунта. ⚠️ Пуш тега v* теперь = полный раскат на всех.
+          if [ -z "$PLAY_JSON" ]; then
             echo "PLAY_SERVICE_ACCOUNT_JSON не задан — публикация в Play пропущена."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else

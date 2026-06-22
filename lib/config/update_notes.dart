@@ -4,6 +4,8 @@
 // ============================================================
 
 const String ruWhatsNew =
+    '— ВАЖНО: это обновление обязательно. Мы перенесли хранение данных обратно — без обновления часть ваших записей, фото и истории может не отображаться. Обновитесь оба, чтобы снова видеть все свои данные.\n'
+    '\n'
     '— ДОБАВИЛИ отображение геолокации пары на карте с фоновым трекингом 24/7. Блок карты под блоком Маскотов в главном меню.\n'
     '\n'
     '— Исправили ошибку при отказе в доступе к камере или галерее.\n'
@@ -17,6 +19,8 @@ const String ruWhatsNew =
     '— Устранили ошибку подписки на данные реального времени.';
 
 const String enWhatsNew =
+    '— IMPORTANT: this update is required. We moved your data storage back — without updating, some of your notes, photos and history may not show up. Please update on both phones to see all your data again.\n'
+    '\n'
     '— ADDED a live map of your partner\'s location with 24/7 background tracking. The map block sits under the Mascot block on the home screen.\n'
     '\n'
     '— Fixed an error when camera or gallery access is denied.\n'
