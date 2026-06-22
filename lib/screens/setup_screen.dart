@@ -350,45 +350,55 @@ class _SetupScreenState extends State<SetupScreen>
 
     if (image == null || !mounted) return;
 
-    // Обрезаем до круга (аватарка)
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: image.path,
-      compressQuality: 90,
-      uiSettings: [
-        AndroidUiSettings(
-          cropStyle: CropStyle.circle,
-          toolbarTitle: LocaleService.current.cropAvatarTitle,
-          toolbarColor: const Color(0xFF1A1A2E),
-          toolbarWidgetColor: Colors.white,
-          statusBarColor: const Color(0xFF1A1A2E),
-          backgroundColor: const Color(0xFF0D0D1A),
-          activeControlsWidgetColor: _accent,
-          cropFrameColor: _accent,
-          cropGridColor: Colors.transparent,
-          dimmedLayerColor: const Color(0xCC0D0D1A),
-          showCropGrid: false,
-          lockAspectRatio: true,
-          initAspectRatio: CropAspectRatioPreset.square,
-          hideBottomControls: false,
-        ),
-        IOSUiSettings(
-          cropStyle: CropStyle.circle,
-          title: LocaleService.current.avatarTitle,
-          doneButtonTitle: LocaleService.current.done,
-          cancelButtonTitle: LocaleService.current.cancel,
-          aspectRatioLockEnabled: true,
-          resetAspectRatioEnabled: false,
-          rotateButtonsHidden: false,
-          hidesNavigationBar: true,
-        ),
-      ],
-    );
+    // Обрезаем до круга (аватарка). Нативный кроппер может кинуть
+    // PlatformException — это не краш, трактуем как отмену.
+    CroppedFile? croppedFile;
+    try {
+      croppedFile = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        compressQuality: 90,
+        uiSettings: [
+          AndroidUiSettings(
+            cropStyle: CropStyle.circle,
+            toolbarTitle: LocaleService.current.cropAvatarTitle,
+            toolbarColor: const Color(0xFF1A1A2E),
+            toolbarWidgetColor: Colors.white,
+            statusBarColor: const Color(0xFF1A1A2E),
+            backgroundColor: const Color(0xFF0D0D1A),
+            activeControlsWidgetColor: _accent,
+            cropFrameColor: _accent,
+            cropGridColor: Colors.transparent,
+            dimmedLayerColor: const Color(0xCC0D0D1A),
+            showCropGrid: false,
+            lockAspectRatio: true,
+            initAspectRatio: CropAspectRatioPreset.square,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            cropStyle: CropStyle.circle,
+            title: LocaleService.current.avatarTitle,
+            doneButtonTitle: LocaleService.current.done,
+            cancelButtonTitle: LocaleService.current.cancel,
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            rotateButtonsHidden: false,
+            hidesNavigationBar: true,
+          ),
+        ],
+      );
+    } catch (e) {
+      debugPrint('_pickAvatar: cropImage failed: $e');
+      croppedFile = null;
+    }
 
     if (croppedFile == null || !mounted) return;
 
-    // Сохраняем локально для превью и последующей загрузки после регистрации
+    // Сохраняем локально для превью и последующей загрузки после регистрации.
+    // Путь забираем в локальную final — внутри замыкания setState промоушен
+    // nullable-локали не работает.
+    final croppedPath = croppedFile.path;
     setState(() {
-      _selectedAvatarFile = XFile(croppedFile.path);
+      _selectedAvatarFile = XFile(croppedPath);
       _avatarUrl = ''; // Очищаем URL, так как показываем локальный файл
     });
   }

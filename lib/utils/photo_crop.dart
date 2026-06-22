@@ -15,47 +15,56 @@ Future<String?> cropPhoto(
   final normalized = await _normalizeOrientation(sourcePath);
   final workPath = normalized ?? sourcePath;
 
-  final cropped = await ImageCropper().cropImage(
-    sourcePath: workPath,
-    compressFormat: ImageCompressFormat.jpg,
-    compressQuality: 88,
-    uiSettings: [
-      AndroidUiSettings(
-        toolbarTitle: 'Редактировать фото',
-        toolbarColor: const Color(0xFF1A1A2E),
-        toolbarWidgetColor: Colors.white,
-        statusBarLight: false,
-        backgroundColor: const Color(0xFF111111),
-        activeControlsWidgetColor: accentColor,
-        cropFrameColor: accentColor,
-        cropGridColor: Colors.white24,
-        dimmedLayerColor: const Color(0xCC0D0D1A),
-        lockAspectRatio: false,
-        initAspectRatio: CropAspectRatioPreset.original,
-        aspectRatioPresets: [
-          CropAspectRatioPreset.original,
-          CropAspectRatioPreset.square,
-          CropAspectRatioPreset.ratio4x3,
-          CropAspectRatioPreset.ratio16x9,
-        ],
-      ),
-      IOSUiSettings(
-        title: 'Редактировать',
-        doneButtonTitle: 'Готово',
-        cancelButtonTitle: 'Отмена',
-        aspectRatioLockEnabled: false,
-        resetAspectRatioEnabled: true,
-        rotateButtonsHidden: false,
-        hidesNavigationBar: false,
-        aspectRatioPresets: [
-          CropAspectRatioPreset.original,
-          CropAspectRatioPreset.square,
-          CropAspectRatioPreset.ratio4x3,
-          CropAspectRatioPreset.ratio16x9,
-        ],
-      ),
-    ],
-  );
+  // Нативный кроппер может кинуть PlatformException (отмена через системный
+  // диалог, нехватка памяти, пересоздание активити) — это не краш приложения,
+  // трактуем как «не выбрали фото».
+  CroppedFile? cropped;
+  try {
+    cropped = await ImageCropper().cropImage(
+      sourcePath: workPath,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 88,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Редактировать фото',
+          toolbarColor: const Color(0xFF1A1A2E),
+          toolbarWidgetColor: Colors.white,
+          statusBarLight: false,
+          backgroundColor: const Color(0xFF111111),
+          activeControlsWidgetColor: accentColor,
+          cropFrameColor: accentColor,
+          cropGridColor: Colors.white24,
+          dimmedLayerColor: const Color(0xCC0D0D1A),
+          lockAspectRatio: false,
+          initAspectRatio: CropAspectRatioPreset.original,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+        ),
+        IOSUiSettings(
+          title: 'Редактировать',
+          doneButtonTitle: 'Готово',
+          cancelButtonTitle: 'Отмена',
+          aspectRatioLockEnabled: false,
+          resetAspectRatioEnabled: true,
+          rotateButtonsHidden: false,
+          hidesNavigationBar: false,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.square,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+          ],
+        ),
+      ],
+    );
+  } catch (e) {
+    debugPrint('cropPhoto: cropImage failed: $e');
+    cropped = null;
+  }
 
   // Удаляем временный нормализованный файл если он был создан
   if (normalized != null && normalized != sourcePath) {
