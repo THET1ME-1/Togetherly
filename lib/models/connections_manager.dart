@@ -716,11 +716,15 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     connection.dispose();
-    _connections.removeAt(index);
+    // Удаляем по объекту, а не по индексу: за время `await unpair()` listener
+    // (_handlePairUpdate/_removeDisbandedConnections) мог изменить _connections,
+    // и захваченный index устарел бы → RangeError на removeAt(index).
+    _connections.remove(connection);
 
     // Adjust active index if needed
     if (_activeConnectionIndex >= _connections.length) {
-      _activeConnectionIndex = _connections.length - 1;
+      _activeConnectionIndex =
+          _connections.isEmpty ? 0 : _connections.length - 1;
     }
 
     await _saveLocal();

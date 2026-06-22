@@ -21,5 +21,10 @@ Future<T?> safePick<T>(
     debugPrint('safePick: image_picker failed (${e.code})');
     onError?.call(e);
     return null;
+  } catch (e) {
+    // Напр. TypeError/«Null check» из нативного пути пикера при пересоздании
+    // активити (потерянный результат) — тоже не краш, трактуем как отмену.
+    debugPrint('safePick: image_picker error: $e');
+    return null;
   }
 }

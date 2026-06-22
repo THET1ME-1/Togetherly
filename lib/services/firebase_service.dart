@@ -3884,7 +3884,11 @@ class FirebaseService {
     String groupId,
     Map<String, dynamic> data,
   ) {
-    final u = currentUser!;
+    // currentUser может быть null в переходном окне (разлогин/протухший токен/
+    // холодный старт до восстановления auth), а снапшот группы из listener'а
+    // прилетает и тогда. Берём uid безопасно: пустой uid не схлопывает данные —
+    // members/имена остаются, партнёр доопределится на следующем снапшоте.
+    final myUid = currentUser?.uid ?? '';
     final rawMembers = List<String>.from(data['members'] ?? []);
     // Deduplicate in case Firestore data has become inconsistent
     final members = rawMembers.toSet().toList();
@@ -3923,7 +3927,7 @@ class FirebaseService {
       data['memberAvatars'] ?? {},
     );
 
-    final otherUids = members.where((m) => m != u.uid).toList();
+    final otherUids = members.where((m) => m != myUid).toList();
     final partnerUid = otherUids.isNotEmpty ? otherUids.first : '';
 
     return {
@@ -3988,8 +3992,8 @@ class FirebaseService {
     String pairId,
     Map<String, dynamic> data,
   ) {
-    final u = currentUser!;
-    final isUser1 = data['user1'] == u.uid;
+    final myUid = currentUser?.uid ?? '';
+    final isUser1 = data['user1'] == myUid;
     return {
       'pairId': pairId,
       'partnerName': isUser1 ? data['user2Name'] : data['user1Name'],
