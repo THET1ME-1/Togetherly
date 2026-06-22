@@ -58,16 +58,11 @@ class PocketBaseService {
   /// Есть ли валидная сессия.
   bool get isLoggedIn => _pb?.authStore.isValid ?? false;
 
-  /// id текущего юзера в PocketBase (PB-PK, 15 симв.) или null.
+  /// id текущего юзера = канонический идентификатор в данных (`author_uid`,
+  /// `user_uid`, `members[]` ссылаются на него строкой). У мигрированных юзеров
+  /// `id` = их прежний uid (через override поля id при импорте), у новых —
+  /// авто-id PocketBase. null, если не вошёл.
   String? get userId => _pb?.authStore.record?.id;
-
-  /// Firebase-UID текущего юзера (кастомное поле `firebase_uid`) — связи в
-  /// данных ссылаются на него, не на PB-id. null, если поле пустое/не вошёл.
-  String? get firebaseUid {
-    final rec = _pb?.authStore.record;
-    final v = rec?.data['firebase_uid'];
-    return (v is String && v.isNotEmpty) ? v : null;
-  }
 
   String? get userEmail => _pb?.authStore.record?.data['email'] as String?;
 

@@ -67,7 +67,7 @@ def jsonf(n):
     return {"name": n, "type": "json", "required": False, "maxSize": 5000000}
 
 USERS_CUSTOM = [
-    text("firebase_uid"), text("display_name"), text("avatar_url"),
+    text("display_name"), text("avatar_url"),
     text("gender"), date("birth_date"), number("coins"),
     jsonf("owned_themes"), jsonf("owned_icons"), jsonf("owned_features"),
     jsonf("granted_badges"), text("badge"), text("pair_id"), jsonf("pair_ids"),
@@ -80,10 +80,14 @@ USERS_CUSTOM = [
     boolean("partner_invite_reward_granted"),
     jsonf("partner_invite_rewarded_keys"), jsonf("mood_streak_rewards"),
 ]
-USERS_FB_UID_INDEX = (
-    "CREATE UNIQUE INDEX `idx_users_firebase_uid` ON `users` (`firebase_uid`) "
-    "WHERE `firebase_uid` != ''"
-)
+# Override поля id у users: принимать внешний id (= прежний uid мигрированного
+# юзера, до 50 симв., смешанный регистр/'_'/'-'), но СОХРАНИТЬ автогенерацию
+# для новых регистраций (autogeneratePattern не пустой).
+USERS_ID_OVERRIDE = {
+    "name": "id", "type": "text", "primaryKey": True, "required": True,
+    "system": True, "pattern": "^[A-Za-z0-9_-]+$", "min": 1, "max": 50,
+    "autogeneratePattern": "[a-z0-9]{15}",
+}
 
 
 def main():
@@ -95,20 +99,25 @@ def main():
     st, d = api("PUT", "/api/collections/import", token, schema)
     print(f"[import] HTTP {st}" + ("" if st == 204 else f"  {json.dumps(d, ensure_ascii=False)[:400]}"))
 
-    # 2) users: дописать недостающие поля (идемпотентно) + индекс firebase_uid
+    # 2) users: дописать кастомные поля (идемпотентно), УБРАТЬ устаревшее
+    #    firebase_uid (поле+индекс) и переопределить id под внешние id.
     st, users = api("GET", "/api/collections/users", token)
     if st != 200:
         raise SystemExit(f"get users failed: {st} {users}")
+    # выкинуть legacy-поле firebase_uid, если осталось с прошлых прогонов
+    users["fields"] = [f for f in users["fields"] if f["name"] != "firebase_uid"]
+    # override поля id
+    users["fields"] = [USERS_ID_OVERRIDE if f["name"] == "id" else f
+                       for f in users["fields"]]
     have = {f["name"] for f in users["fields"]}
     added = [f for f in USERS_CUSTOM if f["name"] not in have]
     if added:
         users["fields"] += added
-    idx = users.get("indexes", [])
-    if not any("idx_users_firebase_uid" in s for s in idx):
-        idx.append(USERS_FB_UID_INDEX)
-    users["indexes"] = idx
+    # индексы: убрать legacy firebase_uid
+    users["indexes"] = [s for s in users.get("indexes", [])
+                        if "idx_users_firebase_uid" not in s]
     st, d = api("PATCH", f"/api/collections/{users['id']}", token, users)
-    print(f"[users] HTTP {st}  добавлено полей={len(added)}: {[f['name'] for f in added]}")
+    print(f"[users] HTTP {st}  +полей={len(added)} (firebase_uid убран, id override)")
     if st != 200:
         print("  ОШИБКА:", json.dumps(d, ensure_ascii=False)[:500])
 

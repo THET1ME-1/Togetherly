@@ -11,10 +11,10 @@ import 'pocketbase_service.dart';
 ///  • Google OAuth2 (web-flow PB) — требует настройки провайдера `google` в
 ///    панели PocketBase (Client ID/Secret + redirect `…/api/oauth2-redirect`).
 ///
-/// Идентичность приложения завязана на Firebase-UID: всё в данных кеится по
-/// `users.firebase_uid`. У мигрированных юзеров поле уже заполнено (Этап 5),
-/// у НОВЫХ — проставляем `firebase_uid = id записи PB` при первом входе
-/// (стабильный уникальный ключ; единая схема ключей данных не ломается).
+/// Идентичность в данных завязана на `users.id`: `author_uid`/`user_uid`/
+/// `members[]` хранят его строкой. У мигрированных юзеров `id` = их прежний uid
+/// (проставляется через override поля id при импорте, Этап 5), у НОВЫХ — обычный
+/// авто-id PocketBase. Отдельного «uid»-поля нет — id и есть ключ.
 class PbAuthService {
   PbAuthService._();
   static final PbAuthService instance = PbAuthService._();
@@ -26,8 +26,8 @@ class PbAuthService {
   /// Коллекция аккаунтов.
   static const String _usersCol = 'users';
 
-  /// «Мой uid» для слоя данных = Firebase-UID из профиля.
-  String? get currentUid => _svc.firebaseUid;
+  /// «Мой uid» для слоя данных = `users.id`.
+  String? get currentUid => _svc.userId;
 
   bool get isLoggedIn => _svc.isLoggedIn;
 
@@ -112,17 +112,13 @@ class PbAuthService {
 
   void signOut() => _svc.signOut();
 
-  /// Гарантирует, что у записи есть `firebase_uid` (новым — = id записи) и,
-  /// при наличии, имя/аватар. Патчит только недостающее.
+  /// Дозаполняет имя/аватар в профиле, если там пусто (id юзер не трогает —
+  /// им управляет PocketBase). Патчит только недостающее.
   Future<void> _ensureProfile({String? displayName, String? avatarUrl}) async {
     final rec = _svc.currentUser;
     if (rec == null) return;
     final patch = <String, dynamic>{};
 
-    final fbUid = rec.data['firebase_uid'];
-    if (fbUid is! String || fbUid.isEmpty) {
-      patch['firebase_uid'] = rec.id; // новый юзер → стабильный ключ
-    }
     final curName = rec.data['display_name'];
     if ((curName is! String || curName.isEmpty) &&
         displayName != null &&

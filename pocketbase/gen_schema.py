@@ -15,6 +15,8 @@
         mascots(group_id,mascot_id), chat_reads(group_id,user_uid).
   • users — отдельной коллекции тут НЕТ: это дефолтная auth-коллекция PB, её
     поля дописываются PATCH-ом (см. apply_schema.py), а не пересоздаются.
+    id у users тоже override (внешний id мигрированного юзера = прежний uid;
+    новым — авто-id). Отдельного uid-поля нет: данные ссылаются на users.id.
 
 Имена полей — snake_case, как в Supabase: маппинг Firebase→snake_case уже есть
 в коде (_sb.*), переиспользуем его на Этапе 5 (импорт данных).
