@@ -155,6 +155,9 @@ auto("widget_data", [
 
 auto("miss_you", [
     t("group_id", True), t("user_uid", True), num("count"), d("updated_at"),
+    # тип последнего вайба и кастом-текст — чтобы SSE-событие у партнёра несло
+    # содержимое уведомления (miss_you/thinking_of_you/want_hug/custom)
+    t("last_vibe"), t("last_vibe_text"),
 ], ["group_id", "user_uid"], extra_indexes=[uidx("miss_you", ["group_id"], unique=False)])
 
 auto("canvas_meta", [

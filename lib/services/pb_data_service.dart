@@ -670,17 +670,26 @@ class PbDataService {
   }
 
   // ══════════════════════════════════════════════ MISS YOU (составной)
-  Future<bool> incrementMissYou(String groupId, String uid) async {
+  /// Инкремент «скучаю» + тип вайба (miss_you/thinking_of_you/want_hug/custom)
+  /// и кастом-текст — чтобы SSE-событие у партнёра несло содержимое пуша.
+  Future<bool> incrementMissYou(
+    String groupId,
+    String uid, {
+    String vibe = 'miss_you',
+    String? text,
+  }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
     try {
       final f = _pb.filter('group_id = {:g} && user_uid = {:u}',
           {'g': groupId, 'u': uid});
+      final extra = {'last_vibe': vibe, 'last_vibe_text': text ?? ''};
       try {
         final rec = await _pb.collection('miss_you').getFirstListItem(f);
         final cur = (rec.data['count'] as num?)?.toInt() ?? 0;
         await _pb.collection('miss_you').update(rec.id, body: {
           'count': cur + 1,
           'updated_at': DateTime.now().toIso8601String(),
+          ...extra,
         });
       } on ClientException catch (e) {
         if (e.statusCode != 404) rethrow;
@@ -689,6 +698,7 @@ class PbDataService {
           'user_uid': uid,
           'count': 1,
           'updated_at': DateTime.now().toIso8601String(),
+          ...extra,
         });
       }
       return true;

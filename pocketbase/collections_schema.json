@@ -827,6 +827,16 @@
           "name": "updated_at",
           "type": "date",
           "required": false
+        },
+        {
+          "name": "last_vibe",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "last_vibe_text",
+          "type": "text",
+          "required": false
         }
       ],
       "indexes": [
