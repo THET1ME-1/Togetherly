@@ -1,19 +1,27 @@
 // Бэкфилл Supabase → Firebase для пар, у которых под Stage 4 запись в Firebase
 // была отключена (данные ушли только в Supabase). АДДИТИВНЫЙ и БЕЗОПАСНЫЙ:
-//   • пишет в Firebase ТОЛЬКО записи, которых там НЕТ (precondition exists:false
-//     на каждом write → затереть существующий свежий Firebase невозможно);
-//   • удалённые в Supabase (deleted=true) НЕ воскрешает;
+//   • create-only типы пишут в Firebase ТОЛЬКО записи, которых там НЕТ
+//     (precondition exists:false на каждом write → затереть существующий свежий
+//     Firebase невозможно);
+//   • групповые поля (тип `group`) — merge ТОЛЬКО отсутствующих полей верхнего
+//     уровня (updateMask + currentDocument.exists=true): существующее поле в
+//     Firebase НИКОГДА не перезаписывается;
+//   • удалённые в Supabase (deleted=true) НЕ воскрешает (где есть колонка deleted);
 //   • DRY-RUN по умолчанию — без --commit ничего не пишет, только считает.
+//
+// Чат (chat_messages/chat_reads) НЕ бэкфиллится: история чата живёт в RTDB, не в
+// Firestore (Firestore-док чата был лишь триггером пуша и сразу удаляется).
 //
 // Доступ:
 //   • Firebase — owner refresh_token из firebase CLI configstore (как admin_groups.js).
 //   • Supabase — service-role ключ из переменной окружения SBKEY (в файлы НЕ писать).
 //
-// Использование:
-//   SBKEY=... node tools/backfill_supabase_to_firebase.js memories            # dry-run, все stage4-группы
-//   SBKEY=... node tools/backfill_supabase_to_firebase.js memories --group GID # одна группа
-//   SBKEY=... node tools/backfill_supabase_to_firebase.js memories --limit 20  # первые 20 групп
-//   SBKEY=... node tools/backfill_supabase_to_firebase.js memories --commit    # БОЕВОЙ прогон (пишет)
+// Использование (TYPE = memories|comments|moods|strokes|canvasMeta|canvasCatalogue|widget|group|all):
+//   SBKEY=... node tools/backfill_supabase_to_firebase.js all              # dry-run, все типы, все stage4-группы
+//   SBKEY=... node tools/backfill_supabase_to_firebase.js memories         # dry-run, один тип
+//   SBKEY=... node tools/backfill_supabase_to_firebase.js all --group GID  # одна группа
+//   SBKEY=... node tools/backfill_supabase_to_firebase.js all --limit 20   # первые 20 групп
+//   SBKEY=... node tools/backfill_supabase_to_firebase.js all --commit     # БОЕВОЙ прогон (пишет)
 
 const fs = require("fs");
 const os = require("os");
@@ -103,7 +111,8 @@ function fv(field) {
   return undefined;
 }
 
-const TS_KEYS = new Set(["createdAt", "editedAt"]);
+// Ключи, которые в Firestore — Timestamp (в Supabase лежат ISO-строками).
+const TS_KEYS = new Set(["createdAt", "editedAt", "timestamp", "updatedAt"]);
 function toFs(v, key) {
   if (v === null || v === undefined) return { nullValue: null };
   if (TS_KEYS.has(key) && typeof v === "string") {
@@ -126,6 +135,13 @@ function toFsFields(map) {
   const fields = {};
   for (const k of Object.keys(map)) fields[k] = toFs(map[k], k);
   return fields;
+}
+
+// Выкинуть null/undefined верхнего уровня (как делают mirror*-методы в приложении).
+function clean(obj) {
+  const o = {};
+  for (const k of Object.keys(obj)) if (obj[k] !== null && obj[k] !== undefined) o[k] = obj[k];
+  return o;
 }
 
 // ── stage4 group discovery (same logic as backfill_scope.js) ──
@@ -170,13 +186,15 @@ async function scanStage4Groups(token) {
 }
 
 // ── Supabase: все строки таблицы по группе (постранично) ──
-async function sbRows(table, gid, select) {
+// hasDeleted=false для таблиц без колонки deleted (canvas_meta/catalogue/widget_data).
+async function sbRows(table, gid, select, hasDeleted = true) {
   const out = [];
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const path =
       `/rest/v1/${table}?group_id=eq.${encodeURIComponent(gid)}` +
-      `&deleted=eq.false&select=${encodeURIComponent(select)}`;
+      (hasDeleted ? `&deleted=eq.false` : ``) +
+      `&select=${encodeURIComponent(select)}`;
     const r = await req("GET", SB_HOST, path, null, {
       ...sbHeaders(),
       Range: `${from}-${from + PAGE - 1}`,
@@ -190,22 +208,39 @@ async function sbRows(table, gid, select) {
   return out;
 }
 
-// ── Firebase: id существующих доков подколлекции группы ──
-async function fbExistingIds(token, gid, sub) {
+// ── Supabase: одна строка таблицы groups ──
+async function sbGroupRow(gid, select) {
+  const path = `/rest/v1/groups?id=eq.${encodeURIComponent(gid)}&select=${encodeURIComponent(select)}`;
+  const r = await req("GET", SB_HOST, path, null, sbHeaders());
+  if (r.status !== 200) throw new Error(`SB groups ${r.status}: ${r.body.slice(0, 200)}`);
+  const rows = JSON.parse(r.body);
+  return rows[0] || null;
+}
+
+// ── Firebase: id существующих доков (sub под parentRel; deep=true → collection-group) ──
+async function fbExistingIds(token, parentRel, sub, deep = false) {
   const ids = new Set();
   const sq = {
     structuredQuery: {
-      from: [{ collectionId: sub }],
+      from: [{ collectionId: sub, ...(deep ? { allDescendants: true } : {}) }],
       select: { fields: [{ fieldPath: "__name__" }] },
       limit: 20000,
     },
   };
-  const r = await req("POST", FS_HOST, `${FS_BASE}/groups/${gid}:runQuery`, sq, fbHeaders(token));
+  const r = await req("POST", FS_HOST, `${FS_BASE}/${parentRel}:runQuery`, sq, fbHeaders(token));
   if (r.status !== 200) throw new Error(`FB existing ${sub} ${r.status}: ${r.body.slice(0, 200)}`);
   for (const x of JSON.parse(r.body)) {
     if (x.document) ids.add(x.document.name.split("/").pop());
   }
   return ids;
+}
+
+// ── Firebase: получить один документ (или null если 404) ──
+async function fbGetDoc(token, rel) {
+  const r = await req("GET", FS_HOST, `${FS_BASE}/${rel}`, null, fbHeaders(token, false));
+  if (r.status === 404) return null;
+  if (r.status !== 200) throw new Error(`FB get ${rel} ${r.status}: ${r.body.slice(0, 200)}`);
+  return JSON.parse(r.body);
 }
 
 // ── Firebase: commit пачки create-only writes (exists:false) ──
@@ -217,35 +252,247 @@ async function fbCommitCreate(token, writes) {
   }
 }
 
-// ── MEMORIES ──
-async function backfillMemories(token, gid) {
-  const rows = await sbRows("memories", gid, "id,data");
-  const existing = await fbExistingIds(token, gid, "memories");
-  const missing = rows.filter((r) => r.id && !existing.has(r.id) && r.data);
-  const writes = missing.map((r) => ({
-    update: {
-      name: `projects/${PROJECT}/databases/(default)/documents/groups/${gid}/memories/${r.id}`,
-      fields: toFsFields(r.data),
-    },
-    currentDocument: { exists: false }, // только создание, никогда не перезапись
-  }));
-  if (COMMIT && writes.length) await fbCommitCreate(token, writes);
-  return { sb: rows.length, fb: existing.size, add: missing.length };
+// ── Firebase: PATCH только указанных полей существующего дока (merge без перезаписи) ──
+async function fbPatchFields(token, rel, fieldsMap) {
+  const mask = Object.keys(fieldsMap)
+    .map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`)
+    .join("&");
+  const path = `${FS_BASE}/${rel}?${mask}&currentDocument.exists=true`;
+  const r = await req("PATCH", FS_HOST, path, { fields: toFsFields(fieldsMap) }, fbHeaders(token));
+  if (r.status !== 200) throw new Error(`patch ${rel} ${r.status}: ${r.body.slice(0, 300)}`);
 }
 
-const HANDLERS = { memories: backfillMemories };
+// Собрать create-only writes из (id → fields-map) и опционально закоммитить.
+async function commitCreateOnly(token, items) {
+  const writes = items.map((it) => ({
+    update: {
+      name: `projects/${PROJECT}/databases/(default)/documents/${it.path}`,
+      fields: toFsFields(it.fields),
+    },
+    currentDocument: { exists: false },
+  }));
+  if (COMMIT && writes.length) await fbCommitCreate(token, writes);
+  return writes.length;
+}
+
+// ── MEMORIES ── groups/{gid}/memories/{id} (data jsonb)
+async function backfillMemories(token, gid) {
+  const rows = await sbRows("memories", gid, "id,data");
+  const existing = await fbExistingIds(token, `groups/${gid}`, "memories");
+  const missing = rows.filter((r) => r.id && !existing.has(r.id) && r.data);
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({ path: `groups/${gid}/memories/${r.id}`, fields: r.data }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── COMMENTS ── groups/{gid}/memories/{memoryId}/comments/{id}
+async function backfillComments(token, gid) {
+  const rows = await sbRows(
+    "memory_comments",
+    gid,
+    "id,memory_id,author_uid,author_name,author_avatar,text,created_at"
+  );
+  const existing = await fbExistingIds(token, `groups/${gid}`, "comments", true);
+  const missing = rows.filter((r) => r.id && r.memory_id && !existing.has(r.id));
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({
+      path: `groups/${gid}/memories/${r.memory_id}/comments/${r.id}`,
+      fields: clean({
+        authorUid: r.author_uid,
+        authorName: r.author_name,
+        authorAvatar: r.author_avatar,
+        text: r.text,
+        createdAt: r.created_at,
+      }),
+    }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── MOODS ── groups/{gid}/moodCalendar/{uid}/entries/{id}
+async function backfillMoods(token, gid) {
+  const rows = await sbRows("mood_entries", gid, "id,user_uid,mood_id,image_path,label,timestamp");
+  const uids = [...new Set(rows.map((r) => r.user_uid).filter(Boolean))];
+  const existing = new Set();
+  for (const uid of uids) {
+    const ids = await fbExistingIds(token, `groups/${gid}/moodCalendar/${uid}`, "entries");
+    ids.forEach((id) => existing.add(id));
+  }
+  const missing = rows.filter((r) => r.id && r.user_uid && !existing.has(r.id));
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({
+      path: `groups/${gid}/moodCalendar/${r.user_uid}/entries/${r.id}`,
+      fields: clean({
+        id: r.id,
+        moodId: r.mood_id,
+        imagePath: r.image_path,
+        label: r.label,
+        timestamp: r.timestamp,
+      }),
+    }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── CANVAS STROKES ── groups/{gid}/canvas/{canvasId}/strokes/{id} (data jsonb)
+async function backfillStrokes(token, gid) {
+  const rows = await sbRows("canvas_strokes", gid, "id,canvas_id,order_index,data");
+  const existing = await fbExistingIds(token, `groups/${gid}`, "strokes", true);
+  const missing = rows.filter((r) => r.id && r.canvas_id && !existing.has(r.id) && r.data);
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => {
+      const data = { ...r.data };
+      if (data.orderIndex == null && r.order_index != null) data.orderIndex = r.order_index;
+      return { path: `groups/${gid}/canvas/${r.canvas_id}/strokes/${r.id}`, fields: data };
+    })
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── CANVAS META ── groups/{gid}/canvas/{canvasId} (сам документ; create-only)
+async function backfillCanvasMeta(token, gid) {
+  const rows = await sbRows("canvas_meta", gid, "canvas_id,bg_color,canvas_rotation,clear_version", false);
+  const existing = await fbExistingIds(token, `groups/${gid}`, "canvas");
+  const missing = rows.filter((r) => r.canvas_id && !existing.has(r.canvas_id));
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({
+      path: `groups/${gid}/canvas/${r.canvas_id}`,
+      fields: clean({
+        bgColor: r.bg_color,
+        canvasRotation: r.canvas_rotation,
+        clearVersion: r.clear_version,
+      }),
+    }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── CANVAS CATALOGUE ── groups/{gid}/canvasCatalogue/{canvasId}
+async function backfillCanvasCatalogue(token, gid) {
+  const rows = await sbRows("canvas_catalogue", gid, "canvas_id,name,created_at,updated_at,created_by", false);
+  const existing = await fbExistingIds(token, `groups/${gid}`, "canvasCatalogue");
+  const missing = rows.filter((r) => r.canvas_id && !existing.has(r.canvas_id));
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({
+      path: `groups/${gid}/canvasCatalogue/${r.canvas_id}`,
+      fields: clean({
+        name: r.name,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        createdBy: r.created_by,
+      }),
+    }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── WIDGET DATA ── groups/{gid}/widgetData/{uid}
+async function backfillWidget(token, gid) {
+  const rows = await sbRows(
+    "widget_data",
+    gid,
+    "user_uid,display_name,avatar_url,gender,status,mood_emoji,mood_label,message," +
+      "music_title,music_artist,music_url,music_cover_url,photo_url,photo_for_partner_url," +
+      "photo_for_partner_urls,photo_grid_count,photo_grid_urls,updated_at",
+    false
+  );
+  const existing = await fbExistingIds(token, `groups/${gid}`, "widgetData");
+  const missing = rows.filter((r) => r.user_uid && !existing.has(r.user_uid));
+  const add = await commitCreateOnly(
+    token,
+    missing.map((r) => ({
+      path: `groups/${gid}/widgetData/${r.user_uid}`,
+      fields: clean({
+        uid: r.user_uid,
+        displayName: r.display_name,
+        avatarUrl: r.avatar_url,
+        gender: r.gender,
+        status: r.status,
+        moodEmoji: r.mood_emoji,
+        moodLabel: r.mood_label,
+        message: r.message,
+        musicTitle: r.music_title,
+        musicArtist: r.music_artist,
+        musicUrl: r.music_url,
+        musicCoverUrl: r.music_cover_url,
+        photoUrl: r.photo_url,
+        photoForPartnerUrl: r.photo_for_partner_url,
+        photoForPartnerUrls: r.photo_for_partner_urls,
+        photoGridCount: r.photo_grid_count,
+        photoGridUrls: r.photo_grid_urls,
+        updatedAt: r.updated_at,
+      }),
+    }))
+  );
+  return { sb: rows.length, fb: existing.size, add };
+}
+
+// ── GROUP FIELDS ── поля в самом groups/{gid} (merge ТОЛЬКО отсутствующих полей)
+const GROUP_COL = {
+  member_moods: "memberMoods",
+  member_names: "memberNames",
+  member_avatars: "memberAvatars",
+  member_birthdays: "memberBirthdays",
+  current_status: "currentStatus",
+  custom_statuses: "customStatuses",
+  custom_relationship_types: "customRelationshipTypes",
+};
+function isEmptyVal(v) {
+  if (v === null || v === undefined) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "object") return Object.keys(v).length === 0;
+  return false;
+}
+async function backfillGroupFields(token, gid) {
+  const sb = await sbGroupRow(gid, Object.keys(GROUP_COL).join(","));
+  if (!sb) return { sb: 0, fb: 0, add: 0 };
+  const fbDoc = await fbGetDoc(token, `groups/${gid}`);
+  const fbFields = (fbDoc && fbDoc.fields) || {};
+  const toAdd = {};
+  let sbCount = 0;
+  for (const [sc, cc] of Object.entries(GROUP_COL)) {
+    const val = sb[sc];
+    if (!isEmptyVal(val)) sbCount++;
+    const fbHas = fbFields[cc] !== undefined && !("nullValue" in fbFields[cc]);
+    // Дописываем поле, только если оно непустое в Supabase и ОТСУТСТВУЕТ в Firebase.
+    if (!isEmptyVal(val) && !fbHas) toAdd[cc] = val;
+  }
+  const add = Object.keys(toAdd).length;
+  if (COMMIT && add) await fbPatchFields(token, `groups/${gid}`, toAdd);
+  return { sb: sbCount, fb: Object.keys(fbFields).length, add };
+}
+
+const HANDLERS = {
+  memories: backfillMemories,
+  comments: backfillComments,
+  moods: backfillMoods,
+  strokes: backfillStrokes,
+  canvasMeta: backfillCanvasMeta,
+  canvasCatalogue: backfillCanvasCatalogue,
+  widget: backfillWidget,
+  group: backfillGroupFields,
+};
+const ALL_TYPES = Object.keys(HANDLERS);
 
 async function main() {
   if (!SBKEY) throw new Error("SBKEY не задан. Запусти: SBKEY=<service-role> node tools/backfill_supabase_to_firebase.js ...");
-  const handler = HANDLERS[TYPE];
-  if (!handler) {
-    console.log("Типы:", Object.keys(HANDLERS).join(", "));
-    console.log("Пример: SBKEY=... node tools/backfill_supabase_to_firebase.js memories --group <GID>");
+  const isAll = TYPE === "all";
+  if (!isAll && !HANDLERS[TYPE]) {
+    console.log("Типы:", ALL_TYPES.join(", "), "| all");
+    console.log("Пример: SBKEY=... node tools/backfill_supabase_to_firebase.js all --group <GID>");
     process.exit(1);
   }
+  const types = isAll ? ALL_TYPES : [TYPE];
   const { token, email } = await getToken();
   console.log(`Firebase: ${email} | Supabase: ${SB_HOST}`);
-  console.log(`Тип: ${TYPE} | режим: ${COMMIT ? "🔴 БОЕВОЙ (пишет)" : "🟢 DRY-RUN (только чтение)"}\n`);
+  console.log(`Типы: ${types.join(", ")} | режим: ${COMMIT ? "🔴 БОЕВОЙ (пишет)" : "🟢 DRY-RUN (только чтение)"}\n`);
 
   let groups;
   if (onlyGroup) {
@@ -257,28 +504,39 @@ async function main() {
     if (limitGroups) groups = groups.slice(0, limitGroups);
   }
 
-  let totSb = 0, totAdd = 0, touched = 0, errs = 0;
+  const perType = Object.fromEntries(types.map((t) => [t, { add: 0, sb: 0 }]));
+  let touched = 0, errs = 0;
   for (let i = 0; i < groups.length; i++) {
     const gid = groups[i];
-    try {
-      const res = await handler(token, gid);
-      totSb += res.sb;
-      totAdd += res.add;
-      if (res.add > 0) {
-        touched++;
-        console.log(`  ${gid}: SB=${res.sb} FB=${res.fb} → ${COMMIT ? "долито" : "долить"} ${res.add}`);
+    let groupAdded = 0;
+    const parts = [];
+    for (const t of types) {
+      try {
+        const res = await HANDLERS[t](token, gid);
+        perType[t].add += res.add;
+        perType[t].sb += res.sb;
+        if (res.add > 0) {
+          groupAdded += res.add;
+          parts.push(`${t}=${res.add}`);
+        }
+      } catch (e) {
+        errs++;
+        console.log(`  ${gid} [${t}]: ОШИБКА ${e.message}`);
       }
-    } catch (e) {
-      errs++;
-      console.log(`  ${gid}: ОШИБКА ${e.message}`);
+    }
+    if (groupAdded > 0) {
+      touched++;
+      console.log(`  ${gid}: ${COMMIT ? "долито" : "долить"} ${groupAdded} (${parts.join(", ")})`);
     }
     if ((i + 1) % 50 === 0) console.log(`  … ${i + 1}/${groups.length}`);
   }
 
-  console.log(`\n=== ИТОГ (${TYPE}, ${COMMIT ? "БОЕВОЙ" : "DRY-RUN"}) ===`);
+  console.log(`\n=== ИТОГ (${COMMIT ? "БОЕВОЙ" : "DRY-RUN"}) ===`);
   console.log(`Групп обработано: ${groups.length}, с отсутствующими записями: ${touched}, ошибок: ${errs}`);
-  console.log(`Записей в Supabase (сумма): ${totSb}`);
-  console.log(`Записей ${COMMIT ? "долито" : "к доливке"} в Firebase: ${totAdd}`);
+  for (const t of types) {
+    console.log(`  ${t}: в Supabase=${perType[t].sb}, ${COMMIT ? "долито" : "к доливке"}=${perType[t].add}`);
+  }
+  const totAdd = types.reduce((s, t) => s + perType[t].add, 0);
   if (!COMMIT && totAdd > 0) console.log(`\nЭто DRY-RUN. Для боевого прогона добавь --commit.`);
 }
 
