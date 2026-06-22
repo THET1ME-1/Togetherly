@@ -180,8 +180,22 @@ auto("chat_reads", [
     d("updated_at"),
 ], ["group_id", "user_uid"])
 
+# ── MEDIA (PB Storage): файлы крепятся к записям через file-поле ─────────────
+# Замена Firebase Storage. Один блоб = одна запись; URL отдаётся PB как
+# /api/files/media/<recordId>/<filename>. В текстовые поля сущностей
+# (photo_url/image_url/...) кладём этот URL (или схему pb://media/<id>/<file>).
+def file_field(name, max_mb=50):
+    return {"name": name, "type": "file", "required": False,
+            "maxSelect": 1, "maxSize": max_mb * 1024 * 1024, "mimeTypes": []}
+
+media_collection = {
+    "name": "media", "type": "base",
+    "fields": [file_field("file"), t("uid"), t("group_id"), t("kind")],
+    "indexes": [uidx("media", ["group_id"], unique=False)],
+}
+
 # ── вывод ────────────────────────────────────────────────────────────────────
-collections = fb_collections + auto_collections
+collections = fb_collections + auto_collections + [media_collection]
 out = {"collections": collections, "deleteMissing": False}
 
 path = os.path.join(os.path.dirname(__file__), "collections_schema.json")

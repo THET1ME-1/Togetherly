@@ -995,6 +995,38 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_chat_reads_group_id_user_uid` ON `chat_reads` (`group_id`, `user_uid`)"
       ]
+    },
+    {
+      "name": "media",
+      "type": "base",
+      "fields": [
+        {
+          "name": "file",
+          "type": "file",
+          "required": false,
+          "maxSelect": 1,
+          "maxSize": 52428800,
+          "mimeTypes": []
+        },
+        {
+          "name": "uid",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX `idx_media_group_id` ON `media` (`group_id`)"
+      ]
     }
   ],
   "deleteMissing": false
