@@ -454,6 +454,432 @@ class PbDataService {
     }
   }
 
+  // ══════════════════════════════════════════════ CANVAS
+  Future<bool> upsertStroke(
+    String groupId,
+    String canvasId,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
+    if (id.isEmpty) return false;
+    return _upsertById('canvas_strokes', id, {
+      'group_id': groupId,
+      'canvas_id': canvasId,
+      'order_index': (data['orderIndex'] as num?)?.toInt() ?? 0,
+      'data': _jsonSafe(data),
+    }, op: 'upsertStroke');
+  }
+
+  Future<bool> patchStroke(String id, Map<String, dynamic> updates) async {
+    if (id.isEmpty) return false;
+    // RMW: PB не умеет json-merge на сервере → читаем, мёржим data, пишем.
+    try {
+      final rec = await _pb
+          .collection('canvas_strokes')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
+      final cur = rec.data['data'];
+      final merged = cur is Map
+          ? (Map<String, dynamic>.from(cur)..addAll(_jsonSafe(updates) as Map<String, dynamic>))
+          : _jsonSafe(updates);
+      await _pb.collection('canvas_strokes').update(rec.id, body: {'data': merged});
+      return true;
+    } catch (e) {
+      debugPrint('PbData.patchStroke($id) failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteStroke(String id) async {
+    if (id.isEmpty) return false;
+    try {
+      final rec = await _pb
+          .collection('canvas_strokes')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
+      await _pb.collection('canvas_strokes').delete(rec.id);
+      return true;
+    } catch (e) {
+      debugPrint('PbData.deleteStroke($id) failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> clearCanvas(String groupId, String canvasId, int version,
+      {int? bgColor}) async {
+    if (groupId.isEmpty) return false;
+    try {
+      final strokes = await _pb.collection('canvas_strokes').getFullList(
+            filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+                {'g': groupId, 'c': canvasId}),
+          );
+      for (final s in strokes) {
+        await _pb.collection('canvas_strokes').delete(s.id);
+      }
+      final body = <String, dynamic>{
+        'group_id': groupId,
+        'canvas_id': canvasId,
+        'clear_version': version,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (bgColor != null) body['bg_color'] = bgColor;
+      return _upsertByFilter('canvas_meta',
+          'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
+          body, op: 'clearCanvas');
+    } catch (e) {
+      debugPrint('PbData.clearCanvas($groupId/$canvasId) failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> upsertCanvasMeta(String groupId, String canvasId,
+      {int? bgColor, int? rotation, int? clearVersion}) async {
+    if (groupId.isEmpty) return false;
+    final body = <String, dynamic>{
+      'group_id': groupId,
+      'canvas_id': canvasId,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (bgColor != null) body['bg_color'] = bgColor;
+    if (rotation != null) body['canvas_rotation'] = rotation;
+    if (clearVersion != null) body['clear_version'] = clearVersion;
+    return _upsertByFilter('canvas_meta',
+        'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
+        body, op: 'upsertCanvasMeta');
+  }
+
+  Future<bool> upsertCanvasCatalogue(
+      String groupId, String canvasId, Map<String, dynamic> data) async {
+    if (groupId.isEmpty || canvasId.isEmpty) return false;
+    final body = <String, dynamic>{'group_id': groupId, 'canvas_id': canvasId};
+    if (data.containsKey('name')) body['name'] = data['name'];
+    if (data.containsKey('createdAt')) body['created_at'] = data['createdAt'];
+    if (data.containsKey('updatedAt')) body['updated_at'] = data['updatedAt'];
+    if (data.containsKey('createdBy')) body['created_by'] = data['createdBy'];
+    return _upsertByFilter('canvas_catalogue',
+        'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
+        body, op: 'upsertCanvasCatalogue');
+  }
+
+  Future<bool> deleteCanvasCatalogue(String groupId, String canvasId) async {
+    if (groupId.isEmpty || canvasId.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('canvas_catalogue').getFirstListItem(
+          _pb.filter('group_id = {:g} && canvas_id = {:c}',
+              {'g': groupId, 'c': canvasId}));
+      await _pb.collection('canvas_catalogue').delete(rec.id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteCanvasCatalogue failed: $e');
+      return false;
+    }
+  }
+
+  Future<List<RecordModel>> loadStrokes(String groupId, String canvasId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('canvas_strokes').getFullList(
+            filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+                {'g': groupId, 'c': canvasId}),
+            sort: 'order_index',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadStrokes failed: $e');
+      return const [];
+    }
+  }
+
+  Future<List<RecordModel>> loadCanvasCatalogue(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('canvas_catalogue').getFullList(
+          filter: _pb.filter('group_id = {:g}', {'g': groupId}));
+    } catch (e) {
+      debugPrint('PbData.loadCanvasCatalogue failed: $e');
+      return const [];
+    }
+  }
+
+  // ══════════════════════════════════════════════ MASCOTS (составной group+mascot_id)
+  Map<String, dynamic> _mascotBody(String groupId, Map<String, dynamic> m) => {
+        'group_id': groupId,
+        'mascot_id': m['id'], // SQL-поле id маскота → колонка mascot_id в PB
+        'name': m['name'],
+        'image_url': m['imageUrl'],
+        'default_asset': m['defaultAsset'],
+        'created_by': m['createdBy'],
+        'created_at': _iso(m['createdAt']),
+        'is_default': m['isDefault'] ?? false,
+        'record_streak': m['recordStreak'] ?? 0,
+      }..removeWhere((k, v) => v == null);
+
+  Future<bool> upsertMascot(String groupId, Map<String, dynamic> m) async {
+    final mid = (m['id'] ?? '').toString();
+    if (groupId.isEmpty || mid.isEmpty) return false;
+    return _upsertByFilter('mascots',
+        'group_id = {:g} && mascot_id = {:m}', {'g': groupId, 'm': mid},
+        _mascotBody(groupId, m), op: 'upsertMascot');
+  }
+
+  Future<bool> upsertMascotsBatch(
+      String groupId, List<Map<String, dynamic>> mascots) async {
+    if (groupId.isEmpty || mascots.isEmpty) return false;
+    var ok = true;
+    for (final m in mascots) {
+      ok = await upsertMascot(groupId, m) && ok;
+    }
+    return ok;
+  }
+
+  Future<bool> deleteMascot(String groupId, String mascotId) async {
+    if (groupId.isEmpty || mascotId.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('mascots').getFirstListItem(_pb.filter(
+          'group_id = {:g} && mascot_id = {:m}', {'g': groupId, 'm': mascotId}));
+      await _pb.collection('mascots').delete(rec.id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteMascot failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateMascotFields(
+      String groupId, String mascotId, Map<String, dynamic> cols) async {
+    if (groupId.isEmpty || mascotId.isEmpty || cols.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('mascots').getFirstListItem(_pb.filter(
+          'group_id = {:g} && mascot_id = {:m}', {'g': groupId, 'm': mascotId}));
+      await _pb.collection('mascots').update(rec.id, body: cols);
+      return true;
+    } catch (e) {
+      debugPrint('PbData.updateMascotFields failed: $e');
+      return false;
+    }
+  }
+
+  Future<List<RecordModel>> loadMascots(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('mascots').getFullList(
+          filter: _pb.filter('group_id = {:g}', {'g': groupId}));
+    } catch (e) {
+      debugPrint('PbData.loadMascots failed: $e');
+      return const [];
+    }
+  }
+
+  // ══════════════════════════════════════════════ MISS YOU (составной)
+  Future<bool> incrementMissYou(String groupId, String uid) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    try {
+      final f = _pb.filter('group_id = {:g} && user_uid = {:u}',
+          {'g': groupId, 'u': uid});
+      try {
+        final rec = await _pb.collection('miss_you').getFirstListItem(f);
+        final cur = (rec.data['count'] as num?)?.toInt() ?? 0;
+        await _pb.collection('miss_you').update(rec.id, body: {
+          'count': cur + 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      } on ClientException catch (e) {
+        if (e.statusCode != 404) rethrow;
+        await _pb.collection('miss_you').create(body: {
+          'group_id': groupId,
+          'user_uid': uid,
+          'count': 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PbData.incrementMissYou failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> setMissYouCount(String groupId, String uid, int count) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    return _upsertByFilter('miss_you',
+        'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}, {
+      'group_id': groupId,
+      'user_uid': uid,
+      'count': count,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, op: 'setMissYouCount');
+  }
+
+  Future<Map<String, int>> getMissYouCounts(String groupId) async {
+    if (groupId.isEmpty) return const {};
+    try {
+      final rows = await _pb.collection('miss_you').getFullList(
+          filter: _pb.filter('group_id = {:g}', {'g': groupId}));
+      return {
+        for (final r in rows)
+          (r.data['user_uid'] ?? '').toString():
+              (r.data['count'] as num?)?.toInt() ?? 0,
+      };
+    } catch (e) {
+      debugPrint('PbData.getMissYouCounts failed: $e');
+      return const {};
+    }
+  }
+
+  // ══════════════════════════════════════════════ CHAT
+  Future<bool> chatSend(String groupId, String id, Map<String, dynamic> msg) async {
+    if (id.isEmpty) return false;
+    final body = <String, dynamic>{
+      'group_id': groupId,
+      'user_uid': msg['uid'],
+      'user_name': msg['name'],
+      'text': msg['text'],
+      'ts': msg['ts'],
+      'pin_id': msg['pinId'],
+      'pin_title': msg['pinTitle'],
+      'pin_thumb': msg['pinThumb'],
+      'reply_to_id': msg['replyToId'],
+      'reply_to_name': msg['replyToName'],
+      'reply_to_text': msg['replyToText'],
+      'face': msg['face'],
+      'color': msg['color'],
+      'face_x': msg['faceX'],
+      'face_y': msg['faceY'],
+    }..removeWhere((k, v) => v == null);
+    return _upsertById('chat_messages', id, body, op: 'chatSend');
+  }
+
+  Future<bool> chatUpdate(String id, Map<String, dynamic> fields) async {
+    if (id.isEmpty) return false;
+    return _upsertById('chat_messages', id, Map.of(fields), op: 'chatUpdate');
+  }
+
+  Future<bool> chatRead(String groupId, String uid, int ts) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    return _upsertByFilter('chat_reads',
+        'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}, {
+      'group_id': groupId,
+      'user_uid': uid,
+      'last_read_ts': ts,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, op: 'chatRead');
+  }
+
+  /// Ставит/снимает реакцию uid на сообщение (RMW по json-полю reactions).
+  Future<bool> setChatReaction(String id, String uid, String? emoji) async {
+    if (id.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb
+          .collection('chat_messages')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
+      final cur = rec.data['reactions'];
+      final r = cur is Map ? Map<String, dynamic>.from(cur) : <String, dynamic>{};
+      if (emoji == null || emoji.isEmpty) {
+        r.remove(uid);
+      } else {
+        r[uid] = emoji;
+      }
+      await _pb.collection('chat_messages').update(rec.id, body: {'reactions': r});
+      return true;
+    } catch (e) {
+      debugPrint('PbData.setChatReaction failed: $e');
+      return false;
+    }
+  }
+
+  /// Последние [limit] сообщений (новые сверху; разверни на стороне UI).
+  Future<List<RecordModel>> loadMessages(String groupId, {int limit = 100}) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      final res = await _pb.collection('chat_messages').getList(
+            perPage: limit,
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            sort: '-ts',
+          );
+      return res.items;
+    } catch (e) {
+      debugPrint('PbData.loadMessages failed: $e');
+      return const [];
+    }
+  }
+
+  Future<Map<String, int>> loadChatReads(String groupId) async {
+    if (groupId.isEmpty) return const {};
+    try {
+      final rows = await _pb.collection('chat_reads').getFullList(
+          filter: _pb.filter('group_id = {:g}', {'g': groupId}));
+      return {
+        for (final r in rows)
+          (r.data['user_uid'] ?? '').toString():
+              (r.data['last_read_ts'] as num?)?.toInt() ?? 0,
+      };
+    } catch (e) {
+      debugPrint('PbData.loadChatReads failed: $e');
+      return const {};
+    }
+  }
+
+  // ══════════════════════════════════════════════ USER PROFILE / CATALOG
+  /// Профиль юзера = запись users по id (= uid). Возвращает raw-данные записи.
+  Future<RecordModel?> loadUserProfile(String uid) async {
+    if (uid.isEmpty) return null;
+    try {
+      return await _pb.collection('users').getOne(uid);
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return null;
+      debugPrint('PbData.loadUserProfile($uid) failed: $e');
+      return null;
+    }
+  }
+
+  /// Обновляет профильные поля users (camelCase→snake_case). id=uid должен
+  /// существовать (создаётся при регистрации/импорте, не здесь).
+  Future<bool> updateUserProfile(String uid, Map<String, dynamic> data) async {
+    if (uid.isEmpty) return false;
+    final row = <String, dynamic>{};
+    void put(String key, String col, {bool json = false, bool ts = false}) {
+      if (!data.containsKey(key)) return;
+      final v = data[key];
+      row[col] = ts ? _iso(v) : (json ? _jsonSafe(v) : v);
+    }
+
+    put('displayName', 'display_name');
+    put('avatarUrl', 'avatar_url');
+    put('gender', 'gender');
+    put('birthDate', 'birth_date', ts: true);
+    put('coins', 'coins');
+    put('ownedThemes', 'owned_themes', json: true);
+    put('ownedIcons', 'owned_icons', json: true);
+    put('ownedFeatures', 'owned_features', json: true);
+    put('grantedBadges', 'granted_badges', json: true);
+    put('badge', 'badge');
+    put('pairId', 'pair_id');
+    put('pairIds', 'pair_ids', json: true);
+    put('inviteCode', 'invite_code');
+    put('fcmToken', 'fcm_token');
+    put('fcmTokens', 'fcm_tokens', json: true);
+    put('notifMissYou', 'notif_miss_you');
+    put('notifNewMemory', 'notif_new_memory');
+    put('notifMood', 'notif_mood');
+    put('notifChat', 'notif_chat');
+    put('soloTimers', 'solo_timers', json: true);
+    if (row.isEmpty) return true;
+    row['updated_at'] = DateTime.now().toIso8601String();
+    return _upsertById('users', uid, row, op: 'updateUserProfile');
+  }
+
+  /// Каталог (mood-паки/маскоты): включённые записи нужного типа.
+  Future<List<RecordModel>> loadCatalog(String kind) async {
+    try {
+      return await _pb.collection('catalog_items').getFullList(
+            filter: _pb.filter('kind = {:k} && enabled = true', {'k': kind}),
+            sort: 'sort',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadCatalog($kind) failed: $e');
+      return const [];
+    }
+  }
+
   /// ISO-строка PB → DateTime (публичный хелпер для слоя моделей на cutover).
   static DateTime? parseDate(dynamic v) => _date(v);
 }
