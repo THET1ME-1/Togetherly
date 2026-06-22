@@ -85,6 +85,33 @@ class FirebaseService {
 
   DatabaseReference _presenceRef(String uid) => _rtdb.ref('presence/$uid');
 
+  /// Минимальная поддерживаемая сборка (force-update kill-switch).
+  /// Читается из публичного узла RTDB `appConfig/min_build`.
+  ///
+  /// Источник — Firebase (НЕ Supabase): Supabase у части РФ-провайдеров
+  /// заблокирован, и порог, прочитанный оттуда, молча провалился бы именно у
+  /// тех, кого и надо принудительно обновить. RTDB доступен и бесплатен на
+  /// чтение (вызывается на старте у всех).
+  ///
+  /// Возвращает 0 при любой ошибке/отсутствии конфига — БЛОКИРОВАТЬ НИКОГО
+  /// (fail-open: единственная безопасная политика для гейта на старте).
+  Future<int> fetchMinSupportedBuild() async {
+    try {
+      final snap = await _rtdb
+          .ref('appConfig/min_build')
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final v = snap.value;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    } catch (e) {
+      debugPrint('FirebaseService.fetchMinSupportedBuild failed: $e');
+      return 0;
+    }
+  }
+
   /// Счётчики «Я скучаю» по группе. Живут в RTDB, а не в Firestore: фича — №1
   /// по нажатиям, и хранение счётчика в живо-слушаемом group-doc заставляло
   /// listenToPair/listenToMissYouCount пере-читать документ на каждый тап у

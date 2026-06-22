@@ -27,7 +27,6 @@ import 'services/live_location_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
-import 'services/supabase_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/force_update_screen.dart';
@@ -574,12 +573,14 @@ class _LoveAppState extends State<LoveApp> {
 
   Future<void> _init() async {
     try {
-      // Force-update kill-switch: если сборка ниже min_build из Supabase —
-      // дальше покажем блокирующий ForceUpdateScreen. Только Android (на iOS
+      // Force-update kill-switch: если сборка ниже min_build из Firebase RTDB —
+      // дальше покажем блокирующий ForceUpdateScreen. Источник — Firebase, НЕ
+      // Supabase: Supabase у части РФ-провайдеров заблокирован, порог оттуда
+      // молча провалился бы у тех, кого и надо обновить. Только Android (на iOS
       // обновления гонит App Store). fail-open: minBuild=0 ⇒ не блокируем.
       if (Platform.isAndroid) {
         try {
-          final minBuild = await SupabaseService().fetchMinSupportedBuild();
+          final minBuild = await FirebaseService().fetchMinSupportedBuild();
           if (minBuild > 0) {
             final info = await PackageInfo.fromPlatform();
             final current = int.tryParse(info.buildNumber) ?? 0;
