@@ -262,6 +262,17 @@ async function fbPatchFields(token, rel, fieldsMap) {
   if (r.status !== 200) throw new Error(`patch ${rel} ${r.status}: ${r.body.slice(0, 300)}`);
 }
 
+// ── Firebase: дописать ключи в map-поле `entries` month-дока (merge без перезаписи) ──
+// maskPaths — список вида entries.`<id>`; создаёт док если его нет, иначе мержит
+// только перечисленные ключи (остальные записи месяца не трогает).
+async function fbPatchMonthEntries(token, rel, entFields, maskPaths) {
+  const mask = maskPaths.map((p) => `updateMask.fieldPaths=${encodeURIComponent(p)}`).join("&");
+  const path = `${FS_BASE}/${rel}?${mask}`;
+  const body = { fields: { entries: { mapValue: { fields: entFields } } } };
+  const r = await req("PATCH", FS_HOST, path, body, fbHeaders(token));
+  if (r.status !== 200) throw new Error(`patch month ${rel} ${r.status}: ${r.body.slice(0, 300)}`);
+}
+
 // Собрать create-only writes из (id → fields-map) и опционально закоммитить.
 async function commitCreateOnly(token, items) {
   const writes = items.map((it) => ({
@@ -312,30 +323,45 @@ async function backfillComments(token, gid) {
   return { sb: rows.length, fb: existing.size, add };
 }
 
-// ── MOODS ── groups/{gid}/moodCalendar/{uid}/entries/{id}
+// ── MOODS ── v2 month-документы: groups/{gid}/moodCalendar/{uid}/months/{YYYY-MM}
+// с map-полем entries.{id}. Это КАНОН чтения приложения (loadMoodMonths); legacy
+// entries/{id} читают только старые версии — туда долив бессмыслен. Дописываем
+// только отсутствующие id в map, существующие записи месяца не трогаем.
 async function backfillMoods(token, gid) {
-  const rows = await sbRows("mood_entries", gid, "id,user_uid,mood_id,image_path,label,timestamp");
-  const uids = [...new Set(rows.map((r) => r.user_uid).filter(Boolean))];
-  const existing = new Set();
-  for (const uid of uids) {
-    const ids = await fbExistingIds(token, `groups/${gid}/moodCalendar/${uid}`, "entries");
-    ids.forEach((id) => existing.add(id));
+  const rows = await sbRows("mood_entries", gid, "id,user_uid,mood_id,image_path,label,timestamp", false);
+  // uid → monthKey(YYYY-MM) → [rows]
+  const byUidMonth = {};
+  for (const r of rows) {
+    if (!r.id || !r.user_uid || !r.timestamp) continue;
+    const mk = String(r.timestamp).slice(0, 7);
+    ((byUidMonth[r.user_uid] ??= {})[mk] ??= []).push(r);
   }
-  const missing = rows.filter((r) => r.id && r.user_uid && !existing.has(r.id));
-  const add = await commitCreateOnly(
-    token,
-    missing.map((r) => ({
-      path: `groups/${gid}/moodCalendar/${r.user_uid}/entries/${r.id}`,
-      fields: clean({
-        id: r.id,
-        moodId: r.mood_id,
-        imagePath: r.image_path,
-        label: r.label,
-        timestamp: r.timestamp,
-      }),
-    }))
-  );
-  return { sb: rows.length, fb: existing.size, add };
+  let add = 0;
+  for (const uid of Object.keys(byUidMonth)) {
+    for (const mk of Object.keys(byUidMonth[uid])) {
+      const monthRows = byUidMonth[uid][mk];
+      const rel = `groups/${gid}/moodCalendar/${uid}/months/${mk}`;
+      const doc = await fbGetDoc(token, rel);
+      const existing =
+        (doc && doc.fields && doc.fields.entries && doc.fields.entries.mapValue &&
+          doc.fields.entries.mapValue.fields) || {};
+      const missing = monthRows.filter((r) => !(r.id in existing));
+      if (!missing.length) continue;
+      add += missing.length;
+      if (COMMIT) {
+        const entFields = {};
+        const maskPaths = [];
+        for (const r of missing) {
+          entFields[r.id] = toFs(
+            clean({ id: r.id, moodId: r.mood_id, imagePath: r.image_path, label: r.label, timestamp: r.timestamp })
+          );
+          maskPaths.push("entries.`" + r.id + "`");
+        }
+        await fbPatchMonthEntries(token, rel, entFields, maskPaths);
+      }
+    }
+  }
+  return { sb: rows.length, fb: 0, add };
 }
 
 // ── CANVAS STROKES ── groups/{gid}/canvas/{canvasId}/strokes/{id} (data jsonb)
