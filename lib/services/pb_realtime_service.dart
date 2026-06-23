@@ -153,6 +153,15 @@ class PbRealtimeService {
   Stream<RecordModel?> watchGroup(String groupId) =>
       watchRecord('groups', groupId);
 
+  /// Живой список всех активных групп пользователя — замена Firestore user-doc
+  /// листенера (pairIds). Членство в PB = массив `groups.members`, поэтому новые
+  /// пары и выход партнёра приезжают как create/delete в этом отфильтрованном
+  /// списке. Используется ConnectionsManager для обнаружения пар.
+  Stream<List<RecordModel>> watchMyGroups(String uid) => watchList(
+        'groups',
+        filter: _pb.filter('members ~ {:u} && disbanded = false', {'u': uid}),
+      );
+
   /// Состояние co-watch сеанса (id=pairId) → запись|null (null = сеанс завершён).
   Stream<RecordModel?> watchSession(String pairId) =>
       watchRecord('live_sessions', pairId);

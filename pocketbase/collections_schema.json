@@ -87,6 +87,12 @@
           "maxSize": 5000000
         },
         {
+          "name": "member_ailments",
+          "type": "json",
+          "required": false,
+          "maxSize": 5000000
+        },
+        {
           "name": "current_status",
           "type": "json",
           "required": false,
@@ -187,7 +193,12 @@
           "required": false
         }
       ],
-      "indexes": []
+      "indexes": [],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "memories",
@@ -258,7 +269,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_memories_group_id_created_at` ON `memories` (`group_id`, `created_at`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "mood_entries",
@@ -308,7 +324,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_mood_entries_group_id_user_uid_timestamp` ON `mood_entries` (`group_id`, `user_uid`, `timestamp`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "chat_messages",
@@ -419,7 +440,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_chat_messages_group_id_ts` ON `chat_messages` (`group_id`, `ts`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "canvas_strokes",
@@ -465,7 +491,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_canvas_strokes_group_id_canvas_id_order_index` ON `canvas_strokes` (`group_id`, `canvas_id`, `order_index`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "memory_comments",
@@ -525,7 +556,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_memory_comments_group_id_memory_id_created_at` ON `memory_comments` (`group_id`, `memory_id`, `created_at`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "catalog_items",
@@ -591,7 +627,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_catalog_items_kind` ON `catalog_items` (`kind`)"
-      ]
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "iap_purchases",
@@ -629,7 +670,12 @@
           "required": false
         }
       ],
-      "indexes": []
+      "indexes": [],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "migration_flags",
@@ -662,7 +708,12 @@
           "required": false
         }
       ],
-      "indexes": []
+      "indexes": [],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "app_config",
@@ -690,7 +741,12 @@
           "required": false
         }
       ],
-      "indexes": []
+      "indexes": [],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "live_sessions",
@@ -743,7 +799,12 @@
           "required": false
         }
       ],
-      "indexes": []
+      "indexes": [],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "widget_data",
@@ -855,7 +916,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_widget_data_group_id_user_uid` ON `widget_data` (`group_id`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "miss_you",
@@ -895,7 +961,12 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_miss_you_group_id_user_uid` ON `miss_you` (`group_id`, `user_uid`)",
         "CREATE INDEX `idx_miss_you_group_id` ON `miss_you` (`group_id`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "canvas_meta",
@@ -934,7 +1005,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_meta_group_id_canvas_id` ON `canvas_meta` (`group_id`, `canvas_id`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "canvas_catalogue",
@@ -973,7 +1049,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_catalogue_group_id_canvas_id` ON `canvas_catalogue` (`group_id`, `canvas_id`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "mascots",
@@ -1028,7 +1109,12 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_mascots_group_id_mascot_id` ON `mascots` (`group_id`, `mascot_id`)",
         "CREATE INDEX `idx_mascots_group_id` ON `mascots` (`group_id`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "chat_reads",
@@ -1057,7 +1143,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_chat_reads_group_id_user_uid` ON `chat_reads` (`group_id`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "canvas_live",
@@ -1087,7 +1178,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_live_group_id_canvas_id_user_uid` ON `canvas_live` (`group_id`, `canvas_id`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "chat_typing",
@@ -1111,7 +1207,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_chat_typing_group_id_user_uid` ON `chat_typing` (`group_id`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "live_location",
@@ -1136,7 +1237,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_live_location_channel_user_uid` ON `live_location` (`channel`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "live_session_presence",
@@ -1160,7 +1266,12 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_live_session_presence_pair_id_user_uid` ON `live_session_presence` (`pair_id`, `user_uid`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "live_session_chat",
@@ -1215,7 +1326,12 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_live_session_chat_pair_id_ts` ON `live_session_chat` (`pair_id`, `ts`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     },
     {
       "name": "media",
@@ -1253,7 +1369,41 @@
       "indexes": [
         "CREATE INDEX `idx_media_group_id` ON `media` (`group_id`)",
         "CREATE INDEX `idx_media_src` ON `media` (`src`)"
-      ]
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
+    },
+    {
+      "name": "invite_codes",
+      "type": "base",
+      "fields": [
+        {
+          "name": "code",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "owner_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_invite_codes_code` ON `invite_codes` (`code`)"
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\""
     }
   ],
   "deleteMissing": false

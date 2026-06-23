@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -235,6 +237,577 @@ class PbDataService {
     } catch (e) {
       debugPrint('PbData.incrementGroupCounter($col) failed: $e');
       return false;
+    }
+  }
+
+  // ── pairing-слой (миграция ConnectionsManager/Connection на PB) ──────────
+  //
+  // PB-модель пары: членство = массив `groups.members` (uid-строки), имена и
+  // аватары — отдельные map-поля. «Указателя» pairIds в users НЕТ — активная
+  // группа находится запросом `members ~ uid && disbanded = false`.
+
+  /// PB-запись группы → карта в форме старого Firestore-парсера
+  /// (`Connection._applyPairData`/`_listenToPair`): camelCase-ключи, members —
+  /// список объектов {uid,name,avatar}, даты — `DateTime`. [myUid] нужен для
+  /// вычисления partnerName/partnerAvatar (первый участник, кроме себя).
+  static Map<String, dynamic> groupRecordToPairMap(
+    RecordModel rec,
+    String myUid,
+  ) {
+    final data = rec.data;
+    final rawMembers =
+        (data['members'] as List?)?.map((e) => e.toString()).toList() ??
+            <String>[];
+    final members = rawMembers.toSet().toList(); // дедуп на всякий
+    final names = data['member_names'] is Map
+        ? Map<String, dynamic>.from(data['member_names'] as Map)
+        : <String, dynamic>{};
+    final avatars = data['member_avatars'] is Map
+        ? Map<String, dynamic>.from(data['member_avatars'] as Map)
+        : <String, dynamic>{};
+    final others = members.where((m) => m != myUid).toList();
+    final partnerUid = others.isNotEmpty ? others.first : '';
+
+    // memberMoods/memberAilments: {uid:{..., updatedAt}} — updatedAt → DateTime.
+    Map<String, dynamic> innerWithDate(dynamic raw) {
+      if (raw is! Map) return <String, dynamic>{};
+      return Map<String, dynamic>.from(raw).map((uid, v) {
+        final inner = v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+        if (inner.containsKey('updatedAt')) {
+          inner['updatedAt'] = _date(inner['updatedAt']);
+        }
+        return MapEntry(uid, inner);
+      });
+    }
+
+    Map<String, DateTime?>? birthdays() {
+      final raw = data['member_birthdays'];
+      if (raw is! Map) return null;
+      return Map<String, dynamic>.from(raw).map((k, v) => MapEntry(k, _date(v)));
+    }
+
+    return {
+      'pairId': rec.id,
+      'partnerName': names[partnerUid] ?? '',
+      'partnerAvatar': avatars[partnerUid] ?? '',
+      'startDate': _date(data['start_date']),
+      'members': members
+          .map((uid) => {
+                'uid': uid,
+                'name': names[uid] ?? '',
+                'avatar': avatars[uid] ?? '',
+              })
+          .toList(),
+      'maxMembers': data['max_members'] ?? 2,
+      'memberMoods': innerWithDate(data['member_moods']),
+      'memberAilments': innerWithDate(data['member_ailments']),
+      'currentStatus': data['current_status'] is Map
+          ? Map<String, dynamic>.from(data['current_status'] as Map)
+          : null,
+      'customStatuses':
+          data['custom_statuses'] is List ? data['custom_statuses'] as List : null,
+      'relationshipType': data['relationship_type'] as String?,
+      'customRelationshipLabel': data['custom_relationship_label'] as String?,
+      'customRelationshipEmoji': data['custom_relationship_emoji'] as String?,
+      'customRelationshipTypes': data['custom_relationship_types'] is List
+          ? data['custom_relationship_types'] as List
+          : null,
+      'anniversaryDate': _date(data['anniversary_date']),
+      'firstKissDate': _date(data['first_kiss_date']),
+      'memberBirthdays': birthdays(),
+    };
+  }
+
+  /// Группа по id → pair-карта (или null, если нет/распущена).
+  Future<Map<String, dynamic>?> loadPairMapById(
+    String groupId,
+    String myUid,
+  ) async {
+    final rec = await loadGroupById(groupId);
+    return rec == null ? null : groupRecordToPairMap(rec, myUid);
+  }
+
+  /// Активная группа пользователя → pair-карта (или null).
+  Future<Map<String, dynamic>?> loadPairMapForUser(String myUid) async {
+    final rec = await loadPairForUser(myUid);
+    return rec == null ? null : groupRecordToPairMap(rec, myUid);
+  }
+
+  /// Id всех живых групп, где [uid] состоит (discovery/self-heal).
+  Future<List<String>> activeGroupIdsForUser(String uid) async {
+    if (uid.isEmpty) return const [];
+    try {
+      final res = await _pb.collection('groups').getFullList(
+            filter:
+                _pb.filter('members ~ {:u} && disbanded = false', {'u': uid}),
+          );
+      return res.map((r) => r.id).toList();
+    } catch (e) {
+      debugPrint('PbData.activeGroupIdsForUser($uid) failed: $e');
+      return const [];
+    }
+  }
+
+  // ── внутригрупповые записи ───────────────────────────────────────────────
+  Future<bool> setMemberAilment(
+    String groupId,
+    String uid,
+    Map<String, dynamic> ail,
+  ) =>
+      _patchGroupMapField(groupId, 'member_ailments', uid, _jsonSafe(ail));
+  Future<bool> clearMemberAilment(String groupId, String uid) =>
+      _patchGroupMapField(groupId, 'member_ailments', uid, null);
+
+  Future<bool> setGroupRelationshipType(
+    String groupId, {
+    required String type,
+    int maxMembers = 2,
+    String customLabel = '',
+    String customEmoji = '',
+  }) =>
+      updateGroupFields(groupId, {
+        'relationship_type': type,
+        'max_members': maxMembers,
+        'custom_relationship_label': customLabel,
+        'custom_relationship_emoji': customEmoji,
+      });
+
+  Future<bool> setGroupStatus(String groupId, Map<String, dynamic> status) =>
+      updateGroupFields(groupId, {'current_status': _jsonSafe(status)});
+  Future<bool> clearGroupStatus(String groupId) =>
+      updateGroupFields(groupId, {'current_status': null});
+
+  Future<bool> addOrUpdateCustomStatus(
+    String groupId,
+    Map<String, dynamic> status,
+  ) =>
+      _patchGroupListById(groupId, 'custom_statuses', upsert: status);
+  Future<bool> deleteCustomStatus(String groupId, String statusId) =>
+      _patchGroupListById(groupId, 'custom_statuses', deleteId: statusId);
+
+  Future<bool> addOrUpdateCustomRelationshipType(
+    String groupId,
+    Map<String, dynamic> entry,
+  ) =>
+      _patchGroupListById(groupId, 'custom_relationship_types', upsert: entry);
+  Future<bool> deleteCustomRelationshipType(String groupId, String id) =>
+      _patchGroupListById(groupId, 'custom_relationship_types', deleteId: id);
+
+  /// RMW по json-полю-СПИСКУ группы: upsert/удаление элемента по ключу [idKey].
+  Future<bool> _patchGroupListById(
+    String groupId,
+    String col, {
+    Map<String, dynamic>? upsert,
+    String? deleteId,
+    String idKey = 'id',
+  }) async {
+    try {
+      final rec = await _pb
+          .collection('groups')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+      final cur = rec.data[col];
+      final list = cur is List
+          ? cur.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+      if (deleteId != null) list.removeWhere((e) => e[idKey] == deleteId);
+      if (upsert != null) {
+        final idx = list.indexWhere((e) => e[idKey] == upsert[idKey]);
+        if (idx >= 0) {
+          list[idx] = upsert;
+        } else {
+          list.add(upsert);
+        }
+      }
+      await _pb.collection('groups').update(rec.id, body: {col: _jsonSafe(list)});
+      return true;
+    } catch (e) {
+      debugPrint('PbData._patchGroupListById($col) failed: $e');
+      return false;
+    }
+  }
+
+  // ── жизненный цикл пары ──────────────────────────────────────────────────
+  /// Распустить группу для всех (soft-delete: disbanded=true, восстановимо).
+  Future<bool> disbandGroup(String groupId) => updateGroupFields(groupId, {
+        'disbanded': true,
+        'disbanded_at': DateTime.now().toIso8601String(),
+      });
+
+  /// Убрать [uid] из группы (members + имена + аватары). Если участников не
+  /// осталось — помечаем распущенной. PB-эквивалент removeStaleGroupFromUser
+  /// (в модели членства «выйти» = убрать себя из members).
+  Future<bool> leaveGroup(String groupId, String uid) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb
+          .collection('groups')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+      final members =
+          (rec.data['members'] as List?)?.map((e) => e.toString()).toList() ??
+              <String>[];
+      members.remove(uid);
+      final names = rec.data['member_names'] is Map
+          ? Map<String, dynamic>.from(rec.data['member_names'] as Map)
+          : <String, dynamic>{};
+      final avatars = rec.data['member_avatars'] is Map
+          ? Map<String, dynamic>.from(rec.data['member_avatars'] as Map)
+          : <String, dynamic>{};
+      names.remove(uid);
+      avatars.remove(uid);
+      final body = <String, dynamic>{
+        'members': members,
+        'member_names': names,
+        'member_avatars': avatars,
+      };
+      if (members.isEmpty) {
+        body['disbanded'] = true;
+        body['disbanded_at'] = DateTime.now().toIso8601String();
+      }
+      await _pb.collection('groups').update(rec.id, body: body);
+      return true;
+    } catch (e) {
+      debugPrint('PbData.leaveGroup($groupId,$uid) failed: $e');
+      return false;
+    }
+  }
+
+  /// Выйти из пары: пару (≤2 участника) распускаем для обоих (восстановимо),
+  /// группу больше 2 — просто покидаем. = unpairById на Firebase.
+  Future<bool> unpairGroup(String groupId, String uid) async {
+    if (groupId.isEmpty) return false;
+    try {
+      final rec = await _pb
+          .collection('groups')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+      final members =
+          (rec.data['members'] as List?)?.map((e) => e.toString()).toList() ??
+              <String>[];
+      if (members.length <= 2) return disbandGroup(groupId);
+      return leaveGroup(groupId, uid);
+    } catch (e) {
+      debugPrint('PbData.unpairGroup($groupId) failed: $e');
+      return false;
+    }
+  }
+
+  /// Живые группы (записи) пользователя — для race-guard в создании пары.
+  Future<List<RecordModel>> activeGroupRecordsForUser(String uid) async {
+    if (uid.isEmpty) return const [];
+    try {
+      return await _pb.collection('groups').getFullList(
+            filter:
+                _pb.filter('members ~ {:u} && disbanded = false', {'u': uid}),
+          );
+    } catch (e) {
+      debugPrint('PbData.activeGroupRecordsForUser($uid) failed: $e');
+      return const [];
+    }
+  }
+
+  // ══════════════════════════════════════════════ INVITE CODES (Фаза 2)
+  // Коллекция invite_codes: code (uniq), owner_uid, group_id?. Аналог Firestore
+  // inviteCodes/{code}. Приём кода создаёт/восстанавливает/входит в группу;
+  // партнёр подхватывает её через watchMyGroups (members ~ uid). Правила PB
+  // открыты для authed (тест-постура) — любой залогиненный может найти чужой
+  // код для приёма; ужесточить до членства перед публикой.
+  static const String _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  String _newCode() {
+    final r = Random.secure();
+    return List.generate(6, (_) => _codeChars[r.nextInt(_codeChars.length)])
+        .join();
+  }
+
+  List<String> _membersOf(RecordModel g) =>
+      (g.data['members'] as List?)?.map((e) => e.toString()).toList() ??
+      <String>[];
+
+  Future<RecordModel?> lookupInviteCode(String code) async {
+    if (code.isEmpty) return null;
+    try {
+      return await _pb
+          .collection('invite_codes')
+          .getFirstListItem(_pb.filter('code = {:c}', {'c': code}));
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return null;
+      debugPrint('PbData.lookupInviteCode($code) failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> deleteInviteCode(String code) async {
+    if (code.isEmpty) return;
+    try {
+      final rec = await _pb
+          .collection('invite_codes')
+          .getFirstListItem(_pb.filter('code = {:c}', {'c': code}));
+      await _pb.collection('invite_codes').delete(rec.id);
+    } catch (_) {
+      // нет кода / уже удалён / гонка — некритично
+    }
+  }
+
+  /// Сгенерировать уникальный код, зарегистрировать (owner_uid, опц. group_id),
+  /// удалить [oldCode]. Возвращает код или '' при ошибке (вызывающий — локальный
+  /// фолбэк).
+  Future<String> generateInviteCode({
+    required String ownerUid,
+    String? groupId,
+    String? oldCode,
+  }) async {
+    if (ownerUid.isEmpty) return '';
+    if (oldCode != null && oldCode.isNotEmpty) await deleteInviteCode(oldCode);
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final code = _newCode();
+      if (await lookupInviteCode(code) != null) continue; // коллизия
+      try {
+        await _pb.collection('invite_codes').create(body: {
+          'code': code,
+          'owner_uid': ownerUid,
+          if (groupId != null && groupId.isNotEmpty) 'group_id': groupId,
+        });
+        return code;
+      } catch (e) {
+        debugPrint('PbData.generateInviteCode create failed: $e');
+        return '';
+      }
+    }
+    return '';
+  }
+
+  /// Приём кода → создать/войти/восстановить пару. Возвращает карту в форме
+  /// старого FirebaseService.acceptInviteCode (success/message/pairId/partner*/
+  /// startDate/relationship*/members). Имя/аватар сторон берём из users.
+  Future<Map<String, dynamic>> acceptInviteCode(
+    String code, {
+    required String myUid,
+  }) async {
+    if (myUid.isEmpty) return {'success': false, 'message': 'Не авторизован'};
+    code = code.toUpperCase().trim();
+    try {
+      final codeRec = await lookupInviteCode(code);
+      if (codeRec == null) return {'success': false, 'message': 'Код не найден'};
+      final ownerUid = (codeRec.data['owner_uid'] ?? '').toString();
+      if (ownerUid.isEmpty) return {'success': false, 'message': 'Код повреждён'};
+      if (ownerUid == myUid) {
+        return {'success': false, 'message': 'Это ваш собственный код!'};
+      }
+      final codeGroupId = (codeRec.data['group_id'] ?? '').toString();
+
+      final ownerProfile = await loadUserProfileMap(ownerUid) ?? const {};
+      final ownerName = (ownerProfile['displayName'] ?? 'Partner').toString();
+      final ownerAvatar = (ownerProfile['avatarUrl'] ?? '').toString();
+      final myProfile = await loadUserProfileMap(myUid) ?? const {};
+      final myName = (myProfile['displayName'] ?? '').toString();
+      final myAvatar = (myProfile['avatarUrl'] ?? '').toString();
+
+      // A) Код привязан к группе → войти в неё.
+      if (codeGroupId.isNotEmpty) {
+        return _joinGroupPb(codeGroupId, code, myUid, myName, myAvatar,
+            ownerUid, ownerName, ownerAvatar);
+      }
+
+      // B) У владельца уже есть активная группа с местом → войти.
+      final ownerGroup = await loadPairForUser(ownerUid);
+      if (ownerGroup != null) {
+        final members = _membersOf(ownerGroup);
+        if (members.contains(myUid) && members.contains(ownerUid)) {
+          return {
+            'success': false,
+            'message': 'Вы уже подключены к этому пользователю'
+          };
+        }
+        final maxM = (ownerGroup.data['max_members'] as num?)?.toInt() ?? 2;
+        if (members.contains(ownerUid) &&
+            !members.contains(myUid) &&
+            members.length < maxM) {
+          return _joinGroupPb(ownerGroup.id, code, myUid, myName, myAvatar,
+              ownerUid, ownerName, ownerAvatar);
+        }
+      }
+
+      // C) Распущенная группа этих двоих → восстановить (старые данные целы).
+      final disbandedId = await _findDisbandedBetween(myUid, ownerUid);
+      if (disbandedId != null) {
+        return _restoreGroupPb(disbandedId, code, myUid, myName, myAvatar,
+            ownerUid, ownerName, ownerAvatar);
+      }
+
+      // D) Создать новую пару.
+      return _createGroupPb(
+          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
+    } catch (e) {
+      debugPrint('PbData.acceptInviteCode failed: $e');
+      return {'success': false, 'message': 'Ошибка: $e'};
+    }
+  }
+
+  /// Результат-карта из (свежепрочитанной) записи группы.
+  Map<String, dynamic> _acceptResult(
+    RecordModel g,
+    String myUid,
+    String message, {
+    bool restored = false,
+  }) {
+    final m = groupRecordToPairMap(g, myUid);
+    return {
+      'success': true,
+      'message': message,
+      'partnerName': m['partnerName'],
+      'partnerAvatar': m['partnerAvatar'],
+      'pairId': g.id,
+      'startDate': m['startDate'] ?? DateTime.now(),
+      'relationshipType': m['relationshipType'] ?? 'couple',
+      'customRelationshipLabel': m['customRelationshipLabel'] ?? '',
+      'customRelationshipEmoji': m['customRelationshipEmoji'] ?? '',
+      'customRelationshipTypes': m['customRelationshipTypes'] ?? <dynamic>[],
+      'members': m['members'],
+      if (restored) 'restored': true,
+    };
+  }
+
+  Future<Map<String, dynamic>> _createGroupPb(
+    String code,
+    String myUid,
+    String myName,
+    String myAvatar,
+    String ownerUid,
+    String ownerName,
+    String ownerAvatar,
+  ) async {
+    // Race-guard взаимного коннекта: уже есть живая группа с этим партнёром?
+    for (final g in await activeGroupRecordsForUser(myUid)) {
+      if (_membersOf(g).contains(ownerUid)) {
+        await deleteInviteCode(code);
+        return _acceptResult(g, myUid, 'Connected!');
+      }
+    }
+    final now = DateTime.now().toIso8601String();
+    final rec = await _pb.collection('groups').create(body: {
+      'members': [ownerUid, myUid],
+      'member_names': {ownerUid: ownerName, myUid: myName},
+      'member_avatars': {ownerUid: ownerAvatar, myUid: myAvatar},
+      'max_members': 2,
+      'relationship_type': 'couple',
+      'custom_relationship_types': [],
+      'memories_count': 0,
+      'drawings_count': 0,
+      'start_date': now,
+      'created_at': now,
+      'disbanded': false,
+    });
+    await deleteInviteCode(code);
+    return _acceptResult(rec, myUid, 'Connected!');
+  }
+
+  Future<Map<String, dynamic>> _joinGroupPb(
+    String groupId,
+    String code,
+    String myUid,
+    String myName,
+    String myAvatar,
+    String ownerUid,
+    String ownerName,
+    String ownerAvatar,
+  ) async {
+    RecordModel? g;
+    try {
+      g = await _pb.collection('groups').getOne(groupId);
+    } catch (_) {}
+    if (g == null) {
+      return _createGroupPb(
+          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
+    }
+    final members = _membersOf(g);
+    final maxM = (g.data['max_members'] as num?)?.toInt() ?? 2;
+    if (members.contains(myUid)) {
+      return {'success': false, 'message': 'Вы уже в этой группе'};
+    }
+    if (members.length >= maxM) {
+      return {'success': false, 'message': 'Группа заполнена'};
+    }
+    final names = g.data['member_names'] is Map
+        ? Map<String, dynamic>.from(g.data['member_names'] as Map)
+        : <String, dynamic>{};
+    final avatars = g.data['member_avatars'] is Map
+        ? Map<String, dynamic>.from(g.data['member_avatars'] as Map)
+        : <String, dynamic>{};
+    members.add(myUid);
+    names[myUid] = myName;
+    avatars[myUid] = myAvatar;
+    final updated = await _pb.collection('groups').update(g.id, body: {
+      'members': members,
+      'member_names': names,
+      'member_avatars': avatars,
+    });
+    if (members.length >= maxM) await deleteInviteCode(code);
+    return _acceptResult(updated, myUid, 'Joined the group!');
+  }
+
+  Future<Map<String, dynamic>> _restoreGroupPb(
+    String groupId,
+    String code,
+    String myUid,
+    String myName,
+    String myAvatar,
+    String ownerUid,
+    String ownerName,
+    String ownerAvatar,
+  ) async {
+    RecordModel? g;
+    try {
+      g = await _pb.collection('groups').getOne(groupId);
+    } catch (_) {}
+    if (g == null) {
+      return _createGroupPb(
+          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
+    }
+    final members = _membersOf(g);
+    if (!members.contains(ownerUid)) members.add(ownerUid);
+    if (!members.contains(myUid)) members.add(myUid);
+    final names = g.data['member_names'] is Map
+        ? Map<String, dynamic>.from(g.data['member_names'] as Map)
+        : <String, dynamic>{};
+    final avatars = g.data['member_avatars'] is Map
+        ? Map<String, dynamic>.from(g.data['member_avatars'] as Map)
+        : <String, dynamic>{};
+    names[ownerUid] = ownerName;
+    names[myUid] = myName;
+    avatars[ownerUid] = ownerAvatar;
+    avatars[myUid] = myAvatar;
+    final updated = await _pb.collection('groups').update(g.id, body: {
+      'members': members,
+      'member_names': names,
+      'member_avatars': avatars,
+      'disbanded': false,
+      'disbanded_at': null,
+    });
+    await deleteInviteCode(code);
+    return _acceptResult(updated, myUid, 'Reconnected!', restored: true);
+  }
+
+  /// Самая свежая распущенная группа, где состоят оба [myUid] и [ownerUid].
+  Future<String?> _findDisbandedBetween(String myUid, String ownerUid) async {
+    try {
+      final res = await _pb.collection('groups').getFullList(
+            filter:
+                _pb.filter('members ~ {:u} && disbanded = true', {'u': myUid}),
+          );
+      String? bestId;
+      DateTime? bestTs;
+      for (final g in res) {
+        if (!_membersOf(g).contains(ownerUid)) continue;
+        final ts = _date(g.data['disbanded_at']);
+        if (bestId == null ||
+            (ts != null && (bestTs == null || ts.isAfter(bestTs)))) {
+          bestId = g.id;
+          bestTs = ts;
+        }
+      }
+      return bestId;
+    } catch (e) {
+      debugPrint('PbData._findDisbandedBetween failed: $e');
+      return null;
     }
   }
 

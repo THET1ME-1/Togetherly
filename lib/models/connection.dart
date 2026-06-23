@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/pb_realtime_service.dart';
+import '../services/pocketbase_service.dart';
 import 'relationship_status.dart';
 
 enum RelationshipType {
@@ -127,8 +129,12 @@ class Connection {
   List<Map<String, String>> customRelationshipTypes = [];
 
   StreamSubscription? _pairSub;
-  final FirebaseService _fb;
   final Function()? onChanged;
+
+  // ── Идентичность (PocketBase) ──
+  // ConnectionsManager/Connection переведены с Firebase на PB: личность берётся
+  // из PB-сессии, группа читается/пишется через PbDataService/PbRealtimeService.
+  String get _uid => PocketBaseService().userId ?? '';
 
   /// Группа была распущена партнёром (этот клиент НЕ инициировал удаление).
   /// Менеджер при следующем onChanged уберёт такую связь из локального списка,
@@ -152,7 +158,6 @@ class Connection {
 
   Connection({
     required this.id,
-    required FirebaseService firebaseService,
     this.isPaired = false,
     this.isSolo = false,
     this.startDate,
@@ -165,8 +170,7 @@ class Connection {
     this.customRelationshipLabel = '',
     this.customRelationshipEmoji = '',
     this.onChanged,
-  }) : _fb = firebaseService,
-       members = members ?? [];
+  }) : members = members ?? [];
 
   String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
 
@@ -181,7 +185,7 @@ class Connection {
 
   /// All partner members (excluding self)
   List<GroupMember> get partners {
-    final myUid = _fb.uid ?? '';
+    final myUid = _uid;
     return members.where((m) => m.uid != myUid).toList();
   }
 
@@ -246,15 +250,14 @@ class Connection {
 
   /// Get my mood
   MemberMood get myMood {
-    final myUid = _fb.uid ?? '';
-    final m = memberMoods[myUid];
+    final m = memberMoods[_uid];
     if (m == null || !m.isToday) return const MemberMood();
     return m;
   }
 
   /// Get partner's mood (first partner)
   MemberMood get partnerMood {
-    final myUid = _fb.uid ?? '';
+    final myUid = _uid;
     for (final entry in memberMoods.entries) {
       if (entry.key != myUid && entry.value.isToday) return entry.value;
     }
@@ -272,28 +275,31 @@ class Connection {
   /// Set my mood
   Future<void> setMood(String imagePath, String label) async {
     if (pairId.isEmpty) return;
-    final myUid = _fb.uid ?? '';
+    final myUid = _uid;
     memberMoods[myUid] = MemberMood(
       imagePath: imagePath,
       label: label,
       updatedAt: DateTime.now(),
     );
     onChanged?.call();
-    await _fb.setMood(groupId: pairId, imagePath: imagePath, label: label);
+    await PbDataService().setMemberMood(pairId, myUid, {
+      'imagePath': imagePath,
+      'label': label,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
   }
 
   /// Clear my mood
   Future<void> clearMood() async {
     if (pairId.isEmpty) return;
-    final myUid = _fb.uid ?? '';
-    memberMoods.remove(myUid);
+    memberMoods.remove(_uid);
     onChanged?.call();
-    await _fb.clearMood(groupId: pairId);
+    await PbDataService().clearMemberMood(pairId, _uid);
   }
 
   /// Моё самочувствие (актуальное).
   MemberAilment get myAilment {
-    final a = memberAilments[_fb.uid ?? ''];
+    final a = memberAilments[_uid];
     if (a == null || !a.isFresh) return const MemberAilment();
     return a;
   }
@@ -307,7 +313,7 @@ class Connection {
 
   /// Самочувствие первого партнёра, у которого статус актуален.
   MemberAilment get partnerAilment {
-    final myUid = _fb.uid ?? '';
+    final myUid = _uid;
     for (final entry in memberAilments.entries) {
       if (entry.key != myUid && entry.value.isFresh) return entry.value;
     }
@@ -317,7 +323,7 @@ class Connection {
   /// Поставить своё самочувствие.
   Future<void> setAilment(String id, String label, String emoji) async {
     if (pairId.isEmpty) return;
-    final myUid = _fb.uid ?? '';
+    final myUid = _uid;
     memberAilments[myUid] = MemberAilment(
       id: id,
       label: label,
@@ -325,16 +331,20 @@ class Connection {
       updatedAt: DateTime.now(),
     );
     onChanged?.call();
-    await _fb.setAilment(groupId: pairId, id: id, label: label, emoji: emoji);
+    await PbDataService().setMemberAilment(pairId, myUid, {
+      'id': id,
+      'label': label,
+      'emoji': emoji,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
   }
 
   /// Снять своё самочувствие («Здоров(а)»).
   Future<void> clearAilment() async {
     if (pairId.isEmpty) return;
-    final myUid = _fb.uid ?? '';
-    memberAilments.remove(myUid);
+    memberAilments.remove(_uid);
     onChanged?.call();
-    await _fb.clearAilment(groupId: pairId);
+    await PbDataService().clearMemberAilment(pairId, _uid);
   }
 
   void setRelationshipType(
@@ -350,9 +360,9 @@ class Connection {
       customRelationshipLabel = '';
       customRelationshipEmoji = '';
     }
-    // Update in Firebase
+    // Update in PocketBase
     if (pairId.isNotEmpty) {
-      _fb.updateGroupRelationshipType(
+      PbDataService().setGroupRelationshipType(
         pairId,
         type: type.name,
         maxMembers: maxMembers,
@@ -373,7 +383,7 @@ class Connection {
     };
     customRelationshipTypes.add(entry);
     onChanged?.call();
-    await _fb.addCustomRelationshipType(pairId, entry);
+    await PbDataService().addOrUpdateCustomRelationshipType(pairId, entry);
   }
 
   /// Update a custom relationship type
@@ -393,7 +403,7 @@ class Connection {
       customRelationshipEmoji = emoji;
     }
     onChanged?.call();
-    await _fb.updateCustomRelationshipType(pairId, {
+    await PbDataService().addOrUpdateCustomRelationshipType(pairId, {
       'id': id,
       'label': label,
       'emoji': emoji,
@@ -414,7 +424,7 @@ class Connection {
       setRelationshipType(RelationshipType.couple);
     }
     onChanged?.call();
-    await _fb.deleteCustomRelationshipType(pairId, id);
+    await PbDataService().deleteCustomRelationshipType(pairId, id);
   }
 
   // ── Relationship Status Management ──
@@ -429,7 +439,7 @@ class Connection {
     if (pairId.isEmpty) return;
     currentStatus = status;
     onChanged?.call();
-    await _fb.setGroupStatus(pairId, status);
+    await PbDataService().setGroupStatus(pairId, status.toJson());
   }
 
   /// Clear the current relationship status
@@ -437,7 +447,7 @@ class Connection {
     if (pairId.isEmpty) return;
     currentStatus = null;
     onChanged?.call();
-    await _fb.clearGroupStatus(pairId);
+    await PbDataService().clearGroupStatus(pairId);
   }
 
   /// Add a new custom status
@@ -451,7 +461,7 @@ class Connection {
     );
     customStatuses.add(newStatus);
     onChanged?.call();
-    await _fb.addCustomStatus(pairId, newStatus);
+    await PbDataService().addOrUpdateCustomStatus(pairId, newStatus.toJson());
   }
 
   /// Update an existing custom status
@@ -478,7 +488,7 @@ class Connection {
     }
 
     onChanged?.call();
-    await _fb.updateCustomStatus(pairId, updatedStatus);
+    await PbDataService().addOrUpdateCustomStatus(pairId, updatedStatus.toJson());
   }
 
   /// Delete a custom status
@@ -492,70 +502,16 @@ class Connection {
     }
 
     onChanged?.call();
-    await _fb.deleteCustomStatus(pairId, statusId);
+    await PbDataService().deleteCustomStatus(pairId, statusId);
   }
 
   // ── Actions ──
+  /// Принять инвайт-код (создание/вход в группу) — переносится на PocketBase в
+  /// Фазе 2 (коллекция invite_codes + серверная сверка). Сейчас единый вход —
+  /// `ConnectionsManager.acceptCodeAndCreateGroup`; этот локальный путь не
+  /// используется и возвращает false до реализации PB-инвайтов.
   Future<bool> acceptCode(String code) async {
-    if (code.toUpperCase() == inviteCode.toUpperCase()) {
-      return false; // Can't connect to yourself
-    }
-
-    try {
-      final result = await _fb.acceptInviteCode(code.toUpperCase());
-      if (result['success'] == true) {
-        isPaired = true;
-        pairId = result['pairId'] ?? '';
-        partnerName = result['partnerName'] ?? '';
-        partnerAvatarUrl = result['partnerAvatar'] ?? '';
-        startDate = result['startDate'] as DateTime? ?? DateTime.now();
-
-        final rtStr = result['relationshipType'] as String?;
-        if (rtStr != null) {
-          relationshipType = RelationshipType.values.firstWhere(
-            (e) => e.name == rtStr,
-            orElse: () => RelationshipType.couple,
-          );
-        }
-        customRelationshipLabel =
-            result['customRelationshipLabel'] as String? ?? '';
-        customRelationshipEmoji =
-            result['customRelationshipEmoji'] as String? ?? '';
-        final crtList = result['customRelationshipTypes'] as List<dynamic>?;
-        if (crtList != null) {
-          customRelationshipTypes = crtList
-              .map(
-                (e) => Map<String, String>.from(
-                  (e as Map).map(
-                    (k, v) => MapEntry(k.toString(), v.toString()),
-                  ),
-                ),
-              )
-              .toList();
-        }
-
-        // Parse members
-        final membersList = result['members'] as List<dynamic>?;
-        if (membersList != null) {
-          members = membersList
-              .map(
-                (m) => GroupMember(
-                  uid: m['uid'] ?? '',
-                  name: m['name'] ?? '',
-                  avatar: m['avatar'] ?? '',
-                ),
-              )
-              .toList();
-        }
-
-        _listenToPair();
-        onChanged?.call();
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Accept code failed: $e');
-    }
-
+    debugPrint('Connection.acceptCode: PB invite flow not implemented yet');
     return false;
   }
 
@@ -566,9 +522,7 @@ class Connection {
   Future<void> unpair() async {
     try {
       if (pairId.isNotEmpty) {
-        await _fb.unpairById(pairId);
-      } else {
-        await _fb.unpair();
+        await PbDataService().unpairGroup(pairId, _uid);
       }
     } catch (e) {
       debugPrint('Unpair failed: $e');
@@ -582,20 +536,18 @@ class Connection {
     pairId = '';
     members = [];
 
-    final oldCode = inviteCode;
-    final firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
-    if (firestoreCode.isNotEmpty) {
-      inviteCode = firestoreCode;
-    } else {
-      inviteCode = '';
-      _retryCodeInBackground();
-    }
+    // Свежий серверный код после распада пары (локальный — фолбэк офлайна).
+    final code = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      oldCode: inviteCode.isNotEmpty ? inviteCode : null,
+    );
+    inviteCode = code.isNotEmpty ? code : generateLocalCode();
 
     onChanged?.call();
   }
 
   /// Marks this connection as unpaired locally (remote event: partner left).
-  /// Does NOT write to Firestore — the partner already did that.
+  /// Does NOT write to the server — the partner already did that.
   void markUnpaired() {
     _pairSub?.cancel();
     _pairSub = null;
@@ -609,58 +561,23 @@ class Connection {
   }
 
   Future<void> regenerateCode() async {
-    final oldCode = inviteCode;
-    String firestoreCode;
-    if (isPaired && pairId.isNotEmpty) {
-      firestoreCode = await _fb.generateGroupInviteCode(
-        pairId,
-        oldCode: oldCode,
-      );
-    } else {
-      firestoreCode = await _fb.generateNewInviteCode(oldCode: oldCode);
-    }
-    if (firestoreCode.isNotEmpty) {
-      inviteCode = firestoreCode;
-    } else {
-      inviteCode = '';
-      _retryCodeInBackground();
-    }
+    final code = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: isPaired && pairId.isNotEmpty ? pairId : null,
+      oldCode: inviteCode.isNotEmpty ? inviteCode : null,
+    );
+    inviteCode = code.isNotEmpty ? code : generateLocalCode();
     onChanged?.call();
-  }
-
-  /// Запускает фоновую попытку получить Firestore-код после сбоя генерации.
-  void _retryCodeInBackground() {
-    const delays = [2, 5, 10, 20, 40, 60, 120];
-    Future(() async {
-      for (final delaySec in delays) {
-        await Future.delayed(Duration(seconds: delaySec));
-        if (isPaired && pairId.isNotEmpty) return;
-        if (!_fb.isLoggedIn) continue;
-
-        // Если код уже появился (предыдущая попытка дошла до сервера), выходим
-        if (inviteCode.isNotEmpty) {
-          final serverCheck = await _fb.isInviteCodeOnServer(inviteCode);
-          if (serverCheck == true) return;
-          if (serverCheck == null) continue;
-        }
-
-        final newCode = isPaired && pairId.isNotEmpty
-            ? await _fb.generateGroupInviteCode(pairId)
-            : await _fb.generateNewInviteCode();
-        if (newCode.isNotEmpty) {
-          inviteCode = newCode;
-          onChanged?.call();
-          debugPrint('_retryCodeInBackground: replaced local code');
-          return;
-        }
-      }
-    });
   }
 
   /// Generate a group-specific invite code (for adding more members)
   Future<String> generateInviteForGroup() async {
     if (pairId.isEmpty) return inviteCode;
-    final code = await _fb.generateGroupInviteCode(pairId);
+    final code = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: pairId,
+      oldCode: inviteCode.isNotEmpty ? inviteCode : null,
+    );
     if (code.isNotEmpty) {
       inviteCode = code;
       onChanged?.call();
@@ -674,30 +591,26 @@ class Connection {
     if (isPaired || pairId.isNotEmpty) return;
     pairId = newPairId;
     await refreshPairStatus();
-
-    // Regenerate invite code as a group invite code (linked to the group)
-    if (_fb.isLoggedIn && pairId.isNotEmpty) {
-      final oldCode = inviteCode;
-      final groupCode = await _fb.generateGroupInviteCode(
-        pairId,
-        oldCode: oldCode.isNotEmpty ? oldCode : null,
-      );
-      if (groupCode.isNotEmpty) {
-        inviteCode = groupCode;
-        onChanged?.call();
-      }
+    // Перевыпускаем код как привязанный к группе: иначе оставшийся unpaired-код
+    // мог бы спарить третьего (accept «у владельца есть группа» создал бы вторую).
+    final code = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: pairId,
+      oldCode: inviteCode.isNotEmpty ? inviteCode : null,
+    );
+    if (code.isNotEmpty) {
+      inviteCode = code;
+      onChanged?.call();
     }
   }
 
   Future<void> refreshPairStatus() async {
     if (pairId.isNotEmpty) {
-      // Always fetch fresh from Firestore on app start — covers the case where
-      // SharedPreferences holds stale `members` from a previous version (the
-      // root cause of the "Group of 3" phantom bug). Skipping this when
-      // isPaired+pairId would let the corrupt local cache survive until the
-      // listener snapshot fires.
+      // Всегда тянем свежую группу из PocketBase на старте — покрывает случай,
+      // когда SharedPreferences держит устаревший `members` от прошлой версии
+      // (первопричина фантомного «Group of 3»).
       try {
-        final pairData = await _fb.loadPairById(pairId);
+        final pairData = await PbDataService().loadPairMapById(pairId, _uid);
         if (pairData != null) {
           _applyPairData(pairData);
         }
@@ -710,7 +623,7 @@ class Connection {
     }
 
     try {
-      final pairData = await _fb.loadPairData();
+      final pairData = await PbDataService().loadPairMapForUser(_uid);
       if (pairData != null) {
         pairId = pairData['pairId'] ?? '';
         _applyPairData(pairData);
@@ -823,201 +736,199 @@ class Connection {
     _pairSub?.cancel();
     if (pairId.isEmpty) return;
 
-    _pairSub = _fb.listenToPair(
-      pairId: pairId,
-      onData: (data) {
-        if (data == null) {
-          // Group was deleted or disbanded
-          debugPrint('_listenToPair: group deleted');
-          final staleId = pairId;
-          isPaired = false;
-          pairId = '';
-          partnerName = '';
-          partnerAvatarUrl = '';
-          startDate = null;
-          members = [];
-          // Партнёр распустил группу — помечаем связь на удаление из локального
-          // списка (менеджер уберёт её в onChanged), чтобы группа исчезла у
-          // обоих, а не осталась пустой карточкой.
-          justDisbanded = true;
-          onChanged?.call();
-          if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
-          return;
-        }
+    // PB SSE: живой group-док. Запись приходит и при disbanded=true — трактуем
+    // её как «группы нет» (распущена), как делал Firestore-листенер.
+    _pairSub = PbRealtimeService().watchGroup(pairId).listen((rec) {
+      if (rec == null || rec.data['disbanded'] == true) {
+        _handlePairSnapshot(null);
+      } else {
+        _handlePairSnapshot(PbDataService.groupRecordToPairMap(rec, _uid));
+      }
+    }, onError: (e) => debugPrint('_listenToPair error: $e'));
+  }
 
-        partnerName = data['partnerName'] ?? partnerName;
-        partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
-        startDate = data['startDate'] as DateTime? ?? startDate;
+  /// Обработка живого снимка группы (map в форме старого Firestore-парсера или
+  /// null = группа распущена/удалена). Логика идентична прежнему onData.
+  void _handlePairSnapshot(Map<String, dynamic>? data) {
+    if (data == null) {
+      // Group was deleted or disbanded
+      debugPrint('_listenToPair: group deleted');
+      isPaired = false;
+      pairId = '';
+      partnerName = '';
+      partnerAvatarUrl = '';
+      startDate = null;
+      members = [];
+      // Партнёр распустил группу — помечаем связь на удаление из локального
+      // списка (менеджер уберёт её в onChanged), чтобы группа исчезла у обоих,
+      // а не осталась пустой карточкой. Сервер НЕ трогаем: disband — мягкое
+      // удаление (группа остаётся восстановимой при повторном коннекте).
+      justDisbanded = true;
+      onChanged?.call();
+      return;
+    }
 
-        // Update members
-        final membersList = data['members'] as List<dynamic>?;
-        if (membersList != null) {
-          final newMembers = membersList
-              .map(
-                (m) => GroupMember(
-                  uid: (m as Map)['uid'] ?? '',
-                  name: m['name'] ?? '',
-                  avatar: m['avatar'] ?? '',
-                ),
-              )
-              .toList();
+    partnerName = data['partnerName'] ?? partnerName;
+    partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
+    startDate = data['startDate'] as DateTime? ?? startDate;
 
-          // Check if we're still in the group
-          final myUid = _fb.uid ?? '';
-          final imInGroup = newMembers.any((m) => m.uid == myUid);
-
-          if (!imInGroup) {
-            // I've been removed from the group (shouldn't happen, but handle it)
-            debugPrint('_listenToPair: removed from group');
-            final staleId = pairId;
-            isPaired = false;
-            pairId = '';
-            partnerName = '';
-            partnerAvatarUrl = '';
-            startDate = null;
-            members = [];
-            onChanged?.call();
-            if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
-            return;
-          }
-
-          members = newMembers;
-
-          // Diagnostic: log when the group is over capacity. Indicates the
-          // "phantom member" bug — same person occupying multiple uid slots.
-          // ConnectionsManager._cleanupStaleConnections runs a one-shot
-          // auto-cleanup on app start; if it ever logs here again the bug has
-          // a new reproduction path we haven't covered.
-          if (newMembers.length > maxMembers) {
-            final dump = newMembers
-                .map((m) => '${m.uid}=${m.name}')
-                .join(', ');
-            debugPrint(
-              '_listenToPair($pairId): OVERSIZED group — '
-              '${newMembers.length} members, maxMembers=$maxMembers, myUid=$myUid, '
-              'partners=${newMembers.where((m) => m.uid != myUid).length}. '
-              'Members: [$dump]',
-            );
-            // Fire-and-forget cleanup; safe to call repeatedly.
-            // force: переполнение группы — это и есть видимый баг, лечим сразу,
-            // не дожидаясь снятия 24ч-троттла.
-            unawaited(_fb.cleanupPhantomMembersInGroup(pairId, force: true));
-          }
-
-          // If all partners left (only me remaining), mark as unpaired
-          final partnersCount = members.where((m) => m.uid != myUid).length;
-          if (partnersCount == 0 && isPaired) {
-            debugPrint('_listenToPair: all partners left, marking as unpaired');
-            final staleId = pairId;
-            isPaired = false;
-            partnerName = '';
-            partnerAvatarUrl = '';
-            startDate = null;
-            pairId = '';
-            members = [];
-            _pairSub?.cancel();
-            _pairSub = null;
-            if (staleId.isNotEmpty) _fb.removeStaleGroupFromUser(staleId);
-          }
-        }
-
-        // Update relationship type
-        final rtStr = data['relationshipType'] as String?;
-        if (rtStr != null) {
-          relationshipType = RelationshipType.values.firstWhere(
-            (e) => e.name == rtStr,
-            orElse: () => RelationshipType.couple,
-          );
-        }
-        customRelationshipLabel =
-            data['customRelationshipLabel'] as String? ??
-            customRelationshipLabel;
-        customRelationshipEmoji =
-            data['customRelationshipEmoji'] as String? ??
-            customRelationshipEmoji;
-
-        // Update custom relationship types list
-        final crtList = data['customRelationshipTypes'] as List<dynamic>?;
-        if (crtList != null) {
-          customRelationshipTypes = crtList
-              .map(
-                (e) => Map<String, String>.from(
-                  (e as Map).map(
-                    (k, v) => MapEntry(k.toString(), v.toString()),
-                  ),
-                ),
-              )
-              .toList();
-        } else {
-          customRelationshipTypes = [];
-        }
-
-        // Update moods
-        final moodsMap = data['memberMoods'] as Map<String, dynamic>?;
-        if (moodsMap != null) {
-          memberMoods = moodsMap.map(
-            (uid, value) => MapEntry(
-              uid,
-              MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
+    // Update members
+    final membersList = data['members'] as List<dynamic>?;
+    if (membersList != null) {
+      final newMembers = membersList
+          .map(
+            (m) => GroupMember(
+              uid: (m as Map)['uid'] ?? '',
+              name: m['name'] ?? '',
+              avatar: m['avatar'] ?? '',
             ),
-          );
-        } else {
-          memberMoods = {};
-        }
+          )
+          .toList();
 
-        // Update ailments
-        final ailmentsMap = data['memberAilments'] as Map<String, dynamic>?;
-        if (ailmentsMap != null) {
-          memberAilments = ailmentsMap.map(
-            (uid, value) => MapEntry(
-              uid,
-              MemberAilment.fromJson(Map<String, dynamic>.from(value as Map)),
-            ),
-          );
-        } else {
-          memberAilments = {};
-        }
+      // Check if we're still in the group
+      final myUid = _uid;
+      final imInGroup = newMembers.any((m) => m.uid == myUid);
 
-        // Update status
-        final statusData = data['currentStatus'] as Map<String, dynamic>?;
-        if (statusData != null) {
-          currentStatus = RelationshipStatus.fromJson(statusData);
-        } else {
-          currentStatus = null;
-        }
-
-        // Update custom statuses
-        final customStatusesList = data['customStatuses'] as List<dynamic>?;
-        if (customStatusesList != null) {
-          customStatuses = customStatusesList
-              .map(
-                (s) => RelationshipStatus.fromJson(
-                  Map<String, dynamic>.from(s as Map),
-                ),
-              )
-              .toList();
-        } else {
-          customStatuses = [];
-        }
-
-        // Update celebration dates (_parseGroupDoc already converts Timestamp→DateTime)
-        anniversaryDate = data['anniversaryDate'] as DateTime?;
-        firstKissDate = data['firstKissDate'] as DateTime?;
-        final bdRaw = data['memberBirthdays'] as Map<String, dynamic>?;
-        if (bdRaw != null) {
-          memberBirthdays = {};
-          for (final entry in bdRaw.entries) {
-            if (entry.value is DateTime) {
-              memberBirthdays[entry.key] = entry.value as DateTime;
-            }
-          }
-        } else {
-          memberBirthdays = {};
-        }
-
+      if (!imInGroup) {
+        // I've been removed from the group (shouldn't happen, but handle it)
+        debugPrint('_listenToPair: removed from group');
+        isPaired = false;
+        pairId = '';
+        partnerName = '';
+        partnerAvatarUrl = '';
+        startDate = null;
+        members = [];
         onChanged?.call();
-      },
-    );
+        return;
+      }
+
+      members = newMembers;
+
+      // Diagnostic: log when the group is over capacity. Indicates the
+      // "phantom member" bug — same person occupying multiple uid slots.
+      // Серверная чистка фантомов — Фаза 2 (нет PB-аналога
+      // cleanupPhantomMembersInGroup); пока только диагностика.
+      if (newMembers.length > maxMembers) {
+        final dump = newMembers.map((m) => '${m.uid}=${m.name}').join(', ');
+        debugPrint(
+          '_listenToPair($pairId): OVERSIZED group — '
+          '${newMembers.length} members, maxMembers=$maxMembers, myUid=$myUid, '
+          'partners=${newMembers.where((m) => m.uid != myUid).length}. '
+          'Members: [$dump]',
+        );
+      }
+
+      // If all partners left (only me remaining), mark as unpaired and disband
+      // the orphan group (иначе оно вернётся в discovery: members~me).
+      final partnersCount = members.where((m) => m.uid != myUid).length;
+      if (partnersCount == 0 && isPaired) {
+        debugPrint('_listenToPair: all partners left, marking as unpaired');
+        final staleId = pairId;
+        isPaired = false;
+        partnerName = '';
+        partnerAvatarUrl = '';
+        startDate = null;
+        pairId = '';
+        members = [];
+        _pairSub?.cancel();
+        _pairSub = null;
+        if (staleId.isNotEmpty) {
+          unawaited(PbDataService().leaveGroup(staleId, myUid));
+        }
+      }
+    }
+
+    // Update relationship type
+    final rtStr = data['relationshipType'] as String?;
+    if (rtStr != null) {
+      relationshipType = RelationshipType.values.firstWhere(
+        (e) => e.name == rtStr,
+        orElse: () => RelationshipType.couple,
+      );
+    }
+    customRelationshipLabel =
+        data['customRelationshipLabel'] as String? ?? customRelationshipLabel;
+    customRelationshipEmoji =
+        data['customRelationshipEmoji'] as String? ?? customRelationshipEmoji;
+
+    // Update custom relationship types list
+    final crtList = data['customRelationshipTypes'] as List<dynamic>?;
+    if (crtList != null) {
+      customRelationshipTypes = crtList
+          .map(
+            (e) => Map<String, String>.from(
+              (e as Map).map((k, v) => MapEntry(k.toString(), v.toString())),
+            ),
+          )
+          .toList();
+    } else {
+      customRelationshipTypes = [];
+    }
+
+    // Update moods
+    final moodsMap = data['memberMoods'] as Map<String, dynamic>?;
+    if (moodsMap != null) {
+      memberMoods = moodsMap.map(
+        (uid, value) => MapEntry(
+          uid,
+          MemberMood.fromJson(Map<String, dynamic>.from(value as Map)),
+        ),
+      );
+    } else {
+      memberMoods = {};
+    }
+
+    // Update ailments
+    final ailmentsMap = data['memberAilments'] as Map<String, dynamic>?;
+    if (ailmentsMap != null) {
+      memberAilments = ailmentsMap.map(
+        (uid, value) => MapEntry(
+          uid,
+          MemberAilment.fromJson(Map<String, dynamic>.from(value as Map)),
+        ),
+      );
+    } else {
+      memberAilments = {};
+    }
+
+    // Update status
+    final statusData = data['currentStatus'] as Map<String, dynamic>?;
+    if (statusData != null) {
+      currentStatus = RelationshipStatus.fromJson(statusData);
+    } else {
+      currentStatus = null;
+    }
+
+    // Update custom statuses
+    final customStatusesList = data['customStatuses'] as List<dynamic>?;
+    if (customStatusesList != null) {
+      customStatuses = customStatusesList
+          .map(
+            (s) => RelationshipStatus.fromJson(
+              Map<String, dynamic>.from(s as Map),
+            ),
+          )
+          .toList();
+    } else {
+      customStatuses = [];
+    }
+
+    // Update celebration dates (mapper already converts ISO→DateTime)
+    anniversaryDate = data['anniversaryDate'] as DateTime?;
+    firstKissDate = data['firstKissDate'] as DateTime?;
+    final bdRaw = data['memberBirthdays'] as Map<String, dynamic>?;
+    if (bdRaw != null) {
+      memberBirthdays = {};
+      for (final entry in bdRaw.entries) {
+        if (entry.value is DateTime) {
+          memberBirthdays[entry.key] = entry.value as DateTime;
+        }
+      }
+    } else {
+      memberBirthdays = {};
+    }
+
+    onChanged?.call();
   }
 
   void dispose() {
@@ -1051,7 +962,6 @@ class Connection {
 
   static Connection fromJson(
     Map<String, dynamic> json,
-    FirebaseService firebaseService,
     Function()? onChanged,
   ) {
     // Sanity guard against the "Group of 3" bug. Old builds could persist a
@@ -1060,7 +970,7 @@ class Connection {
     // a list as-is lets the bug survive across uninstalls (via Android Auto
     // Backup) and across restarts. Drop empties + dedupe by uid; if the
     // cleaned list still overflows maxMembers (=2), zero it out so the
-    // Firestore listener repopulates from authoritative data.
+    // real-time listener repopulates from authoritative data.
     final rawMembers = (json['members'] as List<dynamic>?)
         ?.map((m) => GroupMember.fromJson(Map<String, dynamic>.from(m)))
         .toList();
@@ -1080,7 +990,7 @@ class Connection {
         debugPrint(
           'Connection.fromJson(${json['id']}): members overflow '
           '(${cleaned.length} > $localMaxMembers) — clearing local cache, '
-          'will refetch from Firestore. Cached uids: '
+          'will refetch from PocketBase. Cached uids: '
           '${cleaned.map((m) => m.uid).toList()}',
         );
         membersList = [];
@@ -1098,7 +1008,6 @@ class Connection {
 
     return Connection(
         id: json['id'] ?? '',
-        firebaseService: firebaseService,
         isPaired: json['isPaired'] ?? false,
         isSolo: json['isSolo'] ?? false,
         startDate: json['startDate'] != null

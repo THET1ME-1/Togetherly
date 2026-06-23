@@ -1,23 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/analytics_service.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/pb_realtime_service.dart';
+import '../services/pocketbase_service.dart';
 import 'connection.dart';
 
 /// Manages multiple connections/groups
+///
+/// Перенесён с Firebase на PocketBase: личность — из PB-сессии, обнаружение пар
+/// — через живой список «моих групп» (`PbRealtimeService.watchMyGroups`,
+/// фильтр `members ~ uid`), данные/запись — через `PbDataService`. Инвайт-коды
+/// пока локальные (генерация/приём кода на PB — Фаза 2).
 class ConnectionsManager extends ChangeNotifier {
-  final FirebaseService _fb = FirebaseService();
   final List<Connection> _connections = [];
   int _activeConnectionIndex = 0;
   String _preferredPartnerUid = '';
   bool _loading = false;
-  StreamSubscription? _userDocSub;
+  StreamSubscription? _groupsSub;
   // Prevents concurrent _startListeningForNewPairs callbacks from racing
   bool _processingPairUpdate = false;
-  // Last known pairing fingerprint — skip callback if only non-pairing fields changed
-  String _lastPairKey = '';
+  // Last known pairing fingerprint — skip callback if the set of groups is same.
+  // null = ещё не обрабатывали (первый emit пройдёт даже при пустом списке).
+  String? _lastPairKey;
+
+  // ── Идентичность (PocketBase) ──
+  String get _uid => PocketBaseService().userId ?? '';
+  bool get _loggedIn => PocketBaseService().isLoggedIn;
 
   // ── Getters ──
   List<Connection> get connections => List.unmodifiable(_connections);
@@ -49,104 +61,34 @@ class ConnectionsManager extends ChangeNotifier {
     // Ensure solo connection exists at index 0 (can't be deleted)
     _ensureSoloConnection();
 
-    // Самолечение: если pairIds в user-документе обнулились (переустановка/
-    // повторный вход), но группа жива — возвращаем активные группы в pairIds.
-    // Запись подхватит слушатель user-документа (_startListeningForNewPairs)
-    // ниже и сам привяжет восстановленные группы к connection'ам.
-    if (_fb.isLoggedIn) {
-      await _fb.selfHealActiveGroups();
-    }
-
     // If no connections exist (besides solo), create a default one
     if (_connections.length <= 1) {
       await _createNewConnection();
     }
 
-    // Initialize each connection
-    // Collect which connections already have pairId from local storage
-    final Set<String> knownPairIds = {};
-    for (var connection in _connections) {
-      if (connection.pairId.isNotEmpty) {
-        knownPairIds.add(connection.pairId);
-      }
-    }
-
-    // Снимок: в теле есть await'ы (генерация/валидация инвайт-кодов,
-    // refreshPairStatus), во время которых _connections может перестроиться.
+    // Снимок: в теле есть await'ы (refreshPairStatus), во время которых
+    // _connections может перестроиться.
     for (var connection in _connections.toList()) {
-      if (_fb.isLoggedIn) {
-        if (connection.pairId.isNotEmpty) {
-          // Paired connection: always refresh with a group-tied code.
-          final fc = await _fb.generateGroupInviteCode(connection.pairId);
-          if (fc.isNotEmpty) {
-            connection.inviteCode = fc;
-          } else if (connection.inviteCode.isEmpty) {
-            connection.inviteCode = Connection.generateLocalCode();
-          }
-        } else {
-          // Unpaired connection: validate the stored code is actually in
-          // Firestore and owned by the current user. Local fallback codes
-          // (generated when Firestore was unreachable) will fail this check
-          // and trigger a fresh Firestore code.
-          final codeValid = await _fb.isOwnedInviteCodeValid(
-            connection.inviteCode,
-          );
-          if (!codeValid) {
-            final oldCode = connection.inviteCode.isNotEmpty
-                ? connection.inviteCode
-                : null;
-            final fc = await _fb.generateNewInviteCode(oldCode: oldCode);
-            if (fc.isNotEmpty) {
-              connection.inviteCode = fc;
-            } else {
-              connection.inviteCode = '';
-              unawaited(_scheduleCodeRetry(connection));
-            }
-          }
-        }
+      if (_loggedIn &&
+          connection.inviteCode.isEmpty &&
+          !connection.isSolo) {
+        await _ensureServerCode(connection);
       }
 
       // Only refresh pair status for connections that already have a pairId.
-      // Don't call refreshPairStatus on unpaired connections — Firebase
-      // returns the SAME pairId for all, causing duplicates.
-      if (_fb.isLoggedIn && connection.pairId.isNotEmpty) {
+      if (_loggedIn && connection.pairId.isNotEmpty) {
         await connection.refreshPairStatus();
       }
     }
 
-    // If no connection claimed the Firebase pair, let the FIRST unpaired
-    // non-solo connection check (only once, to pick up the initial pairing).
-    // Use a flag to ensure only one connection attempts to claim the Firebase pair.
-    if (_fb.isLoggedIn && knownPairIds.isEmpty) {
-      bool pairClaimed = false;
-      for (final conn in _connections) {
-        if (conn.isSolo) continue; // solo никогда не должен клеймить пару
-        if (conn.isPaired || conn.pairId.isNotEmpty) {
-          pairClaimed = true;
-          break;
-        }
-        if (!pairClaimed) {
-          await conn.refreshPairStatus();
-          if (conn.isPaired && conn.pairId.isNotEmpty) {
-            pairClaimed = true;
-            knownPairIds.add(conn.pairId);
-          }
-          break; // Only one connection should attempt to claim
-        }
-      }
-    }
-
-    // Remove stale connections: paired groups that have no partners left
-    // (e.g. test groups created during debug testing, or groups where the
-    // only other member has since left). This runs before the real-time
-    // listener starts so the UI never shows orphaned groups.
+    // Remove stale connections: paired groups that have no partners left.
     await _cleanupStaleConnections();
 
     await _saveLocal();
     _loading = false;
     notifyListeners();
 
-    // Start listening for real-time pair changes
+    // Start listening for real-time pair changes (membership discovery).
     _startListeningForNewPairs();
   }
 
@@ -154,7 +96,7 @@ class ConnectionsManager extends ChangeNotifier {
   //  ACCEPT CODE — universal entry point
   // ══════════════════════════════════════════════
 
-  /// Accept an invite code and create / join a group.
+  /// Accept an invite code and create / join a group (PocketBase).
   /// Works regardless of whether the active connection is already paired.
   /// Returns true on success.
   Future<bool> acceptCodeAndCreateGroup(String code) async {
@@ -169,8 +111,7 @@ class ConnectionsManager extends ChangeNotifier {
       }
     }
 
-    // Call Firebase
-    final result = await _fb.acceptInviteCode(code);
+    final result = await PbDataService().acceptInviteCode(code, myUid: _uid);
     debugPrint(
       'acceptCodeAndCreateGroup: result=${result['success']}, msg=${result['message']}',
     );
@@ -179,16 +120,12 @@ class ConnectionsManager extends ChangeNotifier {
     final pairId = result['pairId'] as String? ?? '';
     if (pairId.isEmpty) return false;
 
-    // Already have this group? (real-time listener might have picked it up)
+    // Already have this group? (discovery listener might have picked it up)
     final existingConn = _connections.cast<Connection?>().firstWhere(
       (c) => c!.pairId == pairId,
       orElse: () => null,
     );
     if (existingConn != null) {
-      // Already claimed — just switch to it and consider it a success
-      debugPrint(
-        'acceptCodeAndCreateGroup: already have group $pairId, switching to it',
-      );
       _activeConnectionIndex = _connections.indexOf(existingConn);
       await _saveLocal();
       notifyListeners();
@@ -196,23 +133,18 @@ class ConnectionsManager extends ChangeNotifier {
     }
 
     // Find first unpaired non-solo connection to reuse, or create new one.
-    // Solo connection никогда не должен становиться парным — он существует
-    // только для одиночного режима и всегда должен оставаться solo.
     Connection? target = _connections.cast<Connection?>().firstWhere(
       (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
       orElse: () => null,
     );
-
     if (target == null) {
       target = Connection(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        firebaseService: _fb,
         onChanged: _onConnectionChanged,
       );
       _connections.add(target);
     }
 
-    // Delete old invite code for the connection we're reusing
     final oldInviteCode = target.inviteCode;
 
     // Apply data from result
@@ -243,7 +175,6 @@ class ConnectionsManager extends ChangeNotifier {
           )
           .toList();
     }
-
     final membersList = result['members'] as List<dynamic>?;
     if (membersList != null) {
       target.members = membersList
@@ -257,39 +188,22 @@ class ConnectionsManager extends ChangeNotifier {
           .toList();
     }
 
-    // Generate a fresh invite code linked to the group
-    if (_fb.isLoggedIn) {
-      final newInviteCode = await _fb.generateGroupInviteCode(
-        pairId,
-        oldCode: oldInviteCode.isNotEmpty ? oldInviteCode : null,
-      );
-      target.inviteCode = newInviteCode.isNotEmpty
-          ? newInviteCode
-          : Connection.generateLocalCode();
-    } else {
-      target.inviteCode = Connection.generateLocalCode();
-    }
+    // Fresh group-tied invite code (replaces the used one).
+    final newCode = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: pairId,
+      oldCode: oldInviteCode.isNotEmpty ? oldInviteCode : null,
+    );
+    target.inviteCode =
+        newCode.isNotEmpty ? newCode : Connection.generateLocalCode();
 
-    // Switch to the new connection
     _activeConnectionIndex = _connections.indexOf(target);
-
-    // Start real-time listening
     target.startListening();
 
     await _saveLocal();
     notifyListeners();
     debugPrint('acceptCodeAndCreateGroup: SUCCESS, paired=$pairId');
     unawaited(AnalyticsService.instance.logPairConnected(groupId: pairId));
-
-    // Взаимный коннект (оба приняли коды друг друга одновременно) мог успеть
-    // создать вторую группу пары до страховки в _createNewGroup. Через полминуты
-    // партнёрская группа уже придёт через листенер user-документа — проверяем
-    // дубликаты и сливаем их сразу, не дожидаясь перезапуска приложения.
-    unawaited(
-      Future.delayed(const Duration(seconds: 30), () {
-        if (_fb.isLoggedIn) _cleanupStaleConnections();
-      }),
-    );
     return true;
   }
 
@@ -301,7 +215,6 @@ class ConnectionsManager extends ChangeNotifier {
     return false;
   }
 
-  /// Слушаем документ юзера в реальном времени.
   /// Remove connections that are paired but have no partners (orphaned groups).
   /// This handles stale groups created during debug testing sessions where the
   /// group only has the current user as a member.
@@ -309,8 +222,8 @@ class ConnectionsManager extends ChangeNotifier {
     final toRemove = <Connection>[];
 
     // 1) Orphaned groups — paired but no partners left.
-    // Снимок: внутри await (removeStaleGroupFromUser), во время которого
-    // _connections может перестроиться → иначе «Concurrent modification».
+    // Снимок: внутри await (leaveGroup), во время которого _connections может
+    // перестроиться → иначе «Concurrent modification».
     for (final conn in _connections.toList()) {
       if (conn.isSolo) continue;
       if (!conn.isPaired || conn.pairId.isEmpty) continue;
@@ -319,22 +232,15 @@ class ConnectionsManager extends ChangeNotifier {
       debugPrint(
         '_cleanupStaleConnections: removing orphaned group ${conn.pairId}',
       );
-      await _fb.removeStaleGroupFromUser(conn.pairId);
+      await PbDataService().leaveGroup(conn.pairId, _uid);
       toRemove.add(conn);
     }
 
-    // 2) Duplicate groups — same partner set in another connection (пара
-    //    «раскололась» на две группы после потери pairIds). Раньше здесь
-    //    оставляли ПЕРВУЮ по локальному списку и убирали остальные из pairIds —
-    //    но локальный порядок у партнёров разный, каждый держался своей группы,
-    //    а selfHealActiveGroups возвращал удалённую обратно: пара навсегда
-    //    расходилась по разным группам (счётчики/чат/воспоминания врозь).
-    //    Теперь сервер (mergeDuplicateGroups) детерминированно сливает данные
-    //    в старейшую группу и распускает дубликат — оба устройства сходятся
-    //    на одном groupId. При ошибке мерджа оставляем обе связи и повторяем
-    //    на следующем старте.
+    // 2) Duplicate groups — same partner set in another connection. Серверный
+    //    детерминированный мердж (mergeDuplicateGroups) — Фаза 2. Пока просто
+    //    НЕ показываем второй коннект на тех же партнёров (и не трогаем данные
+    //    на сервере): оставляем первый, второй убираем из локального списка.
     final firstConnByPartnerKey = <String, Connection>{};
-    Connection? replacementActive;
     for (final conn in List<Connection>.from(_connections)) {
       if (conn.isSolo || toRemove.contains(conn)) continue;
       if (!conn.isPaired || conn.partners.isEmpty) continue;
@@ -350,29 +256,12 @@ class ConnectionsManager extends ChangeNotifier {
 
       debugPrint(
         '_cleanupStaleConnections: duplicate pair groups '
-        '${first.pairId} / ${conn.pairId} — requesting server merge',
+        '${first.pairId} / ${conn.pairId} — hiding duplicate (merge = Phase 2)',
       );
-      final canonicalId =
-          await _fb.mergeDuplicateGroups(first.pairId, conn.pairId);
-      if (canonicalId == null) continue; // мердж не удался — повтор позже
-
-      final Connection canonical;
-      final Connection duplicate;
-      if (first.pairId == canonicalId) {
-        canonical = first;
-        duplicate = conn;
-      } else {
-        canonical = conn;
-        duplicate = first;
-        firstConnByPartnerKey[partnerKey] = canonical;
-      }
-      toRemove.add(duplicate);
-
-      // Если активной была удаляемая связь — после удаления переключимся на
-      // каноническую, чтобы пользователь не «выпал» из пары после слияния.
-      if (_connections.indexOf(duplicate) == _activeConnectionIndex) {
-        replacementActive = canonical;
-      }
+      // Не диспозим листенер группы у дубликата деструктивно на сервере —
+      // только убираем локальную карточку, чтобы не двоилось в UI.
+      conn.dispose();
+      toRemove.add(conn);
     }
 
     for (final conn in toRemove) {
@@ -385,12 +274,6 @@ class ConnectionsManager extends ChangeNotifier {
       if (_connections.where((c) => !c.isSolo).isEmpty) {
         await _createNewConnection();
       }
-      // Перенос актива на каноническую группу после слияния дубликатов.
-      final replacementIndex =
-          replacementActive != null ? _connections.indexOf(replacementActive) : -1;
-      if (replacementIndex >= 0) {
-        _activeConnectionIndex = replacementIndex;
-      }
       // Keep active index in bounds
       if (_activeConnectionIndex >= _connections.length) {
         _activeConnectionIndex =
@@ -399,76 +282,37 @@ class ConnectionsManager extends ChangeNotifier {
       await _saveLocal();
       notifyListeners();
     }
-
-    // 3) Phantom members — same person occupying multiple uid slots in members[].
-    //    Fires once per app start; the group listener will re-emit clean data
-    //    after the Firestore write resolves.
-    if (!_fb.isLoggedIn) return;
-    // Снимок: внутри цикла есть await, во время которого листенер user-doc
-    // может перестроить _connections → итерация по живому списку падала с
-    // «Concurrent modification during iteration».
-    for (final conn in _connections.toList()) {
-      if (conn.isSolo) continue;
-      if (!conn.isPaired || conn.pairId.isEmpty) continue;
-      if (conn.members.length <= 1) continue;
-
-      final removed = await _fb.cleanupPhantomMembersInGroup(conn.pairId);
-      if (removed.isNotEmpty) {
-        // Apply locally too so the UI updates without waiting for the snapshot.
-        conn.members =
-            conn.members.where((m) => !removed.contains(m.uid)).toList();
-      }
-    }
   }
 
-  /// Когда партнёр принимает инвайт, pairId обновляется —
-  /// мы сразу подхватываем пару без перезапуска.
+  /// Живой список моих групп в PocketBase. Когда партнёр принимает инвайт и
+  /// добавляет меня в группу — она приезжает сюда; когда выходит/распускает —
+  /// исчезает. Заменяет Firestore user-doc листенер (pairIds).
   void _startListeningForNewPairs() {
-    _userDocSub?.cancel();
-    if (!_fb.isLoggedIn) return;
+    _groupsSub?.cancel();
+    if (!_loggedIn) return;
 
-    _userDocSub = _fb.listenToUserDoc(
-      onData: (data) async {
-        if (data == null) return;
+    _groupsSub = PbRealtimeService().watchMyGroups(_uid).listen((recs) async {
+      // Skip if the SET of my groups didn't change (group-doc шлёт событие на
+      // любое изменение поля — настроение, счётчик; нас интересует членство).
+      final ids = recs.map((r) => r.id).toList()..sort();
+      final pairKey = ids.join(',');
+      if (pairKey == _lastPairKey) return;
+      _lastPairKey = pairKey;
 
-        // Skip if only non-pairing fields changed (FCM token, avatar, notif prefs…).
-        // Build a fingerprint from pairId + sorted pairIds only.
-        final pairId = data['pairId'] as String? ?? '';
-        final pairIds = ((data['pairIds'] as List<dynamic>?) ?? [])
-            .map((e) => e.toString())
-            .toList()
-          ..sort();
-        final pairKey = '$pairId|${pairIds.join(',')}';
-        if (pairKey == _lastPairKey) return;
-        _lastPairKey = pairKey;
-
-        // Prevent concurrent callbacks from racing (Firestore may fire twice
-        // in quick succession — once from cache, once from server).
-        if (_processingPairUpdate) return;
-        _processingPairUpdate = true;
-        try {
-          await _handlePairUpdate(data);
-        } finally {
-          _processingPairUpdate = false;
-        }
-      },
-    );
+      // Prevent concurrent callbacks from racing.
+      if (_processingPairUpdate) return;
+      _processingPairUpdate = true;
+      try {
+        await _handlePairUpdate(recs);
+      } finally {
+        _processingPairUpdate = false;
+      }
+    }, onError: (e) => debugPrint('_startListeningForNewPairs error: $e'));
   }
 
-  Future<void> _handlePairUpdate(Map<String, dynamic> data) async {
-    // Собираем все pairId из user-документа
-    final Set<String> remotePairIds = {};
-    final pairId = data['pairId'] as String?;
-    if (pairId != null && pairId.isNotEmpty) {
-      remotePairIds.add(pairId);
-    }
-    final pairIdsRaw = data['pairIds'] as List<dynamic>?;
-    if (pairIdsRaw != null) {
-      for (var id in pairIdsRaw) {
-        final s = id.toString();
-        if (s.isNotEmpty) remotePairIds.add(s);
-      }
-    }
+  Future<void> _handlePairUpdate(List<RecordModel> recs) async {
+    final recById = {for (final r in recs) r.id: r};
+    final remotePairIds = recById.keys.toSet();
 
     // Ищем pairId, которые ещё не привязаны ни к одному connection
     final claimedIds = _connections
@@ -476,43 +320,36 @@ class ConnectionsManager extends ChangeNotifier {
         .map((c) => c.pairId)
         .toSet();
 
+    final myUid = _uid;
     for (var remotePairId in remotePairIds) {
       if (claimedIds.contains(remotePairId)) continue;
 
-      // Pre-check: load group data and skip if all its partners are already in
-      // another connection. This removes duplicate groups left by debug sessions
-      // (where the same partner appears in both a debug group and a release group).
-      try {
-        final preloadedData = await _fb.loadPairById(remotePairId);
-        if (preloadedData != null) {
-          final membersList = (preloadedData['members'] as List<dynamic>?) ?? [];
-          final myUid = _fb.uid ?? '';
-          final newPartnerUids = membersList
-              .map((m) => (m as Map)['uid']?.toString() ?? '')
-              .where((uid) => uid.isNotEmpty && uid != myUid)
-              .toSet();
+      // Pre-check: skip if all this group's partners are already in another
+      // connection (duplicate group left by debug sessions). Не трогаем сервер.
+      final rec = recById[remotePairId];
+      final membersList =
+          (rec?.data['members'] as List?)?.map((e) => e.toString()).toList() ??
+              const <String>[];
+      final newPartnerUids = membersList
+          .where((uid) => uid.isNotEmpty && uid != myUid)
+          .toSet();
 
-          if (newPartnerUids.isNotEmpty) {
-            final existingPartnerUids = _connections
-                .where((c) => c.isPaired && c.partners.isNotEmpty)
-                .expand((c) => c.partners.map((p) => p.uid))
-                .toSet();
+      if (newPartnerUids.isNotEmpty) {
+        final existingPartnerUids = _connections
+            .where((c) => c.isPaired && c.partners.isNotEmpty)
+            .expand((c) => c.partners.map((p) => p.uid))
+            .toSet();
 
-            if (newPartnerUids.every((uid) => existingPartnerUids.contains(uid))) {
-              debugPrint(
-                'Real-time: duplicate group $remotePairId — partners already in another group, removing',
-              );
-              await _fb.removeStaleGroupFromUser(remotePairId);
-              continue;
-            }
-          }
+        if (newPartnerUids.every((uid) => existingPartnerUids.contains(uid))) {
+          debugPrint(
+            'Real-time: duplicate group $remotePairId — partners already in '
+            'another connection, skipping',
+          );
+          continue;
         }
-      } catch (e) {
-        debugPrint('Real-time: pre-check for $remotePairId failed: $e');
       }
 
       // Нашли новую пару — назначаем первому unpaired non-solo connection.
-      // Solo connection пропускаем: он существует только для одиночного режима.
       bool wasNewlyCreated = false;
       Connection? unpaired = _connections.cast<Connection?>().firstWhere(
         (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
@@ -522,7 +359,6 @@ class ConnectionsManager extends ChangeNotifier {
       if (unpaired == null) {
         unpaired = Connection(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          firebaseService: _fb,
           onChanged: _onConnectionChanged,
         );
         _connections.add(unpaired);
@@ -533,37 +369,34 @@ class ConnectionsManager extends ChangeNotifier {
       await unpaired.claimPair(remotePairId);
 
       // Validate: a claimed group must have at least one partner besides us.
-      // A group with only the current user is stale (e.g. from debug testing).
       if (!unpaired.isPaired || unpaired.partners.isEmpty) {
         debugPrint(
-          'Real-time: stale/invalid group $remotePairId (no partners), cleaning up',
+          'Real-time: stale/invalid group $remotePairId (no partners), '
+          'cleaning up',
         );
         unpaired.markUnpaired();
         if (wasNewlyCreated) {
           _connections.remove(unpaired);
         }
-        await _fb.removeStaleGroupFromUser(remotePairId);
         continue;
       }
 
       await _saveLocal();
       notifyListeners();
-      // Pair created via the partner accepting our code (we discover it by
-      // watching the user doc) — log it from this side too.
       unawaited(
         AnalyticsService.instance.logPairConnected(groupId: remotePairId),
       );
     }
 
-    // Обрабатываем удалённые pairId — партнёр мог выйти из группы
-    // и groupId исчез из нашего user doc
+    // Обрабатываем удалённые pairId — партнёр мог выйти/распустить и группа
+    // исчезла из моего списка.
     bool removedAny = false;
     for (var connection in _connections) {
       if (connection.pairId.isNotEmpty &&
           !remotePairIds.contains(connection.pairId) &&
           connection.isPaired) {
         debugPrint(
-          'Real-time: pairId ${connection.pairId} removed from user doc, marking as unpaired',
+          'Real-time: pairId ${connection.pairId} gone, marking as unpaired',
         );
         connection.markUnpaired();
         removedAny = true;
@@ -598,7 +431,6 @@ class ConnectionsManager extends ChangeNotifier {
           // Создаём новый нормальный коннекшн и переносим все данные соло
           final rescued = Connection(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
-            firebaseService: _fb,
             isPaired: existingSolo.isPaired,
             pairId: orphanedPairId,
             startDate: existingSolo.startDate,
@@ -637,7 +469,6 @@ class ConnectionsManager extends ChangeNotifier {
     // Create new solo connection
     final soloConnection = Connection(
       id: 'solo',
-      firebaseService: _fb,
       isSolo: true,
       onChanged: _onConnectionChanged,
     );
@@ -653,11 +484,21 @@ class ConnectionsManager extends ChangeNotifier {
     }
   }
 
+  /// Выдать связи серверный инвайт-код (с локальным фолбэком при офлайне).
+  /// Вызывается только когда кода ещё нет — старый код не передаём (не плодим
+  /// удаления). Привязка к группе, если связь уже парная.
+  Future<void> _ensureServerCode(Connection c) async {
+    final code = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: c.pairId.isNotEmpty ? c.pairId : null,
+    );
+    c.inviteCode = code.isNotEmpty ? code : Connection.generateLocalCode();
+  }
+
   // ── Connection Management ──
   Future<Connection> _createNewConnection() async {
     final newConnection = Connection(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      firebaseService: _fb,
       onChanged: _onConnectionChanged,
     );
 
@@ -679,15 +520,9 @@ class ConnectionsManager extends ChangeNotifier {
       connection.customRelationshipEmoji = customEmoji;
     }
 
-    // Always generate a fresh unique invite code for the new connection
-    if (_fb.isLoggedIn) {
-      final firestoreCode = await _fb.generateNewInviteCode();
-      if (firestoreCode.isNotEmpty) {
-        connection.inviteCode = firestoreCode;
-      } else {
-        connection.inviteCode = '';
-        unawaited(_scheduleCodeRetry(connection));
-      }
+    // Always generate a fresh unique invite code for the new connection.
+    if (_loggedIn) {
+      await _ensureServerCode(connection);
     }
 
     // Auto-switch to the new connection
@@ -717,8 +552,7 @@ class ConnectionsManager extends ChangeNotifier {
 
     connection.dispose();
     // Удаляем по объекту, а не по индексу: за время `await unpair()` listener
-    // (_handlePairUpdate/_removeDisbandedConnections) мог изменить _connections,
-    // и захваченный index устарел бы → RangeError на removeAt(index).
+    // мог изменить _connections, и захваченный index устарел бы.
     _connections.remove(connection);
 
     // Adjust active index if needed
@@ -760,19 +594,10 @@ class ConnectionsManager extends ChangeNotifier {
     if (index < 0 || index >= _connections.length) return;
     _activeConnectionIndex = index;
 
-    // Generate invite code if the connection doesn't have one
+    // Generate invite code if the connection doesn't have one.
     final connection = _connections[index];
-    if (connection.inviteCode.isEmpty) {
-      if (_fb.isLoggedIn) {
-        final firestoreCode = connection.pairId.isNotEmpty
-            ? await _fb.generateGroupInviteCode(connection.pairId)
-            : await _fb.generateNewInviteCode();
-        if (firestoreCode.isNotEmpty) {
-          connection.inviteCode = firestoreCode;
-        } else {
-          unawaited(_scheduleCodeRetry(connection));
-        }
-      }
+    if (connection.inviteCode.isEmpty && !connection.isSolo && _loggedIn) {
+      await _ensureServerCode(connection);
     }
 
     await _saveLocal();
@@ -783,19 +608,10 @@ class ConnectionsManager extends ChangeNotifier {
     if (_connections.length <= 1) return;
     _activeConnectionIndex = (_activeConnectionIndex + 1) % _connections.length;
 
-    // Generate invite code if the connection doesn't have one
+    // Generate invite code if the connection doesn't have one.
     final connection = _connections[_activeConnectionIndex];
-    if (connection.inviteCode.isEmpty) {
-      if (_fb.isLoggedIn) {
-        final firestoreCode = connection.pairId.isNotEmpty
-            ? await _fb.generateGroupInviteCode(connection.pairId)
-            : await _fb.generateNewInviteCode();
-        if (firestoreCode.isNotEmpty) {
-          connection.inviteCode = firestoreCode;
-        } else {
-          unawaited(_scheduleCodeRetry(connection));
-        }
-      }
+    if (connection.inviteCode.isEmpty && !connection.isSolo && _loggedIn) {
+      await _ensureServerCode(connection);
     }
 
     await _saveLocal();
@@ -807,7 +623,7 @@ class ConnectionsManager extends ChangeNotifier {
     // Find solo connection index
     final soloIndex = _connections.indexWhere((c) => c.isSolo);
     if (soloIndex == -1) return;
-    
+
     _activeConnectionIndex = soloIndex;
     await _saveLocal();
     notifyListeners();
@@ -819,35 +635,6 @@ class ConnectionsManager extends ChangeNotifier {
     if (_connections.isEmpty) return false;
     if (_activeConnectionIndex >= _connections.length) return false;
     return _connections[_activeConnectionIndex].isSolo;
-  }
-
-  // ── Background code retry ──
-  /// Replaces a locally-generated invite code with a Firestore-backed one as
-  /// soon as the server is reachable. Called fire-and-forget (unawaited) right
-  /// after any [Connection.generateLocalCode] fallback.
-  Future<void> _scheduleCodeRetry(Connection conn) async {
-    const delays = [2, 5, 10, 20, 40, 60, 120];
-    for (final delaySec in delays) {
-      await Future.delayed(Duration(seconds: delaySec));
-      if (!_connections.contains(conn)) return;
-      if (conn.isPaired && conn.pairId.isNotEmpty) return;
-      if (!_fb.isLoggedIn) continue;
-
-      final serverCheck = await _fb.isInviteCodeOnServer(conn.inviteCode);
-      if (serverCheck == true) return; // write queued offline already reached server
-      if (serverCheck == null) continue; // still offline, retry later
-
-      // Code is not on server → generate a fresh Firestore code
-      final newCode = await _fb.generateNewInviteCode();
-      if (newCode.isNotEmpty) {
-        conn.inviteCode = newCode;
-        await _saveLocal();
-        notifyListeners();
-        debugPrint('_scheduleCodeRetry: replaced local code with Firestore code');
-        return;
-      }
-    }
-    debugPrint('_scheduleCodeRetry: gave up after all retries');
   }
 
   // ── Persistence ──
@@ -868,9 +655,9 @@ class ConnectionsManager extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Check if stored uid matches current Firebase Auth uid
+      // Check if stored uid matches current PocketBase uid
       final storedUid = prefs.getString('uid') ?? '';
-      final currentUid = _fb.uid ?? '';
+      final currentUid = _uid;
 
       // If uids don't match, clear all connection data
       if (storedUid.isNotEmpty &&
@@ -889,7 +676,7 @@ class ConnectionsManager extends ChangeNotifier {
         _connections.clear();
         for (var json in connectionsJson) {
           final connection =
-              Connection.fromJson(json, _fb, _onConnectionChanged);
+              Connection.fromJson(json, _onConnectionChanged);
           _connections.add(connection);
         }
       }
@@ -925,7 +712,7 @@ class ConnectionsManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    _userDocSub?.cancel();
+    _groupsSub?.cancel();
     for (var connection in _connections) {
       connection.dispose();
     }
