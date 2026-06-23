@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../services/pb_coins_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/pocketbase_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_icon.dart';
 
@@ -223,7 +226,7 @@ class UserData extends ChangeNotifier {
   /// Перезагружает coins/ownedThemes с сервера.
   Future<void> refreshCoinsFromServer() async {
     try {
-      final data = await _fb.loadUserProfile(fromServer: true);
+      final data = await PbDataService().loadUserProfileMap(PocketBaseService().userId ?? "");
       if (data == null) return;
       final cloudCoins = data['coins'];
       if (cloudCoins is num) _coins = cloudCoins.toInt();
@@ -254,7 +257,7 @@ class UserData extends ChangeNotifier {
 
   /// Ежедневный бонус. Возвращает true при успешном начислении (false если cooldown).
   Future<bool> claimDailyBonus() async {
-    final r = await _fb.callGrantDailyBonus();
+    final r = await PbCoinsService().dailyBonus();
     if (r == null) return false;
     _applyServerResult(r);
     final awarded = r['ok'] == true;
@@ -271,7 +274,7 @@ class UserData extends ChangeNotifier {
     if (_memoryRewardClaimedThisSession || _memoryRewardClaimInProgress) return 0;
     _memoryRewardClaimInProgress = true;
     try {
-      final r = await _fb.callGrantMemoryReward();
+      final r = await PbCoinsService().memoryReward();
       if (r == null) return 0;
       _applyServerResult(r);
       final amount = (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
@@ -291,7 +294,7 @@ class UserData extends ChangeNotifier {
   /// Возвращает кол-во начисленных монет, или 0 если уже выдано/нет партнёра.
   Future<int> claimPartnerInviteReward(String partnerUid) async {
     if (partnerUid.isEmpty) return 0;
-    final r = await _fb.callGrantPartnerInviteReward(partnerUid);
+    final r = await PbCoinsService().partnerInvite(partnerUid);
     if (r == null) return 0;
     _applyServerResult(r);
     return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
@@ -300,7 +303,7 @@ class UserData extends ChangeNotifier {
   /// Награда за 7-дневный стрик настроения обоих (10 🪙 раз в 7 дней).
   /// Возвращает кол-во начисленных монет, или 0 если cooldown.
   Future<int> claimMoodStreakReward(String groupId) async {
-    final r = await _fb.callGrantMoodStreakReward(groupId);
+    final r = await PbCoinsService().moodStreak(groupId);
     if (r == null) return 0;
     _applyServerResult(r);
     return (r['ok'] == true) ? (r['awarded'] as num?)?.toInt() ?? 0 : 0;
@@ -311,7 +314,7 @@ class UserData extends ChangeNotifier {
     final t = AppThemes.byIndex(themeId);
     if (!t.isPremium) return true; // free
     if (_ownedThemes.contains(themeId)) return true;
-    final r = await _fb.callPurchaseTheme(themeId);
+    final r = await PbCoinsService().purchaseTheme(themeId);
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedThemes.contains(themeId);
@@ -323,7 +326,7 @@ class UserData extends ChangeNotifier {
   Future<bool> purchaseIcon(ProfileIcon icon) async {
     if (icon.grantOnly) return false; // награды не продаются
     if (_ownedIcons.contains(icon.id)) return true; // уже куплена
-    final r = await _fb.callPurchaseIcon(icon.id);
+    final r = await PbCoinsService().purchaseIcon(icon.id);
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedIcons.contains(icon.id);
@@ -334,7 +337,7 @@ class UserData extends ChangeNotifier {
   /// (защищено от обхода цены/двойного списания).
   Future<bool> purchaseFeature(String featureId) async {
     if (_ownedFeatures.contains(featureId)) return true; // уже куплена
-    final r = await _fb.callPurchaseFeature(featureId);
+    final r = await PbCoinsService().purchaseFeature(featureId);
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedFeatures.contains(featureId);
@@ -344,7 +347,7 @@ class UserData extends ChangeNotifier {
   /// Списывает КАЖДЫЙ раз. Цена и проверка баланса — на сервере.
   /// Возвращает true при успешном списании.
   Future<bool> spendCoins(String actionId) async {
-    final r = await _fb.callSpendCoins(actionId);
+    final r = await PbCoinsService().spend(actionId);
     if (r == null) return false;
     _applyServerResult(r);
     return r['ok'] == true;
@@ -358,7 +361,7 @@ class UserData extends ChangeNotifier {
     if (!clear && !ownsIcon(id)) return; // нельзя закрепить чужую иконку
     _badge = clear ? null : id;
     await _saveLocal();
-    await _fb.setBadge(_badge ?? '');
+    await PbDataService().updateUserProfile(PocketBaseService().userId ?? "", {'badge': _badge ?? ''});
     notifyListeners();
   }
 
@@ -375,10 +378,10 @@ class UserData extends ChangeNotifier {
     if (!added && !autoEquip) return false; // ничего не изменилось — без записи
     if (autoEquip) _badge = id;
     await _saveLocal();
-    await _fb.saveGrantedBadges(
-      _grantedBadges.toList(),
-      badge: _badge,
-    );
+    await PbDataService().updateUserProfile(PocketBaseService().userId ?? "", {
+      'grantedBadges': _grantedBadges.toList(),
+      'badge': _badge ?? '',
+    });
     notifyListeners();
     return added;
   }
@@ -407,7 +410,7 @@ class UserData extends ChangeNotifier {
   /// делается на сервере по auth-токену, обойти невозможно).
   Future<void> _maybeGrantDevCoins() async {
     if (_devCoinsGranted) return; // быстрый локальный шорткат
-    final r = await _fb.callGrantDevCoins();
+    final r = await PbCoinsService().devCoins();
     if (r == null) return;
     _applyServerResult(r);
     if (r['ok'] == true) {
@@ -470,8 +473,8 @@ class UserData extends ChangeNotifier {
         ..addAll(prefs.getStringList('grantedBadges') ?? const <String>[]);
 
       // Если авторизован → подтягиваем из облака
-      if (_fb.isLoggedIn && _isRegistered) {
-        _uid = _fb.uid ?? _uid;
+      if (PocketBaseService().isLoggedIn && _isRegistered) {
+        _uid = PocketBaseService().userId ?? _uid;
         await _syncFromFirestore();
         await _maybeGrantDevCoins();
       }
@@ -488,14 +491,14 @@ class UserData extends ChangeNotifier {
   /// локальный баланс/темы, а серверные начисления молча применялись бы поверх
   /// неактуального состояния.
   Future<void> syncFromServer() async {
-    if (!_fb.isLoggedIn) return;
+    if (!PocketBaseService().isLoggedIn) return;
     await _syncFromFirestore();
     await _maybeGrantDevCoins();
   }
 
   Future<void> _syncFromFirestore() async {
     try {
-      final data = await _fb.loadUserProfile(fromServer: true);
+      final data = await PbDataService().loadUserProfileMap(PocketBaseService().userId ?? "");
       if (data != null) {
         _displayName = data['displayName'] ?? _displayName;
         _email = data['email'] ?? _email;
@@ -555,11 +558,14 @@ class UserData extends ChangeNotifier {
         // Propagate name/avatar to all group documents on every login so
         // partners always see the real name even if the user never explicitly
         // edited their profile after connecting (fixes 'Partner' fallback).
+        final myUid = PocketBaseService().userId ?? '';
         if (_displayName.isNotEmpty) {
-          unawaited(_fb.updateNameInGroups(_displayName));
+          unawaited(PbDataService()
+              .updateMemberFieldInGroups(myUid, 'member_names', _displayName));
         }
         if (_avatarUrl.isNotEmpty) {
-          unawaited(_fb.updateAvatarInGroups(_avatarUrl));
+          unawaited(PbDataService()
+              .updateMemberFieldInGroups(myUid, 'member_avatars', _avatarUrl));
         }
       }
     } catch (e) {
@@ -629,7 +635,7 @@ class UserData extends ChangeNotifier {
     // Clear old connection data when registering new user
     final prefs = await SharedPreferences.getInstance();
     final storedUid = prefs.getString('uid') ?? '';
-    final currentUid = _fb.uid ?? '';
+    final currentUid = PocketBaseService().userId ?? '';
 
     // isNewUser = UID changed AND this is NOT a returning user (login)
     final isNewUser =
@@ -651,20 +657,22 @@ class UserData extends ChangeNotifier {
     _gender = gender;
     _avatarUrl = avatarUrl;
     _isRegistered = true;
-    _uid = _fb.uid ?? '';
+    _uid = PocketBaseService().userId ?? '';
 
     await _saveLocal();
 
-    if (_fb.isLoggedIn) {
-      await _fb.saveUserProfile(
-        displayName: displayName,
-        email: email,
-        gender: gender == Gender.male ? 'male' : 'female',
-        avatarUrl: avatarUrl,
-        clearPairData: isNewUser, // Clear Firestore pair data for new users
-      );
+    final uid = PocketBaseService().userId ?? '';
+    if (PocketBaseService().isLoggedIn && uid.isNotEmpty) {
+      await PbDataService().updateUserProfile(uid, {
+        'displayName': displayName,
+        'gender': gender == Gender.male ? 'male' : 'female',
+        'avatarUrl': avatarUrl,
+        // Сброс пары для нового юзера (email/пароль — поля auth, не трогаем тут).
+        if (isNewUser) 'pairId': '',
+        if (isNewUser) 'pairIds': <String>[],
+      });
       // Синхронизируем монеты/темы с сервера — важно после переустановки,
-      // когда SharedPreferences очищены, но Firestore хранит реальный баланс.
+      // когда SharedPreferences очищены, но облако хранит реальный баланс.
       await _syncFromFirestore();
       await _maybeGrantDevCoins();
     }
@@ -683,20 +691,22 @@ class UserData extends ChangeNotifier {
     if (gender != null) _gender = gender;
     await _saveLocal();
 
-    if (_fb.isLoggedIn) {
-      await _fb.saveUserProfile(
-        displayName: _displayName,
-        email: _email,
-        gender: _gender == Gender.male ? 'male' : 'female',
-        avatarUrl: _avatarUrl,
-      );
+    final uid = PocketBaseService().userId ?? '';
+    if (PocketBaseService().isLoggedIn && uid.isNotEmpty) {
+      await PbDataService().updateUserProfile(uid, {
+        'displayName': _displayName,
+        'gender': _gender == Gender.male ? 'male' : 'female',
+        'avatarUrl': _avatarUrl,
+      });
       // Propagate name/avatar changes to all groups so partners receive
       // the update via the group real-time listener.
       if (displayName != null) {
-        await _fb.updateNameInGroups(_displayName);
+        await PbDataService().updateMemberFieldInGroups(
+            uid, 'member_names', _displayName);
       }
       if (avatarUrl != null) {
-        await _fb.updateAvatarInGroups(_avatarUrl);
+        await PbDataService().updateMemberFieldInGroups(
+            uid, 'member_avatars', _avatarUrl);
       }
     }
     notifyListeners();
@@ -718,13 +728,13 @@ class UserData extends ChangeNotifier {
   Future<void> updateBirthDate(DateTime? date) async {
     _birthDate = date;
     await _saveLocal();
-    await _fb.updateMyBirthDate(date);
+    await PbDataService().updateUserProfile(PocketBaseService().userId ?? "", {'birthDate': date});
     notifyListeners();
   }
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await _fb.signOut();
+    PocketBaseService().signOut();
     _isRegistered = false;
     _displayName = '';
     _email = '';

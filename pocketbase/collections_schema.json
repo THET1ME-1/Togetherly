@@ -13,7 +13,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "members",
@@ -202,7 +202,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "group_id",
@@ -273,7 +273,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "group_id",
@@ -323,7 +323,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "group_id",
@@ -434,7 +434,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "group_id",
@@ -480,7 +480,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "group_id",
@@ -540,7 +540,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "kind",
@@ -606,7 +606,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 255,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "user_uid",
@@ -644,7 +644,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "data_version",
@@ -677,7 +677,7 @@
           "pattern": "^[A-Za-z0-9_-]+$",
           "min": 1,
           "max": 50,
-          "autogeneratePattern": ""
+          "autogeneratePattern": "[a-z0-9]{15}"
         },
         {
           "name": "min_build",
@@ -687,6 +687,59 @@
         {
           "name": "updated_at",
           "type": "date",
+          "required": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "live_sessions",
+      "type": "base",
+      "fields": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "required": true,
+          "system": true,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "min": 1,
+          "max": 50,
+          "autogeneratePattern": "[a-z0-9]{15}"
+        },
+        {
+          "name": "activity",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "media_id",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "is_playing",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "position_ms",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "last_action_at",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "controller_uid",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "seq",
+          "type": "number",
           "required": false
         }
       ],
@@ -1007,6 +1060,164 @@
       ]
     },
     {
+      "name": "canvas_live",
+      "type": "base",
+      "fields": [
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "canvas_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "data",
+          "type": "json",
+          "required": false,
+          "maxSize": 5000000
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_canvas_live_group_id_canvas_id_user_uid` ON `canvas_live` (`group_id`, `canvas_id`, `user_uid`)"
+      ]
+    },
+    {
+      "name": "chat_typing",
+      "type": "base",
+      "fields": [
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "typing_at",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_chat_typing_group_id_user_uid` ON `chat_typing` (`group_id`, `user_uid`)"
+      ]
+    },
+    {
+      "name": "live_location",
+      "type": "base",
+      "fields": [
+        {
+          "name": "channel",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "data",
+          "type": "json",
+          "required": false,
+          "maxSize": 5000000
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_live_location_channel_user_uid` ON `live_location` (`channel`, `user_uid`)"
+      ]
+    },
+    {
+      "name": "live_session_presence",
+      "type": "base",
+      "fields": [
+        {
+          "name": "pair_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "seen_at",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_live_session_presence_pair_id_user_uid` ON `live_session_presence` (`pair_id`, `user_uid`)"
+      ]
+    },
+    {
+      "name": "live_session_chat",
+      "type": "base",
+      "fields": [
+        {
+          "name": "pair_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "uid",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "ts",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "reactions",
+          "type": "json",
+          "required": false,
+          "maxSize": 5000000
+        },
+        {
+          "name": "reply_to_id",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "reply_to_name",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "reply_to_text",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX `idx_live_session_chat_pair_id_ts` ON `live_session_chat` (`pair_id`, `ts`)"
+      ]
+    },
+    {
       "name": "media",
       "type": "base",
       "fields": [
@@ -1032,10 +1243,16 @@
           "name": "kind",
           "type": "text",
           "required": false
+        },
+        {
+          "name": "src",
+          "type": "text",
+          "required": false
         }
       ],
       "indexes": [
-        "CREATE INDEX `idx_media_group_id` ON `media` (`group_id`)"
+        "CREATE INDEX `idx_media_group_id` ON `media` (`group_id`)",
+        "CREATE INDEX `idx_media_src` ON `media` (`src`)"
       ]
     }
   ],

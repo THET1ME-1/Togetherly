@@ -208,6 +208,36 @@ class GroupMascotState {
     );
   }
 
+  /// Состояние маскота из group-дока PocketBase (snake_case колонки).
+  ///
+  /// ВАЖНО: number-колонки PB не nullable и дефолтят в 0 (в отличие от Firestore,
+  /// где поле отсутствовало → срабатывал `?? default`). Поэтому для групп без
+  /// заданной позиции/масштаба сырое значение = 0, что дало бы scale=0
+  /// (НЕВИДИМЫЙ маскот) и позицию в углу (0,0). Трактуем неположительное как
+  /// «не задано» → дефолты (0.8/0.7/1.0). Побочно: позицию ровно 0 и масштаб 0
+  /// задать нельзя — оба вырожденные, никем не нужны. Пустые text-колонки
+  /// PB ('') коэрсим в null. (§8: при импорте можно засеять явные значения.)
+  factory GroupMascotState.fromPb(RecordModel rec) {
+    final d = rec.data;
+    String? nz(dynamic v) {
+      final s = v?.toString();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    final px = (d['mascot_position_x'] as num?)?.toDouble() ?? 0.0;
+    final py = (d['mascot_position_y'] as num?)?.toDouble() ?? 0.0;
+    final sc = (d['mascot_scale'] as num?)?.toDouble() ?? 0.0;
+    return GroupMascotState(
+      activeMascotId: nz(d['active_mascot_id']),
+      positionX: px > 0 ? px : 0.8,
+      positionY: py > 0 ? py : 0.7,
+      scale: sc > 0 ? sc : 1.0,
+      streakDays: (d['streak_days'] as num?)?.toInt() ?? 0,
+      streakLastOpenedDate: nz(d['streak_last_opened_date']),
+      xp: (d['xp'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   Map<String, dynamic> toMap() => {
     'activeMascotId': activeMascotId,
     'mascotPositionX': positionX,

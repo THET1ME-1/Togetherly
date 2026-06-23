@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
@@ -10,35 +9,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
-import '../config/migration_config.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
-import 'supabase_service.dart';
+import 'memory_repository.dart';
+import 'mood_repository.dart';
+import 'pb_auth_service.dart';
+import 'pb_data_service.dart';
+import 'pb_media_service.dart';
+import 'pb_realtime_service.dart';
+import 'pocketbase_service.dart';
 
-/// Сервис для синхронизации виджет-данных между партнёрами.
-///
-/// Firestore path: `groups/{groupId}/widgetData/{uid}`
-///
-/// Поддерживает автоматическую отправку в Memory Lane и Mood Calendar.
+/// Сервис синхронизации виджет-данных между партнёрами — на PocketBase
+/// (миграция §3): коллекция `widget_data` (live SSE, без лимитов). Авто-отправка
+/// в Memory Lane / Mood Calendar идёт через мигрированные [MemoryRepository] /
+/// [MoodRepository]. `FirebaseService` остаётся ТОЛЬКО под медиа (загрузка фото в
+/// Storage + signed-URL для скачивания gs:///sb:// в нативный виджет) — медиа §4.
 class WidgetService extends ChangeNotifier {
+  /// Только медиа (§4): uploadFile (фото виджета) + getSignedUrl (_downloadPhoto).
   final FirebaseService _fb = FirebaseService();
-  final SupabaseService _sb = SupabaseService();
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final PbDataService _data = PbDataService();
+  final PbRealtimeService _rt = PbRealtimeService();
   bool _isDisposed = false;
 
-  /// Фаза 1: зеркалим widgetData в Supabase.
-  bool get _mig =>
-      MigrationConfig.isConfigured &&
-      MigrationConfig.isPhase1User(_fb.currentUser?.email);
-
-  /// Stage 2: пишем widgetData в оба склада (Firebase источник + зеркало).
-  bool get _dualWrite => _mig;
-
-  /// Можно ли ЧИТАТЬ widgetData связанной группы из Supabase. Stage 3: true
-  /// только когда группа помечена в прошлой сессии (оба партнёра на новой сборке
-  /// + бэкфилл завершён, см. FirebaseService.readFromSupabase); иначе Firebase.
-  bool get _readSb => _fb.readFromSupabase(_groupId);
   int _bindGeneration = 0;
 
   @override
@@ -135,43 +128,27 @@ class WidgetService extends ChangeNotifier {
     _partnerSubs.remove(partnerUid)?.cancel();
     _partnerData.remove(partnerUid);
 
-    // Общий обработчик снимка widget_data партнёра (firestore-формат).
-    void handle(Map<String, dynamic>? data) {
-      if (_isDisposed) return;
-      if (data != null) {
-        _partnerData[partnerUid] = WidgetData.fromFirestore(data);
-      } else {
-        _partnerData[partnerUid] = WidgetData(uid: partnerUid);
-        // Fallback: read name/avatar from group document
-        _loadPartnerFallback(partnerUid);
-      }
-      _scheduleSyncToNative();
-      // refreshPhotoOfDay делает full-collection read на widgetData — дёргаем
-      // только когда реально изменились фото-поля партнёра, а не mood/status.
-      final newSig = _photoSigOf(_partnerData[partnerUid]);
-      if (_groupId.isNotEmpty && _partnerPhotoSigs[partnerUid] != newSig) {
-        _partnerPhotoSigs[partnerUid] = newSig;
-        HomeWidgetService.instance.invalidateWidgetDataCache();
-        HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
-      }
-      notifyListeners();
-    }
-
-    // Stage 2: читаем widget_data партнёра из Firebase. Stage 3 — Supabase.
-    if (_readSb) {
-      final sub = _sb.listenWidgetData(_groupId, partnerUid, handle);
-      if (sub != null) _partnerSubs[partnerUid] = sub;
-      return;
-    }
-
-    final ref = _db
-        .collection('groups')
-        .doc(_groupId)
-        .collection('widgetData')
-        .doc(partnerUid);
-
-    _partnerSubs[partnerUid] = ref.snapshots().listen(
-      (snap) => handle(snap.exists ? snap.data() : null),
+    _partnerSubs[partnerUid] = _rt.watchWidgetOne(_groupId, partnerUid).listen(
+      (rec) {
+        if (_isDisposed) return;
+        if (rec != null) {
+          _partnerData[partnerUid] = WidgetData.fromPb(rec);
+        } else {
+          _partnerData[partnerUid] = WidgetData(uid: partnerUid);
+          // Fallback: имя/аватар из group-дока (member_names/member_avatars).
+          _loadPartnerFallback(partnerUid);
+        }
+        _scheduleSyncToNative();
+        // refreshPhotoOfDay перечитывает виджет-данные — дёргаем только когда
+        // реально изменились фото-поля партнёра, а не mood/status.
+        final newSig = _photoSigOf(_partnerData[partnerUid]);
+        if (_groupId.isNotEmpty && _partnerPhotoSigs[partnerUid] != newSig) {
+          _partnerPhotoSigs[partnerUid] = newSig;
+          HomeWidgetService.instance.invalidateWidgetDataCache();
+          HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
+        }
+        notifyListeners();
+      },
       onError: (e) => debugPrint('WidgetService partner listener error: $e'),
     );
   }
@@ -202,124 +179,64 @@ class WidgetService extends ChangeNotifier {
   }
 
   void _listenToMyData() {
-    final uid = _fb.currentUser?.uid;
+    final uid = PocketBaseService().userId;
     if (uid == null || _groupId.isEmpty) return;
 
     _mySub?.cancel();
-
-    void handle(Map<String, dynamic>? data) {
-      if (_isDisposed) return;
-      if (data != null) {
-        _myData = WidgetData.fromFirestore(data);
-      } else {
-        _myData = WidgetData(uid: uid);
-        // Bootstrap document with profile data so widget shows name/avatar
-        _initializeMyWidgetData(uid);
-      }
-      _scheduleSyncToNative();
-      final newSig = _photoSigOf(_myData);
-      if (_groupId.isNotEmpty && _myPhotoSig != newSig) {
-        _myPhotoSig = newSig;
-        HomeWidgetService.instance.invalidateWidgetDataCache();
-        HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
-      }
-      notifyListeners();
-    }
-
-    // Stage 2: читаем свой widget_data из Firebase. Stage 3 — Supabase.
-    if (_readSb) {
-      _mySub = _sb.listenWidgetData(_groupId, uid, handle);
-      return;
-    }
-
-    final ref = _db
-        .collection('groups')
-        .doc(_groupId)
-        .collection('widgetData')
-        .doc(uid);
-
-    _mySub = ref.snapshots().listen(
-      (snap) => handle(snap.exists ? snap.data() : null),
+    _mySub = _rt.watchWidgetOne(_groupId, uid).listen(
+      (rec) {
+        if (_isDisposed) return;
+        if (rec != null) {
+          _myData = WidgetData.fromPb(rec);
+        } else {
+          _myData = WidgetData(uid: uid);
+          // Bootstrap record with profile data so widget shows name/avatar
+          _initializeMyWidgetData(uid);
+        }
+        _scheduleSyncToNative();
+        final newSig = _photoSigOf(_myData);
+        if (_groupId.isNotEmpty && _myPhotoSig != newSig) {
+          _myPhotoSig = newSig;
+          HomeWidgetService.instance.invalidateWidgetDataCache();
+          HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
+        }
+        notifyListeners();
+      },
       onError: (e) => debugPrint('WidgetService my data listener error: $e'),
     );
   }
 
-  /// Creates widgetData doc with profile data when it doesn't exist yet.
+  /// Creates the widget_data record with profile data when it doesn't exist yet.
   Future<void> _initializeMyWidgetData(String uid) async {
     final gid = _groupId;
     if (gid.isEmpty) return;
     try {
-      final userDoc = await _db.collection('users').doc(uid).get();
-      if (!userDoc.exists || _isDisposed || _groupId != gid) return;
-      final d = userDoc.data()!;
-      final bootstrap = {
-        'displayName': d['displayName'] ?? '',
-        'avatarUrl': d['avatarUrl'] ?? '',
-        'gender': d['gender'] ?? '',
-      };
-      // Двойная запись: Firebase (источник, его читают оба листенера) + зеркало.
-      // Stage 4: для мигрированной группы Firestore пропускаем (только Supabase).
-      if (_fb.writeToFirebase(gid)) {
-        await _db
-            .collection('groups')
-            .doc(gid)
-            .collection('widgetData')
-            .doc(uid)
-            .set({
-          'uid': uid,
-          ...bootstrap,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-      if (_dualWrite) unawaited(_sb.mirrorWidgetData(gid, uid, bootstrap));
-      debugPrint('WidgetService: widgetData initialized for $uid');
+      final p = PbAuthService().currentProfile() ?? const {};
+      if (_isDisposed || _groupId != gid) return;
+      await _data.upsertWidget(gid, uid, {
+        'displayName': p['displayName'] ?? '',
+        'avatarUrl': p['avatarUrl'] ?? '',
+        'gender': p['gender'] ?? '',
+      });
+      debugPrint('WidgetService: widget_data initialized for $uid');
     } catch (e) {
       debugPrint('WidgetService._initializeMyWidgetData failed: $e');
     }
   }
 
-  /// Reads partner name/avatar from the group document as fallback when
-  /// their widgetData document doesn't exist yet.
-  void _loadPartnerFallback(String partnerUid) {
+  /// Reads partner name/avatar from the group record (member_names/member_avatars)
+  /// as fallback when their widget_data record doesn't exist yet.
+  Future<void> _loadPartnerFallback(String partnerUid) async {
     final gid = _groupId;
     if (gid.isEmpty) return;
-
-    // Stage 2: имя/аватар партнёра берём из группы Firebase. Stage 3 — Supabase.
-    if (_readSb) {
-      final myUid = _fb.currentUser?.uid ?? '';
-      _sb.loadPairById(gid, myUid).then((parsed) {
-        if (_isDisposed || _groupId != gid || parsed == null) return;
-        final members = (parsed['members'] as List?) ?? const [];
-        String name = '';
-        String avatar = '';
-        for (final m in members) {
-          if (m is Map && m['uid'] == partnerUid) {
-            name = (m['name'] ?? '').toString();
-            avatar = (m['avatar'] ?? '').toString();
-            break;
-          }
-        }
-        if (name.isEmpty && avatar.isEmpty) return;
-        _partnerData[partnerUid] = WidgetData(
-          uid: partnerUid,
-          displayName: name,
-          avatarUrl: avatar,
-        );
-        _syncToNativeWidget();
-        notifyListeners();
-      }).catchError((Object e) {
-        debugPrint('WidgetService._loadPartnerFallback (sb) failed: $e');
-      });
-      return;
-    }
-
-    _db.collection('groups').doc(gid).get().then((groupDoc) {
-      if (!groupDoc.exists || _isDisposed || _groupId != gid) return;
-      final data = groupDoc.data()!;
-      final names = Map<String, dynamic>.from(data['memberNames'] ?? {});
-      final avatars = Map<String, dynamic>.from(data['memberAvatars'] ?? {});
-      final name = names[partnerUid]?.toString() ?? '';
-      final avatar = avatars[partnerUid]?.toString() ?? '';
+    try {
+      final g = await _data.loadGroupById(gid);
+      if (g == null || _isDisposed || _groupId != gid) return;
+      final names = g.data['member_names'];
+      final avatars = g.data['member_avatars'];
+      final name = (names is Map ? names[partnerUid] : null)?.toString() ?? '';
+      final avatar =
+          (avatars is Map ? avatars[partnerUid] : null)?.toString() ?? '';
       if (name.isEmpty && avatar.isEmpty) return;
       _partnerData[partnerUid] = WidgetData(
         uid: partnerUid,
@@ -328,9 +245,9 @@ class WidgetService extends ChangeNotifier {
       );
       _syncToNativeWidget();
       notifyListeners();
-    }).catchError((Object e) {
+    } catch (e) {
       debugPrint('WidgetService._loadPartnerFallback failed: $e');
-    });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -358,26 +275,31 @@ class WidgetService extends ChangeNotifier {
 
     unawaited(LevelService.instance.award(XpAction.changeMood));
 
-    // Автоотправка в календарь — только если не пропускаем
+    // Автоотправка в календарь — только если не пропускаем. Через мигрированный
+    // MoodRepository (PB), id генерит сервер, личность — текущий PB-юзер.
     if (!skipCalendar && _autoSendMoodToCalendar && groupId.isNotEmpty) {
       try {
-        final uid = _fb.currentUser?.uid ?? '';
-        final now = DateTime.now();
-        final id = '${uid}_${now.millisecondsSinceEpoch}';
-        // Ищем корректный moodId по imagePath (во всех паках)
         final option = MoodOption.byImagePath(emojiPath);
-        final entry = MoodEntry(
-          id: id,
+        await MoodRepository().add(
+          groupId: groupId,
           moodId: option?.id ?? label.toLowerCase().replaceAll(' ', '_'),
           imagePath: emojiPath,
           label: label,
-          timestamp: now,
+          timestamp: DateTime.now(),
         );
-        await _fb.addMoodEntry(groupId: groupId, entry: entry.toFirestore());
       } catch (e) {
         debugPrint('Widget → Calendar failed: $e');
       }
     }
+  }
+
+  /// Имя/аватар автора для авто-воспоминаний (из профиля PB).
+  ({String name, String avatar}) _memoryAuthor() {
+    final p = PbAuthService().currentProfile() ?? const {};
+    return (
+      name: (p['displayName'] as String?) ?? '',
+      avatar: (p['avatarUrl'] as String?) ?? '',
+    );
   }
 
   /// Обновить сообщение
@@ -388,8 +310,11 @@ class WidgetService extends ChangeNotifier {
     // Автоотправка в Memory Lane
     if (_autoSendMessageToMemory && message.isNotEmpty && groupId.isNotEmpty) {
       try {
-        await _fb.addMemory(
+        final a = _memoryAuthor();
+        await MemoryRepository().add(
           groupId: groupId,
+          authorName: a.name,
+          authorAvatar: a.avatar,
           type: MemoryType.text,
           caption: '💬 $message',
         );
@@ -403,8 +328,8 @@ class WidgetService extends ChangeNotifier {
   Future<void> updatePhoto(String localPath) async {
     final groupId = _groupId;
     if (groupId.isEmpty) return;
-    // Загрузка в Storage
-    final uid = _fb.currentUser?.uid ?? '';
+    // Загрузка в Storage (медиа §4 — пока Firebase Storage).
+    final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final dest = 'widget/$groupId/${uid}_$ts.jpg';
     final url = await _fb.uploadFile(localPath, dest);
@@ -415,8 +340,11 @@ class WidgetService extends ChangeNotifier {
     // Автоотправка в Memory Lane
     if (_autoSendPhotoToMemory && groupId.isNotEmpty) {
       try {
-        await _fb.addMemory(
+        final a = _memoryAuthor();
+        await MemoryRepository().add(
           groupId: groupId,
+          authorName: a.name,
+          authorAvatar: a.avatar,
           type: MemoryType.photo,
           imageUrl: url,
           caption: '📸 Виджет',
@@ -474,8 +402,11 @@ class WidgetService extends ChangeNotifier {
     // Автоотправка в Memory Lane
     if (_autoSendMusicToMemory && groupId.isNotEmpty) {
       try {
-        await _fb.addMemory(
+        final a = _memoryAuthor();
+        await MemoryRepository().add(
           groupId: groupId,
+          authorName: a.name,
+          authorAvatar: a.avatar,
           type: MemoryType.music,
           musicTitle: title,
           musicArtist: artist,
@@ -489,15 +420,18 @@ class WidgetService extends ChangeNotifier {
   }
 
   /// Очистить конкретный слот
+  // Очистка пишет ПУСТУЮ строку (не null): upsertWidget отбрасывает null-поля
+  // ради частичного апдейта, поэтому null не стёр бы значение. fromPb коэрсит
+  // '' обратно в null при чтении.
   Future<void> clearStatus() => _updateField({'status': ''});
   Future<void> clearMood() => _updateField({'moodEmoji': '', 'moodLabel': ''});
   Future<void> clearMessage() => _updateField({'message': ''});
-  Future<void> clearPhoto() => _updateField({'photoUrl': null});
+  Future<void> clearPhoto() => _updateField({'photoUrl': ''});
   Future<void> clearMusic() => _updateField({
-    'musicTitle': null,
-    'musicArtist': null,
-    'musicUrl': null,
-    'musicCoverUrl': null,
+    'musicTitle': '',
+    'musicArtist': '',
+    'musicUrl': '',
+    'musicCoverUrl': '',
   });
 
   /// Очистить все данные виджета
@@ -507,27 +441,26 @@ class WidgetService extends ChangeNotifier {
       'moodEmoji': '',
       'moodLabel': '',
       'message': '',
-      'photoUrl': null,
-      'musicTitle': null,
-      'musicArtist': null,
-      'musicUrl': null,
-      'musicCoverUrl': null,
+      'photoUrl': '',
+      'musicTitle': '',
+      'musicArtist': '',
+      'musicUrl': '',
+      'musicCoverUrl': '',
     });
   }
 
   Future<void> _updateField(
     Map<String, dynamic> fields, {
     String? groupId,
-    bool emitEvent = true,
+    bool emitEvent = true, // legacy-параметр (FCM-триггер убран); сохранён для API
   }) async {
-    final uid = _fb.currentUser?.uid;
+    final uid = PocketBaseService().userId;
     final targetGroupId = groupId ?? _groupId;
     if (uid == null || targetGroupId.isEmpty) return;
 
     try {
-      // Профиль кэшируется на сессию: gender/name/avatar меняются редко,
-      // а _updateField вызывается на каждое изменение mood/status/message.
-      // До кэша это был +1 read в users/{uid} на каждое обновление виджета.
+      // Профиль кэшируется на сессию (currentProfile() и так читает кэш-rec PB,
+      // но держим локальный кэш ради invalidateProfileCache/refreshProfileOnWidget).
       if (_cachedProfileUid != uid) {
         _cachedProfileUid = uid;
         _cachedProfileName = null;
@@ -537,86 +470,30 @@ class WidgetService extends ChangeNotifier {
       if (_cachedProfileName == null ||
           _cachedProfileAvatar == null ||
           _cachedProfileGender == null) {
-        try {
-          final userDoc = await _db.collection('users').doc(uid).get();
-          final d = userDoc.data();
-          _cachedProfileName =
-              (d?['displayName'] as String?) ?? _fb.currentUser?.displayName ?? '';
-          _cachedProfileAvatar =
-              (d?['avatarUrl'] as String?) ?? _fb.currentUser?.photoURL ?? '';
-          _cachedProfileGender = (d?['gender'] as String?) ?? '';
-        } catch (e) {
-          debugPrint('WidgetService._updateField profile read failed: $e');
-          _cachedProfileName ??= _fb.currentUser?.displayName ?? '';
-          _cachedProfileAvatar ??= _fb.currentUser?.photoURL ?? '';
-          _cachedProfileGender ??= '';
-        }
+        final p = PbAuthService().currentProfile() ?? const {};
+        _cachedProfileName = (p['displayName'] as String?) ?? '';
+        _cachedProfileAvatar = (p['avatarUrl'] as String?) ?? '';
+        _cachedProfileGender = (p['gender'] as String?) ?? '';
       }
       final name = _cachedProfileName!;
       final avatar = _cachedProfileAvatar!;
       final gender = _cachedProfileGender!;
 
-      // Двойная запись: Firebase (источник, его читают оба листенера) + зеркало
-      // в Supabase. Событие widgetDataEvents ниже — триггер FCM-пуша.
-      final ref = _db
-          .collection('groups')
-          .doc(targetGroupId)
-          .collection('widgetData')
-          .doc(uid);
-
-      // Stage 4: для мигрированной группы Firestore пропускаем (только Supabase).
-      if (_fb.writeToFirebase(targetGroupId)) {
-        await ref.set({
-          'uid': uid,
-          'displayName': name,
-          'avatarUrl': avatar,
-          'gender': gender,
-          'updatedAt': FieldValue.serverTimestamp(),
-          ...fields,
-        }, SetOptions(merge: true));
-      }
-      if (_dualWrite) {
-        unawaited(_sb.mirrorWidgetData(targetGroupId, uid, {
-          'displayName': name,
-          'avatarUrl': avatar,
-          'gender': gender,
-          ...fields,
-        }));
-      }
+      // Запись в PB widget_data (upsert по group+uid). Партнёр видит изменение
+      // через свой live SSE-листенер; фоновый пуш (убитый процесс) — через
+      // PbPushService по SSE-дельте (мигрирует в §5), НЕ через Firebase-триггер.
+      await _data.upsertWidget(targetGroupId, uid, {
+        'displayName': name,
+        'avatarUrl': avatar,
+        'gender': gender,
+        ...fields,
+      });
 
       if (targetGroupId != _groupId) return;
 
-      // Синхронизируем нативный виджет сразу после записи,
-      // не дожидаясь Firestore-листенера (Xiaomi убивает процесс слишком быстро)
+      // Синхронизируем нативный виджет сразу после записи, не дожидаясь
+      // SSE-листенера (Xiaomi убивает процесс слишком быстро).
       await _syncToNativeWidget();
-
-      // Пишем лёгкий триггер для Cloud Function, которая отправит FCM-сообщение
-      // партнёру с type=widget_update — это обеспечивает мгновенное обновление
-      // даже когда процесс Flutter партнёра полностью убит OEM-оптимизатором.
-      // Чистый рефреш профиля (аватар/имя) этого не требует — партнёр получит
-      // обновление через свой live-листенер widgetData, FCM-шум не нужен.
-      if (!emitEvent) return;
-      final triggerFields = <String, dynamic>{
-        'senderUid': uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      const widgetFields = ['status', 'moodLabel', 'message', 'musicTitle', 'musicArtist'];
-      for (final entry in fields.entries) {
-        if (widgetFields.contains(entry.key) && entry.value != null) {
-          triggerFields[entry.key] = entry.value;
-        }
-      }
-      unawaited(
-        _db
-            .collection('groups')
-            .doc(targetGroupId)
-            .collection('widgetDataEvents')
-            .add(triggerFields)
-            .catchError((Object e) {
-          debugPrint('widgetDataEvents write failed: $e');
-          throw e;
-        }),
-      );
     } catch (e) {
       debugPrint('WidgetService._updateField failed: $e');
     }
@@ -797,7 +674,7 @@ class WidgetService extends ChangeNotifier {
 
       // ── Синхронизируем виджет настроения для группы (до 4 человек) ──
       // Фильтруем текущего пользователя из partnerData, чтобы не было дублирования аватарок
-      final myUid = _fb.currentUser?.uid ?? '';
+      final myUid = PocketBaseService().userId ?? '';
       final membersForWidget = <WidgetData>[];
       if (my != null) membersForWidget.add(my);
       membersForWidget.addAll(_partnerData.values.where((d) => d.uid != myUid));
@@ -1019,9 +896,13 @@ class WidgetService extends ChangeNotifier {
     try {
       String httpUrl = url;
 
+      // pb:// (PocketBase media) → публичный HTTPS (синхронно).
+      if (PbMediaService().isPbRef(url)) {
+        httpUrl = PbMediaService().resolveUrl(url) ?? url;
+      }
       // gs:// (Firebase) и sb:// (Supabase) не поддерживаются http.get —
       // получаем подписанный https:// URL.
-      if (url.startsWith('gs://') || url.startsWith('sb://')) {
+      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
         // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
         final path = url.startsWith('sb://')
             ? url

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/level.dart';
-import 'firebase_service.dart';
+import 'pb_data_service.dart';
 
 /// Действия, дающие XP. Добавить источник = строка в [_rules] + вызов
 /// `LevelService.instance.award(...)` в нужном месте.
@@ -28,15 +28,15 @@ const Map<XpAction, _XpRule> _rules = {
   XpAction.changeMood: _XpRule(5, dailyCap: 1),
 };
 
-/// Уровень ПАРЫ. XP — общий групповой счётчик (растёт как memoriesCount,
-/// дуал-райт Firebase↔Supabase). Сам xp приходит из стрима групп-состояния
-/// (MascotService.setXp); [award] начисляет с антифарм-лимитами.
+/// Уровень ПАРЫ. XP — общий групповой счётчик (колонка `xp` group-дока PB). Сам
+/// xp приходит из стрима групп-состояния (MascotService.setXp); [award] начисляет
+/// с антифарм-лимитами. Миграция §3: запись через [PbDataService] (был Firebase).
 class LevelService extends ChangeNotifier {
   LevelService._();
   static final LevelService _instance = LevelService._();
   static LevelService get instance => _instance;
 
-  final FirebaseService _fb = FirebaseService();
+  final PbDataService _data = PbDataService();
 
   String _groupId = '';
   int _xp = 0;
@@ -68,7 +68,9 @@ class LevelService extends ChangeNotifier {
     // Оптимистично двигаем локально; авторитетное значение придёт стримом.
     _xp += rule.amount;
     notifyListeners();
-    await _fb.addGroupXp(_groupId, rule.amount);
+    // RMW-инкремент колонки xp group-дока (PB не умеет атомарный inc — см.
+    // оговорку incrementGroupCounter; для xp дрейф некритичен, стрим выравнивает).
+    await _data.incrementGroupCounter(_groupId, 'xp', rule.amount);
   }
 
   /// Проверить и «потратить» дневной/разовый лимит. true — можно начислять.

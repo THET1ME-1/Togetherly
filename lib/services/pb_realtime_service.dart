@@ -153,6 +153,43 @@ class PbRealtimeService {
   Stream<RecordModel?> watchGroup(String groupId) =>
       watchRecord('groups', groupId);
 
+  /// Состояние co-watch сеанса (id=pairId) → запись|null (null = сеанс завершён).
+  Stream<RecordModel?> watchSession(String pairId) =>
+      watchRecord('live_sessions', pairId);
+
+  /// Презенс сеанса — записи участников (свежесть оценивает вызывающий).
+  Stream<List<RecordModel>> watchSessionPresence(String pairId) => watchList(
+        'live_session_presence',
+        filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
+      );
+
+  /// Чат сеанса — старые сверху (по ts).
+  Stream<List<RecordModel>> watchSessionChat(String pairId) => watchList(
+        'live_session_chat',
+        filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
+        compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
+      );
+
+  /// Точка live-локации участника [uid] в канале пары → запись|null.
+  Stream<RecordModel?> watchLivePoint(String channel, String uid) => watchList(
+        'live_location',
+        filter: _pb.filter(
+            'channel = {:c} && user_uid = {:u}', {'c': channel, 'u': uid}),
+      ).map((rows) => rows.isEmpty ? null : rows.first);
+
+  /// Активное приглашение co-watch (json-поле `groups.active_session`) → Map|null.
+  /// Де-дуп по сырому значению: group-док шлёт событие на любое изменение, а
+  /// баннер приглашения должен реагировать только на смену active_session.
+  Stream<Map<String, dynamic>?> watchActiveSession(String groupId) {
+    String? prevSig;
+    return watchGroup(groupId).map((rec) => rec?.data['active_session']).where((raw) {
+      final sig = raw?.toString() ?? '';
+      if (sig == prevSig) return false;
+      prevSig = sig;
+      return true;
+    }).map((raw) => raw is Map ? Map<String, dynamic>.from(raw) : null);
+  }
+
   /// Лента воспоминаний — БЕЗ лимита, новые сверху, soft-deleted скрыты.
   Stream<List<RecordModel>> watchMemories(String groupId) => watchList(
         'memories',
@@ -211,10 +248,34 @@ class PbRealtimeService {
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
       );
 
+  /// Виджет-данные ОДНОГО участника (свой слот или партнёрский) → запись|null.
+  Stream<RecordModel?> watchWidgetOne(String groupId, String uid) => watchList(
+        'widget_data',
+        filter: _pb.filter(
+            'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
+      ).map((rows) => rows.isEmpty ? null : rows.first);
+
   /// Каталог холстов группы.
   Stream<List<RecordModel>> watchCanvasCatalogue(String groupId) => watchList(
         'canvas_catalogue',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+      );
+
+  /// Мета холста (bg/rotation/clear_version) — одна запись на (group,canvas).
+  Stream<List<RecordModel>> watchCanvasMeta(String groupId, String canvasId) =>
+      watchList(
+        'canvas_meta',
+        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+            {'g': groupId, 'c': canvasId}),
+      );
+
+  /// Live-штрихи (in-progress) на холсте — запись на участника, исключение
+  /// своего uid делает вызывающий (как listenToLiveDrawingStrokes).
+  Stream<List<RecordModel>> watchCanvasLive(String groupId, String canvasId) =>
+      watchList(
+        'canvas_live',
+        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+            {'g': groupId, 'c': canvasId}),
       );
 
   /// Статусы прочтения чата {uid: lastReadTs} — live.
@@ -225,6 +286,17 @@ class PbRealtimeService {
             for (final r in rows)
               (r.data['user_uid'] ?? '').toString():
                   (r.data['last_read_ts'] as num?)?.toInt() ?? 0,
+          });
+
+  /// Маркеры «печатает…» {uid: typing_at_ms} — live. Свежесть оценивает
+  /// вызывающий (ChatService): партнёр печатает, если его метка моложе ~8с.
+  Stream<Map<String, int>> watchTyping(String groupId) => watchList(
+        'chat_typing',
+        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+      ).map((rows) => {
+            for (final r in rows)
+              (r.data['user_uid'] ?? '').toString():
+                  (r.data['typing_at'] as num?)?.toInt() ?? 0,
           });
 
   /// Счётчики «Я скучаю» {uid: count} — live.

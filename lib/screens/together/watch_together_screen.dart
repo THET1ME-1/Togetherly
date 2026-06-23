@@ -8,8 +8,10 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart'
     show InAppWebViewController;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
+import '../../services/pb_auth_service.dart';
+import '../../services/pocketbase_service.dart';
+import '../../services/together_invite_repository.dart';
 import '../../services/together_session_service.dart';
 
 /// Совместный просмотр YouTube. Синхронизация play/pause/seek идёт через RTDB
@@ -42,7 +44,7 @@ class WatchTogetherScreen extends StatefulWidget {
 
 class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   final _session = TogetherSessionService.instance;
-  final _fb = FirebaseService();
+  final _invite = TogetherInviteRepository();
 
   late YoutubePlayerController _controller;
   StreamSubscription<LiveSessionState?>? _sessionSub;
@@ -59,8 +61,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   final TextEditingController _chatCtrl = TextEditingController();
   final ScrollController _chatScroll = ScrollController();
   final List<ChatMessage> _messages = [];
-  StreamSubscription<ChatMessage>? _chatSub;
-  StreamSubscription<ChatMessage>? _chatChangesSub;
+  StreamSubscription<List<ChatMessage>>? _chatSub;
 
   /// Сообщение, на которое отвечаем (null — обычная отправка).
   ChatMessage? _replyingTo;
@@ -70,7 +71,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     '❤️', '😂', '🔥', '💯', '👍', '😮', '😍', '😢',
   ];
 
-  String get _uid => _fb.uid ?? '';
+  String get _uid => PocketBaseService().userId ?? '';
 
   // Якорь для расчёта ожидаемой позиции: фиксируем позицию и локальное время
   // её получения — так расчёт не зависит от расхождения часов устройств.
@@ -145,11 +146,11 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
         activity: TogetherActivity.youtube,
         mediaId: widget.videoId,
       );
-      await _fb.setActiveSession(
-        groupId: widget.pairId,
+      await _invite.set(
+        widget.pairId,
         activity: TogetherActivity.youtube.id,
         mediaId: widget.videoId,
-        hostName: _fb.displayName,
+        hostName: PbAuthService().currentProfile()?['displayName'] as String? ?? '',
       );
     } else {
       await _session.joinPresence(widget.pairId);
@@ -158,17 +159,18 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     _presenceSub = _session.watchPresence(widget.pairId).listen((p) {
       if (mounted) setState(() => _present = p);
     });
-    _chatSub = _session.watchChatMessages(widget.pairId).listen((m) {
+    // Один live-список (старые сверху): пересобираем _messages и реакции из
+    // снапшота. Скроллим вниз только когда появилось НОВОЕ сообщение (рост
+    // длины), а не на изменение реакции.
+    _chatSub = _session.watchSessionChat(widget.pairId).listen((list) {
       if (!mounted) return;
-      setState(() => _messages.add(m));
-      _scrollChatToBottom();
-    });
-    // Изменения (реакции мутируют узел) — заменяем сообщение по id.
-    _chatChangesSub =
-        _session.watchChatMessageChanges(widget.pairId).listen((m) {
-      if (!mounted) return;
-      final i = _messages.indexWhere((e) => e.id == m.id);
-      if (i != -1) setState(() => _messages[i] = m);
+      final grew = list.length > _messages.length;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(list);
+      });
+      if (grew) _scrollChatToBottom();
     });
     _heartbeat = Timer.periodic(const Duration(seconds: 8), (_) => _maybeHeartbeat());
   }
@@ -323,7 +325,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     // привязаны к жизненному циклу виджета и завершатся после pop.
     if (widget.isHost) {
       _session.endSession(widget.pairId);
-      _fb.clearActiveSession(widget.pairId);
+      _invite.clear(widget.pairId);
     } else {
       _session.leavePresence(widget.pairId);
     }
@@ -427,7 +429,6 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     _sessionSub?.cancel();
     _presenceSub?.cancel();
     _chatSub?.cancel();
-    _chatChangesSub?.cancel();
     _chatCtrl.dispose();
     _chatScroll.dispose();
     _controller.removeListener(_onPlayerEvent);
@@ -437,7 +438,7 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
     if (!_ended) {
       if (widget.isHost) {
         _session.endSession(widget.pairId);
-        _fb.clearActiveSession(widget.pairId);
+        _invite.clear(widget.pairId);
       } else {
         _session.leavePresence(widget.pairId);
       }

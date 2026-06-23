@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import '../../services/firebase_service.dart';
 import '../../services/level_service.dart';
 import '../../services/locale_service.dart';
+import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
+import '../../services/together_invite_repository.dart';
 import 'watch_together_screen.dart';
 
 /// Точки входа в совместный просмотр: запуск хостом и баннер-приглашение гостю.
@@ -57,7 +58,7 @@ class TogetherLauncher {
       ),
     );
     if (watch == true) {
-      final uid = FirebaseService().uid ?? '';
+      final uid = PocketBaseService().userId ?? '';
       await _ads.show(uid: uid);
       unawaited(_ads.load()); // грузим следующий
     }
@@ -215,10 +216,10 @@ class TogetherInviteBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (pairId.isEmpty) return const SizedBox.shrink();
-    final myUid = FirebaseService().uid;
+    final myUid = PocketBaseService().userId;
 
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: FirebaseService().activeSessionStream(pairId),
+      stream: TogetherInviteRepository().watch(pairId),
       builder: (context, snap) {
         final session = snap.data;
         if (session == null) return const SizedBox.shrink();

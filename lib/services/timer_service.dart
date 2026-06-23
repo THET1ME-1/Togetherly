@@ -5,18 +5,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
+import 'pocketbase_service.dart';
+import 'timer_repository.dart';
 
 /// Сервис для управления пользовательскими таймерами.
-/// Хранит данные локально (SharedPreferences) и синхронизирует с Firestore
-/// когда пользователь состоит в группе.
+/// Хранит данные локально (SharedPreferences) и синхронизирует с PocketBase
+/// когда пользователь состоит в группе (миграция §3): групповые таймеры —
+/// `groups.timers`, соло — `users.solo_timers`. `FirebaseService` остаётся
+/// ТОЛЬКО под фоны таймеров (загрузка/удаление в Storage) — медиа §4.
 class TimerService extends ChangeNotifier {
   static const _localStorageKey = 'user_timers_local';
 
   /// Детерминированный id системного таймера. Благодаря фиксированному id
-  /// upsert обоих партнёров пишет в одну и ту же запись массива (transaction
-  /// удаляет по id перед добавлением), поэтому одновременное создание пары не
+  /// upsert обоих партнёров пишет в одну и ту же запись массива (RMW удаляет
+  /// по id перед добавлением), поэтому одновременное создание пары не
   /// порождает два системных таймера.
   static const systemTimerId = 'system';
+  final TimerRepository _repo = TimerRepository();
+
+  /// Только для фонов таймеров (Storage) — медиа §4.
   final FirebaseService _fb = FirebaseService();
   List<TimerItem> _timers = [];
   String _groupId = '';
@@ -40,7 +47,7 @@ class TimerService extends ChangeNotifier {
   int get count => _timers.length;
 
   String get _storageKey {
-    final uid = _fb.uid ?? 'guest';
+    final uid = PocketBaseService().userId ?? 'guest';
     return _groupId.isNotEmpty
         ? 'user_timers_${uid}_$_groupId'
         : '${_localStorageKey}_$uid';
@@ -93,10 +100,10 @@ class TimerService extends ChangeNotifier {
     _timers = [];
   }
 
-  /// Восстанавливает соло-таймеры из Firestore (вызывается после переустановки).
+  /// Восстанавливает соло-таймеры из облака (PB) — вызывается после переустановки.
   Future<void> _loadFromCloud() async {
     try {
-      final remote = await _fb.loadSoloTimers();
+      final remote = await _repo.loadSoloTimers();
       if (remote != null && remote.isNotEmpty) {
         _timers = remote.map(TimerItem.fromJson).toList();
         await _saveLocal();
@@ -107,10 +114,10 @@ class TimerService extends ChangeNotifier {
     }
   }
 
-  /// Сохраняет соло-таймеры в Firestore (fire-and-forget).
+  /// Сохраняет соло-таймеры в облако (PB, fire-and-forget).
   Future<void> _saveSoloCloud() async {
     try {
-      await _fb.saveSoloTimers(_timers.map((t) => t.toJson()).toList());
+      await _repo.saveSoloTimers(_timers);
     } catch (e) {
       debugPrint('TimerService: _saveSoloCloud error: $e');
     }
@@ -129,12 +136,10 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
     if (groupId.isEmpty) return;
 
-    // Слушаем изменения таймеров в Firestore
-    _firestoreSub = _fb.listenToTimers(
-      groupId: groupId,
-      onData: (remoteTimers) {
-        _mergeRemoteTimers(remoteTimers);
-      },
+    // Слушаем изменения групповых таймеров (PB group.timers, live).
+    _firestoreSub = _repo.watchGroupTimers(groupId).listen(
+      _mergeRemoteTimers,
+      onError: (e) => debugPrint('TimerService: watchGroupTimers error: $e'),
     );
   }
 
@@ -288,17 +293,11 @@ class TimerService extends ChangeNotifier {
 
   Future<void> _saveToFirestore() async {
     if (_groupId.isEmpty) {
-      debugPrint('TimerService: не могу сохранить в Firestore - groupId пуст');
+      debugPrint('TimerService: не могу сохранить в облако - groupId пуст');
       return;
     }
-    debugPrint(
-      'TimerService: сохраняю ${_timers.length} таймеров в Firestore для группы $_groupId',
-    );
-    await _fb.saveTimers(
-      groupId: _groupId,
-      timers: _timers.map((t) => t.toJson()).toList(),
-    );
-    debugPrint('TimerService: таймеры успешно сохранены');
+    await _repo.saveGroupTimers(_groupId, _timers);
+    debugPrint('TimerService: таймеры успешно сохранены (${_timers.length})');
   }
 
   // ── CRUD ──
@@ -339,10 +338,7 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _fb.upsertGroupTimer(
-        groupId: _groupId,
-        timer: _timers.last.toJson(),
-      );
+      await _repo.upsertGroupTimer(_groupId, _timers.last);
     }
     // Sync widget immediately after creating timer (single user mode)
     await _syncWidgetTimer();
@@ -373,7 +369,7 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _fb.upsertGroupTimer(groupId: _groupId, timer: updated.toJson());
+      await _repo.upsertGroupTimer(_groupId, updated);
     }
     await _syncWidgetTimer();
     notifyListeners();
@@ -398,8 +394,8 @@ class TimerService extends ChangeNotifier {
     debugPrint('TimerService.deleteTimer: сохранено в local, таймеров: ${_timers.length}');
     
     if (_groupId.isNotEmpty) {
-      await _fb.deleteGroupTimer(groupId: _groupId, timerId: id);
-      debugPrint('TimerService.deleteTimer: удалено из Firestore');
+      await _repo.deleteGroupTimer(_groupId, id);
+      debugPrint('TimerService.deleteTimer: удалено из облака');
     }
     
     await _syncWidgetTimer();
@@ -415,7 +411,7 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _fb.setDefaultGroupTimer(groupId: _groupId, timerId: id);
+      await _repo.setDefaultGroupTimer(_groupId, id);
     }
     await _syncWidgetTimer();
     notifyListeners();
@@ -481,7 +477,7 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _fb.upsertGroupTimer(groupId: _groupId, timer: sys.toJson());
+      await _repo.upsertGroupTimer(_groupId, sys);
     }
     await _syncWidgetTimer();
     notifyListeners();

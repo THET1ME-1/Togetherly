@@ -374,6 +374,31 @@ class PbDataService {
     }, op: 'upsertMood');
   }
 
+  /// Создаёт запись настроения (PB генерирует id, как [createMemory]). [entry] —
+  /// camelCase-карта (moodId/imagePath/label/timestamp). Возвращает запись или
+  /// null. Используется [MoodRepository] на cutover вместо client-id.
+  Future<RecordModel?> createMood(
+    String groupId,
+    String uid,
+    Map<String, dynamic> entry,
+  ) async {
+    if (groupId.isEmpty || uid.isEmpty) return null;
+    try {
+      return await _pb.collection('mood_entries').create(body: {
+        'group_id': groupId,
+        'user_uid': uid,
+        'mood_id': entry['moodId'],
+        'image_path': entry['imagePath'],
+        'label': entry['label'],
+        'timestamp':
+            _iso(entry['timestamp']) ?? DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('PbData.createMood failed: $e');
+      return null;
+    }
+  }
+
   Future<bool> deleteMood(String entryId) async {
     if (entryId.isEmpty) return false;
     try {
@@ -399,6 +424,243 @@ class PbDataService {
     } catch (e) {
       debugPrint('PbData.loadMoods($groupId) failed: $e');
       return const [];
+    }
+  }
+
+  // ══════════════════════════════════════════════ TIMERS
+  // Групповые таймеры живут json-массивом в колонке `groups.timers`; соло —
+  // в `users.solo_timers`. Гранулярные правки — RMW массива (PB без транзакций;
+  // для редких правок таймеров гонка некритична).
+
+  /// Записать весь массив групповых таймеров (saveTimers).
+  Future<bool> setGroupTimers(String groupId, List<dynamic> timers) =>
+      updateGroupFields(groupId, {'timers': _jsonSafe(timers)});
+
+  /// RMW над `groups.timers`: прочитать массив, преобразовать, записать.
+  Future<bool> _patchGroupTimers(
+    String groupId,
+    List<dynamic> Function(List<dynamic>) transform, {
+    String op = 'patchGroupTimers',
+  }) async {
+    if (groupId.isEmpty) return false;
+    try {
+      final rec = await _pb
+          .collection('groups')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+      final cur = rec.data['timers'];
+      final list = cur is List ? List<dynamic>.from(cur) : <dynamic>[];
+      await _pb
+          .collection('groups')
+          .update(rec.id, body: {'timers': _jsonSafe(transform(list))});
+      return true;
+    } catch (e) {
+      debugPrint('PbData.$op($groupId) failed: $e');
+      return false;
+    }
+  }
+
+  /// Вставить/обновить один таймер по id (детерминированный id системного
+  /// схлопывает дубли при одновременном создании пары — паритет с Firebase).
+  Future<bool> upsertGroupTimer(String groupId, Map<String, dynamic> timer) {
+    final id = timer['id'];
+    return _patchGroupTimers(groupId, (list) {
+      final idx = list.indexWhere((e) => e is Map && e['id'] == id);
+      if (idx >= 0) {
+        list[idx] = timer;
+      } else {
+        list.add(timer);
+      }
+      return list;
+    }, op: 'upsertGroupTimer');
+  }
+
+  Future<bool> deleteGroupTimer(String groupId, String timerId) =>
+      _patchGroupTimers(groupId,
+          (list) => list.where((e) => !(e is Map && e['id'] == timerId)).toList(),
+          op: 'deleteGroupTimer');
+
+  Future<bool> setDefaultGroupTimer(String groupId, String timerId) =>
+      _patchGroupTimers(groupId, (list) {
+        for (final e in list) {
+          if (e is Map) e['isDefault'] = e['id'] == timerId;
+        }
+        return list;
+      }, op: 'setDefaultGroupTimer');
+
+  /// Соло-таймеры пользователя (users.solo_timers). null — нет/ошибка.
+  Future<List<Map<String, dynamic>>?> loadSoloTimers(String uid) async {
+    final rec = await loadUserProfile(uid);
+    final raw = rec?.data['solo_timers'];
+    return raw is List
+        ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+        : null;
+  }
+
+  Future<bool> saveSoloTimers(String uid, List<dynamic> timers) =>
+      updateUserProfile(uid, {'soloTimers': timers});
+
+  // ══════════════════════════════════════════════ ACTIVE SESSION (co-watch invite)
+  // Приглашение хранится json-полем `groups.active_session` (плеер co-watch —
+  // отдельный RTDB-слой, мигрирует позже). Один write — партнёрский live-листенер
+  // группы ловит его без доп. чтения.
+  Future<bool> setActiveSession(
+          String groupId, Map<String, dynamic> session) =>
+      updateGroupFields(groupId, {'active_session': _jsonSafe(session)});
+
+  /// Снять активный сеанс (null в json-колонке).
+  Future<bool> clearActiveSession(String groupId) =>
+      updateGroupFields(groupId, {'active_session': null});
+
+  // ══════════════════════════════════════════════ LIVE LOCATION («Где мы»)
+  // Точка участника в канале пары `pair_<a>_<b>` (json `data`). Upsert по
+  // (channel,user_uid). Замена RTDB liveLocation/{channel}/points/{uid}.
+  Future<bool> setLivePoint(
+    String channel,
+    String uid,
+    Map<String, dynamic> point,
+  ) async {
+    if (channel.isEmpty || uid.isEmpty) return false;
+    return _upsertByFilter(
+      'live_location',
+      'channel = {:c} && user_uid = {:u}',
+      {'c': channel, 'u': uid},
+      {'channel': channel, 'user_uid': uid, 'data': _jsonSafe(point)},
+      op: 'setLivePoint',
+    );
+  }
+
+  // ══════════════════════════════════════════════ CO-WATCH SESSION (плеер)
+  // Состояние сеанса — запись live_sessions (id=pairId); презенс — live_session_
+  // presence (heartbeat+TTL); чат — live_session_chat. Замена RTDB liveSessions.
+  Future<bool> startSession(String pairId, Map<String, dynamic> data) =>
+      _upsertById('live_sessions', pairId, {
+        'activity': data['activity'],
+        'media_id': data['mediaId'],
+        'is_playing': data['isPlaying'] ?? false,
+        'position_ms': data['positionMs'] ?? 0,
+        'last_action_at':
+            data['lastActionAt'] ?? DateTime.now().millisecondsSinceEpoch,
+        'controller_uid': data['controllerUid'],
+        'seq': data['seq'] ?? 0,
+      }, op: 'startSession');
+
+  /// Действие плеера (play/pause/seek/heartbeat). last_action_at — клиентский
+  /// epoch (PB без serverTimestamp; heartbeat каждые ~8с пере-синкает дрейф).
+  Future<bool> pushSessionAction(String pairId, Map<String, dynamic> a) {
+    final body = <String, dynamic>{
+      'is_playing': a['isPlaying'],
+      'position_ms': a['positionMs'],
+      'last_action_at': DateTime.now().millisecondsSinceEpoch,
+      'controller_uid': a['controllerUid'],
+      'seq': a['seq'],
+      if (a['mediaId'] != null) 'media_id': a['mediaId'],
+    };
+    return _upsertById('live_sessions', pairId, body, op: 'pushSessionAction');
+  }
+
+  /// Завершить сеанс: удалить запись + презенс + чат пары.
+  Future<bool> endSession(String pairId) async {
+    if (pairId.isEmpty) return false;
+    try {
+      try {
+        await _pb.collection('live_sessions').delete(pairId);
+      } on ClientException catch (e) {
+        if (e.statusCode != 404) rethrow;
+      }
+      for (final col in ['live_session_presence', 'live_session_chat']) {
+        final rows = await _pb
+            .collection(col)
+            .getFullList(filter: _pb.filter('pair_id = {:p}', {'p': pairId}));
+        for (final r in rows) {
+          await _pb.collection(col).delete(r.id);
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PbData.endSession failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> touchSessionPresence(String pairId, String uid) =>
+      _upsertByFilter('live_session_presence',
+          'pair_id = {:p} && user_uid = {:u}', {'p': pairId, 'u': uid}, {
+        'pair_id': pairId,
+        'user_uid': uid,
+        'seen_at': DateTime.now().millisecondsSinceEpoch,
+      }, op: 'touchSessionPresence');
+
+  Future<bool> removeSessionPresence(String pairId, String uid) async {
+    if (pairId.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('live_session_presence').getFirstListItem(
+          _pb.filter('pair_id = {:p} && user_uid = {:u}',
+              {'p': pairId, 'u': uid}));
+      await _pb.collection('live_session_presence').delete(rec.id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.removeSessionPresence failed: $e');
+      return false;
+    }
+  }
+
+  Future<RecordModel?> sendSessionChat(
+      String pairId, Map<String, dynamic> msg) async {
+    if (pairId.isEmpty) return null;
+    try {
+      return await _pb.collection('live_session_chat').create(body: {
+        'pair_id': pairId,
+        'uid': msg['uid'],
+        'name': msg['name'],
+        'text': msg['text'],
+        'ts': msg['ts'] ?? DateTime.now().millisecondsSinceEpoch,
+        'reply_to_id': msg['replyToId'],
+        'reply_to_name': msg['replyToName'],
+        'reply_to_text': msg['replyToText'],
+      }..removeWhere((k, v) => v == null));
+    } catch (e) {
+      debugPrint('PbData.sendSessionChat failed: $e');
+      return null;
+    }
+  }
+
+  /// Реакция на сообщение session-чата (RMW json reactions). id = id записи.
+  Future<bool> setSessionChatReaction(
+      String messageId, String uid, String? emoji) async {
+    if (messageId.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('live_session_chat').getOne(messageId);
+      final cur = rec.data['reactions'];
+      final r = cur is Map ? Map<String, dynamic>.from(cur) : <String, dynamic>{};
+      if (emoji == null || emoji.isEmpty) {
+        r.remove(uid);
+      } else {
+        r[uid] = emoji;
+      }
+      await _pb
+          .collection('live_session_chat')
+          .update(messageId, body: {'reactions': r});
+      return true;
+    } catch (e) {
+      debugPrint('PbData.setSessionChatReaction failed: $e');
+      return false;
+    }
+  }
+
+  /// Удалить свою точку (явное выключение шеринга).
+  Future<bool> clearLivePoint(String channel, String uid) async {
+    if (channel.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('live_location').getFirstListItem(
+          _pb.filter('channel = {:c} && user_uid = {:u}',
+              {'c': channel, 'u': uid}));
+      await _pb.collection('live_location').delete(rec.id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.clearLivePoint failed: $e');
+      return false;
     }
   }
 
@@ -541,6 +803,69 @@ class PbDataService {
     }, op: 'upsertStroke');
   }
 
+  /// Создаёт штрих (PB генерит id, как [createMemory]). [data] — camelCase-карта
+  /// (`DrawStroke.toFirestore()`); вся геометрия в json `data` + индексируемый
+  /// order_index. Возвращает запись или null.
+  Future<RecordModel?> createStroke(
+    String groupId,
+    String canvasId,
+    Map<String, dynamic> data,
+  ) async {
+    if (groupId.isEmpty) return null;
+    try {
+      return await _pb.collection('canvas_strokes').create(body: {
+        'group_id': groupId,
+        'canvas_id': canvasId,
+        'order_index': (data['orderIndex'] as num?)?.toInt() ?? 0,
+        'data': _jsonSafe(data),
+      });
+    } catch (e) {
+      debugPrint('PbData.createStroke failed: $e');
+      return null;
+    }
+  }
+
+  /// Live-штрих (in-progress) пользователя: upsert по (group,canvas,user), вся
+  /// геометрия в json `data` (`DrawStroke.toLiveMap()`). Замена эфемерного
+  /// Firestore live-дока. Высокочастотно — но на PB записи бесплатны.
+  Future<bool> setLiveStroke(
+    String groupId,
+    String canvasId,
+    String uid,
+    Map<String, dynamic> liveData,
+  ) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    return _upsertByFilter(
+      'canvas_live',
+      'group_id = {:g} && canvas_id = {:c} && user_uid = {:u}',
+      {'g': groupId, 'c': canvasId, 'u': uid},
+      {
+        'group_id': groupId,
+        'canvas_id': canvasId,
+        'user_uid': uid,
+        'data': _jsonSafe(liveData),
+      },
+      op: 'setLiveStroke',
+    );
+  }
+
+  /// Убрать свой live-штрих при отрыве пальца.
+  Future<bool> clearLiveStroke(
+      String groupId, String canvasId, String uid) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    try {
+      final rec = await _pb.collection('canvas_live').getFirstListItem(
+          _pb.filter('group_id = {:g} && canvas_id = {:c} && user_uid = {:u}',
+              {'g': groupId, 'c': canvasId, 'u': uid}));
+      await _pb.collection('canvas_live').delete(rec.id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.clearLiveStroke failed: $e');
+      return false;
+    }
+  }
+
   Future<bool> patchStroke(String id, Map<String, dynamic> updates) async {
     if (id.isEmpty) return false;
     // RMW: PB не умеет json-merge на сервере → читаем, мёржим data, пишем.
@@ -584,6 +909,14 @@ class PbDataService {
           );
       for (final s in strokes) {
         await _pb.collection('canvas_strokes').delete(s.id);
+      }
+      // Чистим и live-курсоры (паритет с Firebase clearDrawingCanvas).
+      final live = await _pb.collection('canvas_live').getFullList(
+            filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+                {'g': groupId, 'c': canvasId}),
+          );
+      for (final l in live) {
+        await _pb.collection('canvas_live').delete(l.id);
       }
       final body = <String, dynamic>{
         'group_id': groupId,
@@ -740,6 +1073,104 @@ class PbDataService {
     }
   }
 
+  // ── Состояние маскота — колонки group-дока (active/position/streak) ─────────
+  /// Активный маскот пары. `null` → очистка (пишем пустую строку: text-колонка
+  /// PB не nullable; [GroupMascotState.fromPb] коэрсит `''`→null).
+  Future<bool> setActiveMascot(String groupId, String? mascotId) =>
+      updateGroupFields(groupId, {'active_mascot_id': mascotId ?? ''});
+
+  /// Позиция/масштаб плавающего маскота на экране.
+  Future<bool> updateMascotPosition(
+    String groupId,
+    double x,
+    double y,
+    double scale,
+  ) =>
+      updateGroupFields(groupId, {
+        'mascot_position_x': x,
+        'mascot_position_y': y,
+        'mascot_scale': scale,
+      });
+
+  /// Отметить, что [uid] зашёл сегодня → ведение «огонька» пары. Порт логики
+  /// Firebase.recordGroupActivity: серия растёт ТОЛЬКО когда за день зашли ОБА
+  /// разных участника (первый фиксируется в streak_pending_*, второй поднимает
+  /// streak_days). На PB чтения бесплатны → один read-modify-write без
+  /// firestore-танца «кэш→сервер». Обновляет record_streak активного маскота.
+  Future<void> recordGroupActivity(String groupId, String uid) async {
+    if (groupId.isEmpty || uid.isEmpty) return;
+    try {
+      final now = DateTime.now();
+      final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+      final rec = await _pb
+          .collection('groups')
+          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+      final d = rec.data;
+      // PB отдаёт пустые text-колонки как '' → коэрсим в null, иначе
+      // bothPresent ложно-сработает (pUid '' != uid).
+      String? nz(dynamic v) {
+        final s = v?.toString();
+        return (s == null || s.isEmpty) ? null : s;
+      }
+
+      final last = nz(d['streak_last_opened_date']);
+      if (last == today) return; // уже засчитано сегодня (оба заходили)
+
+      bool bothPresent() {
+        final pUid = nz(d['streak_pending_uid']);
+        return nz(d['streak_pending_date']) == today &&
+            pUid != null &&
+            pUid != uid;
+      }
+
+      // Второй РАЗНЫЙ участник отметился сегодня → пара «оба зашли» → растим.
+      if (bothPresent()) {
+        final lastDt = last != null ? DateTime.tryParse(last) : null;
+        final todayDate = DateTime(now.year, now.month, now.day);
+        final diff = lastDt != null
+            ? todayDate
+                .difference(DateTime(lastDt.year, lastDt.month, lastDt.day))
+                .inDays
+            : 999;
+        final currentStreak = (d['streak_days'] as num?)?.toInt() ?? 0;
+        final newStreak = diff == 1 ? currentStreak + 1 : 1;
+        await _pb.collection('groups').update(rec.id, body: {
+          'streak_days': newStreak,
+          'streak_last_opened_date': today,
+        });
+        // Рекорд активного маскота.
+        final activeMascotId = nz(d['active_mascot_id']);
+        if (activeMascotId != null) {
+          try {
+            final mascot = await _pb.collection('mascots').getFirstListItem(
+                _pb.filter('group_id = {:g} && mascot_id = {:m}',
+                    {'g': groupId, 'm': activeMascotId}));
+            final record = (mascot.data['record_streak'] as num?)?.toInt() ?? 0;
+            if (newStreak > record) {
+              await _pb
+                  .collection('mascots')
+                  .update(mascot.id, body: {'record_streak': newStreak});
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+
+      // Первый участник за сегодня — ставим ожидание партнёра. Огонёк не растёт.
+      final pendingDate = nz(d['streak_pending_date']);
+      final pendingUid = nz(d['streak_pending_uid']);
+      if (pendingDate != today || pendingUid == null) {
+        await _pb.collection('groups').update(rec.id, body: {
+          'streak_pending_date': today,
+          'streak_pending_uid': uid,
+        });
+      }
+    } catch (e) {
+      debugPrint('PbData.recordGroupActivity failed: $e');
+    }
+  }
+
   // ══════════════════════════════════════════════ MISS YOU (составной)
   /// Инкремент «скучаю» + тип вайба (miss_you/thinking_of_you/want_hug/custom)
   /// и кастом-текст — чтобы SSE-событие у партнёра несло содержимое пуша.
@@ -829,6 +1260,40 @@ class PbDataService {
     return _upsertById('chat_messages', id, body, op: 'chatSend');
   }
 
+  /// Создаёт сообщение (PB генерирует id, как [createMemory]). [msg] —
+  /// camelCase-карта (uid/name/text/ts/pin*/reply*/face/color/faceX/faceY).
+  /// Возвращает запись или null. ts — клиентский epoch-ms (PB не пишет
+  /// server-time в number-поле; для пары этого достаточно, как и в Supabase).
+  Future<RecordModel?> createMessage(
+    String groupId,
+    Map<String, dynamic> msg,
+  ) async {
+    if (groupId.isEmpty) return null;
+    try {
+      final body = <String, dynamic>{
+        'group_id': groupId,
+        'user_uid': msg['uid'],
+        'user_name': msg['name'],
+        'text': msg['text'],
+        'ts': msg['ts'],
+        'pin_id': msg['pinId'],
+        'pin_title': msg['pinTitle'],
+        'pin_thumb': msg['pinThumb'],
+        'reply_to_id': msg['replyToId'],
+        'reply_to_name': msg['replyToName'],
+        'reply_to_text': msg['replyToText'],
+        'face': msg['face'],
+        'color': msg['color'],
+        'face_x': msg['faceX'],
+        'face_y': msg['faceY'],
+      }..removeWhere((k, v) => v == null);
+      return await _pb.collection('chat_messages').create(body: body);
+    } catch (e) {
+      debugPrint('PbData.createMessage failed: $e');
+      return null;
+    }
+  }
+
   Future<bool> chatUpdate(String id, Map<String, dynamic> fields) async {
     if (id.isEmpty) return false;
     return _upsertById('chat_messages', id, Map.of(fields), op: 'chatUpdate');
@@ -843,6 +1308,19 @@ class PbDataService {
       'last_read_ts': ts,
       'updated_at': DateTime.now().toIso8601String(),
     }, op: 'chatRead');
+  }
+
+  /// Маркер «печатает…»: upsert по (group,uid). [typingAt] — epoch-ms текущего
+  /// heartbeat'а либо 0, когда перестал печатать (партнёр считает по свежести).
+  /// Замена RTDB typing с onDisconnect — маркер протухает по TTL (см. схему).
+  Future<bool> setTyping(String groupId, String uid, int typingAt) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    return _upsertByFilter('chat_typing',
+        'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}, {
+      'group_id': groupId,
+      'user_uid': uid,
+      'typing_at': typingAt,
+    }, op: 'setTyping');
   }
 
   /// Ставит/снимает реакцию uid на сообщение (RMW по json-полю reactions).
@@ -909,6 +1387,49 @@ class PbDataService {
       if (e is ClientException && e.statusCode == 404) return null;
       debugPrint('PbData.loadUserProfile($uid) failed: $e');
       return null;
+    }
+  }
+
+  /// Профиль users как camelCase-карта (зеркало прежнего Firestore-формата) —
+  /// чтобы UserData._syncFromFirestore/refreshCoinsFromServer читали без правок.
+  /// json-поля Dart SDK уже отдаёт списками; birth_date — ISO-строка.
+  Future<Map<String, dynamic>?> loadUserProfileMap(String uid) async {
+    final rec = await loadUserProfile(uid);
+    if (rec == null) return null;
+    final d = rec.data;
+    return {
+      'displayName': d['display_name'],
+      'email': d['email'],
+      'avatarUrl': d['avatar_url'],
+      'gender': d['gender'],
+      'badge': d['badge'],
+      'coins': d['coins'],
+      'ownedThemes': d['owned_themes'],
+      'ownedIcons': d['owned_icons'],
+      'ownedFeatures': d['owned_features'],
+      'grantedBadges': d['granted_badges'],
+      'devCoinsGranted': d['dev_coins_granted'],
+      'adRewardsToday': d['ad_rewards_today'],
+      'adRewardsDate': d['ad_rewards_date'],
+      'birthDate': d['birth_date'],
+    };
+  }
+
+  /// Пропагировать значение в map-поле всех групп пользователя (member_names/
+  /// member_avatars[uid]=value) — чтобы партнёры увидели свежее имя/аватар.
+  Future<void> updateMemberFieldInGroups(
+      String uid, String col, dynamic value) async {
+    if (uid.isEmpty) return;
+    try {
+      final groups = await _pb.collection('groups').getFullList(
+            filter: _pb.filter(
+                'members ~ {:u} && disbanded = false', {'u': uid}),
+          );
+      for (final g in groups) {
+        await _patchGroupMapField(g.id, col, uid, value);
+      }
+    } catch (e) {
+      debugPrint('PbData.updateMemberFieldInGroups($col) failed: $e');
     }
   }
 

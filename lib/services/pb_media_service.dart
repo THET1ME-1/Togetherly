@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
@@ -47,6 +49,30 @@ class PbMediaService {
       return '$scheme$_col/${rec.id}/$stored';
     } catch (e) {
       debugPrint('PbMedia.uploadBytes failed: $e');
+      return null;
+    }
+  }
+
+  /// Загружает локальный файл по пути. Читает байты, имя — из пути. Возвращает
+  /// `pb://`-ссылку или null. Удобная обёртка над [uploadBytes] для call-site'ов,
+  /// которые раньше звали `FirebaseService.uploadFile(path, dest)`.
+  Future<String?> uploadFile(
+    String localPath, {
+    String? uid,
+    String? groupId,
+    String? kind,
+  }) async {
+    try {
+      final file = File(localPath);
+      if (!await file.exists()) {
+        debugPrint('PbMedia.uploadFile: файла нет: $localPath');
+        return null;
+      }
+      final bytes = await file.readAsBytes();
+      final filename = localPath.split('/').last;
+      return uploadBytes(bytes, filename, uid: uid, groupId: groupId, kind: kind);
+    } catch (e) {
+      debugPrint('PbMedia.uploadFile($localPath) failed: $e');
       return null;
     }
   }

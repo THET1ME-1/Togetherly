@@ -79,6 +79,9 @@ USERS_CUSTOM = [
     number("ad_rewards_today"), boolean("dev_coins_granted"),
     boolean("partner_invite_reward_granted"),
     jsonf("partner_invite_rewarded_keys"), jsonf("mood_streak_rewards"),
+    # Кулдауны коин-наград — epoch-ms (number, а не date): надёжнее в pb_hooks
+    # JSVM (тривиальное сравнение чисел вместо date-API). Заполняют коин-роуты.
+    number("last_daily_bonus_ms"), number("last_memory_reward_ms"),
 ]
 # Override поля id у users: принимать внешний id (= прежний uid мигрированного
 # юзера, до 50 симв., смешанный регистр/'_'/'-'), но СОХРАНИТЬ автогенерацию

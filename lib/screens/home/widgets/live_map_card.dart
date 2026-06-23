@@ -5,7 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../services/firebase_service.dart';
+import '../../../services/pb_auth_service.dart';
+import '../../../services/pocketbase_service.dart';
 import '../../../services/live_location_service.dart';
 import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
@@ -41,7 +42,6 @@ class LiveMapCard extends StatefulWidget {
 
 class _LiveMapCardState extends State<LiveMapCard> {
   final MapController _mapController = MapController();
-  final FirebaseService _fb = FirebaseService();
 
   StreamSubscription<LivePoint?>? _partnerSub;
   StreamSubscription<LivePoint?>? _meSub;
@@ -52,7 +52,9 @@ class _LiveMapCardState extends State<LiveMapCard> {
   bool _mapReady = false;
   bool _prefsLoaded = false;
 
-  String get _myUid => _fb.uid ?? '';
+  String get _myUid => PocketBaseService().userId ?? '';
+  String get _myAvatarUrl =>
+      PbAuthService().currentProfile()?['avatarUrl'] as String? ?? '';
 
   @override
   void initState() {
@@ -169,7 +171,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
           partnerUid: widget.partnerUid,
           partnerName: widget.partnerName,
           partnerAvatarUrl: widget.partnerAvatarUrl,
-          myAvatarUrl: _fb.avatarUrl,
+          myAvatarUrl: _myAvatarUrl,
           theme: widget.theme,
           initialCenter: both,
           initialZoom: both == null ? 13 : 14,
@@ -341,7 +343,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                           width: 40,
                           height: 40,
                           child: _MiniAvatar(
-                            url: _fb.avatarUrl,
+                            url: _myAvatarUrl,
                             name: LocaleService.current.liveMapYou,
                             ring: t.primary,
                           ),

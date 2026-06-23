@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 /// Tools available in the drawing canvas.
 enum DrawTool { brush, eraser, fill, image, line, rect, circle, triangle, palm }
@@ -124,7 +125,16 @@ class DrawStroke {
     );
   }
 
-  /// Lightweight serialisation used for the live-stroke Firestore document.
+  /// PocketBase committed-штрих (`canvas_strokes`): вся карта лежит в json-колонке
+  /// `data` (как [toFirestore]), id = id записи. order_index дублируется отдельной
+  /// колонкой для сортировки, но читаем orderIndex из самой карты.
+  factory DrawStroke.fromPb(RecordModel rec) {
+    final raw = rec.data['data'];
+    final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    return DrawStroke.fromFirestore(map, rec.id);
+  }
+
+  /// Lightweight serialisation used for the live-stroke document.
   Map<String, dynamic> toLiveMap() => {
     'userId': userId,
     'colorValue': colorValue,

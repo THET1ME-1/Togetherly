@@ -16,6 +16,8 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
+import '../services/canvas_repository.dart';
+import '../services/pb_media_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -90,7 +92,10 @@ class _DrawScreenState extends State<DrawScreen>
   static const double _kMinScale = 0.2;
   static const double _kMaxScale = 10.0;
 
+  /// Только для загрузки картинок-вставок в Storage (медиа §4). Холст/штрихи —
+  /// на PocketBase через [_canvas].
   final FirebaseService _fb = FirebaseService();
+  final CanvasRepository _canvas = CanvasRepository();
   final GlobalKey _canvasKey = GlobalKey();
 
   final ValueNotifier<int> _repaintNotifier = ValueNotifier<int>(0);
@@ -304,16 +309,9 @@ class _DrawScreenState extends State<DrawScreen>
     super.dispose();
   }
 
-  /// Notify Firebase that the user is on / has left this canvas.
-  void _markPresence(bool present) {
-    if (!_hasSharedCanvas) return;
-    _fb.setCanvasPresence(
-      groupId: _groupId,
-      canvasId: _canvasId,
-      userId: _myUid,
-      present: present,
-    );
-  }
+  /// No-op: presence была write-only (нигде не читалась) → при переезде на PB
+  /// не переносим (миграция §3). Метод оставлен ради вызовов из lifecycle.
+  void _markPresence(bool present) {}
 
   /// ���������� ��� ��������� ������ ��� ����� ���������� � ���.
   /// ��� ������������� ���������� ����� ����, ��� �������
@@ -377,26 +375,20 @@ class _DrawScreenState extends State<DrawScreen>
   void _startFirebaseListeners() {
     if (!_hasSharedCanvas) return;
 
-    _strokesSub = _fb
-        .listenToDrawingStrokes(groupId: _groupId, canvasId: _canvasId)
+    _strokesSub = _canvas
+        .watchStrokes(_groupId, _canvasId)
         .handleError((e) => debugPrint('[Draw] strokes error: $e'))
         .listen(_onRemoteStrokes);
 
-    _liveSub = _fb
-        .listenToLiveDrawingStrokes(
-          groupId: _groupId,
-          myUserId: _myUid,
-          canvasId: _canvasId,
-        )
+    _liveSub = _canvas
+        .watchLive(_groupId, _canvasId, _myUid)
         .handleError((e) => debugPrint('[Draw] live error: $e'))
         .listen(_onLiveStrokes);
 
-    // Single subscription that reads bgColor + clearVersion + rotation from
-    // the canvas/main meta doc. Was 3 separate snapshot listeners — Firestore
-    // meters each one, so any change was billed 3x. Collapsing them is the
-    // biggest read-reduction win for the drawing flow.
-    _canvasMetaSub = _fb
-        .listenToCanvasMeta(groupId: _groupId, canvasId: _canvasId)
+    // Мета холста (bgColor + clearVersion + rotation) одной подпиской на запись
+    // canvas_meta — все три поля в одном документе.
+    _canvasMetaSub = _canvas
+        .watchMeta(_groupId, _canvasId)
         .handleError((e) => debugPrint('[Draw] canvasMeta error: $e'))
         .listen(_onCanvasMeta);
 
@@ -409,17 +401,12 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  void _onRemoteStrokes(List<dynamic> rawList) {
+  void _onRemoteStrokes(List<DrawStroke> rawList) {
     if (!mounted) return;
 
-    final parsed = <DrawStroke>[];
-    for (final raw in rawList) {
-      try {
-        parsed.add(DrawStroke.fromFirestore(raw.data, raw.id));
-      } catch (e) {
-        debugPrint('[Draw] parse stroke error: $e');
-      }
-    }
+    // CanvasRepository уже отдаёт распарсенные DrawStroke (через fromPb) —
+    // копируем перед сортировкой (список из стрима неизменяемый).
+    final parsed = List<DrawStroke>.from(rawList);
     parsed.sort(_compareStrokes);
     _remoteStrokes = parsed;
 
@@ -457,7 +444,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _visibleStrokes = _composeVisibleStrokes());
   }
 
-  void _onCanvasMeta(RemoteCanvasMeta meta) {
+  void _onCanvasMeta(CanvasMetaUpdate meta) {
     if (!mounted) return;
 
     final version = meta.clearVersion;
@@ -766,12 +753,7 @@ class _DrawScreenState extends State<DrawScreen>
       orderIndex: -1,
     );
     try {
-      await _fb.updateLiveDrawingStroke(
-        groupId: _groupId,
-        userId: _myUid,
-        liveData: stroke.toLiveMap(),
-        canvasId: _canvasId,
-      );
+      await _canvas.setLive(_groupId, _canvasId, _myUid, stroke.toLiveMap());
     } catch (e) {
       debugPrint('[Draw] live push error: $e');
     }
@@ -779,12 +761,8 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _clearLiveStroke() {
     if (!_hasSharedCanvas) return;
-    _fb
-        .clearLiveDrawingStroke(
-          groupId: _groupId,
-          userId: _myUid,
-          canvasId: _canvasId,
-        )
+    _canvas
+        .clearLive(_groupId, _canvasId, _myUid)
         .catchError((e) => debugPrint('[Draw] clear live error: $e'));
   }
 
@@ -954,11 +932,8 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (_hasSharedCanvas) {
       unawaited(
-        _fb.setCanvasRotation(
-          groupId: _groupId,
-          rotationQuarterTurns: (_canvasRotation * 1000).round(),
-          canvasId: _canvasId,
-        ),
+        _canvas.setRotation(
+            _groupId, _canvasId, (_canvasRotation * 1000).round()),
       );
     }
   }
@@ -1041,18 +1016,13 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_hasSharedCanvas) return;
     if (!_remoteStrokes.any((s) => s.id == stroke.id)) return;
     try {
-      await _fb.updateDrawingStroke(
-        groupId: _groupId,
-        strokeId: stroke.id,
-        updates: {
-          'imageX': stroke.imageX,
-          'imageY': stroke.imageY,
-          'imageWidth': stroke.imageWidth,
-          'imageHeight': stroke.imageHeight,
-          'imageRotation': stroke.imageRotation,
-        },
-        canvasId: _canvasId,
-      );
+      await _canvas.patchStroke(stroke.id, {
+        'imageX': stroke.imageX,
+        'imageY': stroke.imageY,
+        'imageWidth': stroke.imageWidth,
+        'imageHeight': stroke.imageHeight,
+        'imageRotation': stroke.imageRotation,
+      });
     } catch (e) {
       debugPrint('[Draw] image sync error: $e');
     }
@@ -1144,20 +1114,12 @@ class _DrawScreenState extends State<DrawScreen>
   /// сверки optimistic-штриха из [_submitStroke]: при ошибке откатывает локально,
   /// при отмене во время записи — удаляет уже созданный документ.
   void _commitImageStroke(String localId, DrawStroke stroke) {
-    _fb
-        .addDrawingStroke(
-          groupId: _groupId,
-          strokeData: stroke.toFirestore(),
-          canvasId: _canvasId,
-        )
+    _canvas
+        .addStroke(_groupId, _canvasId, stroke.toFirestore())
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(localId)) {
-            await _fb.deleteDrawingStroke(
-              groupId: _groupId,
-              strokeId: remoteId,
-              canvasId: _canvasId,
-            );
+            await _canvas.deleteStroke(remoteId);
           }
         })
         .catchError((e) {
@@ -1234,20 +1196,12 @@ class _DrawScreenState extends State<DrawScreen>
     });
     _myStrokeIds.add(stroke.id);
 
-    _fb
-        .addDrawingStroke(
-          groupId: _groupId,
-          strokeData: stroke.toFirestore(),
-          canvasId: _canvasId,
-        )
+    _canvas
+        .addStroke(_groupId, _canvasId, stroke.toFirestore())
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(stroke.id)) {
-            await _fb.deleteDrawingStroke(
-              groupId: _groupId,
-              strokeId: remoteId,
-              canvasId: _canvasId,
-            );
+            await _canvas.deleteStroke(remoteId);
           }
         })
         .catchError((e) {
@@ -1299,11 +1253,7 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_hasSharedCanvas || remoteIdForDelete == null) return;
 
     try {
-      await _fb.deleteDrawingStroke(
-        groupId: _groupId,
-        strokeId: remoteIdForDelete,
-        canvasId: _canvasId,
-      );
+      await _canvas.deleteStroke(remoteIdForDelete);
     } catch (e) {
       debugPrint('[Draw] undo error: $e');
       if (!mounted) return;
@@ -1380,11 +1330,7 @@ class _DrawScreenState extends State<DrawScreen>
     });
 
     try {
-      await _fb.deleteDrawingStroke(
-        groupId: _groupId,
-        strokeId: id,
-        canvasId: _canvasId,
-      );
+      await _canvas.deleteStroke(id);
     } catch (e) {
       debugPrint('[Draw] deleteImage error: $e');
       if (!mounted) return;
@@ -1488,12 +1434,8 @@ class _DrawScreenState extends State<DrawScreen>
     // Fallback: fill the entire background
     setState(() => _bgColor = nextColor);
     if (_hasSharedCanvas) {
-      _fb
-          .setCanvasBgColor(
-            groupId: _groupId,
-            colorValue: nextColor.toARGB32(),
-            canvasId: _canvasId,
-          )
+      _canvas
+          .setBgColor(_groupId, _canvasId, nextColor.toARGB32())
           .catchError((e) => debugPrint('[Draw] fill error: $e'));
     }
   }
@@ -1542,14 +1484,14 @@ class _DrawScreenState extends State<DrawScreen>
     }
 
     try {
-      await Future.wait([
-        _fb.clearDrawingCanvas(groupId: _groupId, canvasId: _canvasId),
-        _fb.setCanvasBgColor(
-          groupId: _groupId,
-          colorValue: Colors.white.toARGB32(),
-          canvasId: _canvasId,
-        ),
-      ]);
+      // clearCanvas разом чистит штрихи + live-курсоры и пишет clear_version +
+      // bg в canvas_meta (паритет с прежними двумя вызовами).
+      await _canvas.clear(
+        _groupId,
+        _canvasId,
+        clearVersion: DateTime.now().millisecondsSinceEpoch,
+        bgColor: Colors.white.toARGB32(),
+      );
     } catch (e) {
       debugPrint('[Draw] clear error: $e');
       if (!mounted) return;
@@ -2825,7 +2767,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
     final w = (s.imageWidth ?? 0.5) * canvasSize.width;
     final h = (s.imageHeight ?? 0.5) * canvasSize.height;
     final rot = s.imageRotation ?? 0.0;
-    final url = s.imageUrl ?? '';
+    // pb:// (PocketBase media) → публичный HTTPS (дальше ловит http-ветка);
+    // file://, http, '' проходят без изменений.
+    final url = PbMediaService().resolveUrl(s.imageUrl) ?? '';
     final isSelected = widget.selectedImageId == s.id;
 
     Widget img;

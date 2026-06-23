@@ -6,17 +6,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/canvas_meta.dart';
 import '../models/draw_stroke.dart';
-import 'firebase_service.dart';
+import 'canvas_repository.dart';
 
 /// Persists a per-user-per-group list of [CanvasMeta] entries in SharedPreferences
-/// **and** syncs the catalogue to Firebase when the user belongs to a group.
+/// **and** syncs the catalogue to PocketBase when the user belongs to a group
+/// (миграция §3 — через [CanvasRepository], ноль Firebase).
 ///
-/// The actual drawing strokes live in Firebase (paired) or in-memory (solo).
+/// The actual drawing strokes live in PocketBase (paired) or in-memory (solo).
 class CanvasStorageService {
   CanvasStorageService._();
   static final CanvasStorageService instance = CanvasStorageService._();
 
-  final FirebaseService _fb = FirebaseService();
+  final CanvasRepository _canvas = CanvasRepository();
 
   /// Active Firebase listener — cancelled in [stopListening].
   StreamSubscription? _catalogueSub;
@@ -69,17 +70,17 @@ class CanvasStorageService {
     );
     await _save(uid, groupId, [meta, ...canvases]);
 
-    // Push to Firebase so partner sees the new canvas
+    // Push to PocketBase so partner sees the new canvas
     if (groupId.isNotEmpty) {
-      _fb.upsertCanvasMeta(
-        groupId: groupId,
-        canvasId: id,
+      _canvas.upsertCatalogue(
+        groupId,
+        id,
         name: meta.name,
         createdAt: meta.createdAt.millisecondsSinceEpoch,
         updatedAt: meta.updatedAt.millisecondsSinceEpoch,
         createdBy: uid,
       );
-      _fb.incrementDrawingsCount(groupId, 1);
+      _canvas.incrementDrawings(groupId, 1);
     }
 
     return meta;
@@ -96,9 +97,9 @@ class CanvasStorageService {
     await _save(uid, groupId, next);
 
     if (groupId.isNotEmpty) {
-      _fb.upsertCanvasMeta(
-        groupId: groupId,
-        canvasId: updated.id,
+      _canvas.upsertCatalogue(
+        groupId,
+        updated.id,
         name: updated.name,
         createdAt: updated.createdAt.millisecondsSinceEpoch,
         updatedAt: updated.updatedAt.millisecondsSinceEpoch,
@@ -123,11 +124,7 @@ class CanvasStorageService {
     await _save(uid, groupId, canvases);
 
     if (groupId.isNotEmpty) {
-      _fb.renameCanvasMeta(
-        groupId: groupId,
-        canvasId: canvasId,
-        newName: newName,
-      );
+      _canvas.renameCatalogue(groupId, canvasId, newName);
     }
   }
 
@@ -159,8 +156,8 @@ class CanvasStorageService {
     await _save(uid, groupId, canvases.where((c) => c.id != canvasId).toList());
 
     if (groupId.isNotEmpty) {
-      _fb.deleteCanvasMeta(groupId: groupId, canvasId: canvasId);
-      _fb.incrementDrawingsCount(groupId, -1);
+      _canvas.deleteCatalogue(groupId, canvasId);
+      _canvas.incrementDrawings(groupId, -1);
     }
   }
 
@@ -172,7 +169,7 @@ class CanvasStorageService {
     _catalogueSub?.cancel();
     if (groupId.isEmpty) return;
 
-    _catalogueSub = _fb.listenToCanvasCatalogue(groupId: groupId).listen(
+    _catalogueSub = _canvas.watchCatalogue(groupId).listen(
       (remoteList) async {
         await _mergeRemoteCanvases(uid, groupId, remoteList);
         onRemoteChange?.call();
@@ -253,9 +250,9 @@ class CanvasStorageService {
     if (groupId.isEmpty) return;
     final canvases = await getCanvases(uid, groupId: groupId);
     for (final meta in canvases) {
-      await _fb.upsertCanvasMeta(
-        groupId: groupId,
-        canvasId: meta.id,
+      await _canvas.upsertCatalogue(
+        groupId,
+        meta.id,
         name: meta.name,
         createdAt: meta.createdAt.millisecondsSinceEpoch,
         updatedAt: meta.updatedAt.millisecondsSinceEpoch,

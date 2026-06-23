@@ -32,6 +32,7 @@ import 'analytics_service.dart';
 import 'level_service.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
+import 'pb_media_service.dart';
 import 'rate_limiter_service.dart';
 import 'supabase_service.dart';
 import 'chat_service.dart';
@@ -4912,83 +4913,22 @@ class FirebaseService {
         }
       }
 
-      // Медиа полностью мигрированной группы → Supabase Storage (sb://),
-      // синхронно с её данными (Stage 4). Не-мигрированные/смешанные группы и
-      // негрупповые пути (аватары) → Firebase Storage (https://-URL читают обе
-      // версии — безопасно для смешанных пар и отката).
-      if (_uploadGroupMediaToSupabase(uploadDestination)) {
-        final bytes = await fileToUpload.readAsBytes();
-        final sbRef = await _sb.uploadStorageFile(
-          bytes,
-          uploadDestination,
-          contentType: contentType,
-        );
-        _compressedTempFile?.delete().catchError((_) {});
-        debugPrint('[SB] uploadFile → $sbRef');
-        return sbRef;
-      }
-      debugPrint('[FB] uploadFile → Firebase Storage: $uploadDestination');
-
-      final metadata = contentType != null
-          ? SettableMetadata(contentType: contentType)
+      // Миграция §4: медиа теперь в PocketBase (коллекция `media`) — грузим уже
+      // сжатые байты, возвращаем `pb://`-ссылку. Никакого Firebase/Supabase
+      // Storage. Имя файла и kind берём из uploadDestination (e.g. memories/...).
+      final bytes = await fileToUpload.readAsBytes();
+      final filename = uploadDestination.split('/').last;
+      final kind = uploadDestination.contains('/')
+          ? uploadDestination.split('/').first
           : null;
-
-      final ref = _storage.ref().child(uploadDestination);
-      final uploadTask = ref.putFile(fileToUpload, metadata);
-
-      // Monitor upload progress
-      uploadTask.snapshotEvents.listen(
-        (event) {
-          final progress = event.bytesTransferred / event.totalBytes;
-          debugPrint(
-            'uploadFile: Progress ${(progress * 100).toStringAsFixed(1)}%',
-          );
-        },
-        // Поток snapshotEvents отдельно эмитит ошибку при провале загрузки
-        // (например firebase_storage/unauthorized). Без onError она становится
-        // НЕОБРАБОТАННОЙ async-ошибкой → PlatformDispatcher.onError → Fatal-краш,
-        // хотя сама загрузка уже обработана внешним catch (вернёт null). Глушим
-        // здесь — ошибку обрабатывает await uploadTask ниже.
-        onError: (Object e) =>
-            debugPrint('uploadFile: progress stream error: $e'),
+      final pbRef = await PbMediaService().uploadBytes(
+        bytes,
+        filename,
+        kind: kind,
       );
-
-      // Таймаут: зависшая (без ошибки) загрузка на плохой сети иначе крутила бы
-      // спиннер вечно. По истечении — отменяем задачу и пробрасываем исключение
-      // (внешний catch вернёт null → экран покажет «не удалось загрузить»).
-      final snapshot = await uploadTask.timeout(
-        const Duration(minutes: 2),
-        onTimeout: () {
-          debugPrint('uploadFile: Firebase upload timed out (2 min) — cancel');
-          uploadTask.cancel();
-          throw TimeoutException('Firebase upload timed out');
-        },
-      );
-
-      // Для групповых путей возвращаем gs:// — доступ только через Signed URL.
-      // Для аватарок (avatars/) оставляем download URL: они намеренно доступны
-      // любому авторизованному пользователю и не несут private-данных группы.
-      const privatePathPrefixes = [
-        'memories/',
-        'groups/',
-        'music/',
-        'timer_backgrounds/',
-        'widget/',
-      ];
-      final isPrivatePath = privatePathPrefixes.any(
-        uploadDestination.startsWith,
-      );
-
-      String resultUrl;
-      if (isPrivatePath) {
-        resultUrl = 'gs://${snapshot.ref.bucket}/${snapshot.ref.fullPath}';
-      } else {
-        resultUrl = await snapshot.ref.getDownloadURL();
-      }
-
-      debugPrint('uploadFile: Success! result = $resultUrl');
       _compressedTempFile?.delete().catchError((_) {});
-      return resultUrl;
+      debugPrint('uploadFile → PocketBase: $pbRef');
+      return pbRef;
     } on FirebaseException catch (e) {
       debugPrint(
         'uploadFile FirebaseException: code=${e.code} message=${e.message}',
@@ -7018,22 +6958,14 @@ class FirebaseService {
     required List<int> pngBytes,
   }) async {
     try {
+      // Миграция §4: маскот-картинка в PocketBase (коллекция media) → pb://.
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final path = 'groups/$groupId/mascots/mascot_$ts.png';
-      // Медиа полностью мигрированной группы → Supabase (sb://), синхронно с
-      // данными (Stage 4). Иначе → Firebase (общий источник / откат).
-      if (!_writeFb(groupId)) {
-        return _sb.uploadStorageFile(
-          Uint8List.fromList(pngBytes),
-          path,
-          contentType: 'image/png',
-        );
-      }
-      final ref = _storage.ref().child(path);
-      final metadata = SettableMetadata(contentType: 'image/png');
-      final task = ref.putData(Uint8List.fromList(pngBytes), metadata);
-      final snapshot = await task;
-      return await snapshot.ref.getDownloadURL();
+      return await PbMediaService().uploadBytes(
+        pngBytes,
+        'mascot_$ts.png',
+        groupId: groupId,
+        kind: 'mascots',
+      );
     } catch (e) {
       debugPrint('uploadMascotImage failed: $e');
       return null;

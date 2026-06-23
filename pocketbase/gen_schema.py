@@ -47,11 +47,16 @@ def j(name):                      # json (jsonb)
     return {"name": name, "type": "json", "required": False, "maxSize": 5000000}
 
 def fid(max_len=50):
-    """Переопределённое системное поле id под Firebase-id (проверено на проде)."""
+    """Переопределённое системное поле id: принимает внешний Firebase-id (при
+    импорте §8) И автогенерит 15-симв. id, когда клиент создаёт запись без id
+    (cutover-методы createMemory/createMood/createComment/createMessage). Без
+    autogeneratePattern PB требовал бы id всегда → create(body) без id падал
+    «id: Cannot be blank» (поймано smoke-тестом на проде 2026-06-23). pattern
+    шире автогена, поэтому Firebase-id (смешанный регистр/'_'/'-') проходит."""
     return {
         "name": "id", "type": "text", "primaryKey": True, "required": True,
         "system": True, "pattern": "^[A-Za-z0-9_-]+$", "min": 1, "max": max_len,
-        "autogeneratePattern": "",
+        "autogeneratePattern": "[a-z0-9]{15}",
     }
 
 def uidx(table, cols, unique=True):
@@ -133,6 +138,13 @@ fb("app_config", [
     num("min_build"), d("updated_at"),
 ])
 
+# Co-watch сеанс (id=pairId): состояние плеера. Замена RTDB liveSessions/{pairId}.
+# Эфемерный (хост удаляет endSession). last_action_at — клиентский epoch-ms.
+fb("live_sessions", [
+    t("activity"), t("media_id"), b("is_playing"), num("position_ms"),
+    num("last_action_at"), t("controller_uid"), num("seq"),
+])
+
 # ── коллекции с авто-id PB + составной UNIQUE ────────────────────────────────
 auto_collections = []
 
@@ -183,6 +195,48 @@ auto("chat_reads", [
     d("updated_at"),
 ], ["group_id", "user_uid"])
 
+# Live-штрих рисования (in-progress, пока партнёр ведёт пальцем): один upsert на
+# (group,canvas,user), вся геометрия в json `data`; удаляется при отрыве пальца.
+# Эфемерный — как typing, протухание по `data.ts` на стороне клиента (stale-таймер
+# draw_screen уже чистит партнёров без свежих точек).
+auto("canvas_live", [
+    t("group_id", True), t("canvas_id", True), t("user_uid", True), j("data"),
+], ["group_id", "canvas_id", "user_uid"])
+
+# Эфемерный «печатает…»: heartbeat+TTL вместо RTDB onDisconnect. Клиент пишет
+# typing_at=epoch_ms пока печатает (раз в ~3с) и 0 при остановке; партнёр считает
+# «печатает», если typing_at чужого uid свежее 8с. Маркер сам протухает по
+# свежести → onDisconnect не нужен (если приложение умерло — за 8с «перестал»).
+auto("chat_typing", [
+    t("group_id", True), t("user_uid", True), num("typing_at"),
+], ["group_id", "user_uid"])
+
+# Live-локация «Где мы»: последняя точка участника. Ключ — детерминированный
+# канал пары `pair_<uidA>_<uidB>` (НЕ pairId — оба партнёра вычисляют один и тот
+# же канал, независимо от активного дубля группы). Точка json в `data`. НЕ
+# удаляется на disconnect (last-known видна офлайн) — обновляется heartbeat'ом
+# геолокатора, чистится при явном выключении шеринга.
+auto("live_location", [
+    t("channel", True), t("user_uid", True), j("data"),
+], ["channel", "user_uid"])
+
+# Презенс co-watch сеанса (кто сейчас смотрит): heartbeat+TTL вместо RTDB
+# onDisconnect — клиент обновляет seen_at, watcher считает «в сеансе», если свежо.
+auto("live_session_presence", [
+    t("pair_id", True), t("user_uid", True), num("seen_at"),
+], ["pair_id", "user_uid"])
+
+# Эфемерный чат co-watch сеанса (исчезает с сессией). auto-id PB, НЕ-уникальный
+# индекс (pair_id, ts) для выборки/сортировки. reactions json (uid→эмодзи).
+auto_collections.append({
+    "name": "live_session_chat", "type": "base",
+    "fields": [
+        t("pair_id", True), t("uid"), t("name"), t("text"), num("ts"),
+        j("reactions"), t("reply_to_id"), t("reply_to_name"), t("reply_to_text"),
+    ],
+    "indexes": [uidx("live_session_chat", ["pair_id", "ts"], unique=False)],
+})
+
 # ── MEDIA (PB Storage): файлы крепятся к записям через file-поле ─────────────
 # Замена Firebase Storage. Один блоб = одна запись; URL отдаётся PB как
 # /api/files/media/<recordId>/<filename>. В текстовые поля сущностей
@@ -193,8 +247,11 @@ def file_field(name, max_mb=50):
 
 media_collection = {
     "name": "media", "type": "base",
-    "fields": [file_field("file"), t("uid"), t("group_id"), t("kind")],
-    "indexes": [uidx("media", ["group_id"], unique=False)],
+    # src — исходная Firebase-ссылка (gs://...) для идемпотентного переноса §8:
+    # повторный прогон находит уже залитый блоб по src и не дублирует.
+    "fields": [file_field("file"), t("uid"), t("group_id"), t("kind"), t("src")],
+    "indexes": [uidx("media", ["group_id"], unique=False),
+                uidx("media", ["src"], unique=False)],
 }
 
 # ── вывод ────────────────────────────────────────────────────────────────────

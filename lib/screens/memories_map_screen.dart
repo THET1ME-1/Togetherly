@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
+import '../services/pb_media_service.dart';
 import '../theme/app_theme.dart';
 
 class _MemoryCluster {
@@ -456,7 +457,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        url,
+                        PbMediaService().resolveUrl(url) ?? url,
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,

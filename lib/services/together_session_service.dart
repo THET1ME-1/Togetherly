@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
-import 'firebase_service.dart';
-
-/// URL базы Realtime Database (регион europe-west1 — не дефолтный, поэтому
-/// указываем явно, иначе плагин ищет инстанс в us-central1).
-const String _kRtdbUrl =
-    'https://togetherly-d4856-default-rtdb.europe-west1.firebasedatabase.app';
+import 'package:pocketbase/pocketbase.dart';
+import 'pb_auth_service.dart';
+import 'pb_data_service.dart';
+import 'pb_realtime_service.dart';
+import 'pocketbase_service.dart';
 
 /// Тип совместного занятия. Сейчас реализован только youtube; music/book
 /// переиспользуют тот же канал синхронизации.
@@ -22,15 +19,14 @@ extension TogetherActivityX on TogetherActivity {
       );
 }
 
-/// Эфемерное состояние совместного сеанса, живёт в RTDB
-/// (liveSessions/{pairId}). К Firestore-чтениям отношения не имеет.
+/// Эфемерное состояние совместного сеанса (PocketBase `live_sessions`, id=pairId).
 @immutable
 class LiveSessionState {
   final TogetherActivity activity;
   final String mediaId; // youtube videoId (или ключ контента для music/book)
   final bool isPlaying;
   final int positionMs;
-  final int lastActionAt; // server epoch ms (ServerValue.timestamp)
+  final int lastActionAt; // epoch ms (клиентское время действия)
   final String controllerUid; // кто инициировал последнее действие
   final int seq; // монотонный номер действия для отбрасывания эха
 
@@ -44,15 +40,17 @@ class LiveSessionState {
     required this.seq,
   });
 
-  factory LiveSessionState.fromMap(Map<dynamic, dynamic> m) {
+  /// PocketBase-запись `live_sessions` (snake_case колонки) → состояние.
+  factory LiveSessionState.fromPb(RecordModel rec) {
+    final d = rec.data;
     return LiveSessionState(
-      activity: TogetherActivityX.fromId(m['activity'] as String?),
-      mediaId: (m['mediaId'] as String?) ?? '',
-      isPlaying: (m['isPlaying'] as bool?) ?? false,
-      positionMs: (m['positionMs'] as num?)?.toInt() ?? 0,
-      lastActionAt: (m['lastActionAt'] as num?)?.toInt() ?? 0,
-      controllerUid: (m['controllerUid'] as String?) ?? '',
-      seq: (m['seq'] as num?)?.toInt() ?? 0,
+      activity: TogetherActivityX.fromId(d['activity'] as String?),
+      mediaId: (d['media_id'] ?? '').toString(),
+      isPlaying: d['is_playing'] == true,
+      positionMs: (d['position_ms'] as num?)?.toInt() ?? 0,
+      lastActionAt: (d['last_action_at'] as num?)?.toInt() ?? 0,
+      controllerUid: (d['controller_uid'] ?? '').toString(),
+      seq: (d['seq'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -93,8 +91,14 @@ class ChatMessage {
     this.replyToText,
   });
 
-  factory ChatMessage.fromSnapshot(DataSnapshot snap) {
-    final m = (snap.value as Map?) ?? const {};
+  /// PocketBase-запись `live_session_chat` (snake_case) → сообщение. id = id записи.
+  factory ChatMessage.fromPb(RecordModel rec) {
+    final m = rec.data;
+    String? nz(dynamic v) {
+      final s = v?.toString();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
     final rawReactions = m['reactions'];
     final reactions = <String, String>{};
     if (rawReactions is Map) {
@@ -103,43 +107,60 @@ class ChatMessage {
       });
     }
     return ChatMessage(
-      id: snap.key ?? '',
-      uid: (m['uid'] as String?) ?? '',
-      name: (m['name'] as String?) ?? '',
-      text: (m['text'] as String?) ?? '',
+      id: rec.id,
+      uid: (m['uid'] ?? '').toString(),
+      name: (m['name'] ?? '').toString(),
+      text: (m['text'] ?? '').toString(),
       ts: (m['ts'] as num?)?.toInt() ?? 0,
       reactions: reactions,
-      replyToId: m['replyToId'] as String?,
-      replyToName: m['replyToName'] as String?,
-      replyToText: m['replyToText'] as String?,
+      replyToId: nz(m['reply_to_id']),
+      replyToName: nz(m['reply_to_name']),
+      replyToText: nz(m['reply_to_text']),
     );
   }
 }
 
-/// Сервис совместных занятий. Синхронизация плеера идёт ТОЛЬКО через RTDB —
-/// ноль Firestore-чтений. Приглашение партнёра — через поле activeSession в
-/// group-doc (его ловит уже работающий live-листенер) + опционально FCM.
+/// Сервис совместных занятий на PocketBase (миграция §3): состояние плеера —
+/// `live_sessions` (id=pairId), презенс — `live_session_presence` (heartbeat+TTL
+/// вместо RTDB onDisconnect), эфемерный чат — `live_session_chat`. Приглашение
+/// партнёра — [TogetherInviteRepository] (group.active_session).
 class TogetherSessionService {
   TogetherSessionService._();
   static final TogetherSessionService instance = TogetherSessionService._();
 
-  final FirebaseService _fb = FirebaseService();
+  final PbDataService _data = PbDataService();
+  final PbRealtimeService _rt = PbRealtimeService();
 
-  FirebaseDatabase get _db =>
-      FirebaseDatabase.instanceFor(app: Firebase.app(), databaseURL: _kRtdbUrl);
-
-  DatabaseReference _sessionRef(String pairId) =>
-      _db.ref('liveSessions/$pairId');
-
-  String get _uid => _fb.uid ?? '';
+  String get _uid => PocketBaseService().userId ?? '';
+  String get _name =>
+      PbAuthService().currentProfile()?['displayName'] as String? ?? '';
 
   /// Локальный счётчик действий — растёт быстрее серверного seq, чтобы наши
-  /// собственные апдейты, вернувшиеся через onValue, можно было отбросить.
+  /// собственные апдейты, вернувшиеся через подписку, можно было отбросить.
   int _localSeq = 0;
   int get lastLocalSeq => _localSeq;
 
-  /// Создать/перезапустить сеанс (вызывает хост). Сразу прописывает обоих
-  /// участников в members, чтобы партнёр прошёл security-rules без задержки.
+  // ── Презенс на heartbeat+TTL (без RTDB onDisconnect) ──────────────────────
+  // Клиент периодически обновляет seen_at; watcher считает участника «в сеансе»,
+  // если метка свежее [_presenceFreshMs]. Ungraceful-выход → метка протухает.
+  static const int _presenceFreshMs = 20000;
+  Timer? _presenceTimer;
+
+  void _startPresenceHeartbeat(String pairId) {
+    if (_uid.isEmpty) return;
+    unawaited(_data.touchSessionPresence(pairId, _uid));
+    _presenceTimer?.cancel();
+    _presenceTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (_uid.isNotEmpty) unawaited(_data.touchSessionPresence(pairId, _uid));
+    });
+  }
+
+  void _stopPresenceHeartbeat() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+  }
+
+  /// Создать/перезапустить сеанс (вызывает хост) + начать heartbeat презенса.
   Future<void> startSession({
     required String pairId,
     required String partnerUid,
@@ -148,72 +169,46 @@ class TogetherSessionService {
   }) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
     _localSeq = 0;
-    final members = <String, bool>{_uid: true};
-    if (partnerUid.isNotEmpty) members[partnerUid] = true;
-    await _sessionRef(pairId).set({
-      'members': members,
+    await _data.startSession(pairId, {
       'activity': activity.id,
       'mediaId': mediaId,
       'isPlaying': false,
       'positionMs': 0,
-      'lastActionAt': ServerValue.timestamp,
       'controllerUid': _uid,
       'seq': 0,
     });
-    // Презенс: убираем себя при разрыве соединения. Сам узел сеанса НЕ удаляем
-    // на disconnect, чтобы случайный обрыв у одного не выкидывал второго.
-    final presence = _sessionRef(pairId).child('presence').child(_uid);
-    await presence.set(true);
-    // .ignore() — отказ onDisconnect (напр. permission-denied) иначе улетает в
-    // глобальный обработчик как краш.
-    presence.onDisconnect().remove().ignore();
+    _startPresenceHeartbeat(pairId);
   }
 
-  /// Регистрирует текущего пользователя в members сеанса — нужно для
-  /// security-rules RTDB (читать/писать может только участник, как в чате пары).
-  /// Каждый клиент пишет СВОЁ членство сам, а не полагается на хоста: иначе при
-  /// правиле «$uid === auth.uid» на members запись партнёра хостом отклоняется,
-  /// и у гостя молча не проходят ни презенс, ни сообщения. Идемпотентно.
-  Future<void> ensureMember(String pairId) async {
-    if (pairId.isEmpty || _uid.isEmpty) return;
-    try {
-      await _sessionRef(pairId).child('members').child(_uid).set(true);
-    } catch (e) {
-      debugPrint('TogetherSessionService.ensureMember failed: $e');
-    }
-  }
+  /// Легаси RTDB-членство больше не нужно (PB-правила — по группе). No-op.
+  Future<void> ensureMember(String pairId) async {}
 
-  /// Присоединиться (вызывает приглашённый партнёр) — отмечает презенс.
+  /// Присоединиться (вызывает приглашённый партнёр) — стартует heartbeat презенса.
   Future<void> joinPresence(String pairId) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
-    await ensureMember(pairId);
-    final presence = _sessionRef(pairId).child('presence').child(_uid);
-    await presence.set(true);
-    // .ignore() — отказ onDisconnect (напр. permission-denied) иначе улетает в
-    // глобальный обработчик как краш.
-    presence.onDisconnect().remove().ignore();
+    _startPresenceHeartbeat(pairId);
   }
 
-  /// Поток присутствия: множество uid, кто сейчас в сеансе. Отдельный листенер
-  /// на presence-узле, чтобы не путаться с подавлением эха в плеер-синке.
+  /// Поток присутствия: множество uid со свежей меткой seen_at.
   Stream<Set<String>> watchPresence(String pairId) {
-    return _sessionRef(pairId).child('presence').onValue
-        .handleError((e) => debugPrint('together presence rtdb error: $e'))
-        .map((event) {
-      final v = event.snapshot.value;
-      if (v is! Map) return <String>{};
-      return v.keys.map((k) => k.toString()).toSet();
+    return _rt.watchSessionPresence(pairId).map((rows) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final out = <String>{};
+      for (final r in rows) {
+        final seen = (r.data['seen_at'] as num?)?.toInt() ?? 0;
+        final uid = (r.data['user_uid'] ?? '').toString();
+        if (uid.isNotEmpty && now - seen < _presenceFreshMs) out.add(uid);
+      }
+      return out;
     });
   }
 
-  /// Поток состояния сеанса. null — сеанса нет (узел удалён).
+  /// Поток состояния сеанса. null — сеанса нет (запись удалена).
   Stream<LiveSessionState?> watch(String pairId) {
-    return _sessionRef(pairId).onValue
-        .handleError((e) => debugPrint('together session rtdb error: $e'))
-        .map((event) {
-      final v = event.snapshot.value;
-      if (v is! Map || v['mediaId'] == null) return null;
-      return LiveSessionState.fromMap(v);
+    return _rt.watchSession(pairId).map((rec) {
+      if (rec == null) return null;
+      final s = LiveSessionState.fromPb(rec);
+      return s.mediaId.isEmpty ? null : s;
     });
   }
 
@@ -227,26 +222,17 @@ class TogetherSessionService {
     if (pairId.isEmpty || _uid.isEmpty) return _localSeq;
     _localSeq++;
     final seq = _localSeq;
-    final update = <String, Object?>{
+    await _data.pushSessionAction(pairId, {
       'isPlaying': isPlaying,
       'positionMs': positionMs,
-      'lastActionAt': ServerValue.timestamp,
       'controllerUid': _uid,
       'seq': seq,
-    };
-    if (mediaId != null) update['mediaId'] = mediaId;
-    try {
-      await _sessionRef(pairId).update(update);
-    } catch (e) {
-      debugPrint('TogetherSessionService.pushAction failed: $e');
-    }
+      'mediaId': mediaId,
+    });
     return seq;
   }
 
-  // ── Эфемерный чат сеанса (RTDB, 0 Firestore-чтений) ──────────────────────
-  DatabaseReference _chatRef(String pairId) =>
-      _sessionRef(pairId).child('chat');
-
+  // ── Эфемерный чат сеанса (PB live_session_chat) ──────────────────────────
   /// Отправить сообщение в чат сеанса. [replyTo*] — опциональный ответ.
   Future<void> sendChatMessage({
     required String pairId,
@@ -257,20 +243,15 @@ class TogetherSessionService {
   }) async {
     final t = text.trim();
     if (t.isEmpty || pairId.isEmpty || _uid.isEmpty) return;
-    try {
-      await ensureMember(pairId);
-      await _chatRef(pairId).push().set({
-        'uid': _uid,
-        'name': _fb.displayName,
-        'text': t,
-        'ts': ServerValue.timestamp,
-        if (replyToId != null) 'replyToId': replyToId,
-        if (replyToName != null) 'replyToName': replyToName,
-        if (replyToText != null) 'replyToText': replyToText,
-      });
-    } catch (e) {
-      debugPrint('sendChatMessage failed: $e');
-    }
+    await _data.sendSessionChat(pairId, {
+      'uid': _uid,
+      'name': _name,
+      'text': t,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+      'replyToId': replyToId,
+      'replyToName': replyToName,
+      'replyToText': replyToText,
+    });
   }
 
   /// Поставить/снять свою реакцию на сообщение. [emoji] == null убирает её.
@@ -279,53 +260,30 @@ class TogetherSessionService {
     required String messageId,
     required String? emoji,
   }) async {
-    if (pairId.isEmpty || messageId.isEmpty || _uid.isEmpty) return;
-    try {
-      final ref =
-          _chatRef(pairId).child(messageId).child('reactions').child(_uid);
-      if (emoji == null || emoji.isEmpty) {
-        await ref.remove();
-      } else {
-        await ref.set(emoji);
-      }
-    } catch (e) {
-      debugPrint('setChatReaction failed: $e');
-    }
+    if (messageId.isEmpty || _uid.isEmpty) return;
+    await _data.setSessionChatReaction(messageId, _uid, emoji);
   }
 
-  /// Поток сообщений чата: при подписке отдаёт последние ≤50, далее — новые.
-  /// onChildAdded экономнее onValue (только дельты).
-  Stream<ChatMessage> watchChatMessages(String pairId) {
-    return _chatRef(pairId)
-        .limitToLast(50)
-        .onChildAdded
-        .map((event) => ChatMessage.fromSnapshot(event.snapshot));
+  /// Живой список сообщений чата сеанса (старые сверху). Заменяет прежние два
+  /// delta-стрима (onChildAdded/onChildChanged) — экран пересобирает список и
+  /// реакции из снапшота.
+  Stream<List<ChatMessage>> watchSessionChat(String pairId) {
+    return _rt
+        .watchSessionChat(pairId)
+        .map((recs) => recs.map(ChatMessage.fromPb).toList());
   }
 
-  /// Поток ИЗМЕНЕНИЙ сообщений (реакции мутируют существующий узел —
-  /// onChildAdded их не отдаёт). UI заменяет сообщение по id.
-  Stream<ChatMessage> watchChatMessageChanges(String pairId) {
-    return _chatRef(pairId)
-        .limitToLast(50)
-        .onChildChanged
-        .map((event) => ChatMessage.fromSnapshot(event.snapshot));
-  }
-
-  /// Завершить сеанс — удалить узел RTDB.
+  /// Завершить сеанс — удалить запись + презенс + чат.
   Future<void> endSession(String pairId) async {
     if (pairId.isEmpty) return;
-    try {
-      await _sessionRef(pairId).remove();
-    } catch (e) {
-      debugPrint('TogetherSessionService.endSession failed: $e');
-    }
+    _stopPresenceHeartbeat();
+    await _data.endSession(pairId);
   }
 
   /// Покинуть сеанс, не убивая его для партнёра (снять свой презенс).
   Future<void> leavePresence(String pairId) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
-    try {
-      await _sessionRef(pairId).child('presence').child(_uid).remove();
-    } catch (_) {}
+    _stopPresenceHeartbeat();
+    await _data.removeSessionPresence(pairId, _uid);
   }
 }

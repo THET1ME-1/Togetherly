@@ -2,12 +2,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../services/firebase_service.dart';
+import '../services/pb_media_service.dart';
 
-/// Drop-in замена [CachedNetworkImage] с поддержкой gs:// и sb:// путей.
+/// Drop-in замена [CachedNetworkImage] с поддержкой pb:// / gs:// / sb:// путей.
 ///
-/// Fast path: https:// URL → сразу [CachedNetworkImage], без FutureBuilder/мигания.
-/// Slow path: gs:// (Firebase) или sb:// (Supabase) → запрашивает Signed URL
-/// (55-минутный кэш в [FirebaseService]) → [CachedNetworkImage].
+/// Fast path: https:// и pb:// (PocketBase) → сразу [CachedNetworkImage] (pb://
+/// резолвится синхронно в публичный HTTPS, без FutureBuilder/мигания).
+/// Slow path: gs:// (Firebase) / sb:// (Supabase) → асинхронный Signed URL.
 /// Старые https:// download URL работают без изменений (обратная совместимость).
 class StorageImage extends StatefulWidget {
   const StorageImage({
@@ -43,9 +44,18 @@ class _StorageImageState extends State<StorageImage> {
   Future<String?>? _resolvedUrl;
 
   // gs:// (Firebase) и sb:// (Supabase) требуют асинхронного разрешения в
-  // подписанный https:// URL. https:// рендерится сразу.
+  // подписанный https:// URL. https:// и pb:// рендерятся сразу (pb:// —
+  // синхронный префиксный резолв в публичный HTTPS PocketBase).
   bool get _needsResolve =>
       widget.imageUrl.startsWith('gs://') || widget.imageUrl.startsWith('sb://');
+
+  /// URL для немедленного рендера: pb:// → публичный HTTPS PB; остальное as-is.
+  String get _fastUrl {
+    final u = widget.imageUrl;
+    return PbMediaService().isPbRef(u)
+        ? (PbMediaService().resolveUrl(u) ?? u)
+        : u;
+  }
 
   @override
   void initState() {
@@ -92,8 +102,8 @@ class _StorageImageState extends State<StorageImage> {
 
     if (url.isEmpty) return _empty();
 
-    // Fast path: https:// → рендерим сразу, без async/мигания
-    if (!_needsResolve) return _buildCached(url);
+    // Fast path: https:// / pb:// → рендерим сразу, без async/мигания
+    if (!_needsResolve) return _buildCached(_fastUrl);
 
     // Slow path: gs:// / sb:// → ждём Signed URL
     return FutureBuilder<String?>(

@@ -1,7 +1,7 @@
-import 'package:firebase_database/firebase_database.dart';
+import 'package:pocketbase/pocketbase.dart';
 
-/// Сообщение постоянного чата пары. Живёт в Realtime Database
-/// (chats/{groupId}/messages/{pushId}) — НИКАКИХ Firestore-чтений.
+/// Сообщение постоянного чата пары. Хранится в PocketBase (коллекция
+/// `chat_messages`); удаление мягкое (deleted=true + текст затирается).
 ///
 /// Удаление мягкое (deleted=true + текст затирается), чтобы слушатель
 /// партнёра мгновенно отрисовал «сообщение удалено», а не пустоту.
@@ -66,8 +66,31 @@ class ChatMsg {
 
   bool get isEdited => editedTs != null && !deleted;
 
-  factory ChatMsg.fromSnapshot(DataSnapshot snap) {
-    final m = (snap.value as Map?) ?? const {};
+  /// PocketBase-запись (`chat_messages`) → модель. id = id записи.
+  ///
+  /// PB number/text-колонки не nullable (дефолт 0/''), а модель различает
+  /// «не задано» (null) и значение. Поэтому коэрсим: `''`→null (face/pin/reply),
+  /// `0`→null для edited_ts (нет правки), color (цвет темы) и face_x/face_y
+  /// (позиция по умолчанию). Реальные значения этих полей всегда > 0 (color —
+  /// непрозрачный ARGB с выставленной альфой; позиция мордочки на пузыре не в
+  /// углу 0,0; edited_ts — epoch-ms), поэтому 0 однозначно = «не задано».
+  factory ChatMsg.fromPb(RecordModel rec) {
+    final m = rec.data;
+    String? nz(dynamic v) {
+      final s = v?.toString();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    int? nzInt(dynamic v) {
+      final n = (v as num?)?.toInt() ?? 0;
+      return n == 0 ? null : n;
+    }
+
+    double? nzDouble(dynamic v) {
+      final n = (v as num?)?.toDouble() ?? 0.0;
+      return n == 0 ? null : n;
+    }
+
     final rawReactions = m['reactions'];
     final reactions = <String, String>{};
     if (rawReactions is Map) {
@@ -76,24 +99,24 @@ class ChatMsg {
       });
     }
     return ChatMsg(
-      id: snap.key ?? '',
-      uid: (m['uid'] as String?) ?? '',
-      name: (m['name'] as String?) ?? '',
-      text: (m['text'] as String?) ?? '',
+      id: rec.id,
+      uid: (m['user_uid'] ?? '').toString(),
+      name: (m['user_name'] ?? '').toString(),
+      text: (m['text'] ?? '').toString(),
       ts: (m['ts'] as num?)?.toInt() ?? 0,
-      editedTs: (m['editedTs'] as num?)?.toInt(),
-      deleted: (m['deleted'] as bool?) ?? false,
-      pinId: m['pinId'] as String?,
-      pinTitle: m['pinTitle'] as String?,
-      pinThumb: m['pinThumb'] as String?,
+      editedTs: nzInt(m['edited_ts']),
+      deleted: m['deleted'] == true,
+      pinId: nz(m['pin_id']),
+      pinTitle: nz(m['pin_title']),
+      pinThumb: nz(m['pin_thumb']),
       reactions: reactions,
-      replyToId: m['replyToId'] as String?,
-      replyToName: m['replyToName'] as String?,
-      replyToText: m['replyToText'] as String?,
-      face: m['face'] as String?,
-      color: (m['color'] as num?)?.toInt(),
-      faceX: (m['faceX'] as num?)?.toDouble(),
-      faceY: (m['faceY'] as num?)?.toDouble(),
+      replyToId: nz(m['reply_to_id']),
+      replyToName: nz(m['reply_to_name']),
+      replyToText: nz(m['reply_to_text']),
+      face: nz(m['face']),
+      color: nzInt(m['color']),
+      faceX: nzDouble(m['face_x']),
+      faceY: nzDouble(m['face_y']),
     );
   }
 }

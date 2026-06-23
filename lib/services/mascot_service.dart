@@ -5,9 +5,15 @@ import 'catalog_service.dart';
 import 'firebase_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
+import 'mascot_repository.dart';
 
 /// Manages the mascot gallery and group streak for one group.
 /// Bind to a group via [bindToGroup] when the user is paired.
+///
+/// Миграция Firebase→PocketBase (§3): галерея и состояние маскота читаются/пишутся
+/// через [MascotRepository] (live SSE PB, чтения бесплатны). `FirebaseService`
+/// остаётся ТОЛЬКО под загрузку картинок маскотов в Storage — медиа переезжает в
+/// §4 (как и медиа воспоминаний); удаление старых файлов тоже отложено на §4.
 class MascotService extends ChangeNotifier {
   MascotService() {
     // Каталожные маскоты приезжают асинхронно — обновляем галерею/виджет, когда
@@ -15,6 +21,10 @@ class MascotService extends ChangeNotifier {
     CatalogService.instance.addListener(_onCatalogChanged);
   }
 
+  final MascotRepository _repo = MascotRepository();
+
+  /// Только для загрузки картинок маскотов (Storage) — медиа §4. Данные/состояние
+  /// уже на PB через [_repo].
   final FirebaseService _fb = FirebaseService();
 
   void _onCatalogChanged() => notifyListeners();
@@ -28,7 +38,7 @@ class MascotService extends ChangeNotifier {
   GroupMascotState _state = const GroupMascotState();
   bool _isLoading = false;
 
-  /// Галерея группы (Firestore) + каталожные маскоты (рендер-онли, поверх).
+  /// Галерея группы (PB) + каталожные маскоты (рендер-онли, поверх).
   /// Дедуп по id: собственная копия группы побеждает (если id совпал).
   List<Mascot> get mascots {
     final catalog = CatalogService.instance.mascots;
@@ -71,18 +81,14 @@ class MascotService extends ChangeNotifier {
 
     LevelService.instance.bind(groupId);
 
-    _groupStateSub = _fb.listenToGroupMascotState(groupId: groupId).listen((
-      state,
-    ) {
+    _groupStateSub = _repo.watchState(groupId).listen((state) {
       _state = state;
       LevelService.instance.setXp(state.xp);
       _syncStreakWidget();
       notifyListeners();
     }, onError: (e) => debugPrint('[MascotService] group state error: $e'));
 
-    _mascotsSub = _fb
-        .listenToMascots(groupId: groupId)
-        .listen(
+    _mascotsSub = _repo.watchGallery(groupId).listen(
           _onMascotsUpdate,
           onError: (e) => debugPrint('[MascotService] mascots error: $e'),
         );
@@ -97,12 +103,6 @@ class MascotService extends ChangeNotifier {
     _mascots = [];
     _state = const GroupMascotState();
     _isLoading = false;
-    notifyListeners();
-  }
-
-  // Called from the pair listener in Connection._listenToPair via MascotService.applyGroupData
-  void applyGroupData(Map<String, dynamic> data) {
-    _state = GroupMascotState.fromMap(data);
     notifyListeners();
   }
 
@@ -131,7 +131,7 @@ class MascotService extends ChangeNotifier {
         .toList();
     if (oldOnes.isNotEmpty) {
       _migrateOldDefaults(oldOnes);
-      return; // wait for Firestore stream to re-fire after writes
+      return; // wait for the PB stream to re-fire after writes
     }
 
     _isLoading = false;
@@ -159,19 +159,15 @@ class MascotService extends ChangeNotifier {
     if (_kOldDefaultIds.contains(_state.activeMascotId)) {
       await setActive(null);
     }
-    // Delete every old default from Firestore.
+    // Delete every old default from PB.
     for (final m in oldOnes) {
       if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
-      await _fb.deleteMascot(
-        groupId: boundGroupId,
-        mascotId: m.id,
-        imageUrl: null, // old defaults had no Storage image
-      );
+      await _repo.delete(boundGroupId, m.id);
     }
     // Write new defaults — stream will re-fire and gallery updates.
     final newDefaults = DefaultMascots.asMascots();
     if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
-    await _fb.saveMascotsBatch(groupId: boundGroupId, mascots: newDefaults);
+    await _repo.saveBatch(boundGroupId, newDefaults);
     // Auto-activate the first new default so the mascot stays visible.
     if (newDefaults.isNotEmpty) {
       if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
@@ -183,7 +179,7 @@ class MascotService extends ChangeNotifier {
     final boundGroupId = _groupId;
     final bindGeneration = _bindGeneration;
     final defaults = DefaultMascots.asMascots();
-    await _fb.saveMascotsBatch(groupId: boundGroupId, mascots: defaults);
+    await _repo.saveBatch(boundGroupId, defaults);
     // Auto-activate the first default mascot so it is visible immediately.
     if (defaults.isNotEmpty) {
       if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
@@ -202,7 +198,7 @@ class MascotService extends ChangeNotifier {
 
   Future<void> recordDailyActivity() async {
     if (_groupId.isEmpty) return;
-    await _fb.recordGroupActivity(_groupId);
+    await _repo.recordActivity(_groupId);
     unawaited(LevelService.instance.award(XpAction.dailyStreak));
   }
 
@@ -215,7 +211,7 @@ class MascotService extends ChangeNotifier {
       clearActiveMascot: mascotId == null,
     );
     notifyListeners();
-    await _fb.setActiveMascot(groupId: _groupId, mascotId: mascotId);
+    await _repo.setActive(_groupId, mascotId);
   }
 
   Future<void> updatePosition({
@@ -226,14 +222,14 @@ class MascotService extends ChangeNotifier {
     if (_groupId.isEmpty) return;
     _state = _state.copyWith(positionX: x, positionY: y, scale: scale);
     notifyListeners();
-    await _fb.updateMascotPosition(groupId: _groupId, x: x, y: y, scale: scale);
+    await _repo.updatePosition(_groupId, x: x, y: y, scale: scale);
   }
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   Future<void> addMascot(Mascot mascot) async {
     if (_groupId.isEmpty) return;
-    await _fb.saveMascot(groupId: _groupId, mascot: mascot);
+    await _repo.save(_groupId, mascot);
   }
 
   Future<void> deleteMascot(Mascot mascot) async {
@@ -242,25 +238,19 @@ class MascotService extends ChangeNotifier {
     if (_state.activeMascotId == mascot.id) {
       await setActive(null);
     }
-    await _fb.deleteMascot(
-      groupId: _groupId,
-      mascotId: mascot.id,
-      imageUrl: mascot.imageUrl,
-    );
+    // Чистка файла картинки (Storage) отложена на §4 (как медиа воспоминаний).
+    await _repo.delete(_groupId, mascot.id);
   }
 
   Future<void> renameMascot(Mascot mascot, String newName) async {
     if (_groupId.isEmpty) return;
     mascot.name = newName;
     notifyListeners();
-    await _fb.renameMascot(
-      groupId: _groupId,
-      mascotId: mascot.id,
-      newName: newName,
-    );
+    await _repo.rename(_groupId, mascot.id, newName);
   }
 
-  /// Upload PNG bytes → Storage, create Mascot, save to Firestore.
+  /// Upload PNG bytes → Storage, create Mascot, save to PB.
+  /// Загрузка файла пока на Firebase Storage (медиа §4); данные — на PB.
   Future<Mascot?> uploadAndSaveMascot({
     required List<int> pngBytes,
     required String name,
@@ -288,9 +278,9 @@ class MascotService extends ChangeNotifier {
       createdAt: DateTime.now(),
       isDefault: false,
     );
-    await _fb.saveMascot(groupId: boundGroupId, mascot: mascot);
+    await _repo.save(boundGroupId, mascot);
     // Optimistically add to local list so the gallery updates immediately
-    // without waiting for the Firestore stream to echo back.
+    // without waiting for the PB stream to echo back.
     if (!_mascots.any((m) => m.id == mascot.id)) {
       _mascots = [..._mascots, mascot];
       notifyListeners();
@@ -315,14 +305,9 @@ class MascotService extends ChangeNotifier {
         bindGeneration != _bindGeneration) {
       return;
     }
-    // Delete old image from Storage.
-    if (mascot.imageUrl != null) {
-      try {
-        await _fb.deleteFileByUrl(mascot.imageUrl!);
-      } catch (_) {}
-    }
+    // Удаление старого файла из Storage отложено на §4 (медиа).
     final updated = mascot.copyWith(imageUrl: url);
-    await _fb.saveMascot(groupId: boundGroupId, mascot: updated);
+    await _repo.save(boundGroupId, updated);
     // Optimistically update local list.
     final idx = _mascots.indexWhere((m) => m.id == mascot.id);
     if (idx != -1) {

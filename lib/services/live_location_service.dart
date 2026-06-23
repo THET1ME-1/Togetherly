@@ -1,31 +1,26 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'firebase_service.dart';
 import 'locale_service.dart';
-
-/// URL базы Realtime Database (регион europe-west1 — не дефолтный).
-/// Совпадает с [TogetherSessionService] и презенсом в [FirebaseService].
-const String _kRtdbUrl =
-    'https://togetherly-d4856-default-rtdb.europe-west1.firebasedatabase.app';
+import 'pb_data_service.dart';
+import 'pb_realtime_service.dart';
+import 'pocketbase_service.dart';
 
 const String _kSharingEnabledKey = 'live_location_sharing_enabled';
 
-/// Снимок позиции участника пары. Живёт в RTDB
-/// `liveLocation/{pairId}/points/{uid}` и НЕ удаляется на disconnect —
-/// поэтому последняя точка партнёра видна на карте даже когда он офлайн.
+/// Снимок позиции участника пары. Живёт в PocketBase (коллекция `live_location`,
+/// json `data` в канале пары) и НЕ удаляется на disconnect — поэтому последняя
+/// точка партнёра видна на карте даже когда он офлайн.
 @immutable
 class LivePoint {
   final double lat;
   final double lng;
   final double accuracy; // метры
   final double? heading; // градусы (может отсутствовать)
-  final int updatedAt; // epoch ms (ServerValue.timestamp)
+  final int updatedAt; // epoch ms (клиентское время записи точки)
 
   const LivePoint({
     required this.lat,
@@ -48,22 +43,18 @@ class LivePoint {
   }
 }
 
-/// Сервис live-локации пары. Транспорт — Realtime Database (как «смотрим
-/// вместе» и презенс): ноль Firestore-чтений. Свою позицию мы пишем стримом
-/// геолокатора (фоновый foreground-service на Android, background updates на
-/// iOS), позицию партнёра — слушаем отдельным листенером.
+/// Сервис live-локации пары. Транспорт — PocketBase (миграция §3, коллекция
+/// `live_location`): свою позицию пишем стримом геолокатора (фоновый
+/// foreground-service на Android, background updates на iOS), позицию партнёра —
+/// слушаем live-подпиской PB.
 class LiveLocationService {
   LiveLocationService._();
   static final LiveLocationService instance = LiveLocationService._();
 
-  final FirebaseService _fb = FirebaseService();
+  final PbDataService _data = PbDataService();
+  final PbRealtimeService _rt = PbRealtimeService();
 
-  FirebaseDatabase get _db =>
-      FirebaseDatabase.instanceFor(app: Firebase.app(), databaseURL: _kRtdbUrl);
-
-  DatabaseReference _pairRef(String channel) => _db.ref('liveLocation/$channel');
-
-  String get _uid => _fb.uid ?? '';
+  String get _uid => PocketBaseService().userId ?? '';
 
   /// Общий для ОБОИХ партнёров узел live-локации: детерминированный ключ из
   /// пары uid, отсортированных лексикографически. В отличие от pairId он НЕ
@@ -167,13 +158,6 @@ class LiveLocationService {
     await _cancelStream();
     _activePairId = channel;
 
-    // Членство (для security-rules RTDB) — каждый пишет своё в ОБЩИЙ узел пары.
-    try {
-      await _pairRef(channel).child('members').child(_uid).set(true);
-    } catch (e) {
-      debugPrint('LiveLocationService membership failed: $e');
-    }
-
     // Немедленный первый фикс, чтобы партнёр сразу увидел точку.
     unawaited(_pushCurrent(channel));
 
@@ -209,22 +193,18 @@ class LiveLocationService {
     }
   }
 
-  Future<void> _push(String pairId, Position pos) async {
+  Future<void> _push(String channel, Position pos) async {
     if (_uid.isEmpty) return;
-    // RTDB отклоняет NaN/Infinity — геолокатор отдаёт такие для heading/accuracy,
-    // когда значение недоступно. Пишем только конечные числа.
+    // Пишем только конечные числа (heading/accuracy бывают NaN/Infinity, когда
+    // значение недоступно).
     final acc = pos.accuracy.isFinite ? pos.accuracy : 0.0;
-    try {
-      await _pairRef(pairId).child('points').child(_uid).set({
-        'lat': pos.latitude,
-        'lng': pos.longitude,
-        'accuracy': acc,
-        if (pos.heading.isFinite && pos.heading >= 0) 'heading': pos.heading,
-        'updatedAt': ServerValue.timestamp,
-      });
-    } catch (e) {
-      debugPrint('LiveLocationService push failed: $e');
-    }
+    await _data.setLivePoint(channel, _uid, {
+      'lat': pos.latitude,
+      'lng': pos.longitude,
+      'accuracy': acc,
+      if (pos.heading.isFinite && pos.heading >= 0) 'heading': pos.heading,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   Future<void> _cancelStream() async {
@@ -240,9 +220,8 @@ class LiveLocationService {
     final pairId = _activePairId;
     _activePairId = null;
     if (removePoint && pairId != null && _uid.isNotEmpty) {
-      try {
-        await _pairRef(pairId).child('points').child(_uid).remove();
-      } catch (_) {}
+      // pairId здесь — канал пары (_activePairId).
+      await _data.clearLivePoint(pairId, _uid);
     }
   }
 
@@ -266,13 +245,11 @@ class LiveLocationService {
   }
 
   Stream<LivePoint?> _watchPoint(String channel, String uid) {
-    return _pairRef(channel)
-        .child('points')
-        .child(uid)
-        .onValue
+    return _rt
+        .watchLivePoint(channel, uid)
         .handleError((e) => debugPrint('live location point error: $e'))
-        .map((event) {
-      final v = event.snapshot.value;
+        .map((rec) {
+      final v = rec?.data['data'];
       if (v is! Map) return null;
       return LivePoint.fromMap(v);
     });

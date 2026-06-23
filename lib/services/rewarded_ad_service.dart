@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import 'firebase_service.dart';
+import 'pb_coins_service.dart';
 
 /// Загрузка и показ rewarded-видео по схеме «водопад»: сначала Яндекс, и если
 /// у Яндекса нет рекламы ([onAdFailedToLoad]) — резерв из AdMob (Google).
@@ -298,7 +299,7 @@ class RewardedAdService {
   Future<void> _grantYandexReward() async {
     final cr = FirebaseCrashlytics.instance;
     try {
-      final res = await FirebaseService().callGrantAdReward();
+      final res = await PbCoinsService().adReward();
       if (res != null) {
         _lastRewardGranted = res['ok'] == true;
         _lastRateLimited = res['rateLimited'] == true;

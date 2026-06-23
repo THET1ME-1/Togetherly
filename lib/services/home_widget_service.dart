@@ -11,6 +11,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_service.dart';
+import 'pb_data_service.dart';
+import 'pb_media_service.dart';
 import 'supabase_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
@@ -1610,24 +1612,14 @@ class HomeWidgetService {
         missYouCount = cached.missYouCount;
         if (inMemory == null) _relStatsCache[groupId] = cached;
       } else {
-        final fb = FirebaseService();
-        if (fb.isMigrationUser) {
-          // Этап 4: счётчики группы живут в Supabase — group-doc из Firestore
-          // не читаем (getGroup*Count сами ходят в Supabase под миграцией).
-          memoriesCount = await fb.getGroupMemoriesCount(groupId);
-          drawingsCount = await fb.getGroupDrawingsCount(groupId);
-        } else {
-          final groupDoc = await _db.collection('groups').doc(groupId).get();
-          if (!groupDoc.exists) return;
-          final groupData = groupDoc.data()!;
-
-          memoriesCount =
-              await fb.getGroupMemoriesCount(groupId, groupData: groupData);
-          drawingsCount =
-              await fb.getGroupDrawingsCount(groupId, groupData: groupData);
-        }
-        // missYouCount живёт в RTDB/Supabase (не в group-doc) — см. sendMissYou.
-        missYouCount = await fb.getMissYouTotal(groupId);
+        // Миграция §3: счётчики из group-дока PB (денормализованные колонки
+        // memories_count/drawings_count), missYou — сумма по miss_you группы.
+        final group = await PbDataService().loadGroupById(groupId);
+        if (group == null) return;
+        memoriesCount = (group.data['memories_count'] as num?)?.toInt() ?? 0;
+        drawingsCount = (group.data['drawings_count'] as num?)?.toInt() ?? 0;
+        final counts = await PbDataService().getMissYouCounts(groupId);
+        missYouCount = counts.values.fold<int>(0, (a, b) => a + b);
 
         final fresh = _CachedRelStats(
           memoriesCount: memoriesCount,
@@ -1972,8 +1964,12 @@ class HomeWidgetService {
     try {
       String httpUrl = url;
 
+      // pb:// (PocketBase media) → публичный HTTPS (синхронно).
+      if (PbMediaService().isPbRef(url)) {
+        httpUrl = PbMediaService().resolveUrl(url) ?? url;
+      }
       // Для gs:// (Firebase) и sb:// (Supabase) путей запрашиваем Signed URL.
-      if (url.startsWith('gs://') || url.startsWith('sb://')) {
+      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
         // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
         final path = url.startsWith('sb://')
             ? url
