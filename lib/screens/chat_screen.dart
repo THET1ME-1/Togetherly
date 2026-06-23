@@ -14,6 +14,7 @@ import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
+import '../services/pocketbase_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
@@ -107,7 +108,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _focusNode = FocusNode();
 
   String get _groupId => widget.pairData.pairId;
-  String get _myUid => _fb.uid ?? '';
+  // Личность из PocketBase (миграция): _fb.uid пуст под PB-входом → чат не
+  // отличал бы свои сообщения (выравнивание/удаление).
+  String get _myUid => PocketBaseService().userId ?? '';
   AppTheme get _t => widget.theme;
 
   /// Пины для @-подсказок (грузятся один раз, cache-first → 0 серверных чтений).

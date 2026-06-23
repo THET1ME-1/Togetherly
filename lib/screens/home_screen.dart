@@ -377,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
         unawaited(
           EmotionMigrationService.instance.runIfNeeded(
             groupId: _pairData.pairId,
-            uid: _fb.uid ?? '',
+            uid: widget.userData.uid,
           ),
         );
 
