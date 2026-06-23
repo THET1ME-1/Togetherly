@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
 import '../../models/user_data.dart';
-import '../../services/firebase_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/memory_tile_builder.dart';
@@ -49,11 +48,12 @@ class MemoryLanePreview extends StatelessWidget {
     );
 
     String? liveAvatarFor(String uid) {
-      // Current user: in-memory cache is always the freshest source.
-      final fb = FirebaseService();
-      if (uid == fb.uid) {
-        final cached = fb.avatarUrl;
-        if (cached.isNotEmpty) return cached;
+      // Свой аватар — самый свежий из локального профиля (как в ленте), чтобы
+      // сразу после смены аватара он не выглядел устаревшим до пропагации в
+      // group-doc. Прежний путь через FirebaseService убран (auth уже на PB).
+      final ud = userData;
+      if (ud != null && uid == ud.uid && ud.avatarUrl.isNotEmpty) {
+        return ud.avatarUrl;
       }
       for (final m in pairData.members) {
         if (m.uid == uid && m.avatar.isNotEmpty) return m.avatar;

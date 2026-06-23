@@ -98,6 +98,53 @@ class PbAuthService {
     }
   }
 
+  /// Вход через Apple (OAuth2 web-flow PocketBase): открывает страницу
+  /// провайдера в браузере, PB ловит редирект и возвращает сессию.
+  /// Требует настроенного провайдера `apple` в панели PB (Services ID + ключ;
+  /// секрет авто-обновляется кроном на VPS — см. pocketbase/apple_secret.py).
+  Future<RecordModel?> signInWithApple() async {
+    try {
+      final auth = await _pb.collection(_usersCol).authWithOAuth2(
+        'apple',
+        (url) async {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        },
+      );
+      final meta = auth.meta;
+      await _ensureProfile(
+        displayName: meta['name'] as String?,
+        avatarUrl: meta['avatarUrl'] as String? ?? meta['avatarURL'] as String?,
+      );
+      return _svc.currentUser;
+    } catch (e, st) {
+      debugPrint('PbAuth.signInWithApple failed: $e');
+      debugPrintStack(stackTrace: st);
+      rethrow;
+    }
+  }
+
+  /// Письмо для сброса пароля (email-провайдер PB).
+  Future<void> sendPasswordReset(String email) =>
+      _pb.collection(_usersCol).requestPasswordReset(email);
+
+  /// Профиль текущего юзера в формате camelCase — совместимо с прежним
+  /// `FirebaseService.loadUserProfile` (чтобы экраны входа почти не менялись).
+  /// null, если сессии нет. gender может быть null (новый OAuth-юзер до setup).
+  Map<String, dynamic>? currentProfile() {
+    final rec = _svc.currentUser;
+    if (rec == null) return null;
+    final d = rec.data;
+    String s(dynamic v) => v is String ? v : '';
+    final name =
+        s(d['display_name']).isNotEmpty ? s(d['display_name']) : s(d['name']);
+    return {
+      'displayName': name,
+      'email': s(d['email']).isNotEmpty ? s(d['email']) : (_svc.userEmail ?? ''),
+      'gender': d['gender'],
+      'avatarUrl': s(d['avatar_url']),
+    };
+  }
+
   /// «Тихий вход» — сессия уже персистится в authStore (SharedPreferences).
   /// Если валидна, освежаем токен; иначе возвращаем null.
   Future<RecordModel?> signInSilently() async {

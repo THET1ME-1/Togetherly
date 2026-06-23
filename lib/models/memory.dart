@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 /// Types of memory content
 enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
@@ -311,5 +314,27 @@ class Memory {
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
     );
+  }
+
+  /// PocketBase-запись (коллекция `memories`) → модель. Строка PB хранит полную
+  /// camelCase-карту в json-поле `data` (с ISO-датами), поэтому переиспользуем
+  /// [Memory.fromJson]. id берём из записи; даты/флаги — из data, при отсутствии
+  /// падаем на индексированные колонки (`created_at`/`edited_at`/`is_pinned`).
+  factory Memory.fromPb(RecordModel rec) {
+    final raw = rec.data['data'];
+    // Обычно PB-SDK уже отдаёт json-колонку как Map. Защитно: если прилетела
+    // json-СТРОКА — декодируем, иначе НЕ теряем все поля (тип/фото/координаты).
+    final map = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : (raw is String && raw.isNotEmpty
+            ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
+            : <String, dynamic>{});
+    map['id'] = rec.id;
+    map['createdAt'] ??= rec.data['created_at'];
+    if (map['editedAt'] == null && rec.data['edited_at'] != null) {
+      map['editedAt'] = rec.data['edited_at'];
+    }
+    map['isPinned'] ??= rec.data['is_pinned'];
+    return Memory.fromJson(map);
   }
 }

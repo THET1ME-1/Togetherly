@@ -18,19 +18,26 @@ Firebase/PB, иначе партнёры не видят друг друга.
 ## ⏳ Осталось — CUTOVER
 
 ### 1. Точка входа `main.dart`
-- [ ] `PocketBaseService().init()` + `PbAuthService().signInSilently()` на старте.
-- [ ] Убрать `Firebase.initializeApp`, `FirebaseCrashlytics`, `FirebaseMessaging` (+ `_firebaseMessagingBackgroundHandler`), `Supabase.initialize`.
-- [ ] Force-update порог: уже читается из Firebase RTDB — перевести на PB (`app_config.min_build`) или оставить как отдельный мелкий вызов (решить).
+- [x] `PocketBaseService().init()` + `PbAuthService().signInSilently()` на старте (additive, рядом с Firebase).
+- [x] `Supabase.initialize` + `MigrationConfig` УБРАНЫ из `main.dart` (импорты `supabase_flutter`/`supabase_service`/`migration_config` тоже). Слой Supabase дремлет (`isReady=false` → все вызовы no-op), Firebase-путь работает.
+- [x] Force-update порог → PocketBase (`PbDataService.fetchMinSupportedBuild`, коллекция `app_config.min_build`). Supabase-чтение убрано.
+- [ ] **`Firebase.initializeApp` / `FirebaseCrashlytics` / `FirebaseMessaging` — НЕЛЬЗЯ убрать сейчас (это §7).** `FirebaseService` биндит `FirebaseAuth.instance`/`FirebaseFirestore.instance` как поля при конструировании (firebase_service.dart:77-78), а `UserData` строит `FirebaseService()` в поле → удаление init = МГНОВЕННЫЙ краш на старте (`No Firebase App`). Гейт: §3 (UserData/данные off Firebase) + §6 (coin-хуки `callGrant*`/`callPurchase*`). Crashlytics/Messaging держим для краш-репортинга/пуша до §5/§7.
 
-### 2. Auth UI
-- [ ] `login_screen.dart`, `setup_screen.dart` → вызовы `PbAuthService` вместо `FirebaseService.signInWithGoogle/Email`.
-- [ ] Добавить кнопку «Войти через Apple» (провайдер готов).
+### 2. Auth UI ✅
+- [x] `login_screen.dart`, `setup_screen.dart` → `PbAuthService` (email/Google), профиль из `currentProfile()` (camelCase), регистрация через `signUpWithEmail` + `PbDataService.updateUserProfile`, аватар через `PbMediaService.uploadBytes` (`pb://`), сброс пароля через `requestPasswordReset`.
+- [x] Кнопка «Войти через Apple» (iOS-gated) в обоих экранах + `PbAuthService.signInWithApple` (OAuth2 `apple`).
+- Presence (`setOnlineStatus`) из экранов убран — переедет на PB-слой вместе с §3 (TODO в коде).
 
 ### 3. Данные/Realtime (главный объём — ~45 файлов)
-- [ ] Перевести все вызовы `FirebaseService().*` на `PbDataService`/`PbRealtimeService`.
-- [ ] Listeners Firestore + RTDB → стримы `PbRealtimeService`.
-- [ ] **Убрать кнопки «обновить» и лимиты/пагинацию** (Лента воспоминаний и пр.) — всё live, чтения бесплатны (memory `togetherly_pb_realtime_no_limits`).
-- [ ] Модели `Memory/MoodEntry/ChatMsg/Mascot/...`: `fromFirestore` завязаны на `Timestamp` (cloud_firestore). Добавить `fromPb`-конструкторы (даты — ISO/DateTime) или адаптеры; убрать зависимость от Timestamp.
+- [~] Перевести все вызовы `FirebaseService().*` на `PbDataService`/`PbRealtimeService`. **СДЕЛАНО: ВОСПОМИНАНИЯ.** Новый `lib/services/memory_repository.dart` (PB-обёртка над PbData/PbRealtime, отдаёт модели). `memory_lane_screen` (+ части) и `home_screen`-превью переведены: read=live `watch`+`Memory.fromPb`, write add/update/delete/pin, комментарии `watchComments`/add/delete, личность `_myUid`=`PocketBaseService().userId`/`_myAvatar`. Медиа-загрузки (`_fb.uploadFile`) и резолв ОСТАЛИСЬ на Firebase (§4). +PbData: `createMemory`/`loadMemoryById`/`createComment`. analyze=0.
+- [~] Остальные сущности — порядок из аудита (multi-agent, 2026-06-23): **miss_you ✅СДЕЛАНО** (`lib/services/miss_you_repository.dart`: watchCounts/sendMissYou/sendVibe; `miss_you_button` снят с `_fb` — личность `PocketBaseService().userId` починена (был баг: `_fb.uid` пуст → весь счётчик уходил «партнёру»); рейт-лимит вайбов сохранён, RateLimitException пробрасывается; **поведение: вайбы теперь инкрементят счётчик** — нужно для повторного пуша, missYouEvents-subcollection не портируется; `senderName` теперь неиспользуемый параметр) → **moods** → **mascots** → **chat** → **canvas** → **widget_data**; затем «забытые»: **solo timers → group timers** (есть колонки `timers`/`solo_timers`, но НЕТ PB-методов/watcher; беречь first-snapshot de-dupe — регресс [timer-first-snapshot]) → **active_session** (co-watch invite, json-колонка groups) → **rel-stats нативный виджет** (getGroup*Count). Группа/пары (ConnectionsManager) — гейт §6.
+- [ ] **КРОСС-КАТТИНГ-БАГ (аудит): `_fb.uid`/`currentUser`/`displayName`/`avatarUrl` ПУСТЫ под PB** → латентные баги во ВСЕХ непереведённых сервисах (mood_service:214/361, widget_service:205/289/366/407/523/800, chat_service:61 + chat_screen:110, miss_you_button:143, recordGroupActivity, timer_service:43, together_session_service:134, live_location_service:66, live_map_card:55, watch_together:73, together_launcher:60/218). Чинить КАЖДЫЙ при переводе его сущности → `PocketBaseService().userId` / `PbAuthService().currentProfile()`. Не чинить в изоляции (сервис всё равно мёртв под PB, пока пишет в Firebase).
+- [ ] **RTDB-фичи — НЕ переносить на PB, оставить на Firebase RTDB до конца** (аудит): presence, together-плеер+session-chat, live-location, typing — эфемерные/частые, завязаны на onDisconnect, которого в PB нет. Только починить личность (`_fb.uid`→PB), чтоб не молчали. Перенос транспорта — отдельная пост-cutover задача.
+- [ ] **МЁРТВЫЙ КОД к удалению (не порт):** daily reflection (`saveReflectionAnswer`/`listenToTodayReflection` — 0 вызовов), emotion_migration (one-time legacy Firestore, станет no-op).
+- АУДИТ памяти: 3 бага исправлены (SSE-утечка watchList/watchRecord при отписке-во-время-старта; потерянные XP `LevelService.award(addMemory)` и `logMemoryAdded`; + нит-фиксы: rating 0→null в add, fromPb jsonDecode-fallback, loadMemoryById/loadComments deleted-фильтр, deleteComment без лишнего lookup, мёртвое поле `fb` в _MemoryDetailSheet, self-avatar fast-path в home-превью). analyze=0.
+- [~] Listeners Firestore + RTDB → стримы `PbRealtimeService`. Сделано для ленты (home `_startMemoryListener` → `MemoryRepository.watch`).
+- [x] **Убрать кнопки «обновить» и лимиты/пагинацию** — В ЛЕНТЕ воспоминаний сделано (live, без `_loadNextPage`/`_refreshMemories`/cache-first; поля-заглушки). Остальные экраны — по мере перевода.
+- [~] Модели — `fromPb`-конструкторы (RecordModel→модель, даты ISO/DateTime, пустой text PB `''`→null где nullable). **СДЕЛАНО:** `Memory` (через json-поле `data`+`fromJson`), `MoodEntry`, `MemoryComment`, `Mascot` (id из `mascot_id`), `WidgetData` (uid из `user_uid`). **ОСТАЛОСЬ:** `ChatMsg` (вместе с chat-срезом — семантика edited/deleted колонок), `Connection`/`GroupMember`/`MemberMood` (вместе с group-стримом — адаптер обратный `upsertGroupRaw`). `fromFirestore` НЕ трогаем (Firebase ещё жив).
 - [ ] RTDB-фичи без аналога onDisconnect — эмулировать heartbeat+TTL: presence (онлайн), live-локация «Где мы», co-watch (together-sessions). Перевести на PB realtime/записи.
 
 ### 4. Медиа

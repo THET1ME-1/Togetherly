@@ -18,6 +18,7 @@ import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
+import '../services/memory_repository.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/update_service.dart';
@@ -637,12 +638,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _recentMemories = [];
       return;
     }
-    _memorySub = _fb.listenToMemories(
-      groupId: groupId,
-      limit: 10,
-      onData: (memories) {
-        if (mounted) setState(() => _recentMemories = memories);
+    // PocketBase live-лента (SSE). Берём 10 свежих для превью на главной —
+    // watch отдаёт всё новым-сверху, ограничиваем take(10) как прежний limit.
+    _memorySub = MemoryRepository().watch(groupId).listen(
+      (memories) {
+        if (mounted) {
+          setState(() => _recentMemories = memories.take(10).toList());
+        }
       },
+      onError: (e) => debugPrint('home: memory watch error: $e'),
     );
   }
 

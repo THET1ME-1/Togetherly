@@ -3,7 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/firebase_service.dart';
+import '../services/miss_you_repository.dart';
+import '../services/pocketbase_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../theme/app_theme.dart';
@@ -38,7 +39,7 @@ class MissYouButton extends StatefulWidget {
 
 class _MissYouButtonState extends State<MissYouButton>
     with TickerProviderStateMixin {
-  final FirebaseService _fb = FirebaseService();
+  final MissYouRepository _missYou = MissYouRepository();
 
   // Key on the round expand button — used to position the overlay panel.
   final _expandKey = GlobalKey();
@@ -123,24 +124,11 @@ class _MissYouButtonState extends State<MissYouButton>
     _countSub?.cancel();
     _listenRetryTimer?.cancel();
     if (widget.groupId.isEmpty) return;
-    _countSub = _fb.listenToMissYouCounts(
-      groupId: widget.groupId,
-      onError: (_) {
-        // RTDB отменяет подписку насовсем (например, permission-denied, пока
-        // auth-токен не доехал на холодном старте) — переподнимаем с бэкоффом,
-        // иначе счётчик показывает нули до перезапуска приложения.
-        if (!mounted) return;
-        final delay = Duration(seconds: min(30, 2 << min(_listenRetryAttempt, 4)));
-        _listenRetryAttempt++;
-        _listenRetryTimer?.cancel();
-        _listenRetryTimer = Timer(delay, () {
-          if (mounted) _startListening();
-        });
-      },
-      onData: (counts) {
+    _countSub = _missYou.watchCounts(widget.groupId).listen(
+      (counts) {
         if (!mounted) return;
         _listenRetryAttempt = 0;
-        final myUid = _fb.uid ?? '';
+        final myUid = PocketBaseService().userId ?? '';
         final newMyCount = counts[myUid] ?? 0;
         final newPartnerCount = counts.entries
             .where((e) => e.key != myUid)
@@ -153,6 +141,17 @@ class _MissYouButtonState extends State<MissYouButton>
         _partnerCount = newPartnerCount;
         _animateToCurrentRatio();
         if (mounted) setState(() {});
+      },
+      onError: (_) {
+        // SSE-подписка PB может отвалиться (сеть/перезапуск процесса) —
+        // переподнимаем с бэкоффом, иначе счётчик висит на нулях до рестарта.
+        if (!mounted) return;
+        final delay = Duration(seconds: min(30, 2 << min(_listenRetryAttempt, 4)));
+        _listenRetryAttempt++;
+        _listenRetryTimer?.cancel();
+        _listenRetryTimer = Timer(delay, () {
+          if (mounted) _startListening();
+        });
       },
     );
   }
@@ -255,10 +254,7 @@ class _MissYouButtonState extends State<MissYouButton>
     if (mounted) setState(() {});
 
     try {
-      await _fb.sendMissYou(
-        groupId: widget.groupId,
-        senderName: widget.senderName,
-      );
+      await _missYou.sendMissYou(widget.groupId);
     } on RateLimitException catch (e) {
       if (mounted) {
         setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
@@ -284,9 +280,8 @@ class _MissYouButtonState extends State<MissYouButton>
     _closePanel();
     HapticFeedback.mediumImpact();
     try {
-      await _fb.sendVibe(
+      await _missYou.sendVibe(
         groupId: widget.groupId,
-        senderName: widget.senderName,
         vibeType: vibeType,
       );
       if (mounted) _showSentFeedback(emoji);
@@ -315,9 +310,8 @@ class _MissYouButtonState extends State<MissYouButton>
     _closePanel();
     HapticFeedback.mediumImpact();
     try {
-      await _fb.sendVibe(
+      await _missYou.sendVibe(
         groupId: widget.groupId,
-        senderName: widget.senderName,
         vibeType: 'custom',
         customText: text,
       );
@@ -351,9 +345,8 @@ class _MissYouButtonState extends State<MissYouButton>
 
     HapticFeedback.mediumImpact();
     try {
-      await _fb.sendVibe(
+      await _missYou.sendVibe(
         groupId: widget.groupId,
-        senderName: widget.senderName,
         vibeType: 'custom',
         customText: text.trim(),
       );

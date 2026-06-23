@@ -3,10 +3,14 @@ import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pocketbase/pocketbase.dart';
 import '../utils/safe_pick.dart';
 import 'package:image_cropper/image_cropper.dart';
 import '../models/user_data.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_auth_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/pb_media_service.dart';
+import '../services/pocketbase_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
@@ -84,24 +88,31 @@ class _SetupScreenState extends State<SetupScreen>
     });
   }
 
-  Future<void> _signInWithGoogle() async {
+  Future<void> _signInWithGoogle() =>
+      _handleOAuth(() => PbAuthService().signInWithGoogle());
+
+  /// Вход через Apple (OAuth2 web-flow PB). Провайдер `apple` готов в панели PB.
+  Future<void> _signInWithApple() =>
+      _handleOAuth(() => PbAuthService().signInWithApple());
+
+  /// Общий обработчик OAuth-входа (Google/Apple) через PocketBase. Есть профиль
+  /// с полом → домой; нет → дозаполняем профиль (пол из выбранного) и домой.
+  Future<void> _handleOAuth(Future<RecordModel?> Function() signIn) async {
     setState(() => _isLoading = true);
     try {
-      final fb = FirebaseService();
-      final user = await fb.signInWithGoogle();
+      final auth = PbAuthService();
+      final user = await signIn();
       if (user != null) {
-        // Try to load existing user profile from Firestore — force server to bypass stale cache
-        final profile = await fb.loadUserProfile(fromServer: true);
+        // Профиль из записи users PB (camelCase — как раньше Firestore).
+        final profile = auth.currentProfile();
 
         if (profile != null &&
             profile['displayName'] != null &&
             profile['gender'] != null) {
-          // User already has a profile in Firestore - auto-register and go to home
+          // Уже есть профиль — авто-вход и на главную.
           final displayName = profile['displayName'] as String;
-          final email = profile['email'] as String? ?? user.email ?? '';
-          final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
-          final avatarUrl =
-              firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
+          final email = profile['email'] as String? ?? '';
+          final avatarUrl = profile['avatarUrl'] as String? ?? '';
           final genderStr = profile['gender'] as String;
           final gender = genderStr == 'male' ? Gender.male : Gender.female;
 
@@ -116,27 +127,28 @@ class _SetupScreenState extends State<SetupScreen>
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) =>
-                  HomeScreen(userData: widget.userData),
-              transitionsBuilder: (_, animation, __, child) =>
+              pageBuilder: (_, _, _) => HomeScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, _, child) =>
                   FadeTransition(opacity: animation, child: child),
               transitionDuration: const Duration(milliseconds: 400),
             ),
           );
         } else {
-          // New user via Google — register immediately and go to home
-          final displayName = user.displayName ?? '';
-          final email = user.email ?? '';
-          final avatarUrl = user.photoURL ?? '';
+          // Новый OAuth-юзер — дозаполняем профиль (пол из выбранного шага) и домой.
+          final displayName = (profile?['displayName'] as String?) ?? '';
+          final email = (profile?['email'] as String?) ?? '';
+          final avatarUrl = (profile?['avatarUrl'] as String?) ?? '';
           final gender = _selectedGender ?? Gender.female;
+          final uid = auth.currentUid ?? '';
 
-          // Save profile to Firestore
-          await fb.saveUserProfile(
-            displayName: displayName,
-            email: email,
-            avatarUrl: avatarUrl,
-            gender: gender == Gender.male ? 'male' : 'female',
-          );
+          // Профиль в записи users PB (пол/имя/аватар).
+          if (uid.isNotEmpty) {
+            await PbDataService().updateUserProfile(uid, {
+              'displayName': displayName,
+              'gender': gender == Gender.male ? 'male' : 'female',
+              if (avatarUrl.isNotEmpty) 'avatarUrl': avatarUrl,
+            });
+          }
 
           await widget.userData.register(
             displayName: displayName,
@@ -148,9 +160,8 @@ class _SetupScreenState extends State<SetupScreen>
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) =>
-                  HomeScreen(userData: widget.userData),
-              transitionsBuilder: (_, animation, __, child) =>
+              pageBuilder: (_, _, _) => HomeScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, _, child) =>
                   FadeTransition(opacity: animation, child: child),
               transitionDuration: const Duration(milliseconds: 400),
             ),
@@ -193,10 +204,10 @@ class _SetupScreenState extends State<SetupScreen>
     setState(() => _isLoading = true);
 
     try {
-      final fb = FirebaseService();
+      final auth = PbAuthService();
 
       // Если пользователь не залогинен (ввёл данные вручную), создаём аккаунт
-      if (!fb.isLoggedIn) {
+      if (!auth.isLoggedIn) {
         // Проверяем пароль только для ручной регистрации: 8 символов +
         // заглавная буква + спецсимвол (те же правила, что индикаторы под полем).
         final pwdOk = password.length >= 8 &&
@@ -211,28 +222,39 @@ class _SetupScreenState extends State<SetupScreen>
           if (mounted) setState(() => _isLoading = false);
           return;
         }
-        await fb.signUpWithEmailPassword(
+        await auth.signUpWithEmail(
           email: email,
           password: password,
           displayName: name,
         );
       }
 
-      // Загружаем аватарку, если выбрана
+      final userId = PocketBaseService().userId ?? '';
+
+      // Загружаем аватарку, если выбрана → media-коллекция PB (ссылка pb://).
       String finalAvatarUrl = _avatarUrl;
-      if (_selectedAvatarFile != null) {
-        final userId = fb.currentUser?.uid ?? '';
-        if (userId.isNotEmpty) {
-          final ext = _selectedAvatarFile!.path.split('.').last;
-          final destination = 'avatars/$userId/profile.$ext';
-          final uploadedUrl = await fb.uploadFile(
-            _selectedAvatarFile!.path,
-            destination,
-          );
-          if (uploadedUrl != null) {
-            finalAvatarUrl = uploadedUrl;
-          }
+      if (_selectedAvatarFile != null && userId.isNotEmpty) {
+        final bytes = await _selectedAvatarFile!.readAsBytes();
+        final ext = _selectedAvatarFile!.path.split('.').last;
+        final uploadedUrl = await PbMediaService().uploadBytes(
+          bytes,
+          'profile.$ext',
+          uid: userId,
+          kind: 'avatar',
+        );
+        if (uploadedUrl != null) {
+          finalAvatarUrl = uploadedUrl;
         }
+      }
+
+      // Профиль в записи users PB (пол/имя/аватар). signUpWithEmail создаёт
+      // запись с display_name; пол и аватар проставляем здесь.
+      if (userId.isNotEmpty) {
+        await PbDataService().updateUserProfile(userId, {
+          'displayName': name,
+          'gender': _selectedGender == Gender.male ? 'male' : 'female',
+          if (finalAvatarUrl.isNotEmpty) 'avatarUrl': finalAvatarUrl,
+        });
       }
 
       // Регистрируем пользователя в приложении
@@ -257,8 +279,11 @@ class _SetupScreenState extends State<SetupScreen>
         setState(() => _isLoading = false);
         final errorMsg = e.toString();
         final s = LocaleService.current;
-        // Проверяем, не существует ли уже аккаунт с таким email
-        if (errorMsg.contains('email-already-in-use')) {
+        // Проверяем, не существует ли уже аккаунт с таким email.
+        // PB при дубле email кидает validation_not_unique в теле ответа.
+        if (errorMsg.contains('email-already-in-use') ||
+            errorMsg.contains('validation_not_unique') ||
+            errorMsg.contains('already exists')) {
           _showEmailExistsDialog();
         } else if (errorMsg.contains('TimeoutException') ||
             errorMsg.contains('network-request-failed') ||
@@ -887,6 +912,15 @@ class _SetupScreenState extends State<SetupScreen>
             icon: const _GoogleLogoSmall(),
             label: _s.continueWithGoogle,
           ),
+          // Apple Sign In button — провайдер `apple` в PB готов (iOS).
+          if (Platform.isIOS) ...[
+            const SizedBox(height: 12),
+            _buildSocialButton(
+              onPressed: _isLoading ? null : _signInWithApple,
+              icon: const Icon(Icons.apple, size: 24, color: Colors.black),
+              label: _s.continueWithApple,
+            ),
+          ],
           const SizedBox(height: 28),
           // Already have account?
           Row(

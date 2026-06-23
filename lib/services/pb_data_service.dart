@@ -220,6 +220,10 @@ class PbDataService {
     }
   }
 
+  /// ВНИМАНИЕ: НЕатомарный read-modify-write (PB не умеет серверный inc). При
+  /// одновременном изменении с двух устройств возможна гонка и дрейф счётчика
+  /// (memories_count/drawings_count/xp) — best-effort. Точный путь = серверный
+  /// атомарный inc (PB-hook/route, §6) или периодический реконсиляк по COUNT(*).
   Future<bool> incrementGroupCounter(String groupId, String col, int by) async {
     try {
       final rec = await _pb
@@ -310,6 +314,48 @@ class PbDataService {
     }
   }
 
+  /// Создаёт воспоминание (PB генерирует id). [data] — camelCase-карта (как
+  /// `Memory.toJson()`, ISO-даты). Возвращает запись или null. Используется
+  /// репозиторием на cutover, когда id генерит сервер (а не клиент).
+  Future<RecordModel?> createMemory(
+    String groupId,
+    Map<String, dynamic> data,
+  ) async {
+    if (groupId.isEmpty) return null;
+    try {
+      return await _pb.collection('memories').create(body: {
+        'group_id': groupId,
+        'type': data['type'],
+        'author_uid': data['authorUid'],
+        'author_name': data['authorName'],
+        'author_avatar': data['authorAvatar'],
+        'created_at': _iso(data['createdAt']),
+        'edited_at': _iso(data['editedAt']),
+        'is_pinned': data['isPinned'] ?? false,
+        'deleted': data['deleted'] ?? false,
+        'data': _jsonSafe(data),
+      });
+    } catch (e) {
+      debugPrint('PbData.createMemory failed: $e');
+      return null;
+    }
+  }
+
+  /// Точечное чтение воспоминания по id (deep-link пина из чата). Уважает
+  /// soft-delete: удалённое воспоминание возвращает null (как старый путь).
+  Future<RecordModel?> loadMemoryById(String id) async {
+    if (id.isEmpty) return null;
+    try {
+      return await _pb.collection('memories').getFirstListItem(
+            _pb.filter('id = {:id} && deleted = false', {'id': id}),
+          );
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return null;
+      debugPrint('PbData.loadMemoryById($id) failed: $e');
+      return null;
+    }
+  }
+
   // ══════════════════════════════════════════════ MOODS
   Future<bool> upsertMood(
     String groupId,
@@ -375,15 +421,39 @@ class PbDataService {
     }, op: 'upsertComment');
   }
 
+  /// Создаёт комментарий (PB генерирует id). Возвращает запись или null.
+  Future<RecordModel?> createComment(
+    String groupId,
+    String memoryId,
+    Map<String, dynamic> data,
+  ) async {
+    if (memoryId.isEmpty) return null;
+    try {
+      return await _pb.collection('memory_comments').create(body: {
+        'group_id': groupId,
+        'memory_id': memoryId,
+        'author_uid': data['authorUid'],
+        'author_name': data['authorName'],
+        'author_avatar': data['authorAvatar'],
+        'text': data['text'],
+        'created_at':
+            _iso(data['createdAt']) ?? DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('PbData.createComment failed: $e');
+      return null;
+    }
+  }
+
   Future<bool> deleteComment(String id) async {
     if (id.isEmpty) return false;
     try {
-      final rec = await _pb
-          .collection('memory_comments')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
-      await _pb.collection('memory_comments').delete(rec.id);
+      // id комментария = id PB-записи (createComment отдаёт rec.id) → удаляем
+      // напрямую, без лишнего getFirstListItem.
+      await _pb.collection('memory_comments').delete(id);
       return true;
     } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
       debugPrint('PbData.deleteComment($id) failed: $e');
       return false;
     }
@@ -393,7 +463,8 @@ class PbDataService {
     if (memoryId.isEmpty) return const [];
     try {
       return await _pb.collection('memory_comments').getFullList(
-            filter: _pb.filter('memory_id = {:m}', {'m': memoryId}),
+            filter: _pb.filter(
+                'memory_id = {:m} && deleted = false', {'m': memoryId}),
             sort: 'created_at',
           );
     } catch (e) {
@@ -887,6 +958,23 @@ class PbDataService {
     } catch (e) {
       debugPrint('PbData.loadCatalog($kind) failed: $e');
       return const [];
+    }
+  }
+
+  /// Минимально поддерживаемая сборка (force-update) из коллекции `app_config`.
+  /// 0 = не блокировать (нет записи / ошибка / пустое поле). Заменяет
+  /// `SupabaseService.fetchMinSupportedBuild` на cutover.
+  Future<int> fetchMinSupportedBuild() async {
+    try {
+      final res = await _pb.collection('app_config').getList(perPage: 1);
+      if (res.items.isEmpty) return 0;
+      final v = res.items.first.data['min_build'];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return 0;
+    } catch (e) {
+      debugPrint('PbData.fetchMinSupportedBuild failed: $e');
+      return 0;
     }
   }
 

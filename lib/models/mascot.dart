@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'level.dart';
 
@@ -117,6 +118,26 @@ class Mascot {
       createdAt: createdAt,
       isDefault: data['isDefault'] as bool? ?? false,
       recordStreak: (data['recordStreak'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// PocketBase-запись (коллекция `mascots`) → модель. id маскота лежит в
+  /// колонке `mascot_id` (rec.id — это авто-id PB). Пустые text-поля PB отдаёт
+  /// как `''` → коэрсим в null, иначе `hasImage` ложно-true для дефолтных.
+  factory Mascot.fromPb(RecordModel rec) {
+    final d = rec.data;
+    String? nz(dynamic v) =>
+        (v == null || (v is String && v.isEmpty)) ? null : v.toString();
+    return Mascot(
+      id: (d['mascot_id'] ?? '').toString(),
+      name: (d['name'] ?? '').toString(),
+      imageUrl: nz(d['image_url']),
+      defaultAsset: nz(d['default_asset']),
+      createdBy: (d['created_by'] ?? '').toString(),
+      createdAt:
+          DateTime.tryParse((d['created_at'] ?? '').toString()) ?? DateTime.now(),
+      isDefault: d['is_default'] == true,
+      recordStreak: (d['record_streak'] as num?)?.toInt() ?? 0,
     );
   }
 

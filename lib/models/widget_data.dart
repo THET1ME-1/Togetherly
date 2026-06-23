@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'mood_entry.dart';
 
 /// Данные, которые пользователь делится через парный виджет.
@@ -115,6 +116,37 @@ class WidgetData {
       musicCoverUrl: data['musicCoverUrl'],
       gender: data['gender'] ?? '',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  /// PocketBase-запись (коллекция `widget_data`) → модель. Плоские snake_case
+  /// колонки; uid = `user_uid`. Пустые text-поля PB отдаёт как `''` → nullable
+  /// слоты (photo/music) коэрсим в null, чтобы `hasPhoto`/`hasMusic` не врали.
+  factory WidgetData.fromPb(RecordModel rec) {
+    final d = rec.data;
+    String? nz(dynamic v) =>
+        (v == null || (v is String && v.isEmpty)) ? null : v.toString();
+    List<String> strList(dynamic v) =>
+        v is List ? v.map((e) => e.toString()).toList() : const <String>[];
+    return WidgetData(
+      uid: (d['user_uid'] ?? '').toString(),
+      displayName: (d['display_name'] ?? '').toString(),
+      avatarUrl: (d['avatar_url'] ?? '').toString(),
+      status: (d['status'] ?? '').toString(),
+      moodEmoji: (d['mood_emoji'] ?? '').toString(),
+      moodLabel: (d['mood_label'] ?? '').toString(),
+      message: (d['message'] ?? '').toString(),
+      photoUrl: nz(d['photo_url']),
+      photoForPartnerUrl: nz(d['photo_for_partner_url']),
+      photoForPartnerUrls: strList(d['photo_for_partner_urls']),
+      photoGridCount: (d['photo_grid_count'] as num?)?.toInt() ?? 1,
+      photoGridUrls: strList(d['photo_grid_urls']),
+      musicTitle: nz(d['music_title']),
+      musicArtist: nz(d['music_artist']),
+      musicUrl: nz(d['music_url']),
+      musicCoverUrl: nz(d['music_cover_url']),
+      gender: (d['gender'] ?? '').toString(),
+      updatedAt: DateTime.tryParse((d['updated_at'] ?? '').toString()),
     );
   }
 

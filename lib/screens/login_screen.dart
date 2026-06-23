@@ -1,9 +1,10 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user_data.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
 
 import 'home_screen.dart';
@@ -53,8 +54,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final fb = FirebaseService();
-      final user = await fb.signInWithEmailPassword(
+      final auth = PbAuthService();
+      final user = await auth.signInWithEmail(
         email: email,
         password: password,
       );
@@ -65,17 +66,15 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Load user profile from Firestore — force server fetch to bypass stale cache
-      final profile = await fb.loadUserProfile(fromServer: true);
+      // Профиль из записи users PocketBase (camelCase — как раньше Firestore).
+      final profile = auth.currentProfile();
 
       if (profile != null &&
           profile['displayName'] != null &&
           profile['gender'] != null) {
         final displayName = profile['displayName'] as String;
-        final userEmail = profile['email'] as String? ?? user.email ?? '';
-        final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
-        final avatarUrl =
-            firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
+        final userEmail = profile['email'] as String? ?? '';
+        final avatarUrl = profile['avatarUrl'] as String? ?? '';
         final genderStr = profile['gender'] as String;
         final gender = genderStr == 'male' ? Gender.male : Gender.female;
 
@@ -87,8 +86,8 @@ class _LoginScreenState extends State<LoginScreen> {
           isReturningUser: true, // Login - don't clear existing data
         );
 
-        // Устанавливаем статус "онлайн" после входа
-        fb.setOnlineStatus(true);
+        // TODO(pb-cutover): статус «онлайн» (presence) переедет на PB-слой
+        // (heartbeat+TTL) вместе с data/realtime-срезом — см. CUTOVER §3.
 
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
@@ -135,20 +134,18 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final fb = FirebaseService();
-      final user = await fb.signInWithGoogle();
+      final auth = PbAuthService();
+      final user = await auth.signInWithGoogle();
 
       if (user != null) {
-        final profile = await fb.loadUserProfile(fromServer: true);
+        final profile = auth.currentProfile();
 
         if (profile != null &&
             profile['displayName'] != null &&
             profile['gender'] != null) {
           final displayName = profile['displayName'] as String;
-          final email = profile['email'] as String? ?? user.email ?? '';
-          final firestoreAvatar = profile['avatarUrl'] as String? ?? '';
-          final avatarUrl =
-              firestoreAvatar.isNotEmpty ? firestoreAvatar : (user.photoURL ?? '');
+          final email = profile['email'] as String? ?? '';
+          final avatarUrl = profile['avatarUrl'] as String? ?? '';
           final genderStr = profile['gender'] as String;
           final gender = genderStr == 'male' ? Gender.male : Gender.female;
 
@@ -159,9 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
             avatarUrl: avatarUrl,
             isReturningUser: true, // Login - don't clear existing data
           );
-
-          // Устанавливаем статус "онлайн" после входа
-          fb.setOnlineStatus(true);
 
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
@@ -200,6 +194,63 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Вход через Apple (OAuth2 web-flow PocketBase). Логика идентична Google:
+  /// есть профиль с полом → домой, иначе → setup.
+  Future<void> _signInWithApple() async {
+    setState(() => _isLoading = true);
+    try {
+      final auth = PbAuthService();
+      final user = await auth.signInWithApple();
+
+      if (user != null) {
+        final profile = auth.currentProfile();
+
+        if (profile != null &&
+            profile['displayName'] != null &&
+            profile['gender'] != null) {
+          final displayName = profile['displayName'] as String;
+          final email = profile['email'] as String? ?? '';
+          final avatarUrl = profile['avatarUrl'] as String? ?? '';
+          final genderStr = profile['gender'] as String;
+          final gender = genderStr == 'male' ? Gender.male : Gender.female;
+
+          await widget.userData.register(
+            displayName: displayName,
+            email: email,
+            gender: gender,
+            avatarUrl: avatarUrl,
+            isReturningUser: true,
+          );
+
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (_, _, _) => HomeScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, _, child) =>
+                  FadeTransition(opacity: animation, child: child),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+        } else {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (_, _, _) => SetupScreen(userData: widget.userData),
+              transitionsBuilder: (_, animation, _, child) =>
+                  FadeTransition(opacity: animation, child: child),
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+        }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      _showError(LocaleService.current.googleLoginError(e.toString()));
+    }
+  }
+
   Future<void> _sendPasswordReset() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
@@ -207,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     try {
-      await FirebaseService().sendPasswordResetEmail(email);
+      await PbAuthService().sendPasswordReset(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -492,6 +543,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: const _GoogleLogo(size: 22),
                     label: _s.continueWithGoogle,
                   ),
+                  // Apple button — провайдер `apple` в PB готов (iOS).
+                  if (Platform.isIOS) ...[
+                    const SizedBox(height: 12),
+                    _SocialButton(
+                      onPressed: _isLoading ? null : _signInWithApple,
+                      icon: const Icon(Icons.apple, size: 24, color: Colors.black),
+                      label: _s.continueWithApple,
+                    ),
+                  ],
                   const SizedBox(height: 28),
                   // Register link
                   Row(

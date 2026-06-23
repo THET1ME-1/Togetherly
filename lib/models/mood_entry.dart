@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:pocketbase/pocketbase.dart';
 import '../services/locale_service.dart';
 
 /// Предустановленные настроения с цветами.
@@ -278,6 +279,20 @@ class MoodEntry {
     label: json['label'] as String? ?? '',
     timestamp: (json['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
   );
+
+  /// PocketBase-запись (коллекция `mood_entries`) → модель. Плоские snake_case
+  /// колонки; id = id записи; timestamp — ISO-строка.
+  factory MoodEntry.fromPb(RecordModel rec) {
+    final d = rec.data;
+    return MoodEntry(
+      id: rec.id,
+      moodId: (d['mood_id'] ?? '').toString(),
+      imagePath: (d['image_path'] ?? '').toString(),
+      label: (d['label'] ?? '').toString(),
+      timestamp:
+          DateTime.tryParse((d['timestamp'] ?? '').toString()) ?? DateTime.now(),
+    );
+  }
 
   /// Дневной ключ для группировки (yyyy-MM-dd)
   String get dayKey {

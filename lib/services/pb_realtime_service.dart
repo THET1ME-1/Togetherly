@@ -40,6 +40,12 @@ class PbRealtimeService {
   }) {
     final byId = <String, RecordModel>{};
     UnsubscribeFunc? unsub;
+    // Гонка: слушатель может отписаться (onCancel), пока ещё идёт начальная
+    // загрузка/подписка в start(). Тогда unsub ещё null → onCancel ничего не
+    // отменяет, а subscribe() резолвится позже и оставляет живую SSE-подписку
+    // навсегда (утечка). Флаг закрывает гонку: если отменили во время старта,
+    // только что созданную подписку рвём и не сохраняем.
+    var cancelled = false;
     late StreamController<List<RecordModel>> ctrl;
 
     List<RecordModel> snapshot() {
@@ -52,11 +58,12 @@ class PbRealtimeService {
       try {
         final initial =
             await _pb.collection(collection).getFullList(filter: filter);
+        if (cancelled) return;
         byId
           ..clear()
           ..addEntries(initial.map((r) => MapEntry(r.id, r)));
         if (!ctrl.isClosed) ctrl.add(snapshot());
-        unsub = await _pb.collection(collection).subscribe(
+        final u = await _pb.collection(collection).subscribe(
           '*',
           (e) {
             final rec = e.record;
@@ -70,6 +77,11 @@ class PbRealtimeService {
           },
           filter: filter,
         );
+        if (cancelled) {
+          await u(); // отменили, пока подписывались — рвём и не сохраняем
+          return;
+        }
+        unsub = u;
       } catch (err) {
         debugPrint('PbRealtime.watchList($collection) failed: $err');
         if (!ctrl.isClosed) ctrl.addError(err);
@@ -79,6 +91,7 @@ class PbRealtimeService {
     ctrl = StreamController<List<RecordModel>>.broadcast(
       onListen: start,
       onCancel: () async {
+        cancelled = true;
         await unsub?.call();
         unsub = null;
       },
@@ -89,12 +102,14 @@ class PbRealtimeService {
   /// Живой одиночный документ по id (напр. group-doc). delete → null.
   Stream<RecordModel?> watchRecord(String collection, String id) {
     UnsubscribeFunc? unsub;
+    var cancelled = false; // та же гонка отписки-во-время-старта, что в watchList
     late StreamController<RecordModel?> ctrl;
 
     Future<void> start() async {
       try {
         try {
           final rec = await _pb.collection(collection).getOne(id);
+          if (cancelled) return;
           if (!ctrl.isClosed) ctrl.add(rec);
         } on ClientException catch (e) {
           if (e.statusCode == 404) {
@@ -103,13 +118,19 @@ class PbRealtimeService {
             rethrow;
           }
         }
-        unsub = await _pb.collection(collection).subscribe(id, (e) {
+        if (cancelled) return;
+        final u = await _pb.collection(collection).subscribe(id, (e) {
           if (e.action == 'delete') {
             if (!ctrl.isClosed) ctrl.add(null);
           } else if (!ctrl.isClosed) {
             ctrl.add(e.record);
           }
         });
+        if (cancelled) {
+          await u();
+          return;
+        }
+        unsub = u;
       } catch (err) {
         debugPrint('PbRealtime.watchRecord($collection/$id) failed: $err');
         if (!ctrl.isClosed) ctrl.addError(err);
@@ -119,6 +140,7 @@ class PbRealtimeService {
     ctrl = StreamController<RecordModel?>.broadcast(
       onListen: start,
       onCancel: () async {
+        cancelled = true;
         await unsub?.call();
         unsub = null;
       },

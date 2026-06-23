@@ -15,9 +15,7 @@ import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'config/migration_config.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
@@ -27,7 +25,9 @@ import 'services/live_location_service.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
-import 'services/supabase_service.dart';
+import 'services/pocketbase_service.dart';
+import 'services/pb_auth_service.dart';
+import 'services/pb_data_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/force_update_screen.dart';
@@ -242,6 +242,15 @@ void main() async {
   // шрифта при старте и офлайн-ошибки «Failed to load font».
   GoogleFonts.config.allowRuntimeFetching = false;
 
+  // PocketBase — поднимаем клиент и восстанавливаем сессию из SharedPreferences
+  // (миграция Firebase→PB). Сессия переживает перезапуск процесса. signInSilently
+  // лишь освежает токен, если он валиден. Firebase пока инициализируется рядом:
+  // остальные слои (данные/realtime/медиа/пуш) ещё на нём — его инициализацию,
+  // Crashlytics, Messaging и Supabase убираем ПОСЛЕДНИМ шагом cutover'а, когда
+  // все слои переведены (см. pocketbase/CUTOVER.md §1, §7).
+  await PocketBaseService().init();
+  await PbAuthService().signInSilently();
+
   // Firebase — инициализация
   await Firebase.initializeApp();
 
@@ -273,62 +282,11 @@ void main() async {
     FirebaseCrashlytics.instance.setUserIdentifier(FirebaseService().uid ?? ''),
   );
 
-  // Supabase — инициализируем рядом с Firebase.
-  // Пока credentials не заполнены в MigrationConfig — пропускаем без ошибок.
-  // Оборачиваем в try/catch: Supabase — опциональный слой миграции, и его падение
-  // на старте (нет сети, неверные credentials, отключённый Third-Party Auth) НЕ
-  // должно ронять запуск всего приложения до runApp (это выглядело бы как
-  // «приложение само вылетает»). Firebase-путь продолжает работать.
-  if (MigrationConfig.isConfigured) {
-    try {
-    await Supabase.initialize(
-      url: MigrationConfig.supabaseUrl,
-      publishableKey: MigrationConfig.supabasePublishableKey,
-      // Личность для Supabase = Firebase ID-токен. Supabase проверяет его
-      // через Third-Party Auth (Firebase) и кладёт Firebase UID в
-      // auth.jwt()->>'sub' — на этом стоит вся защита RLS (см. supabase/
-      // security.sql). Callback зовётся на каждый запрос → токен всегда свежий;
-      // null до логина → анонимный доступ (RLS вернёт пусто).
-      // ВАЖНО: работает ТОЛЬКО если в панели Supabase включён Third-Party Auth
-      // → Firebase. Иначе токен отвергается и все Supabase-вызовы падают.
-      accessToken: () async {
-        // Быстрый путь: сессия уже поднята (после первого успеха — мгновенно).
-        var user = FirebaseAuth.instance.currentUser;
-        if (user == null) {
-          // Сессия ещё не прикреплена. Раньше здесь ждали authReady лишь 3 сек и
-          // при null возвращали анонимный токен — но authReady завершается и по
-          // 2-сек грейсу для гостя, так что у зарегистрированного аккаунта на
-          // холодном старте (особенно после обновления) запрос уходил анонимно →
-          // RLS отдаёт 0 строк → «всё сбросилось». Поэтому теперь: для
-          // ЗАРЕГИСТРИРОВАННОГО локально аккаунта дожидаемся восстановления
-          // личности, а не читаем анонимно. Настоящий гость → null сразу.
-          final prefs = await SharedPreferences.getInstance();
-          final registered = prefs.getBool('isRegistered') ?? false;
-          if (!registered) return null;
-          user = await FirebaseService()
-              .awaitRestoredUser(const Duration(seconds: 15));
-          if (user == null) {
-            // Восстановить не удалось — лучше не отдавать анонимный токен (пустой
-            // экран). Бросаем: supabase_flutter повторит колбэк на следующем
-            // запросе, к тому времени сессия обычно уже поднимется.
-            throw StateError('auth session not ready');
-          }
-        }
-        // Перед самым первым запросом сессии дожидаемся, чтобы в токен попал
-        // claim role=authenticated. Без него Supabase даёт роль anon и RLS
-        // отбивает все dual-write (42501). Колбэк зовётся перед каждым запросом
-        // и блокирует его до выдачи claim → ни один dual-write не уходит anon'ом.
-        // Идемпотентно: после первого успеха возвращает управление мгновенно.
-        await FirebaseService().ensureSupabaseRole();
-        return await user.getIdToken();
-      },
-    );
-    } catch (e, st) {
-      debugPrint('Supabase init failed (продолжаем на Firebase): $e');
-      FirebaseCrashlytics.instance
-          .recordError(e, st, reason: 'Supabase.initialize', fatal: false);
-    }
-  }
+  // Supabase убран (миграция на PocketBase). Прежний слой Supabase был
+  // переходным экспериментом дуал-райта; его инициализация удалена. Все вызовы
+  // SupabaseService защищены `isReady` и становятся no-op без init, так что
+  // FirebaseService продолжает работать на Firebase до полного перехода на PB.
+  // Force-update порог теперь читается из PocketBase (`app_config.min_build`).
 
   // Google UMP + AdMob — consent должен быть получен ДО инициализации SDK
   if (Platform.isAndroid || Platform.isIOS) {
@@ -446,7 +404,7 @@ class LoveApp extends StatefulWidget {
 class _LoveAppState extends State<LoveApp> {
   final UserData _userData = UserData();
   bool _loading = true;
-  // Установленная сборка ниже минимально поддерживаемой (Supabase
+  // Установленная сборка ниже минимально поддерживаемой (PocketBase
   // app_config.min_build) → блокирующий экран обновления. fail-open: при любой
   // ошибке/без конфига остаётся false и никого не блокирует.
   bool _forceUpdate = false;
@@ -574,12 +532,13 @@ class _LoveAppState extends State<LoveApp> {
 
   Future<void> _init() async {
     try {
-      // Force-update kill-switch: если сборка ниже min_build из Supabase —
-      // дальше покажем блокирующий ForceUpdateScreen. Только Android (на iOS
-      // обновления гонит App Store). fail-open: minBuild=0 ⇒ не блокируем.
+      // Force-update kill-switch: если сборка ниже min_build из PocketBase
+      // (`app_config`) — дальше покажем блокирующий ForceUpdateScreen. Только
+      // Android (на iOS обновления гонит App Store). fail-open: minBuild=0 ⇒ не
+      // блокируем.
       if (Platform.isAndroid) {
         try {
-          final minBuild = await SupabaseService().fetchMinSupportedBuild();
+          final minBuild = await PbDataService().fetchMinSupportedBuild();
           if (minBuild > 0) {
             final info = await PackageInfo.fromPlatform();
             final current = int.tryParse(info.buildNumber) ?? 0;
