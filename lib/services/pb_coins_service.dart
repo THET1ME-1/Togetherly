@@ -11,8 +11,9 @@ import 'pocketbase_service.dart';
 /// (`{ok, coins, awarded?, ownedThemes?, ...}`) → `UserData._applyServerResult`
 /// читает результат без изменений.
 ///
-/// НЕ покрыто (отдельные серверные хуки, нужна валидация магазина): IAP
-/// (`grantCoinsPurchase` — Play/RuStore) и AdMob SSV-callback.
+/// IAP (`iap-purchase`) — на PB-хуке: whitelist productId + идемпотентность по
+/// purchaseToken (как в прежней Firebase-функции, реальной Play-валидации нет).
+/// НЕ покрыто: AdMob SSV-callback (нужна серверная проверка подписи AdMob).
 class PbCoinsService {
   PbCoinsService._();
   static final PbCoinsService instance = PbCoinsService._();
@@ -53,4 +54,14 @@ class PbCoinsService {
       _call('purchase-feature', {'featureId': featureId});
   Future<Map<String, dynamic>?> spend(String actionId) =>
       _call('spend', {'actionId': actionId});
+
+  /// Начисление коинов после подтверждённой магазином IAP-покупки.
+  /// Идемпотентность — по [purchaseToken] на сервере.
+  Future<Map<String, dynamic>?> iapPurchase({
+    required String productId,
+    required String purchaseToken,
+  }) => _call('iap-purchase', {
+    'productId': productId,
+    'purchaseToken': purchaseToken,
+  });
 }

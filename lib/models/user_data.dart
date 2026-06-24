@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/firebase_service.dart';
 import '../services/pb_coins_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
@@ -45,8 +44,6 @@ class UserData extends ChangeNotifier {
 
   /// Монет за один просмотр рекламы (зеркало AD_REWARD_AMOUNT на сервере)
   static const int adRewardAmount = 3;
-
-  final FirebaseService _fb = FirebaseService();
 
   // ── Getters ──
   String get displayName => _displayName;
@@ -389,15 +386,15 @@ class UserData extends ChangeNotifier {
   /// Начисляет монеты после успешной IAP-покупки.
   ///
   /// Вызывается из [IapService] после того, как магазин подтвердил транзакцию.
-  /// Передаёт [productId] и [purchaseToken] на сервер; сервер валидирует
-  /// idempotency и начисляет монеты в Firestore.
+  /// Передаёт [productId] и [purchaseToken] на PB-хук; сервер валидирует
+  /// idempotency и начисляет монеты.
   ///
   /// Возвращает новый баланс или null при сетевой / серверной ошибке.
   Future<int?> purchaseCoins({
     required String productId,
     required String purchaseToken,
   }) async {
-    final r = await _fb.callGrantCoinsPurchase(
+    final r = await PbCoinsService().iapPurchase(
       productId: productId,
       purchaseToken: purchaseToken,
     );

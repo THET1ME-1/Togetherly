@@ -66,7 +66,6 @@ dependencies:
   yandex_mobileads: ^7.6.0
   in_app_purchase: ^3.2.0
   firebase_database: ^11.3.10
-  supabase_flutter: ^2.8.0
   connectivity_plus: ^7.1.1
   flutter_rustore_billing: ^9.0.0
   pocketbase: ^0.24.0

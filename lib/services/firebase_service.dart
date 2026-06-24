@@ -14,8 +14,6 @@ import 'package:home_widget/home_widget.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
 import 'pb_media_service.dart';
-import 'supabase_service.dart';
-import '../config/migration_config.dart';
 
 /// URL базы Realtime Database (регион europe-west1 — не дефолтный).
 /// Presence (онлайн/lastSeen) живёт в RTDB, а не в Firestore: статус меняется
@@ -46,15 +44,6 @@ class FirebaseService {
 
   DatabaseReference _presenceRef(String uid) => _rtdb.ref('presence/$uid');
 
-  // Завершается, когда Firebase Auth восстановил сессию на старте (первое
-  // непустое событие authStateChanges) ЛИБО истёк короткий грейс (юзер
-  // разлогинен). accessToken-колбэк Supabase (main.dart) ждёт его ПЕРЕД выдачей
-  // токена — иначе первые запросы холодного старта уходят анонимно (currentUser
-  // ещё null) и RLS их отбивает (см. _write / «not a group member»).
-  final Completer<void> _authReady = Completer<void>();
-  Future<void> get authReady => _authReady.future;
-
-
   // In-memory cache — eliminates repeated users/{uid} reads on hot paths.
   String? _cachedDisplayName;
   String? _cachedAvatarUrl;
@@ -66,45 +55,6 @@ class FirebaseService {
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => _auth.currentUser != null;
   String? get uid => _auth.currentUser?.uid;
-
-  // ══════════════════════════════════════════════
-  //  МИГРАЦИЯ Supabase (Фаза 1)
-  // ══════════════════════════════════════════════
-
-  final SupabaseService _sb = SupabaseService();
-
-  /// true — текущий пользователь участвует в Фазе 1 миграции:
-  /// его данные зеркалятся в Supabase (dual-write) и читаются оттуда.
-  bool get _mig =>
-      MigrationConfig.isConfigured &&
-      MigrationConfig.isPhase1User(_auth.currentUser?.email);
-
-  /// Сессионный снапшот «смешанных» групп (партнёр на СТАРОЙ версии по вердикту
-  /// прошлой сессии). Грузится из prefs на старте и НЕ меняется в течение сессии
-  /// (источник чтения стабилен, без mid-session ребинда). Дефолт — пусто, т.е.
-  /// все группы (включая свежие установки) читают Supabase; сюда попадают только
-  /// пары, где партнёр подтверждён старым. См. [_readSb], [_kGroupMixedPersist].
-  final Set<String> _sessionMixedGroups = {};
-
-  /// Можно ли ЧИТАТЬ эту группу из Supabase (Stage 3). НОВАЯ МОДЕЛЬ: Supabase —
-  /// дефолт для всех мигрирующих пользователей (в т.ч. свежих установок из
-  /// Google Play — сразу, без «ждать следующей сессии»). На Firebase откатываемся
-  /// ТОЛЬКО когда compat-резолв прошлой сессии увидел партнёра на СТАРОЙ версии
-  /// (группа в [_sessionMixedGroups]) — тогда оба держатся на Firebase, пока
-  /// партнёр не обновится. Решение стабильно в течение сессии (без mid-session
-  /// ребинда листенеров); связь при подключении лишь обновляет персист-отметку
-  /// для следующего старта. Пустой groupId/per-user чтения никогда не флипаются.
-  /// Запись при этом остаётся дуальной (см. [_writeFb]), пока оба партнёра не
-  /// подтвердят чтение из Supabase — старый партнёр продолжает видеть наши данные.
-  bool _readSb(String groupId) =>
-      MigrationConfig.stage3ReadFromSupabase &&
-      _mig &&
-      groupId.isNotEmpty &&
-      !_sessionMixedGroups.contains(groupId);
-
-  /// Публичный гейт миграции — нужен другим сервисам (WidgetService /
-  /// HomeWidgetService), чтобы маршрутизировать чтения widget_data в Supabase.
-  bool get isMigrationUser => _mig;
 
   /// Cached display name — use this instead of reading users/{uid} from Firestore.
   String get displayName =>
@@ -499,53 +449,9 @@ class FirebaseService {
     }
   }
 
-  // ── Коины: серверная логика ─────────────────────────────────────────────
-  // Клиент НЕ может писать coins/ownedThemes/devCoinsGranted/lastDailyBonusAt/
-  // adRewardsDate напрямую. Начисления/списания идут только через сервер:
-  //   • _mig-юзеры → Supabase Postgres RPC (supabase/coins.sql), Cloud Functions
-  //     для них не нужны;
-  //   • остальные → Firebase Cloud Functions (functions/index.js).
-
+  // Cloud Functions — остался ТОЛЬКО getSignedUrl (подпись legacy gs://-медиа
+  // до §8). Коины полностью на PocketBase (pb_coins_service + pb_hooks).
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
-
-  Future<Map<String, dynamic>?> _callCoinFn(
-    String name, [
-    Map<String, dynamic>? data,
-  ]) async {
-    final u = currentUser;
-    if (u == null) return null;
-    // Stage 2: коины через Firebase Cloud Functions (баланс — Firebase, как у
-    // старой версии). Stage 3 (_readSb) — через Supabase RPC.
-    if (_readSb('')) {
-      return _sb.callCoinRpc(name, u.uid, data ?? const {});
-    }
-    try {
-      final res = await _functions
-          .httpsCallable(name)
-          .call<Map<dynamic, dynamic>>(data ?? const {})
-          .timeout(const Duration(seconds: 15));
-      return Map<String, dynamic>.from(res.data);
-    } on FirebaseFunctionsException catch (e) {
-      debugPrint('$name failed: ${e.code} ${e.message}');
-      return null;
-    } catch (e) {
-      debugPrint('$name failed: $e');
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>?> callGrantCoinsPurchase({
-    required String productId,
-    required String purchaseToken,
-  }) => _callCoinFn('grantCoinsPurchase', {
-    'productId': productId,
-    'purchaseToken': purchaseToken,
-  });
-
-  // ══════════════════════════════════════════════
-  //  MEMORIES — shared timeline for each group
-  //  Firestore: groups/{groupId}/memories/{memoryId}
-  // ══════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════════════════════════════
   // FILE UPLOAD (Storage)
@@ -570,9 +476,6 @@ class FirebaseService {
     if (PbMediaService().isPbRef(url)) {
       return (await PbMediaService().resolveUrlAuthed(url)) ?? url;
     }
-    if (url.startsWith('sb://')) {
-      return (await getSignedUrl(url)) ?? url;
-    }
     if (url.startsWith('gs://')) {
       final bare = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
       return (await getSignedUrl(bare)) ?? url;
@@ -584,11 +487,6 @@ class FirebaseService {
     if (path.isEmpty) return null;
     // Обратная совместимость: старые записи хранят download URL
     if (path.startsWith('http')) return path;
-    // Фаза 1: Supabase Storage
-    if (path.startsWith('sb://')) {
-      debugPrint('[SB] getSignedUrl: resolving $path');
-      return _sb.getStorageSignedUrl(path);
-    }
     debugPrint('[FB] getSignedUrl: calling Cloud Function for $path');
 
     final cached = _signedUrlCache[path];
@@ -617,12 +515,8 @@ class FirebaseService {
     return null;
   }
 
-  /// Удалить файл из Firebase Storage (gs:// / https://) или Supabase (sb://).
+  /// Удалить файл из Firebase Storage (gs:// / https://).
   Future<void> deleteFileByUrl(String url) async {
-    if (url.startsWith('sb://')) {
-      await _sb.deleteStorageFile(url);
-      return;
-    }
     try {
       final ref = _storage.refFromURL(url);
       await ref.delete();
