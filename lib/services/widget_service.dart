@@ -27,8 +27,6 @@ import 'pocketbase_service.dart';
 /// [MoodRepository]. `FirebaseService` остаётся ТОЛЬКО под медиа (загрузка фото в
 /// Storage + signed-URL для скачивания gs:///sb:// в нативный виджет) — медиа §4.
 class WidgetService extends ChangeNotifier {
-  /// Только медиа (§4): uploadFile (фото виджета) + getSignedUrl (_downloadPhoto).
-  final FirebaseService _fb = FirebaseService();
   final PbDataService _data = PbDataService();
   final PbRealtimeService _rt = PbRealtimeService();
   bool _isDisposed = false;

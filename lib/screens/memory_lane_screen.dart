@@ -113,7 +113,6 @@ class MemoryLaneScreen extends StatefulWidget {
 class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   Color get primary => widget.theme.primary;
 
-  final FirebaseService _fb = FirebaseService();
   final MemoryRepository _memRepo = MemoryRepository();
 
   /// Текущий uid = PocketBase (auth уже на PB). Firebase-сессии под PB-входом

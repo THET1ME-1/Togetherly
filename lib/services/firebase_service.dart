@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 // Transaction скрыт: коллизия имён с firebase_database (RTDB-транзакция в
 // _seedMissYouCountsIfEmpty). Firestore-транзакции используют выводимый тип
 // колбэка `(tx)`, поэтому имя Transaction из cloud_firestore тут не нужно.
@@ -1287,34 +1286,6 @@ class FirebaseService {
 
   /// Публично для сервисов (ChatService): писать ли данные группы в Firebase.
   bool writeToFirebase(String groupId) => _writeFb(groupId);
-
-  /// Извлекает groupId из storage-пути группового медиа. Для ВСЕХ групповых
-  /// префиксов (memories/, music/, timer_backgrounds/, widget/, groups/) groupId —
-  /// второй сегмент пути. Негрупповые пути (avatars/ — per-user) → null.
-  String? _groupIdFromStoragePath(String path) {
-    final parts = path.split('/');
-    if (parts.length < 2 || parts[1].isEmpty) return null;
-    switch (parts[0]) {
-      case 'memories':
-      case 'music':
-      case 'timer_backgrounds':
-      case 'widget':
-      case 'groups':
-        return parts[1];
-      default:
-        return null; // avatars/ и прочее — не групповое
-    }
-  }
-
-  /// Куда писать НОВОЕ медиа группы: в Supabase, если группа ПОЛНОСТЬЮ
-  /// мигрирована (тот же гейт, что у данных — `!_writeFb`, т.е. Stage 4 активен
-  /// и оба партнёра на новой сборке). Медиа флипается синхронно с данными, чтобы
-  /// откат оставался согласованным. Негрупповые пути (аватары) и
-  /// не-мигрированные/смешанные группы → Firebase (общий источник).
-  bool _uploadGroupMediaToSupabase(String storagePath) {
-    final gid = _groupIdFromStoragePath(storagePath);
-    return gid != null && !_writeFb(gid);
-  }
 
   /// Помечает группу «со следующей сессии читать из Supabase» — ТОЛЬКО когда
   /// compat-резолв подтвердил, что оба партнёра на новой сборке
