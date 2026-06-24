@@ -26,6 +26,14 @@ TIMESTAMPTZ→date, JSONB→json. Колонка-генератор `gc` из ca
 её роль (составной индекс) выполняет прямой индекс по (group_id,canvas_id,...).
 
 Запуск:  python3 pocketbase/gen_schema.py  →  pocketbase/collections_schema.json
+
+⚠️ ВНИМАНИЕ: `collections_schema.json` РАЗОШЁЛСЯ с этим генератором — в него
+ПОСЛЕ генерации добавлены вручную/скриптами: коллекция `invite_codes`, поле
+`groups.member_ailments`, и ACL-ПРАВИЛА всех коллекций (см. `apply_acl.py` —
+изоляция по членству в паре). ПОВТОРНЫЙ ЗАПУСК gen_schema.py ЗАТРёТ всё это.
+Не регенерировать вслепую: либо сперва портировать эти изменения сюда, либо
+править `collections_schema.json` напрямую (он — фактический источник для apply).
+Правила доступа задаются в `apply_acl.py`, не здесь.
 """
 import json
 import os
