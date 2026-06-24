@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'storage_image.dart';
-import '../services/firebase_service.dart';
+import '../services/pocketbase_service.dart';
+import '../services/pb_auth_service.dart';
 
 /// Unified avatar widget used everywhere a user picture is displayed.
 ///
 /// Resolution order:
-///   1. For the current user → FirebaseService.avatarUrl (in-memory, always fresh)
+///   1. For the current user → PocketBase profile avatarUrl (in-memory, always fresh)
 ///   2. [liveUrl] — caller-supplied live URL (e.g. from group memberAvatars)
 ///   3. [fallbackUrl] — snapshot stored inside the memory/comment document
 ///   4. Initials placeholder built from [name]
@@ -30,9 +31,9 @@ class AvatarWidget extends StatelessWidget {
   });
 
   String _resolveUrl() {
-    final fb = FirebaseService();
-    if (uid == fb.uid) {
-      final cached = fb.avatarUrl;
+    if (uid == PocketBaseService().userId) {
+      final cached =
+          (PbAuthService().currentProfile()?['avatarUrl'] as String?) ?? '';
       if (cached.isNotEmpty) return cached;
     }
     if (liveUrl?.isNotEmpty == true) return liveUrl!;

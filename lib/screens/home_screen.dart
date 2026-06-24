@@ -19,6 +19,8 @@ import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
 import '../services/firebase_service.dart';
 import '../services/memory_repository.dart';
+import '../services/pocketbase_service.dart';
+import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/update_service.dart';
@@ -144,8 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _timerService.init();
     _initPairData();
 
-    // Устанавливаем статус «онлайн»
-    _fb.setOnlineStatus(true);
+    // TODO(pb-presence): онлайн-статус ещё не на PB (presence — поздний срез).
 
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();
@@ -1597,8 +1598,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 1. Лента воспоминаний.
       if (result.toMemories) {
-        await _fb.addMemory(
+        final me = PbAuthService().currentProfile();
+        await MemoryRepository().add(
           groupId: _pairData.pairId,
+          authorName: (me?['displayName'] as String?) ?? '',
+          authorAvatar: (me?['avatarUrl'] as String?) ?? '',
           type: MemoryType.photo,
           imageUrl: downloadUrl,
           title: result.title,

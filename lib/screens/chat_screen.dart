@@ -15,6 +15,7 @@ import '../services/chat_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/pocketbase_service.dart';
+import '../services/pb_data_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
@@ -102,14 +103,13 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final ChatService _chat = ChatService.instance;
-  final FirebaseService _fb = FirebaseService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
 
   String get _groupId => widget.pairData.pairId;
-  // Личность из PocketBase (миграция): _fb.uid пуст под PB-входом → чат не
-  // отличал бы свои сообщения (выравнивание/удаление).
+  // Личность из PocketBase: чат отличает свои сообщения по userId
+  // (выравнивание/удаление).
   String get _myUid => PocketBaseService().userId ?? '';
   AppTheme get _t => widget.theme;
 
@@ -409,13 +409,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadPins() async {
     if (_groupId.isEmpty) return;
-    final res = await _fb.loadMemories(
-      groupId: _groupId,
-      limit: 50,
-      cacheFirst: true,
-    );
+    final recs = await PbDataService().loadMemories(_groupId, limit: 50);
     if (!mounted) return;
-    setState(() => _pins = res.memories);
+    setState(() => _pins = recs.map((r) => Memory.fromPb(r)).toList());
   }
 
   String _memoryLabel(Memory m) {
@@ -1281,7 +1277,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildHeaderTitle(AppStrings s) {
     final name = widget.pairData.partnerDisplayName;
     return StreamBuilder<Map<String, dynamic>>(
-      stream: _fb.streamUserPresence(widget.pairData.partnerUid),
+      // TODO(pb-presence): онлайн-статус ещё не на PB → пока всегда оффлайн.
+      stream: Stream.value(const <String, dynamic>{}),
       builder: (context, presSnap) {
         final online = presSnap.data?['isOnline'] == true;
         final hasPres = presSnap.hasData;
