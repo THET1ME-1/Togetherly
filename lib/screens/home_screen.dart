@@ -20,6 +20,7 @@ import '../services/deep_link_service.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
+import '../services/pb_push_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
 import '../services/locale_service.dart';
@@ -208,6 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _moodStreakRewardDebounce?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
+    PbPushService().stop();
     _appLifecycleListener?.dispose();
     _mascotService.dispose();
     _timerService.removeListener(_onTimerServiceChanged);
@@ -350,6 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // limit window from Firestore — a major source of read amplification.
     if (groupChanged || _wasPaired != isPaired) {
       _startMemoryListener();
+      _updatePartnerPush(isPaired);
     }
 
     // isPaired check does NOT require startDate — mood/widget services bind
@@ -642,6 +645,24 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       onError: (e) => debugPrint('home: memory watch error: $e'),
     );
+  }
+
+  /// Уведомления о партнёре (PbPushService: SSE chat/mood/miss_you → локальные
+  /// баннеры), пока приложение открыто. Foreground-сервис для фонового пуша при
+  /// мёртвом процессе — §5 (отдельный пакет).
+  void _updatePartnerPush(bool isPaired) {
+    final myUid = PocketBaseService().userId ?? '';
+    final partnerUid = _pairData.partnerUid;
+    if (isPaired && myUid.isNotEmpty && partnerUid.isNotEmpty) {
+      PbPushService().start(
+        groupId: _pairData.pairId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+        partnerName: _pairData.partnerDisplayName,
+      );
+    } else {
+      PbPushService().stop();
+    }
   }
 
   void _onUserChanged() {

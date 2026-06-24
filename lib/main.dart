@@ -244,7 +244,9 @@ void main() async {
   };
   // Привязываем UID к отчётам, чтобы видеть, у кого именно падает.
   unawaited(
-    FirebaseCrashlytics.instance.setUserIdentifier(FirebaseService().uid ?? ''),
+    FirebaseCrashlytics.instance.setUserIdentifier(
+      PocketBaseService().userId ?? '',
+    ),
   );
 
   // Supabase убран (миграция на PocketBase). Прежний слой Supabase был
@@ -267,6 +269,7 @@ void main() async {
   if (!prefs.containsKey(kInstallKey)) {
     try {
       await FirebaseService().signOut();
+      PocketBaseService().signOut();
     } catch (_) {}
     await prefs.clear();
     await prefs.setBool(kInstallKey, true);
@@ -283,6 +286,9 @@ void main() async {
     try {
       if (FirebaseService().isLoggedIn) {
         await FirebaseService().signOut();
+      }
+      if (PocketBaseService().isLoggedIn) {
+        PocketBaseService().signOut();
       }
     } catch (_) {}
   }
@@ -311,7 +317,7 @@ void main() async {
   // product events live in AnalyticsService.
   AnalyticsService.instance;
   // Bind userId to the current auth state so events are attributable.
-  unawaited(AnalyticsService.instance.setUserId(FirebaseService().uid));
+  unawaited(AnalyticsService.instance.setUserId(PocketBaseService().userId));
 
   // Deep links — инициализация
   DeepLinkService().init();
@@ -468,21 +474,18 @@ class _LoveAppState extends State<LoveApp> {
     // Отслеживаем жизненный цикл приложения для обновления статуса присутствия
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
-        FirebaseService().setOnlineStatus(true);
+        // Онлайн-презенс ведёт PresenceService (lifecycle-aware).
         MascotInactivityNotificationService.instance.markAppOpened();
       },
       onPause: () {
-        FirebaseService().setOnlineStatus(false);
         MascotInactivityNotificationService.instance
             .scheduleReminderAfterOneDay();
       },
       onDetach: () {
-        FirebaseService().setOnlineStatus(false);
         MascotInactivityNotificationService.instance
             .scheduleReminderAfterOneDay();
       },
       onHide: () {
-        FirebaseService().setOnlineStatus(false);
         MascotInactivityNotificationService.instance
             .scheduleReminderAfterOneDay();
       },
@@ -518,21 +521,13 @@ class _LoveAppState extends State<LoveApp> {
       // серверная синхронизация коинов/тем выполняется только при уже
       // активной сессии (isLoggedIn). При тихом входе сессия поднимается
       // ниже — поэтому при wasLoggedIn == false синк надо повторить вручную.
-      final wasLoggedIn = FirebaseService().isLoggedIn;
+      final wasLoggedIn = PocketBaseService().isLoggedIn;
 
       // Загружаем локальный профиль из SharedPreferences.
       await _userData.loadFromPrefs();
 
-      // Если пользователь зарегистрирован, но Firebase Auth не имеет
-      // активной сессии (например, после перезапуска процесса),
-      // пробуем тихо восстановить Google-аккаунт без диалога.
-      if (_userData.isRegistered && !FirebaseService().isLoggedIn) {
-        debugPrint('Auth session lost, trying silent sign-in...');
-        await FirebaseService().signInSilently();
-        // Если тихий вход удался — isLoggedIn теперь true.
-        // Если нет — пользователь попадёт на экран входа после dispose
-        // пустого uid (FirebaseService запросы будут отклоняться).
-      }
+      // Тихий вход в PocketBase уже выполнен в main() до runApp
+      // (PbAuthService().signInSilently). Firebase-сессия на cutover не нужна.
 
       // Сессию подняли только что (loadFromPrefs синк пропустил, т.к. на тот
       // момент мы не были залогинены) → подтягиваем авторитетный баланс/темы
@@ -542,14 +537,11 @@ class _LoveAppState extends State<LoveApp> {
       // «монеты пропадают/возвращаются, награды и покупки не сохраняются».
       if (!wasLoggedIn &&
           _userData.isRegistered &&
-          FirebaseService().isLoggedIn) {
+          PocketBaseService().isLoggedIn) {
         await _userData.syncFromServer();
       }
 
-      // Устанавливаем статус "онлайн" при запуске
-      if (FirebaseService().isLoggedIn) {
-        FirebaseService().setOnlineStatus(true);
-      }
+      // Онлайн-презенс ведёт PresenceService (стартует на home-экране).
 
       // Выдаём иконки-награды спонсорам и помощникам.
       // grantSpecialBadge только ДОБАВЛЯЕТ иконку в доступные и закрепляет её

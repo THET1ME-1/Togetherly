@@ -1,8 +1,9 @@
 import '../../../widgets/storage_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/locale_service.dart';
+import '../../../services/pb_data_service.dart';
+import '../../../models/memory.dart';
 import '../../../theme/app_theme.dart';
 
 /// Пара (url, caption) — одна фотография из ленты воспоминаний.
@@ -67,44 +68,21 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
 
   Future<void> _loadPhotos() async {
     try {
-      // NOTE: Don't combine .where() + .orderBy() in one Firestore query —
-      // that requires a composite index which may not exist.
-      // Instead: filter by type only, then sort by createdAt in Dart.
-      final snap = await FirebaseFirestore.instance
-          .collection('groups')
-          .doc(widget.groupId)
-          .collection('memories')
-          .where('type', isEqualTo: 'photo')
-          .limit(50)
-          .get();
-
-      // Sort newest-first in Dart (no composite index required)
-      final docs = snap.docs.toList()
-        ..sort((a, b) {
-          final aTs = a.data()['createdAt'];
-          final bTs = b.data()['createdAt'];
-          if (aTs == null && bTs == null) return 0;
-          if (aTs == null) return 1;
-          if (bTs == null) return -1;
-          final aTime = (aTs as Timestamp).toDate();
-          final bTime = (bTs as Timestamp).toDate();
-          return bTime.compareTo(aTime);
-        });
-
+      // Лента воспоминаний из PocketBase (новые сверху), фильтр «фото» в Dart.
+      final recs =
+          await PbDataService().loadMemories(widget.groupId, limit: 100);
       final photos = <_Photo>[];
-      for (final doc in docs) {
-        final data = doc.data();
-        final caption = data['caption'] as String?;
-        final url = data['imageUrl'] as String?;
+      for (final rec in recs) {
+        final m = Memory.fromPb(rec);
+        if (m.type != MemoryType.photo) continue;
+        final caption = m.caption;
+        final url = m.imageUrl;
         if (url != null && url.isNotEmpty) {
           photos.add((url: url, caption: caption));
         }
-        final urls = data['imageUrls'];
-        if (urls is List) {
-          for (final u in urls) {
-            if (u is String && u.isNotEmpty && u != url) {
-              photos.add((url: u, caption: caption));
-            }
+        for (final u in m.imageUrls ?? const <String>[]) {
+          if (u.isNotEmpty && u != url) {
+            photos.add((url: u, caption: caption));
           }
         }
       }
