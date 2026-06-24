@@ -4,6 +4,10 @@
 *.pyc
 *.swp
 .DS_Store
+
+# PII / секретные дампы — НИКОГДА не коммитить (инцидент: users.csv с хешами паролей)
+*.csv
+users.csv
 .atom/
 .build/
 .buildlog/
