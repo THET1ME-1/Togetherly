@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -28,6 +27,7 @@ import 'services/mood_pack_service.dart';
 import 'services/pocketbase_service.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
+import 'models/widget_data.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/force_update_screen.dart';
@@ -115,9 +115,11 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
   if (host.isEmpty || host != 'refresh') return;
 
   try {
-    await Firebase.initializeApp();
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // PB-фон: процесс мёртв → инициализируем клиент и восстанавливаем сессию
+    // из SharedPreferences. ⚠️ нужен валидный PB-токен (widget_data protected).
+    await PocketBaseService().init();
+    final myUid = PocketBaseService().userId ?? '';
+    if (myUid.isEmpty) return;
 
     final groupId =
         await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
@@ -125,75 +127,38 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
         await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
     if (groupId.isEmpty) return;
 
-    final db = FirebaseFirestore.instance;
-
     // Fetch my data
-    final mySnap = await db
-        .collection('groups')
-        .doc(groupId)
-        .collection('widgetData')
-        .doc(user.uid)
-        .get()
-        .timeout(const Duration(seconds: 10));
-
-    if (mySnap.exists && mySnap.data() != null) {
-      final d = mySnap.data()!;
+    final myRec = await PbDataService().loadWidget(groupId, myUid);
+    if (myRec != null) {
+      final d = WidgetData.fromPb(myRec);
       await Future.wait([
-        HomeWidget.saveWidgetData<String>(
-          'my_status',
-          d['status'] as String? ?? '',
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'my_mood',
-          d['moodLabel'] as String? ?? '',
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'my_message',
-          d['message'] as String? ?? '',
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'my_music_title',
-          d['musicTitle'] as String? ?? '',
-        ),
+        HomeWidget.saveWidgetData<String>('my_status', d.status),
+        HomeWidget.saveWidgetData<String>('my_mood', d.moodLabel),
+        HomeWidget.saveWidgetData<String>('my_message', d.message),
+        HomeWidget.saveWidgetData<String>('my_music_title', d.musicTitle ?? ''),
         HomeWidget.saveWidgetData<String>(
           'my_music_artist',
-          d['musicArtist'] as String? ?? '',
+          d.musicArtist ?? '',
         ),
       ]);
     }
 
     // Fetch partner data
     if (partnerUid.isNotEmpty) {
-      final partnerSnap = await db
-          .collection('groups')
-          .doc(groupId)
-          .collection('widgetData')
-          .doc(partnerUid)
-          .get()
-          .timeout(const Duration(seconds: 10));
-
-      if (partnerSnap.exists && partnerSnap.data() != null) {
-        final d = partnerSnap.data()!;
+      final partnerRec = await PbDataService().loadWidget(groupId, partnerUid);
+      if (partnerRec != null) {
+        final d = WidgetData.fromPb(partnerRec);
         await Future.wait([
-          HomeWidget.saveWidgetData<String>(
-            'partner_status',
-            d['status'] as String? ?? '',
-          ),
-          HomeWidget.saveWidgetData<String>(
-            'partner_mood',
-            d['moodLabel'] as String? ?? '',
-          ),
-          HomeWidget.saveWidgetData<String>(
-            'partner_message',
-            d['message'] as String? ?? '',
-          ),
+          HomeWidget.saveWidgetData<String>('partner_status', d.status),
+          HomeWidget.saveWidgetData<String>('partner_mood', d.moodLabel),
+          HomeWidget.saveWidgetData<String>('partner_message', d.message),
           HomeWidget.saveWidgetData<String>(
             'partner_music_title',
-            d['musicTitle'] as String? ?? '',
+            d.musicTitle ?? '',
           ),
           HomeWidget.saveWidgetData<String>(
             'partner_music_artist',
-            d['musicArtist'] as String? ?? '',
+            d.musicArtist ?? '',
           ),
         ]);
       }

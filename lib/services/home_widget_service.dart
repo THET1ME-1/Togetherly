@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
@@ -13,9 +12,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_service.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
-import 'supabase_service.dart';
+import 'pocketbase_service.dart';
+import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
+import '../models/widget_data.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -34,67 +35,39 @@ class HomeWidgetService {
   HomeWidgetService._();
   static final HomeWidgetService instance = HomeWidgetService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final SupabaseService _sb = SupabaseService();
+  /// Виджеты Android-only; refreshPhotoOfDay/_readWidgetData идут в ОСНОВНОМ
+  /// изоляте (нативный фоновый рефреш — отдельный путь в main.dart). PB-чтения
+  /// здесь работают на инициализированном в main клиенте.
 
-  /// Фаза 1: маршрутизировать чтения widget_data/группы в Supabase. Виджеты
-  /// Android-only, а фоновый interactivity-callback на Android не регистрируется
-  /// (см. main.dart) — поэтому эти чтения всегда идут в основном изоляте, где
-  /// Supabase инициализирован.
-  bool get _mig => FirebaseService().isMigrationUser;
-
-  /// Можно ли ЧИТАТЬ widget-данные этой группы из Supabase. Stage 3: true только
-  /// когда группа помечена в прошлой сессии (оба партнёра на новой сборке +
-  /// бэкфилл завершён, см. FirebaseService.readFromSupabase); иначе из Firebase.
-  bool _readSb(String groupId) => FirebaseService().readFromSupabase(groupId);
-
-  /// Читает widget_data одного участника (firestore-формат: те же ключи, что в
-  /// Firestore-доке) — из Supabase под [_mig], иначе из Firestore. null если
-  /// строки/документа нет.
-  Future<Map<String, dynamic>?> _readWidgetData(
+  /// Читает widget_data одного участника из PocketBase (коллекция widget_data) →
+  /// модель WidgetData. null если строки нет.
+  Future<WidgetData?> _readWidgetData(
     String groupId,
     String userUid,
   ) async {
     if (groupId.isEmpty || userUid.isEmpty) return null;
-    if (_readSb(groupId)) return _sb.loadWidgetData(groupId, userUid);
-    final doc = await _db
-        .collection('groups')
-        .doc(groupId)
-        .collection('widgetData')
-        .doc(userUid)
-        .get();
-    if (!doc.exists || doc.data() == null) return null;
-    return doc.data();
+    final rec = await PbDataService().loadWidget(groupId, userUid);
+    return rec == null ? null : WidgetData.fromPb(rec);
   }
 
-  /// Резолвит (uid, name) партнёра из участников группы — Supabase под [_mig],
-  /// иначе Firestore. Возвращает null при ошибке/отсутствии группы; uid='' если
-  /// партнёр не найден (одиночная группа).
+  /// Резолвит (uid, name) партнёра из участников группы (PocketBase pair-map).
+  /// Возвращает null при ошибке/отсутствии группы; uid='' если партнёр не
+  /// найден (одиночная группа).
   Future<({String uid, String name})?> _resolvePartnerFromGroup(
     String groupId,
     String currentUserUid,
   ) async {
     try {
-      if (_readSb(groupId)) {
-        final parsed = await _sb.loadPairById(groupId, currentUserUid);
-        if (parsed == null) return null;
-        final members = (parsed['members'] as List?) ?? const [];
-        for (final m in members) {
-          if (m is Map && m['uid'] != null && m['uid'] != currentUserUid) {
-            return (uid: m['uid'].toString(), name: (m['name'] ?? '').toString());
-          }
+      final pair =
+          await PbDataService().loadPairMapById(groupId, currentUserUid);
+      if (pair == null) return null;
+      final members = (pair['members'] as List?) ?? const [];
+      for (final m in members) {
+        if (m is Map && m['uid'] != null && m['uid'] != currentUserUid) {
+          return (uid: m['uid'].toString(), name: (m['name'] ?? '').toString());
         }
-        return (uid: '', name: '');
       }
-      final groupDoc = await _db.collection('groups').doc(groupId).get();
-      if (!groupDoc.exists) return null;
-      final groupData = groupDoc.data()!;
-      final members = List<String>.from(groupData['members'] ?? []);
-      final puid =
-          members.firstWhere((uid) => uid != currentUserUid, orElse: () => '');
-      final memberNames =
-          Map<String, dynamic>.from(groupData['memberNames'] ?? {});
-      return (uid: puid, name: (memberNames[puid] as String?) ?? '');
+      return (uid: '', name: '');
     } catch (e) {
       debugPrint('HomeWidgetService._resolvePartnerFromGroup failed: $e');
       return null;
@@ -339,19 +312,13 @@ class HomeWidgetService {
 
     // 2. Читаем документ партнёра напрямую, а не всю коллекцию
     try {
-      final data = await _readWidgetData(groupId, partnerUid);
+      final wd = await _readWidgetData(groupId, partnerUid);
 
-      if (data != null) {
-        final sharedUrls = List<String>.from(
-          data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
-        );
+      if (wd != null) {
         final result = {
-          'photoUrl':
-              data['photoForPartnerUrl'] as String? ??
-              data['photoDayUrl'] as String? ??
-              '',
-          'photoUrls': sharedUrls.join(','),
-          'authorName': data['displayName'] as String? ?? '',
+          'photoUrl': wd.photoForPartnerUrl ?? '',
+          'photoUrls': wd.photoForPartnerUrls.join(','),
+          'authorName': wd.displayName,
           'authorUid': partnerUid,
         };
         _partnerDataCache[cacheKey] = _CachedWidgetData(result);
@@ -382,14 +349,14 @@ class HomeWidgetService {
     final cached = _myDataCache[cacheKey];
     if (cached != null && cached.isFresh) return cached.data;
 
-    final data = await _readWidgetData(groupId, currentUserUid);
-    if (data == null) {
+    final wd = await _readWidgetData(groupId, currentUserUid);
+    if (wd == null) {
       _myDataCache[cacheKey] = _CachedWidgetData(null);
       return null;
     }
 
     final result = {
-      'authorName': data['displayName'] as String? ?? '',
+      'authorName': wd.displayName,
       'authorUid': currentUserUid,
     };
     _myDataCache[cacheKey] = _CachedWidgetData(result);
@@ -896,8 +863,8 @@ class HomeWidgetService {
     String? groupId,
   }) async {
     try {
-      final viewerUid = FirebaseService().uid ?? '';
-      final viewerName = FirebaseService().displayName;
+      final viewerUid = PocketBaseService().userId ?? '';
+      final viewerName = (PbAuthService().currentProfile()?['displayName'] as String? ?? '');
 
       List<String> localPaths = [];
       final dir = await getApplicationSupportDirectory();
@@ -1031,8 +998,8 @@ class HomeWidgetService {
         );
       }
 
-      final viewerUid = FirebaseService().uid ?? '';
-      final viewerName = FirebaseService().displayName;
+      final viewerUid = PocketBaseService().userId ?? '';
+      final viewerName = (PbAuthService().currentProfile()?['displayName'] as String? ?? '');
 
       if (widgetId != null) {
         // Determine kind from widgetId
@@ -1131,8 +1098,8 @@ class HomeWidgetService {
       final selectedKind = overrideKind ?? await getPhotoDayWidgetKind(widgetId);
 
       // Сохраняем текущий профиль (viewer) для различения моего/партнёрского фото
-      final currentUserUid = FirebaseService().uid ?? '';
-      final currentUserName = FirebaseService().displayName;
+      final currentUserUid = PocketBaseService().userId ?? '';
+      final currentUserName = (PbAuthService().currentProfile()?['displayName'] as String? ?? '');
 
       await _savePhotoDayWidgetData(widgetId, {
         'viewer_uid': currentUserUid,
@@ -1214,8 +1181,8 @@ class HomeWidgetService {
     bool forceNext = false,
   }) async {
     try {
-      final currentUserUid = FirebaseService().uid ?? '';
-      final currentUserName = FirebaseService().displayName;
+      final currentUserUid = PocketBaseService().userId ?? '';
+      final currentUserName = (PbAuthService().currentProfile()?['displayName'] as String? ?? '');
 
       final selectedKind = await getPhotoDayWidgetKind(widgetId);
 
@@ -2101,7 +2068,7 @@ class HomeWidgetService {
   Future<void> refreshPhotoGrid(String groupId) async {
     if (groupId.isEmpty) return;
     try {
-      final currentUserUid = FirebaseService().uid ?? '';
+      final currentUserUid = PocketBaseService().userId ?? '';
       if (currentUserUid.isEmpty) return;
 
       // Определяем UID партнёра из members группы (1 read)
@@ -2115,14 +2082,14 @@ class HomeWidgetService {
       if (partnerUid.isEmpty) return;
 
       // Читаем только документ партнёра (1 read вместо N)
-      final partnerRaw = await _readWidgetData(groupId, partnerUid);
-      if (partnerRaw == null) {
+      final partnerData = await _readWidgetData(groupId, partnerUid);
+      if (partnerData == null) {
         debugPrint('HomeWidgetService.refreshPhotoGrid: no partner data');
         return;
       }
 
-      final count = (partnerRaw['photoGridCount'] as int?) ?? 1;
-      final urls = List<String>.from(partnerRaw['photoGridUrls'] ?? []);
+      final count = partnerData.photoGridCount;
+      final urls = partnerData.photoGridUrls;
 
       // Кэшируем фото один раз (одинаковые для всех экземпляров)
       final List<String> localPaths = [];
