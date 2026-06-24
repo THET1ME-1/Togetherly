@@ -17,7 +17,7 @@ import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
-import '../services/firebase_service.dart';
+import '../services/media_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/storage_image.dart';
@@ -94,7 +94,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Только для загрузки картинок-вставок в Storage (медиа §4). Холст/штрихи —
   /// на PocketBase через [_canvas].
-  final FirebaseService _fb = FirebaseService();
+  final MediaService _fb = MediaService();
   final CanvasRepository _canvas = CanvasRepository();
   final GlobalKey _canvasKey = GlobalKey();
 

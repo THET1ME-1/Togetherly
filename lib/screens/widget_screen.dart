@@ -20,7 +20,7 @@ import '../models/widget_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../models/memory.dart';
-import '../services/firebase_service.dart';
+import '../services/media_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/pb_data_service.dart';
@@ -756,7 +756,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     required int rotationInterval,
   }) async {
     final hws = HomeWidgetService.instance;
-    final fb = FirebaseService();
+    final fb = MediaService();
 
     List<String> uploadedUrls = [];
 
@@ -824,7 +824,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   Future<void> _savePhotosForPartner(List<String> paths) async {
-    final fb = FirebaseService();
+    final fb = MediaService();
     final uid = PocketBaseService().userId ?? '';
     final groupId = _pair.pairId;
     if (uid.isEmpty || groupId.isEmpty) return;
@@ -4596,7 +4596,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (_isLoadingPhotoGrid) return;
     setState(() => _isLoadingPhotoGrid = true);
     try {
-      final fb = FirebaseService();
+      final fb = MediaService();
       final uid = PocketBaseService().userId ?? '';
       final groupId = _pair.pairId;
 
@@ -4934,7 +4934,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _showPhotoLoader();
 
     // Один аплоад → раздаём по выбранным направлениям.
-    final fb = FirebaseService();
+    final fb = MediaService();
     final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final url = await fb.uploadFile(

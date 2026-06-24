@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
 import 'firebase_service.dart';
+import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
 import 'timer_repository.dart';
@@ -522,7 +523,7 @@ class TimerService extends ChangeNotifier {
 
       final ext = localFilePath.split('.').last.toLowerCase();
       final storagePath = 'timer_backgrounds/$_groupId/${timer.id}.$ext';
-      final url = await _fb.uploadFile(localFilePath, storagePath);
+      final url = await MediaService().uploadFile(localFilePath, storagePath);
       if (url == null) return false;
 
       // Удаляем локальную копию — больше не нужна

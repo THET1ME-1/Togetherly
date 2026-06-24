@@ -17,7 +17,7 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../services/deep_link_service.dart';
-import '../services/firebase_service.dart';
+import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
   AppLifecycleListener? _appLifecycleListener;
 
   // -- Memory Lane real-time --
-  final FirebaseService _fb = FirebaseService();
+  final MediaService _fb = MediaService();
   final CanvasStorageService _storage = CanvasStorageService.instance;
   List<Memory> _recentMemories = [];
   StreamSubscription? _memorySub;

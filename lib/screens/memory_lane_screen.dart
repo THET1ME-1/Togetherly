@@ -30,6 +30,7 @@ import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/ad_banner.dart';
 import '../services/firebase_service.dart';
+import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import 'together/together_launcher.dart';
@@ -6655,7 +6656,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           final ext = path.split('.').last;
           final fileName = 'memory_$timestamp.$ext';
           final destination = 'memories/$_groupId/$fileName';
-          final url = await _fb.uploadFile(path, destination);
+          final url = await MediaService().uploadFile(path, destination);
           if (url != null) uploadedImageUrls.add(url);
         }
         if (uploadedImageUrls.isEmpty) {
@@ -6698,7 +6699,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             final thumbFile =
                 File('${tempDir.path}/thumb_$timestamp.jpg');
             await thumbFile.writeAsBytes(thumbBytes);
-            final thumbUrl = await _fb.uploadFile(
+            final thumbUrl = await MediaService().uploadFile(
               thumbFile.path,
               'memories/$_groupId/thumb_$timestamp.jpg',
             );
@@ -6717,7 +6718,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           );
         }
 
-        final url = await _fb.uploadFile(mediaPath, destination);
+        final url = await MediaService().uploadFile(mediaPath, destination);
         if (url != null) {
           uploadedVideoUrl = url;
         } else {
@@ -6752,7 +6753,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         final fileName = 'music_$timestamp.$ext';
         final destination = 'music/$_groupId/$fileName';
 
-        uploadedMusicUrl = await _fb.uploadFile(musicPath, destination);
+        uploadedMusicUrl = await MediaService().uploadFile(musicPath, destination);
       }
 
       // Use provided musicUrl if no file uploaded

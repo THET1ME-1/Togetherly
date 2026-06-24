@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mascot.dart';
 import 'catalog_service.dart';
-import 'firebase_service.dart';
+import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
 import 'mascot_repository.dart';
@@ -23,9 +23,9 @@ class MascotService extends ChangeNotifier {
 
   final MascotRepository _repo = MascotRepository();
 
-  /// Только для загрузки картинок маскотов (Storage) — медиа §4. Данные/состояние
-  /// уже на PB через [_repo].
-  final FirebaseService _fb = FirebaseService();
+  /// Только для загрузки картинок маскотов (PocketBase media) через [MediaService].
+  /// Данные/состояние уже на PB через [_repo].
+  final MediaService _fb = MediaService();
 
   void _onCatalogChanged() => notifyListeners();
 

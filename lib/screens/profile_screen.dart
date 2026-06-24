@@ -14,7 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io' show Platform;
-import '../services/firebase_service.dart';
+import '../services/media_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
@@ -736,7 +736,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     try {
-      final fb = FirebaseService();
+      final fb = MediaService();
       final userId = PocketBaseService().userId ?? '';
       if (userId.isEmpty) {
         if (mounted) Navigator.of(context).pop();

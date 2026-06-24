@@ -10,6 +10,7 @@ import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'firebase_service.dart';
+import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
 import 'memory_repository.dart';
@@ -332,7 +333,7 @@ class WidgetService extends ChangeNotifier {
     final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final dest = 'widget/$groupId/${uid}_$ts.jpg';
-    final url = await _fb.uploadFile(localPath, dest);
+    final url = await MediaService().uploadFile(localPath, dest);
     if (url == null || groupId != _groupId) return;
 
     await _updateField({'photoUrl': url}, groupId: groupId);
