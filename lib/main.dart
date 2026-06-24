@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+import 'config/sentry_config.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
@@ -219,35 +220,39 @@ void main() async {
   // Firebase — инициализация
   await Firebase.initializeApp();
 
-  // Crashlytics — перехват ошибок. До этого момента краш-репортинга в проекте не
-  // было вообще, поэтому жалобы из отзывов («приложение вылетает») приходили без
-  // стектрейса и не локализовались. Теперь:
+  // Крашрепортинг — self-hosted Bugsink (Sentry-совместимый, наш VPS), замена
+  // Firebase Crashlytics. Перехватываем:
   //  • FlutterError.onError — синхронные ошибки фреймворка (build/layout/paint);
   //  • PlatformDispatcher.onError — необработанные асинхронные ошибки (Future/
-  //    Stream), которые иначе просто молча гасились.
-  // В debug — не шлём в Crashlytics, чтобы не засорять консоль production-данными.
-  await FirebaseCrashlytics.instance
-      .setCrashlyticsCollectionEnabled(!kDebugMode);
+  //    Stream), которые иначе молча гасились.
+  // В debug DSN пустой → SDK no-op (не шлём тестовые краши на прод-бэкенд).
+  await SentryFlutter.init((options) {
+    options.dsn = kDebugMode ? '' : SentryConfig.dsn;
+    options.environment = kDebugMode ? 'debug' : 'production';
+    options.tracesSampleRate = 0.0; // только краши, без performance-трейсинга
+    options.attachStacktrace = true;
+  });
+  Sentry.configureScope(
+    (scope) => scope.setUser(SentryUser(id: PocketBaseService().userId ?? '')),
+  );
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    FirebaseCrashlytics.instance.recordFlutterError(details);
+    unawaited(Sentry.captureException(details.exception, stackTrace: details.stack));
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
-    // Возвращаем true → приложение НЕ падает, выполнение продолжается. Поэтому
-    // часть ошибок, прилетающих сюда из фоновых Firebase-операций (presence
-    // onDisconnect, фоновая загрузка медиа), фактически не являются крашами.
-    // Ошибки прав/доступа Firebase (permission-denied / unauthorized) пишем как
-    // non-fatal, чтобы не завышать счётчик падений; остальное — как фатальное.
+    // Возвращаем true → приложение НЕ падает, выполнение продолжается. Часть
+    // ошибок здесь — из фоновых операций (presence, фоновая загрузка медиа) и
+    // крашами не являются: помечаем их level=warning, остальное — fatal, чтобы
+    // не завышать счётчик падений.
     final fatal = !_isBenignBackgroundError(error);
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: fatal);
+    unawaited(Sentry.captureException(
+      error,
+      stackTrace: stack,
+      withScope: (scope) =>
+          scope.level = fatal ? SentryLevel.fatal : SentryLevel.warning,
+    ));
     return true;
   };
-  // Привязываем UID к отчётам, чтобы видеть, у кого именно падает.
-  unawaited(
-    FirebaseCrashlytics.instance.setUserIdentifier(
-      PocketBaseService().userId ?? '',
-    ),
-  );
 
   // Supabase убран (миграция на PocketBase). Прежний слой Supabase был
   // переходным экспериментом дуал-райта; его инициализация удалена. Все вызовы

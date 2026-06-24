@@ -22,7 +22,7 @@ import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
 import '../models/pair_data.dart';
@@ -6708,12 +6708,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         } catch (e) {
           debugPrint('Video thumbnail upload failed: $e');
           unawaited(
-            FirebaseCrashlytics.instance.recordError(
-              e,
-              null,
-              reason: 'video thumbnail generation/upload failed',
-              fatal: false,
-            ),
+            Sentry.captureException(e, withScope: (s) {
+              s.setExtra('reason', 'video thumbnail generation/upload failed');
+              s.level = SentryLevel.warning;
+            }),
           );
         }
 
@@ -6724,11 +6722,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // Загрузка видео не удалась (таймаут сети / отказ Storage / RLS).
           // Фиксируем в Crashlytics, чтобы видеть реальную причину по жалобам.
           unawaited(
-            FirebaseCrashlytics.instance.recordError(
+            Sentry.captureException(
               'video upload returned null (memories/$_groupId)',
-              null,
-              reason: 'memory video upload failed',
-              fatal: false,
+              withScope: (s) {
+                s.setExtra('reason', 'memory video upload failed');
+                s.level = SentryLevel.warning;
+              },
             ),
           );
           if (mounted) {

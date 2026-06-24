@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:video_compress/video_compress.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'pocketbase_service.dart';
 import 'pb_media_service.dart';
@@ -120,11 +120,12 @@ class MediaService {
           // Фиксируем в Crashlytics: сжатие зависло/упало — частая причина жалоб
           // «своё видео не добавляется». Non-fatal, дальше грузим оригинал.
           unawaited(
-            FirebaseCrashlytics.instance.recordError(
+            Sentry.captureException(
               e,
-              null,
-              reason: 'video compress failed → uploading original',
-              fatal: false,
+              withScope: (s) {
+                s.setExtra('reason', 'video compress failed → uploading original');
+                s.level = SentryLevel.warning;
+              },
             ),
           );
           // cancelCompression only on error — calling it after success on some

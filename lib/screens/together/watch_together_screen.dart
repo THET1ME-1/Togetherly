@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart'
@@ -567,31 +567,34 @@ class _WatchTogetherScreenState extends State<WatchTogetherScreen> {
   Future<void> _logPlayerFailure(String kind, int? errorCode) async {
     if (_failureLogged) return;
     _failureLogged = true;
-    final cr = FirebaseCrashlytics.instance;
     try {
-      await cr.setCustomKey('cw_failure_kind', kind);
-      await cr.setCustomKey('cw_yt_error_code', errorCode ?? -1);
-      await cr.setCustomKey('cw_is_host', widget.isHost);
-      await cr.setCustomKey('cw_video_id', _currentMediaId);
+      Sentry.configureScope((s) => s.setExtra('cw_failure_kind', kind));
+      Sentry.configureScope((s) => s.setExtra('cw_yt_error_code', errorCode ?? -1));
+      Sentry.configureScope((s) => s.setExtra('cw_is_host', widget.isHost));
+      Sentry.configureScope((s) => s.setExtra('cw_video_id', _currentMediaId));
       if (Platform.isAndroid) {
         final wv = await InAppWebViewController.getCurrentWebViewPackage();
-        await cr.setCustomKey('cw_webview_pkg', wv?.packageName ?? 'unknown');
-        await cr.setCustomKey(
-          'cw_webview_version',
-          wv?.versionName ?? 'unknown',
-        );
+        Sentry.configureScope(
+            (s) => s.setExtra('cw_webview_pkg', wv?.packageName ?? 'unknown'));
+        Sentry.configureScope((s) => s.setExtra(
+              'cw_webview_version',
+              wv?.versionName ?? 'unknown',
+            ));
         final dev = await DeviceInfoPlugin().androidInfo;
-        await cr.setCustomKey('cw_device', '${dev.manufacturer} ${dev.model}');
-        await cr.setCustomKey('cw_android_sdk', dev.version.sdkInt);
+        Sentry.configureScope((s) =>
+            s.setExtra('cw_device', '${dev.manufacturer} ${dev.model}'));
+        Sentry.configureScope(
+            (s) => s.setExtra('cw_android_sdk', dev.version.sdkInt));
       }
     } catch (_) {
-      // Сбор телеметрии не критичен — основной recordError ниже всё равно уйдёт.
+      // Сбор телеметрии не критичен — основной captureException ниже всё равно уйдёт.
     }
-    await cr.recordError(
+    await Sentry.captureException(
       'watch_together player failure: $kind (yt code=$errorCode)',
-      null,
-      reason: 'co-watch player failure',
-      fatal: false,
+      withScope: (s) {
+        s.setExtra('reason', 'co-watch player failure');
+        s.level = SentryLevel.warning;
+      },
     );
   }
 
