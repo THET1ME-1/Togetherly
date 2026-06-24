@@ -1499,6 +1499,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   );
                 }
+                // Без своего uid выравнивание «моё/чужое» неверно — ВСЕ пузыри
+                // уехали бы на одну сторону. Если PocketBase ещё не отдал
+                // userId (восстановление сессии), ждём, а не рисуем криво.
+                if (_myUid.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
                 final items = _buildItems(messages);
                 WidgetsBinding.instance.addPostFrameCallback((_) {

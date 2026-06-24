@@ -81,9 +81,17 @@ class PbAuthService {
       final auth = await _pb.collection(_usersCol).authWithOAuth2(
         'google',
         (url) async {
-          await launchUrl(url, mode: LaunchMode.externalApplication);
+          // In-app браузер держит приложение на переднем плане → realtime-
+          // websocket OAuth-флоу PB выживает и сессия возвращается в приложение
+          // (externalApplication уводил Flutter в фон → Completer висел).
+          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
         },
       );
+      // OAuth завершён — закрыть in-app вьюху (iOS: SFSafariViewController;
+      // Android Custom Tabs: no-op, фокус и так возвращается).
+      try {
+        await closeInAppWebView();
+      } catch (_) {}
       // Профиль из OAuth-меты (имя/аватар), если в записи ещё пусто.
       final meta = auth.meta;
       await _ensureProfile(
@@ -107,9 +115,12 @@ class PbAuthService {
       final auth = await _pb.collection(_usersCol).authWithOAuth2(
         'apple',
         (url) async {
-          await launchUrl(url, mode: LaunchMode.externalApplication);
+          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
         },
       );
+      try {
+        await closeInAppWebView();
+      } catch (_) {}
       final meta = auth.meta;
       await _ensureProfile(
         displayName: meta['name'] as String?,

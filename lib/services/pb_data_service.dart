@@ -2055,6 +2055,21 @@ class PbDataService {
     }
   }
 
+  /// Весь включённый каталог (любого типа), отсортированный по `sort`. Чтение
+  /// публичное (viewRule/listRule = ''), вход не требуется. Заменяет
+  /// чтение `catalog_items` из Supabase в [CatalogService] на cutover.
+  Future<List<RecordModel>> loadCatalogAll() async {
+    try {
+      return await _pb.collection('catalog_items').getFullList(
+            filter: 'enabled = true',
+            sort: 'sort',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadCatalogAll failed: $e');
+      return const [];
+    }
+  }
+
   /// Минимально поддерживаемая сборка (force-update) из коллекции `app_config`.
   /// 0 = не блокировать (нет записи / ошибка / пустое поле). Заменяет
   /// `SupabaseService.fetchMinSupportedBuild` на cutover.

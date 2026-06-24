@@ -5,21 +5,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Color;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../config/migration_config.dart';
 import '../models/level.dart';
 import '../models/mascot.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
+import 'pb_data_service.dart';
 
-/// Удалённый КАТАЛОГ контента (паки настроений; маскоты — Фаза 2).
+/// Удалённый КАТАЛОГ контента (паки настроений + маскоты-награды за уровень).
 ///
-/// Позволяет добавлять новые паки/эмоции БЕЗ релиза приложения: список лежит в
-/// Supabase-таблице `catalog_items` (публичное чтение), картинки — в публичном
-/// bucket `catalog` (CDN). При старте:
+/// Позволяет добавлять новые паки/эмоции/маскотов БЕЗ релиза приложения: список
+/// лежит в PocketBase-коллекции `catalog_items` (публичное чтение), картинки —
+/// публичные file-URL PB. При старте:
 ///   1. мгновенно поднимаем последний КЭШ с диска (офлайн-safe),
-///   2. фоном тянем свежий каталог из Supabase, кэшируем, обновляем UI.
+///   2. фоном тянем свежий каталог из PocketBase, кэшируем, обновляем UI.
 ///
 /// Встроенные паки (classic/pink) всегда доступны как офлайн-дефолт; каталог
 /// лишь ДОБАВЛЯЕТ к ним. Элементы с `min_app` выше текущей версии пропускаются
@@ -49,7 +48,7 @@ class CatalogService extends ChangeNotifier {
     return MoodPack.classic;
   }
 
-  /// Поднять кэш с диска и (если возможно) обновить из Supabase. Идемпотентно.
+  /// Поднять кэш с диска и (если возможно) обновить из PocketBase. Идемпотентно.
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -63,21 +62,20 @@ class CatalogService extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // 2) Свежий каталог из Supabase — В ФОНЕ, не блокируем старт приложения.
+    // 2) Свежий каталог из PocketBase — В ФОНЕ, не блокируем старт приложения.
     //    Ошибки/офлайн — тихо остаёмся на кэше/бандле.
     unawaited(refresh());
   }
 
-  /// Подтянуть свежий каталог из Supabase и закэшировать. Безопасно при офлайне.
+  /// Подтянуть свежий каталог из PocketBase и закэшировать. Безопасно при офлайне.
   Future<void> refresh() async {
-    if (!MigrationConfig.isConfigured) return;
     try {
-      final rows = await Supabase.instance.client
-          .from('catalog_items')
-          .select()
-          .eq('enabled', true)
-          .order('sort');
-      final list = (rows as List).cast<dynamic>();
+      final recs = await PbDataService.instance.loadCatalogAll();
+      // RecordModel → плоская карта (как раньше строка Supabase): кастомные поля
+      // в `rec.data`, первичный id — отдельно. `data` (json-поле) уже Map.
+      final list = <Map<String, dynamic>>[
+        for (final r in recs) {...r.data, 'id': r.id},
+      ];
       _apply(list, await _appVersion());
       try {
         final prefs = await SharedPreferences.getInstance();

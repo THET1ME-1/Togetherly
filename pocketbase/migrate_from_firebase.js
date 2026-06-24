@@ -311,6 +311,56 @@ async function migrateGroup(gid) {
       bump('chat_reads');
     }
   }
+
+  // mood_entries (Firestore moodCalendar → плоская коллекция).
+  //   v2: groups/{gid}/moodCalendar/{uid}/months/{YYYY-MM}.entries{entryId:{...}}
+  //   v1 legacy: groups/{gid}/moodCalendar/{uid}/entries/{entryId} (1 док = 1 запись)
+  // id записи (`<uid>_<millis>`/`YYYY-MM-…`) совместим с PB-паттерном → upsertById.
+  const moodMembers = Array.isArray(d.members) ? d.members : [];
+  for (const uid of moodMembers) {
+    const calBase = db.collection('groups').doc(gid).collection('moodCalendar').doc(uid);
+    const writeMood = async (entryId, e) => {
+      if (!entryId || !e || typeof e !== 'object') return;
+      await upsertById('mood_entries', entryId, {
+        group_id: gid, user_uid: uid,
+        mood_id: e.moodId || '', image_path: e.imagePath || '', label: e.label || '',
+        timestamp: iso(e.timestamp) || new Date().toISOString(),
+      });
+      bump('mood_entries');
+    };
+    const months = await calBase.collection('months').get();
+    for (const mdoc of months.docs) {
+      const entries = (mdoc.data() || {}).entries || {};
+      for (const eid of Object.keys(entries)) await writeMood(eid, entries[eid]);
+    }
+    const legacy = await calBase.collection('entries').get();
+    for (const ldoc of legacy.docs) await writeMood(ldoc.id, ldoc.data());
+  }
+
+  // miss_you (RTDB missYou/{gid}/counts/{uid} + legacy d.missYouCounts на group-доке).
+  // max(существующий в PB, исходный) — повторный прогон не откатывает live-счётчик.
+  const missCounts = {};
+  const myRt = await rtdb.ref('missYou/' + gid + '/counts').get();
+  if (myRt.exists()) {
+    const v = myRt.val() || {};
+    for (const u of Object.keys(v)) missCounts[u] = Number(v[u] || 0);
+  }
+  if (d.missYouCounts && typeof d.missYouCounts === 'object') {
+    for (const u of Object.keys(d.missYouCounts)) {
+      missCounts[u] = Math.max(missCounts[u] || 0, Number(d.missYouCounts[u] || 0));
+    }
+  }
+  for (const uid of Object.keys(missCounts)) {
+    const c = missCounts[uid];
+    if (!c || c <= 0) continue;
+    const ex = await pb('GET', `/api/collections/miss_you/records?perPage=1&filter=${encodeURIComponent(`group_id="${gid}" && user_uid="${uid}"`)}`);
+    const cur = (ex.data && ex.data.items && ex.data.items[0]) ? Number(ex.data.items[0].count || 0) : 0;
+    await upsertByFilter('miss_you', `group_id="${gid}" && user_uid="${uid}"`, {
+      group_id: gid, user_uid: uid, count: Math.max(cur, c),
+      updated_at: new Date().toISOString(),
+    });
+    bump('miss_you');
+  }
 }
 
 (async () => {

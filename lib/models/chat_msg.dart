@@ -98,12 +98,20 @@ class ChatMsg {
         if (v is String && v.isNotEmpty) reactions[k.toString()] = v;
       });
     }
+    // ts — epoch-ms. У части мигрированных сообщений ts=0 (импортёр не проставил
+    // время) → пузырь показывал «1 янв 1970» и пустой разделитель даты. Фолбэк
+    // на время создания записи PB (rec.created), чтобы дата была осмысленной.
+    final rawTs = (m['ts'] as num?)?.toInt() ?? 0;
+    final ts = rawTs > 0
+        ? rawTs
+        : (DateTime.tryParse(rec.get<String>('created'))?.millisecondsSinceEpoch ??
+            0);
     return ChatMsg(
       id: rec.id,
       uid: (m['user_uid'] ?? '').toString(),
       name: (m['user_name'] ?? '').toString(),
       text: (m['text'] ?? '').toString(),
-      ts: (m['ts'] as num?)?.toInt() ?? 0,
+      ts: ts,
       editedTs: nzInt(m['edited_ts']),
       deleted: m['deleted'] == true,
       pinId: nz(m['pin_id']),
