@@ -40,17 +40,31 @@ async function authPb() {
 }
 async function upsertById(col, id, body) {
   let r = await pb('POST', `/api/collections/${col}/records`, { id, ...body });
-  if (r.status === 400) r = await pb('PATCH', `/api/collections/${col}/records/${id}`, body);
-  if (r.status !== 200) console.log(`  ! ${col}/${id}: ${r.status} ${JSON.stringify(r.data).slice(0,160)}`);
+  if (r.status === 200) return r;
+  // POST 400 = либо id уже занят (повтор → PATCH), либо РЕАЛЬНЫЙ validation-провал
+  // (id-паттерн/required/тип/maxSize). Раньше любое 400 слепо считалось «уже есть»
+  // → провал валидации тихо терялся (PATCH несуществующего тоже падал, запись
+  // дропалась). Теперь проверяем существование: PATCH только если запись реально есть.
+  if (r.status === 400) {
+    const ex = await pb('GET', `/api/collections/${col}/records/${id}`);
+    if (ex.status === 200) {
+      r = await pb('PATCH', `/api/collections/${col}/records/${id}`, body);
+      if (r.status === 200) return r;
+    }
+  }
+  console.log(`  ! ${col}/${id}: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`);
+  bump('failed');
   return r;
 }
 async function upsertByFilter(col, filter, body) {
   const g = await pb('GET', `/api/collections/${col}/records?perPage=1&filter=${encodeURIComponent(filter)}`);
   if (g.data && g.data.items && g.data.items.length) {
-    return pb('PATCH', `/api/collections/${col}/records/${g.data.items[0].id}`, body);
+    const r = await pb('PATCH', `/api/collections/${col}/records/${g.data.items[0].id}`, body);
+    if (r.status !== 200) { console.log(`  ! ${col} PATCH: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`); bump('failed'); }
+    return r;
   }
   const r = await pb('POST', `/api/collections/${col}/records`, body);
-  if (r.status !== 200) console.log(`  ! ${col}: ${r.status} ${JSON.stringify(r.data).slice(0,160)}`);
+  if (r.status !== 200) { console.log(`  ! ${col}: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`); bump('failed'); }
   return r;
 }
 
@@ -242,6 +256,19 @@ async function migrateGroup(gid) {
       data: data,
     });
     bump('memories');
+    // комментарии воспоминания (подколлекция memories/{id}/comments)
+    const cms = await db.collection('groups').doc(gid)
+      .collection('memories').doc(m.id).collection('comments').get();
+    for (const c of cms.docs) {
+      const cx = c.data();
+      await upsertById('memory_comments', c.id, {
+        group_id: gid, memory_id: m.id,
+        author_uid: cx.authorUid || '', author_name: cx.authorName || '',
+        author_avatar: cx.authorAvatar || '', text: cx.text || '',
+        created_at: iso(cx.createdAt), deleted: cx.deleted === true,
+      });
+      bump('memory_comments');
+    }
   }
   // widget_data
   const wd = await db.collection('groups').doc(gid).collection('widgetData').get();
@@ -282,6 +309,35 @@ async function migrateGroup(gid) {
       created_at: Number(x.createdAt || 0), updated_at: Number(x.updatedAt || 0), created_by: x.createdBy || '',
     });
     bump('canvas_catalogue');
+  }
+  // canvas: штрихи (canvas_strokes) + мета (canvas_meta) для 'main' и каталога.
+  const canvasIds = new Set(['main']);
+  for (const c of cc.docs) canvasIds.add(c.id);
+  for (const canvasId of canvasIds) {
+    const cref = db.collection('groups').doc(gid).collection('canvas').doc(canvasId);
+    const strokes = await cref.collection('strokes').get();
+    for (const s of strokes.docs) {
+      const sd = s.data() || {};
+      await upsertById('canvas_strokes', s.id, {
+        group_id: gid, canvas_id: canvasId,
+        order_index: Number(sd.orderIndex || 0),
+        data: deepIso(sd),
+        deleted: sd.deleted === true,
+      });
+      bump('canvas_strokes');
+    }
+    const metaSnap = await cref.get();
+    const md = metaSnap.exists ? metaSnap.data() : null;
+    if (md) {
+      await upsertByFilter('canvas_meta', `group_id="${gid}" && canvas_id="${canvasId}"`, {
+        group_id: gid, canvas_id: canvasId,
+        bg_color: Number(md.bgColor || 0),
+        clear_version: Number(md.clearVersion || 0),
+        canvas_rotation: Number(md.canvasRotation || 0),
+        updated_at: iso(md.updatedAt) || new Date().toISOString(),
+      });
+      bump('canvas_meta');
+    }
   }
   // RTDB chat messages
   const ch = await rtdb.ref('chats/' + gid + '/messages').get();
@@ -367,12 +423,22 @@ async function migrateGroup(gid) {
   if (!PB_PW) throw new Error('PB_PW env required');
   await authPb();
   const args = process.argv.slice(2);
-  // Сид: список uid из email-аргументов.
+  // Сид: либо ВСЕ пользователи Firebase Auth (--all, пагинация по 1000), либо
+  // список uid из email-аргументов.
   const seedUids = [];
-  for (const email of args) {
-    if (email === '--all') continue;
-    try { const u = await admin.auth().getUserByEmail(email); seedUids.push(u.uid); }
-    catch (e) { console.log('email не найден:', email); }
+  if (args.includes('--all')) {
+    let pageToken;
+    do {
+      const res = await admin.auth().listUsers(1000, pageToken);
+      res.users.forEach((u) => seedUids.push(u.uid));
+      pageToken = res.pageToken;
+    } while (pageToken);
+    console.log(`--all: ${seedUids.length} пользователей из Firebase Auth`);
+  } else {
+    for (const email of args) {
+      try { const u = await admin.auth().getUserByEmail(email); seedUids.push(u.uid); }
+      catch (e) { console.log('email не найден:', email); }
+    }
   }
   // Все группы сидов + все их участники (чтобы пары были целыми).
   const groupIds = new Set();
@@ -392,5 +458,6 @@ async function migrateGroup(gid) {
   for (const gid of groupIds) await migrateGroup(gid);
   console.log('\n=== ИТОГ ПЕРЕНОСА ===');
   console.log(JSON.stringify(stats, null, 2));
-  process.exit(0);
+  if (stats.failed) console.log(`\n⚠️  ПРОВАЛОВ: ${stats.failed} — записи НЕ перенесены (см. строки "!" выше)`);
+  process.exit(stats.failed ? 1 : 0);
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });
