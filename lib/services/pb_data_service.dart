@@ -2021,12 +2021,11 @@ class PbDataService {
     put('avatarUrl', 'avatar_url');
     put('gender', 'gender');
     put('birthDate', 'birth_date', ts: true);
-    put('coins', 'coins');
-    put('ownedThemes', 'owned_themes', json: true);
-    put('ownedIcons', 'owned_icons', json: true);
-    put('ownedFeatures', 'owned_features', json: true);
-    put('grantedBadges', 'granted_badges', json: true);
-    put('badge', 'badge');
+    // ЭКОНОМИКА НЕ ПИШЕТСЯ КЛИЕНТОМ: coins/owned_themes/owned_icons/
+    // owned_features/granted_badges и кулдауны ведут ТОЛЬКО серверные коин-роуты
+    // (pb_hooks/coins.pb.js через $app.save). Прямой клиентский PATCH этих полей
+    // отвергает pb_hooks/users_guard.pb.js. Клиент их только читает (см. UserData).
+    put('badge', 'badge'); // выбранный к показу значок (косметика, не владение)
     put('pairId', 'pair_id');
     put('pairIds', 'pair_ids', json: true);
     put('inviteCode', 'invite_code');
