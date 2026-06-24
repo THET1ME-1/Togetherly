@@ -518,10 +518,6 @@ class PbDataService {
         .join();
   }
 
-  List<String> _membersOf(RecordModel g) =>
-      (g.data['members'] as List?)?.map((e) => e.toString()).toList() ??
-      <String>[];
-
   Future<RecordModel?> lookupInviteCode(String code) async {
     if (code.isEmpty) return null;
     try {
@@ -559,7 +555,10 @@ class PbDataService {
     if (oldCode != null && oldCode.isNotEmpty) await deleteInviteCode(oldCode);
     for (var attempt = 0; attempt < 8; attempt++) {
       final code = _newCode();
-      if (await lookupInviteCode(code) != null) continue; // коллизия
+      // listRule invite_codes = owner-only (анти-enumeration) → этот pre-check
+      // видит лишь СВОИ коды; реальный страж коллизий — уникальный индекс на
+      // create. На провал create (коллизия/гонка) пробуем следующий код.
+      if (await lookupInviteCode(code) != null) continue;
       try {
         await _pb.collection('invite_codes').create(body: {
           'code': code,
@@ -568,74 +567,57 @@ class PbDataService {
         });
         return code;
       } catch (e) {
-        debugPrint('PbData.generateInviteCode create failed: $e');
-        return '';
+        debugPrint('PbData.generateInviteCode attempt ${attempt + 1} failed: $e');
+        continue;
       }
     }
     return '';
   }
 
-  /// Приём кода → создать/войти/восстановить пару. Возвращает карту в форме
-  /// старого FirebaseService.acceptInviteCode (success/message/pairId/partner*/
-  /// startDate/relationship*/members). Имя/аватар сторон берём из users.
+  /// Приём кода → создать/войти/восстановить пару. Делегирует серверному хуку
+  /// `POST /api/invite/accept` (pb_hooks/invite.pb.js): он ищет код под $app
+  /// (коды НЕ читаются клиентом кросс-юзерно — закрыт enumeration) и
+  /// присоединяет к паре в обход ACL по членству (клиент не может дописать себя
+  /// в чужую группу). Хук возвращает {success,message,pairId,restored} — группу
+  /// дочитываем сами (теперь мы её член → правила пускают) и строим pair-карту
+  /// в форме старого FirebaseService.acceptInviteCode.
   Future<Map<String, dynamic>> acceptInviteCode(
     String code, {
     required String myUid,
   }) async {
     if (myUid.isEmpty) return {'success': false, 'message': 'Не авторизован'};
     code = code.toUpperCase().trim();
+    if (code.isEmpty) return {'success': false, 'message': 'Введите код'};
     try {
-      final codeRec = await lookupInviteCode(code);
-      if (codeRec == null) return {'success': false, 'message': 'Код не найден'};
-      final ownerUid = (codeRec.data['owner_uid'] ?? '').toString();
-      if (ownerUid.isEmpty) return {'success': false, 'message': 'Код повреждён'};
-      if (ownerUid == myUid) {
-        return {'success': false, 'message': 'Это ваш собственный код!'};
+      final resp = await _pb.send(
+        '/api/invite/accept',
+        method: 'POST',
+        body: {'code': code},
+      );
+      final map =
+          resp is Map ? Map<String, dynamic>.from(resp) : <String, dynamic>{};
+      if (map['success'] != true) {
+        return {
+          'success': false,
+          'message': (map['message'] ?? 'Не удалось принять код').toString(),
+        };
       }
-      final codeGroupId = (codeRec.data['group_id'] ?? '').toString();
-
-      final ownerProfile = await loadUserProfileMap(ownerUid) ?? const {};
-      final ownerName = (ownerProfile['displayName'] ?? 'Partner').toString();
-      final ownerAvatar = (ownerProfile['avatarUrl'] ?? '').toString();
-      final myProfile = await loadUserProfileMap(myUid) ?? const {};
-      final myName = (myProfile['displayName'] ?? '').toString();
-      final myAvatar = (myProfile['avatarUrl'] ?? '').toString();
-
-      // A) Код привязан к группе → войти в неё.
-      if (codeGroupId.isNotEmpty) {
-        return _joinGroupPb(codeGroupId, code, myUid, myName, myAvatar,
-            ownerUid, ownerName, ownerAvatar);
+      final pairId = (map['pairId'] ?? '').toString();
+      if (pairId.isEmpty) {
+        return {'success': false, 'message': 'Сервер не вернул пару'};
       }
-
-      // B) У владельца уже есть активная группа с местом → войти.
-      final ownerGroup = await loadPairForUser(ownerUid);
-      if (ownerGroup != null) {
-        final members = _membersOf(ownerGroup);
-        if (members.contains(myUid) && members.contains(ownerUid)) {
-          return {
-            'success': false,
-            'message': 'Вы уже подключены к этому пользователю'
-          };
-        }
-        final maxM = (ownerGroup.data['max_members'] as num?)?.toInt() ?? 2;
-        if (members.contains(ownerUid) &&
-            !members.contains(myUid) &&
-            members.length < maxM) {
-          return _joinGroupPb(ownerGroup.id, code, myUid, myName, myAvatar,
-              ownerUid, ownerName, ownerAvatar);
-        }
-      }
-
-      // C) Распущенная группа этих двоих → восстановить (старые данные целы).
-      final disbandedId = await _findDisbandedBetween(myUid, ownerUid);
-      if (disbandedId != null) {
-        return _restoreGroupPb(disbandedId, code, myUid, myName, myAvatar,
-            ownerUid, ownerName, ownerAvatar);
-      }
-
-      // D) Создать новую пару.
-      return _createGroupPb(
-          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
+      final g = await _pb.collection('groups').getOne(pairId);
+      return _acceptResult(
+        g,
+        myUid,
+        (map['message'] ?? 'Connected!').toString(),
+        restored: map['restored'] == true,
+      );
+    } on ClientException catch (e) {
+      // Хук вернул 4xx (код не найден / свой код / занято) — текст в response.
+      final msg = (e.response['message'] ?? 'Ошибка приёма кода').toString();
+      debugPrint('PbData.acceptInviteCode hook ${e.statusCode}: $msg');
+      return {'success': false, 'message': msg};
     } catch (e) {
       debugPrint('PbData.acceptInviteCode failed: $e');
       return {'success': false, 'message': 'Ошибка: $e'};
@@ -664,151 +646,6 @@ class PbDataService {
       'members': m['members'],
       if (restored) 'restored': true,
     };
-  }
-
-  Future<Map<String, dynamic>> _createGroupPb(
-    String code,
-    String myUid,
-    String myName,
-    String myAvatar,
-    String ownerUid,
-    String ownerName,
-    String ownerAvatar,
-  ) async {
-    // Race-guard взаимного коннекта: уже есть живая группа с этим партнёром?
-    for (final g in await activeGroupRecordsForUser(myUid)) {
-      if (_membersOf(g).contains(ownerUid)) {
-        await deleteInviteCode(code);
-        return _acceptResult(g, myUid, 'Connected!');
-      }
-    }
-    final now = DateTime.now().toIso8601String();
-    final rec = await _pb.collection('groups').create(body: {
-      'members': [ownerUid, myUid],
-      'member_names': {ownerUid: ownerName, myUid: myName},
-      'member_avatars': {ownerUid: ownerAvatar, myUid: myAvatar},
-      'max_members': 2,
-      'relationship_type': 'couple',
-      'custom_relationship_types': [],
-      'memories_count': 0,
-      'drawings_count': 0,
-      'start_date': now,
-      'created_at': now,
-      'disbanded': false,
-    });
-    await deleteInviteCode(code);
-    return _acceptResult(rec, myUid, 'Connected!');
-  }
-
-  Future<Map<String, dynamic>> _joinGroupPb(
-    String groupId,
-    String code,
-    String myUid,
-    String myName,
-    String myAvatar,
-    String ownerUid,
-    String ownerName,
-    String ownerAvatar,
-  ) async {
-    RecordModel? g;
-    try {
-      g = await _pb.collection('groups').getOne(groupId);
-    } catch (_) {}
-    if (g == null) {
-      return _createGroupPb(
-          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
-    }
-    final members = _membersOf(g);
-    final maxM = (g.data['max_members'] as num?)?.toInt() ?? 2;
-    if (members.contains(myUid)) {
-      return {'success': false, 'message': 'Вы уже в этой группе'};
-    }
-    if (members.length >= maxM) {
-      return {'success': false, 'message': 'Группа заполнена'};
-    }
-    final names = g.data['member_names'] is Map
-        ? Map<String, dynamic>.from(g.data['member_names'] as Map)
-        : <String, dynamic>{};
-    final avatars = g.data['member_avatars'] is Map
-        ? Map<String, dynamic>.from(g.data['member_avatars'] as Map)
-        : <String, dynamic>{};
-    members.add(myUid);
-    names[myUid] = myName;
-    avatars[myUid] = myAvatar;
-    final updated = await _pb.collection('groups').update(g.id, body: {
-      'members': members,
-      'member_names': names,
-      'member_avatars': avatars,
-    });
-    if (members.length >= maxM) await deleteInviteCode(code);
-    return _acceptResult(updated, myUid, 'Joined the group!');
-  }
-
-  Future<Map<String, dynamic>> _restoreGroupPb(
-    String groupId,
-    String code,
-    String myUid,
-    String myName,
-    String myAvatar,
-    String ownerUid,
-    String ownerName,
-    String ownerAvatar,
-  ) async {
-    RecordModel? g;
-    try {
-      g = await _pb.collection('groups').getOne(groupId);
-    } catch (_) {}
-    if (g == null) {
-      return _createGroupPb(
-          code, myUid, myName, myAvatar, ownerUid, ownerName, ownerAvatar);
-    }
-    final members = _membersOf(g);
-    if (!members.contains(ownerUid)) members.add(ownerUid);
-    if (!members.contains(myUid)) members.add(myUid);
-    final names = g.data['member_names'] is Map
-        ? Map<String, dynamic>.from(g.data['member_names'] as Map)
-        : <String, dynamic>{};
-    final avatars = g.data['member_avatars'] is Map
-        ? Map<String, dynamic>.from(g.data['member_avatars'] as Map)
-        : <String, dynamic>{};
-    names[ownerUid] = ownerName;
-    names[myUid] = myName;
-    avatars[ownerUid] = ownerAvatar;
-    avatars[myUid] = myAvatar;
-    final updated = await _pb.collection('groups').update(g.id, body: {
-      'members': members,
-      'member_names': names,
-      'member_avatars': avatars,
-      'disbanded': false,
-      'disbanded_at': null,
-    });
-    await deleteInviteCode(code);
-    return _acceptResult(updated, myUid, 'Reconnected!', restored: true);
-  }
-
-  /// Самая свежая распущенная группа, где состоят оба [myUid] и [ownerUid].
-  Future<String?> _findDisbandedBetween(String myUid, String ownerUid) async {
-    try {
-      final res = await _pb.collection('groups').getFullList(
-            filter:
-                _pb.filter('members ~ {:u} && disbanded = true', {'u': myUid}),
-          );
-      String? bestId;
-      DateTime? bestTs;
-      for (final g in res) {
-        if (!_membersOf(g).contains(ownerUid)) continue;
-        final ts = _date(g.data['disbanded_at']);
-        if (bestId == null ||
-            (ts != null && (bestTs == null || ts.isAfter(bestTs)))) {
-          bestId = g.id;
-          bestTs = ts;
-        }
-      }
-      return bestId;
-    } catch (e) {
-      debugPrint('PbData._findDisbandedBetween failed: $e');
-      return null;
-    }
   }
 
   // ══════════════════════════════════════════════ MEMORIES

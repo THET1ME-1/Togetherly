@@ -272,7 +272,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && author_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -327,7 +327,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -443,7 +443,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -559,7 +559,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && author_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -919,7 +919,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -964,7 +964,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -1146,7 +1146,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -1210,7 +1210,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -1240,7 +1240,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && channel ~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && channel ~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && channel ~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && channel ~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && channel ~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && channel ~ @request.auth.id"
     },
@@ -1269,7 +1269,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -1329,7 +1329,7 @@
       ],
       "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
-      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id && uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id"
     },
@@ -1400,11 +1400,11 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_invite_codes_code` ON `invite_codes` (`code`)"
       ],
-      "listRule": "@request.auth.id != \"\"",
-      "viewRule": "@request.auth.id != \"\"",
-      "createRule": "@request.auth.id != \"\"",
-      "updateRule": "@request.auth.id != \"\"",
-      "deleteRule": "@request.auth.id != \"\""
+      "listRule": "@request.auth.id != \"\" && owner_uid = @request.auth.id",
+      "viewRule": "@request.auth.id != \"\" && owner_uid = @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && owner_uid = @request.auth.id",
+      "updateRule": "@request.auth.id != \"\" && owner_uid = @request.auth.id",
+      "deleteRule": "@request.auth.id != \"\" && owner_uid = @request.auth.id"
     }
   ],
   "deleteMissing": false

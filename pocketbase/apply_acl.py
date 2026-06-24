@@ -38,8 +38,26 @@ def member(field):
     return {k: e for k in RW}
 
 
+def member_authored(author_field, group_field="group_id"):
+    """Как member(), но createRule дополнительно требует, чтобы поле-автор
+    записи совпадало с создателем — анти-спуфинг ВНУТРИ пары (член не может
+    создать запись от имени партнёра). ТОЛЬКО create: update оставляем по
+    членству (иначе сломаются легитимные кросс-правки — напр. реакция на
+    сообщение партнёра пишет в его chat_messages.reactions)."""
+    r = member(group_field)
+    r["createRule"] = f'{r["createRule"]} && {author_field} = @request.auth.id'
+    return r
+
+
 def same(expr):
     return {k: expr for k in RW}
+
+
+def same_authored(expr, author_field):
+    """same(), но create дополнительно привязывает поле-автор к создателю."""
+    r = same(expr)
+    r["createRule"] = f'{expr} && {author_field} = @request.auth.id'
+    return r
 
 
 GROUPS = '@request.auth.id != "" && members ?~ @request.auth.id'
@@ -56,28 +74,28 @@ PUBLIC_READ_ADMIN_WRITE = {
 
 RULES = {
     "groups": same(GROUPS),
-    # дочерние по group_id
-    "memories": member("group_id"),
-    "mood_entries": member("group_id"),
-    "chat_messages": member("group_id"),
-    "canvas_strokes": member("group_id"),
-    "memory_comments": member("group_id"),
-    "widget_data": member("group_id"),
-    "miss_you": member("group_id"),
+    # дочерние по group_id; *_authored — create привязан к автору (анти-спуфинг)
+    "memories": member_authored("author_uid"),
+    "mood_entries": member_authored("user_uid"),
+    "chat_messages": member_authored("user_uid"),
+    "canvas_strokes": member("group_id"),  # нет поля-автора на записи
+    "memory_comments": member_authored("author_uid"),
+    "widget_data": member_authored("user_uid"),
+    "miss_you": member_authored("user_uid"),
     "canvas_meta": member("group_id"),
     "canvas_catalogue": member("group_id"),
     "mascots": member("group_id"),
-    "chat_reads": member("group_id"),
+    "chat_reads": member_authored("user_uid"),
     "canvas_live": member("group_id"),
-    "chat_typing": member("group_id"),
+    "chat_typing": member_authored("user_uid"),
     # ключ — собственный id записи (= id группы/пары)
     "live_sessions": member("id"),
     "migration_flags": member("id"),
     # ключ — pair_id (= id группы)
-    "live_session_presence": member("pair_id"),
-    "live_session_chat": member("pair_id"),
-    # live-локация: канал pair_<uidA>_<uidB>
-    "live_location": same(CHANNEL),
+    "live_session_presence": member_authored("user_uid", "pair_id"),
+    "live_session_chat": member_authored("uid", "pair_id"),
+    # live-локация: канал pair_<uidA>_<uidB>; create — точку пишешь только за себя
+    "live_location": same_authored(CHANNEL, "user_uid"),
     # покупки — только свои
     "iap_purchases": same(IAP),
     # медиа — владелец/член
@@ -85,8 +103,17 @@ RULES = {
     # публичный контент: чтение всем, запись только суперюзер
     "app_config": dict(PUBLIC_READ_ADMIN_WRITE),
     "catalog_items": dict(PUBLIC_READ_ADMIN_WRITE),
-    # invite_codes НЕ трогаем: приём кода требует cross-user lookup; owner-гейт
-    # сломает паринг. Закрывать через серверный accept-хук (отдельный блокер).
+    # invite_codes: owner-only (закрыт enumeration кодов). Приём идёт серверным
+    # хуком /api/invite/accept (pb_hooks/invite.pb.js) под $app — он же удаляет
+    # чужой код (правила не применяются к $app). Клиент создаёт/удаляет ТОЛЬКО
+    # свои коды; create привязан к owner_uid (нельзя завести код за другого).
+    "invite_codes": {
+        "listRule": '@request.auth.id != "" && owner_uid = @request.auth.id',
+        "viewRule": '@request.auth.id != "" && owner_uid = @request.auth.id',
+        "createRule": '@request.auth.id != "" && owner_uid = @request.auth.id',
+        "updateRule": '@request.auth.id != "" && owner_uid = @request.auth.id',
+        "deleteRule": '@request.auth.id != "" && owner_uid = @request.auth.id',
+    },
 }
 
 
