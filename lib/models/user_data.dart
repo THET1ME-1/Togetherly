@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
@@ -544,10 +543,10 @@ class UserData extends ChangeNotifier {
         if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
 
         final bdRaw = data['birthDate'];
-        if (bdRaw is Timestamp) {
-          _birthDate = bdRaw.toDate();
-        } else if (bdRaw is String && bdRaw.isNotEmpty) {
+        if (bdRaw is String && bdRaw.isNotEmpty) {
           _birthDate = DateTime.tryParse(bdRaw);
+        } else if (bdRaw is int) {
+          _birthDate = DateTime.fromMillisecondsSinceEpoch(bdRaw);
         }
 
         await _saveLocal();

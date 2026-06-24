@@ -8,7 +8,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
@@ -311,17 +310,9 @@ void main() async {
     HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
   }
 
-  // Включаем офлайн-кеш Firestore
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
-
-  // Touch FirebaseAnalytics so the native SDK starts collecting auto events
-  // (first_open, session_start, screen_view, app_remove, etc.). The custom
-  // product events live in AnalyticsService.
-  AnalyticsService.instance;
-  // Bind userId to the current auth state so events are attributable.
+  // Аналитика отключена (firebase_analytics убран при уходе с Firebase) —
+  // AnalyticsService теперь no-op shell. Привязку userId оставляем как заглушку
+  // на случай будущей серверной аналитики на PocketBase.
   unawaited(AnalyticsService.instance.setUserId(PocketBaseService().userId));
 
   // Deep links — инициализация
