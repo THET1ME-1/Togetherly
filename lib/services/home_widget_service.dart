@@ -1964,9 +1964,10 @@ class HomeWidgetService {
     try {
       String httpUrl = url;
 
-      // pb:// (PocketBase media) → публичный HTTPS (синхронно).
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном (скачиваем
+      // в приложении и кладём локальный файл для нативного виджета).
       if (PbMediaService().isPbRef(url)) {
-        httpUrl = PbMediaService().resolveUrl(url) ?? url;
+        httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
       }
       // Для gs:// (Firebase) и sb:// (Supabase) путей запрашиваем Signed URL.
       else if (url.startsWith('gs://') || url.startsWith('sb://')) {

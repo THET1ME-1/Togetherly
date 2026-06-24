@@ -17,10 +17,10 @@ import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
-import '../services/pb_media_service.dart';
 import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/storage_image.dart';
 
 
 //  Palette
@@ -2767,29 +2767,28 @@ class _CanvasSceneState extends State<_CanvasScene> {
     final w = (s.imageWidth ?? 0.5) * canvasSize.width;
     final h = (s.imageHeight ?? 0.5) * canvasSize.height;
     final rot = s.imageRotation ?? 0.0;
-    // pb:// (PocketBase media) → публичный HTTPS (дальше ловит http-ветка);
-    // file://, http, '' проходят без изменений.
-    final url = PbMediaService().resolveUrl(s.imageUrl) ?? '';
+    // file:// — локальный файл; остальное (pb:// protected / http / gs / sb) —
+    // через StorageImage: он добавит PocketBase file-токен и разрешит схему async.
+    final raw = s.imageUrl ?? '';
     final isSelected = widget.selectedImageId == s.id;
 
     Widget img;
-    if (url.startsWith('file://')) {
+    if (raw.startsWith('file://')) {
       img = Image.file(
-        File(url.substring(7)),
+        File(raw.substring(7)),
         width: w,
         height: h,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
       );
-    } else if (url.startsWith('http')) {
-      img = Image.network(
-        url,
+    } else if (raw.isNotEmpty) {
+      img = StorageImage(
+        imageUrl: raw,
         width: w,
         height: h,
         fit: BoxFit.cover,
-        loadingBuilder: (_, child, progress) =>
-            progress == null ? child : _imgPlaceholder(w, h, loading: true),
-        errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
+        placeholder: (_, __) => _imgPlaceholder(w, h, loading: true),
+        errorWidget: (_, __, ___) => _imgPlaceholder(w, h),
       );
     } else {
       return const SizedBox.shrink();

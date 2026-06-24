@@ -896,9 +896,9 @@ class WidgetService extends ChangeNotifier {
     try {
       String httpUrl = url;
 
-      // pb:// (PocketBase media) → публичный HTTPS (синхронно).
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном.
       if (PbMediaService().isPbRef(url)) {
-        httpUrl = PbMediaService().resolveUrl(url) ?? url;
+        httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
       }
       // gs:// (Firebase) и sb:// (Supabase) не поддерживаются http.get —
       // получаем подписанный https:// URL.

@@ -1343,7 +1343,8 @@
           "required": false,
           "maxSelect": 1,
           "maxSize": 52428800,
-          "mimeTypes": []
+          "mimeTypes": [],
+          "protected": true
         },
         {
           "name": "uid",

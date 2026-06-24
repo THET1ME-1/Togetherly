@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
-import '../services/pb_media_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/storage_image.dart';
 
 class _MemoryCluster {
   final LatLng center;
@@ -456,12 +456,12 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     if (url == null) return const SizedBox.shrink();
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        PbMediaService().resolveUrl(url) ?? url,
+                      child: StorageImage(
+                        imageUrl: url,
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, _, e) => Container(
+                        errorWidget: (context, _, __) => Container(
                           width: 72,
                           height: 72,
                           color: Colors.grey.shade100,

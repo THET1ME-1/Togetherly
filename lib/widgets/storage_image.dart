@@ -43,19 +43,16 @@ class StorageImage extends StatefulWidget {
 class _StorageImageState extends State<StorageImage> {
   Future<String?>? _resolvedUrl;
 
-  // gs:// (Firebase) и sb:// (Supabase) требуют асинхронного разрешения в
-  // подписанный https:// URL. https:// и pb:// рендерятся сразу (pb:// —
-  // синхронный префиксный резолв в публичный HTTPS PocketBase).
+  // Асинхронного разрешения требуют: gs:// (Firebase signed URL), sb:// (Supabase)
+  // И pb:// (PocketBase protected-файл → нужен ?token=, добываемый асинхронно).
+  // https:// и локальные пути рендерятся сразу.
   bool get _needsResolve =>
-      widget.imageUrl.startsWith('gs://') || widget.imageUrl.startsWith('sb://');
+      widget.imageUrl.startsWith('gs://') ||
+      widget.imageUrl.startsWith('sb://') ||
+      PbMediaService().isPbRef(widget.imageUrl);
 
-  /// URL для немедленного рендера: pb:// → публичный HTTPS PB; остальное as-is.
-  String get _fastUrl {
-    final u = widget.imageUrl;
-    return PbMediaService().isPbRef(u)
-        ? (PbMediaService().resolveUrl(u) ?? u)
-        : u;
-  }
+  /// URL для немедленного рендера (только не-резолв-схемы: https/локальные).
+  String get _fastUrl => widget.imageUrl;
 
   @override
   void initState() {
@@ -72,6 +69,10 @@ class _StorageImageState extends State<StorageImage> {
   }
 
   Future<String?> _resolve(String url) async {
+    // pb:// → HTTPS с file-токеном (protected media PocketBase).
+    if (PbMediaService().isPbRef(url)) {
+      return PbMediaService().resolveUrlAuthed(url);
+    }
     // sb:// → передаём ссылку целиком (Supabase сам её разрешит).
     if (url.startsWith('sb://')) return FirebaseService().getSignedUrl(url);
     // gs:// → снимаем префикс bucket'а, Cloud Function ждёт «голый» путь.
@@ -79,8 +80,11 @@ class _StorageImageState extends State<StorageImage> {
     return FirebaseService().getSignedUrl(gsPath);
   }
 
+  // Стабильный cacheKey = исходная ссылка (pb://gs://sb://), чтобы смена
+  // file-токена/signed-URL НЕ сбрасывала дисковый кэш картинки.
   Widget _buildCached(String url) => CachedNetworkImage(
         imageUrl: url,
+        cacheKey: widget.imageUrl,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,

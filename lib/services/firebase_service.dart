@@ -4732,6 +4732,11 @@ class FirebaseService {
   /// sb://, из-за чего плеер не запускался (показывалось только превью).
   Future<String> resolveMediaUrl(String url) async {
     if (url.isEmpty) return url;
+    // pb:// (PocketBase protected media) → HTTPS c file-токеном. Без этого
+    // pb://-видео уходили в плеер нерезолвленными (PlatformException).
+    if (PbMediaService().isPbRef(url)) {
+      return (await PbMediaService().resolveUrlAuthed(url)) ?? url;
+    }
     if (url.startsWith('sb://')) {
       return (await getSignedUrl(url)) ?? url;
     }

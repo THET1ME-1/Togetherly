@@ -80,13 +80,65 @@ class PbMediaService {
   /// `true`, если ссылка — наша PB-схема.
   bool isPbRef(String? url) => url != null && url.startsWith(scheme);
 
-  /// Резолвит `pb://media/<id>/<file>` → публичный HTTPS-URL PB. Не-pb ссылки
-  /// (http/gs/локальные) возвращает как есть (переходный период).
+  /// Резолвит `pb://media/<id>/<file>` → HTTPS-URL PB БЕЗ токена. Не-pb ссылки
+  /// возвращает как есть. Файлы media теперь `protected` → этот «голый» URL без
+  /// токена отдаст 403; используется как стабильный cacheKey и для разбора id.
+  /// Для РЕАЛЬНОЙ загрузки/показа бери [resolveUrlAuthed].
   String? resolveUrl(String? ref) {
     if (ref == null || ref.isEmpty) return ref;
     if (!isPbRef(ref)) return ref;
     final path = ref.substring(scheme.length); // media/<id>/<file>
     return '${PocketBaseService.baseUrl}/api/files/$path';
+  }
+
+  // ── file-токен для protected-файлов ────────────────────────────────────────
+  // Один короткоживущий токен открывает ВСЕ файлы, доступные текущему юзеру по
+  // viewRule коллекции. Кэшируем и обновляем раньше истечения; стабильный
+  // cacheKey (pb://-ссылка) в StorageImage не даёт смене токена сбрасывать кэш.
+  String? _fileToken;
+  DateTime? _fileTokenAt;
+  Future<String?>? _tokenInflight;
+  static const Duration _tokenTtl = Duration(seconds: 90);
+
+  Future<String?> _ensureFileToken() {
+    final t = _fileToken, at = _fileTokenAt;
+    if (t != null && at != null && DateTime.now().difference(at) < _tokenTtl) {
+      return Future.value(t);
+    }
+    final inflight = _tokenInflight;
+    if (inflight != null) return inflight;
+    final fut = () async {
+      try {
+        final tok = await _pb.files.getToken();
+        _fileToken = tok;
+        _fileTokenAt = DateTime.now();
+        return tok;
+      } catch (e) {
+        debugPrint('PbMedia.getToken failed: $e');
+        return _fileToken; // прошлый токен может быть ещё валиден
+      } finally {
+        _tokenInflight = null;
+      }
+    }();
+    _tokenInflight = fut;
+    return fut;
+  }
+
+  /// Резолвит `pb://` → HTTPS С `?token=` (доступ к protected-файлу). Не-pb
+  /// ссылки — как есть. ВСЕ in-app загрузки/показ медиа идут через него.
+  Future<String?> resolveUrlAuthed(String? ref) async {
+    if (ref == null || ref.isEmpty) return ref;
+    if (!isPbRef(ref)) return ref;
+    final base = resolveUrl(ref);
+    if (base == null) return ref;
+    final tok = await _ensureFileToken();
+    return (tok == null || tok.isEmpty) ? base : '$base?token=$tok';
+  }
+
+  /// Сброс кэша токена (на выходе/смене пользователя).
+  void clearFileToken() {
+    _fileToken = null;
+    _fileTokenAt = null;
   }
 
   /// Удаляет media-запись по `pb://`-ссылке (или по recordId).
