@@ -10,12 +10,14 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io' show Platform;
 import '../services/firebase_service.dart';
+import '../services/pocketbase_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/miss_you_repository.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
@@ -164,33 +166,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _anniversaryHintDismissed =
           prefs.getBool(_kAnniversaryHintDismissed) ?? false;
     });
-    // Синхронизируем текущие настройки в Firestore при открытии профиля,
-    // чтобы Cloud Functions всегда имели актуальные данные
-    FirebaseService().updateNotifPrefs(
-      missYou: prefs.getBool(_kNotifMissYou) ?? true,
-      newMemory: prefs.getBool(_kNotifNewMemory) ?? true,
-      mood: prefs.getBool(_kNotifMood) ?? true,
-      chat: prefs.getBool(_kNotifChat) ?? true,
-    );
+    // Синхронизируем текущие настройки в PocketBase (колонки users.notif_*),
+    // чтобы PbPushService учитывал их при показе уведомлений.
+    final notifUid = PocketBaseService().userId ?? '';
+    if (notifUid.isNotEmpty) {
+      PbDataService().updateUserProfile(notifUid, {
+        'notifMissYou': prefs.getBool(_kNotifMissYou) ?? true,
+        'notifNewMemory': prefs.getBool(_kNotifNewMemory) ?? true,
+        'notifMood': prefs.getBool(_kNotifMood) ?? true,
+        'notifChat': prefs.getBool(_kNotifChat) ?? true,
+      });
+    }
   }
 
   Future<void> _saveNotifPref(String key, bool value) async {
     // Сохраняем локально
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
-    // Сохраняем в Firestore, чтобы Cloud Functions проверяли настройки
+    // Сохраняем в PocketBase (users.notif_*), чтобы PbPushService учитывал.
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return;
     switch (key) {
       case _kNotifMissYou:
-        FirebaseService().updateNotifPrefs(missYou: value);
+        PbDataService().updateUserProfile(uid, {'notifMissYou': value});
         break;
       case _kNotifNewMemory:
-        FirebaseService().updateNotifPrefs(newMemory: value);
+        PbDataService().updateUserProfile(uid, {'notifNewMemory': value});
         break;
       case _kNotifMood:
-        FirebaseService().updateNotifPrefs(mood: value);
+        PbDataService().updateUserProfile(uid, {'notifMood': value});
         break;
       case _kNotifChat:
-        FirebaseService().updateNotifPrefs(chat: value);
+        PbDataService().updateUserProfile(uid, {'notifChat': value});
         break;
     }
   }
@@ -217,28 +224,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _lastLoadedGroupId = currentGroupId;
     _missYouSub?.cancel();
 
-    // Load memories & drawings counts from denormalized group doc fields
-    final fb = FirebaseService();
-    fb.getGroupMemoriesCount(currentGroupId).then((c) {
-      if (mounted && _lastLoadedGroupId == currentGroupId) {
-        setState(() => _memoriesCount = c);
-      }
-    });
-    fb.getGroupDrawingsCount(currentGroupId).then((c) {
-      if (mounted && _lastLoadedGroupId == currentGroupId) {
-        setState(() => _drawingsCount = c);
-      }
+    // Счётчики воспоминаний/рисунков из денормализованных колонок group-дока PB.
+    final gid = currentGroupId;
+    PbDataService().loadGroupById(gid).then((rec) {
+      if (rec == null || !mounted || _lastLoadedGroupId != gid) return;
+      setState(() {
+        _memoriesCount = (rec.data['memories_count'] as num?)?.toInt() ?? 0;
+        _drawingsCount = (rec.data['drawings_count'] as num?)?.toInt() ?? 0;
+      });
     });
 
-    // Listen to Miss You count
-    _missYouSub = FirebaseService().listenToMissYouCount(
-      groupId: currentGroupId,
-      onData: (count) {
-        if (mounted && _lastLoadedGroupId == currentGroupId) {
-          setState(() => _missYouCount = count);
-        }
-      },
-    );
+    // Live-счётчик «Я скучаю» (сумма по паре) из PB.
+    _missYouSub = MissYouRepository().watchCounts(gid).listen((counts) {
+      if (mounted && _lastLoadedGroupId == gid) {
+        setState(
+          () => _missYouCount = counts.values.fold<int>(0, (s, v) => s + v),
+        );
+      }
+    });
   }
 
   @override
@@ -734,7 +737,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final fb = FirebaseService();
-      final userId = fb.currentUser?.uid ?? '';
+      final userId = PocketBaseService().userId ?? '';
       if (userId.isEmpty) {
         if (mounted) Navigator.of(context).pop();
         if (mounted) _showError(_s.userNotAuthorized);
@@ -1254,12 +1257,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final uid = widget.userData.uid;
         if (uid.isNotEmpty && widget.pairData.pairId.isNotEmpty) {
           try {
-            await FirebaseFirestore.instance
-                .collection('groups')
-                .doc(widget.pairData.pairId)
-                .collection('widgetData')
-                .doc(uid)
-                .set({'gender': selectedGender.name}, SetOptions(merge: true));
+            await PbDataService().upsertWidget(
+              widget.pairData.pairId,
+              uid,
+              {'gender': selectedGender.name},
+            );
           } catch (e) {
             debugPrint('Failed to update widgetData gender: $e');
           }
@@ -1763,8 +1765,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastYear: DateTime.now().year,
     );
     if (picked == null || !mounted) return;
-    final fb = FirebaseService();
-    await fb.updateAnniversaryDate(groupId, picked);
+    await PbDataService().updateGroupFields(groupId, {
+      'anniversary_date': picked.toIso8601String(),
+    });
     await CelebrationNotificationService.instance.onDatesChanged(
       anniversaryDate: picked,
       birthDate: widget.userData.birthDate,
@@ -1786,8 +1789,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       lastYear: DateTime.now().year,
     );
     if (picked == null || !mounted) return;
-    final fb = FirebaseService();
-    await fb.updateFirstKissDate(groupId, picked);
+    await PbDataService().updateGroupFields(groupId, {
+      'first_kiss_date': picked.toIso8601String(),
+    });
     if (mounted) setState(() {});
   }
 
@@ -2737,7 +2741,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!confirmed || !mounted) return;
     final groupId = widget.pairData.pairId;
     if (groupId.isEmpty) return;
-    await FirebaseService().resetMyMissYouCount(groupId: groupId);
+    final myUid = PocketBaseService().userId ?? '';
+    if (myUid.isEmpty) return;
+    await PbDataService().setMissYouCount(groupId, myUid, 0);
     if (!mounted) return;
     AppSnack.success(this.context, _s.resetMissYouConfirmTitle);
   }

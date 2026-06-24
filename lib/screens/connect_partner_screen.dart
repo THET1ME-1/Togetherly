@@ -13,7 +13,8 @@ import '../models/profile_icon.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
 import '../services/nickname_service.dart';
 import '../theme/app_theme.dart';
@@ -44,11 +45,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   late AnimationController _pulseController;
   StreamSubscription? _deepLinkSub;
 
-  // Presence: uid → isOnline
+  // Presence (онлайн-статус) на PocketBase пока не реализован — поздний срез
+  // миграции (heartbeat+TTL). Карта оставлена пустой → партнёр всегда «оффлайн».
+  // TODO(pb-presence): живой онлайн-статус через PB heartbeat-коллекцию.
   final Map<String, bool> _partnerOnlineStatus = {};
   final Map<String, String?> _partnerBadges = {};
-  final Map<String, StreamSubscription<Map<String, dynamic>>> _presenceSubs =
-      {};
+  // uid'ы, для которых бейдж уже подгружен из профиля (дедуп разовой загрузки).
+  final Set<String> _badgeLoadedUids = {};
 
   @override
   void initState() {
@@ -89,29 +92,22 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final partners = widget.pairData.partners;
     final newUids = partners.map((p) => p.uid).toSet();
 
-    // Отменяем подписки для вышедших участников
-    final removed = _presenceSubs.keys.toSet().difference(newUids);
+    // Чистим состояние для вышедших участников.
+    final removed = _badgeLoadedUids.difference(newUids);
     for (final uid in removed) {
-      _presenceSubs.remove(uid)?.cancel();
+      _badgeLoadedUids.remove(uid);
       _partnerOnlineStatus.remove(uid);
       _partnerBadges.remove(uid);
     }
 
-    // Добавляем подписки для новых участников
+    // Бейдж подтягиваем разово из профиля PB (онлайн-статус — TODO presence).
     for (final member in partners) {
-      if (member.uid.isEmpty || _presenceSubs.containsKey(member.uid)) continue;
-      final sub = FirebaseService().streamUserPresence(member.uid).listen((
-        data,
-      ) {
-        if (mounted) {
-          setState(() {
-            _partnerOnlineStatus[member.uid] =
-                (data['isOnline'] as bool?) ?? false;
-            _partnerBadges[member.uid] = data['badge'] as String?;
-          });
-        }
+      if (member.uid.isEmpty || _badgeLoadedUids.contains(member.uid)) continue;
+      _badgeLoadedUids.add(member.uid);
+      PbDataService().loadUserProfileMap(member.uid).then((p) {
+        if (!mounted || p == null) return;
+        setState(() => _partnerBadges[member.uid] = p['badge'] as String?);
       });
-      _presenceSubs[member.uid] = sub;
     }
   }
 
@@ -121,10 +117,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     _pulseController.dispose();
     _deepLinkSub?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
-    for (final sub in _presenceSubs.values) {
-      sub.cancel();
-    }
-    _presenceSubs.clear();
+    _badgeLoadedUids.clear();
     super.dispose();
   }
 
@@ -1571,7 +1564,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           theme: widget.theme,
           userData: widget.userData,
           myDisplayName: widget.userData?.displayName ??
-              FirebaseService().currentUser?.displayName ??
+              (PbAuthService().currentProfile()?['displayName'] as String?) ??
               'Me',
         ),
       ),

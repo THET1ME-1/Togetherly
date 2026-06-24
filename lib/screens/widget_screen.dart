@@ -21,6 +21,11 @@ import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../models/memory.dart';
 import '../services/firebase_service.dart';
+import '../services/pocketbase_service.dart';
+import '../services/pb_auth_service.dart';
+import '../services/pb_data_service.dart';
+import '../services/memory_repository.dart';
+import '../services/miss_you_repository.dart';
 import '../services/home_widget_service.dart';
 import '../services/level_service.dart';
 import '../services/locale_service.dart';
@@ -253,15 +258,14 @@ class _WidgetScreenState extends State<WidgetScreen>
     _missYouSub?.cancel();
     final groupId = _pair.pairId;
     if (groupId.isEmpty) return;
-    // Идём через shared hub в FirebaseService — отдельный .snapshots() на group
-    // doc биллится Firestore-ом независимо, а тот же документ уже слушают
-    // listenToPair/Timers/MissYouCount/Mascot. Дедуп по значению counter сразу.
-    _missYouSub = FirebaseService().listenToMissYouCount(
-      groupId: groupId,
-      onData: (value) {
-        if (mounted) setState(() => _missYouCount = value);
-      },
-    );
+    // Live-счётчик «Я скучаю» (сумма по паре) из PB — чтения бесплатны.
+    _missYouSub = MissYouRepository().watchCounts(groupId).listen((counts) {
+      if (mounted) {
+        setState(
+          () => _missYouCount = counts.values.fold<int>(0, (s, v) => s + v),
+        );
+      }
+    });
   }
 
   Future<bool> _checkPinSupportSilent() async {
@@ -284,9 +288,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       return {'memoriesCount': 0, 'drawingsCount': 0, 'missYouCount': 0};
     }
 
-    final fb = FirebaseService();
-    final memoriesCount = await fb.getGroupMemoriesCount(groupId);
-    final drawingsCount = await fb.getGroupDrawingsCount(groupId);
+    final rec = await PbDataService().loadGroupById(groupId);
+    final memoriesCount = (rec?.data['memories_count'] as num?)?.toInt() ?? 0;
+    final drawingsCount = (rec?.data['drawings_count'] as num?)?.toInt() ?? 0;
 
     return {
       'memoriesCount': memoriesCount,
@@ -410,22 +414,23 @@ class _WidgetScreenState extends State<WidgetScreen>
       return;
     }
 
-    // Read denormalized counters from group doc (1 read instead of N).
-    final fb = FirebaseService();
-    fb.getGroupMemoriesCount(groupId).then((c) {
-      if (mounted) setState(() => _memoriesCount = c);
-    });
-    fb.getGroupDrawingsCount(groupId).then((c) {
-      if (mounted) setState(() => _drawingsCount = c);
+    // Денормализованные счётчики из group-дока PB.
+    PbDataService().loadGroupById(groupId).then((rec) {
+      if (rec == null || !mounted) return;
+      setState(() {
+        _memoriesCount = (rec.data['memories_count'] as num?)?.toInt() ?? 0;
+        _drawingsCount = (rec.data['drawings_count'] as num?)?.toInt() ?? 0;
+      });
     });
 
-    // Miss you (from group doc) — через shared hub, не отдельный snapshot.
-    _missYouSub = FirebaseService().listenToMissYouCount(
-      groupId: groupId,
-      onData: (value) {
-        if (mounted) setState(() => _missYouCount = value);
-      },
-    );
+    // Live-счётчик «Я скучаю» (сумма по паре) из PB.
+    _missYouSub = MissYouRepository().watchCounts(groupId).listen((counts) {
+      if (mounted) {
+        setState(
+          () => _missYouCount = counts.values.fold<int>(0, (s, v) => s + v),
+        );
+      }
+    });
   }
 
   Future<void> _loadWidgetTimerId() async {
@@ -764,7 +769,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         uploadedUrls.add(path);
       } else {
         try {
-          final uid = fb.uid ?? '';
+          final uid = PocketBaseService().userId ?? '';
           final ts = DateTime.now().millisecondsSinceEpoch;
           // Когда pairId пустой (соло-режим), используем uid как папку.
           // Путь с пустым сегментом (widget//uid.jpg) отклоняется Firebase Storage.
@@ -774,8 +779,11 @@ class _WidgetScreenState extends State<WidgetScreen>
             final destination = 'memories/$folder/photo_day_$ts.jpg';
             final uploadedUrl = await fb.uploadFile(path, destination);
             if (uploadedUrl != null) {
-              await fb.addMemory(
+              final me = PbAuthService().currentProfile();
+              await MemoryRepository().add(
                 groupId: _pair.pairId,
+                authorName: (me?['displayName'] as String?) ?? '',
+                authorAvatar: (me?['avatarUrl'] as String?) ?? '',
                 type: MemoryType.photo,
                 imageUrl: uploadedUrl,
                 caption: LocaleService.current.setAsPhotoOfDay,
@@ -817,7 +825,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   Future<void> _savePhotosForPartner(List<String> paths) async {
     final fb = FirebaseService();
-    final uid = fb.uid ?? '';
+    final uid = PocketBaseService().userId ?? '';
     final groupId = _pair.pairId;
     if (uid.isEmpty || groupId.isEmpty) return;
 
@@ -4589,7 +4597,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     setState(() => _isLoadingPhotoGrid = true);
     try {
       final fb = FirebaseService();
-      final uid = fb.uid ?? '';
+      final uid = PocketBaseService().userId ?? '';
       final groupId = _pair.pairId;
 
       // 1. Загружаем каждое выбранное фото в Firebase Storage
@@ -4927,7 +4935,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     // Один аплоад → раздаём по выбранным направлениям.
     final fb = FirebaseService();
-    final uid = fb.uid ?? '';
+    final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final url = await fb.uploadFile(
       file.path,
@@ -4948,8 +4956,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       // 3. Лента воспоминаний.
       if (dest.toMemories) {
         try {
-          await fb.addMemory(
+          final me = PbAuthService().currentProfile();
+          await MemoryRepository().add(
             groupId: _pair.pairId,
+            authorName: (me?['displayName'] as String?) ?? '',
+            authorAvatar: (me?['avatarUrl'] as String?) ?? '',
             type: MemoryType.photo,
             imageUrl: url,
             caption: LocaleService.current.widgetPhotoCaption,
