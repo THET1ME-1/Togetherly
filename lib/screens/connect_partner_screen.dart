@@ -15,6 +15,7 @@ import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pb_auth_service.dart';
+import '../services/presence_service.dart';
 import '../services/locale_service.dart';
 import '../services/nickname_service.dart';
 import '../theme/app_theme.dart';
@@ -45,12 +46,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   late AnimationController _pulseController;
   StreamSubscription? _deepLinkSub;
 
-  // Presence (онлайн-статус) на PocketBase пока не реализован — поздний срез
-  // миграции (heartbeat+TTL). Карта оставлена пустой → партнёр всегда «оффлайн».
-  // TODO(pb-presence): живой онлайн-статус через PB heartbeat-коллекцию.
+  // Онлайн-статус партнёра — живой PB-презенс (heartbeat+TTL). Бейдж — разовая
+  // загрузка из профиля (дедуп по _badgeLoadedUids).
   final Map<String, bool> _partnerOnlineStatus = {};
   final Map<String, String?> _partnerBadges = {};
-  // uid'ы, для которых бейдж уже подгружен из профиля (дедуп разовой загрузки).
+  final Map<String, StreamSubscription<bool>> _presenceSubs = {};
   final Set<String> _badgeLoadedUids = {};
 
   @override
@@ -93,21 +93,33 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final newUids = partners.map((p) => p.uid).toSet();
 
     // Чистим состояние для вышедших участников.
-    final removed = _badgeLoadedUids.difference(newUids);
+    final removed = _presenceSubs.keys.toSet().difference(newUids);
     for (final uid in removed) {
+      _presenceSubs.remove(uid)?.cancel();
       _badgeLoadedUids.remove(uid);
       _partnerOnlineStatus.remove(uid);
       _partnerBadges.remove(uid);
     }
 
-    // Бейдж подтягиваем разово из профиля PB (онлайн-статус — TODO presence).
     for (final member in partners) {
-      if (member.uid.isEmpty || _badgeLoadedUids.contains(member.uid)) continue;
-      _badgeLoadedUids.add(member.uid);
-      PbDataService().loadUserProfileMap(member.uid).then((p) {
-        if (!mounted || p == null) return;
-        setState(() => _partnerBadges[member.uid] = p['badge'] as String?);
-      });
+      if (member.uid.isEmpty) continue;
+      // Онлайн-статус — живой PB-презенс (heartbeat+TTL).
+      if (!_presenceSubs.containsKey(member.uid)) {
+        _presenceSubs[member.uid] =
+            PresenceService().watchOnline(member.uid).listen((online) {
+          if (mounted) {
+            setState(() => _partnerOnlineStatus[member.uid] = online);
+          }
+        });
+      }
+      // Бейдж — разово из профиля PB.
+      if (!_badgeLoadedUids.contains(member.uid)) {
+        _badgeLoadedUids.add(member.uid);
+        PbDataService().loadUserProfileMap(member.uid).then((p) {
+          if (!mounted || p == null) return;
+          setState(() => _partnerBadges[member.uid] = p['badge'] as String?);
+        });
+      }
     }
   }
 
@@ -117,6 +129,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     _pulseController.dispose();
     _deepLinkSub?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
+    for (final sub in _presenceSubs.values) {
+      sub.cancel();
+    }
+    _presenceSubs.clear();
     _badgeLoadedUids.clear();
     super.dispose();
   }

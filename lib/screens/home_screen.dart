@@ -21,6 +21,7 @@ import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
+import '../services/presence_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/update_service.dart';
@@ -145,7 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _timerService.init();
     _initPairData();
 
-    // TODO(pb-presence): онлайн-статус ещё не на PB (presence — поздний срез).
+    // Онлайн-презенс: heartbeat в PocketBase, пока приложение активно.
+    PresenceService().start();
 
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();

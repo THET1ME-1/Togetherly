@@ -1000,6 +1000,15 @@ class PbDataService {
         'seen_at': DateTime.now().millisecondsSinceEpoch,
       }, op: 'touchSessionPresence');
 
+  /// Презенс «онлайн» (общий heartbeat, НЕ co-watch): обновить seen_at своего uid.
+  Future<bool> touchPresence(String uid) {
+    if (uid.isEmpty) return Future.value(false);
+    return _upsertByFilter('user_presence', 'user_uid = {:u}', {'u': uid}, {
+      'user_uid': uid,
+      'seen_at': DateTime.now().millisecondsSinceEpoch,
+    }, op: 'touchPresence');
+  }
+
   Future<bool> removeSessionPresence(String pairId, String uid) async {
     if (pairId.isEmpty || uid.isEmpty) return false;
     try {

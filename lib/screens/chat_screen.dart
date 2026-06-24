@@ -16,6 +16,7 @@ import '../services/firebase_service.dart';
 import '../services/locale_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
+import '../services/presence_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
@@ -1276,11 +1277,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// «в сети · печатает…». Presence и «печатает» — живые стримы.
   Widget _buildHeaderTitle(AppStrings s) {
     final name = widget.pairData.partnerDisplayName;
-    return StreamBuilder<Map<String, dynamic>>(
-      // TODO(pb-presence): онлайн-статус ещё не на PB → пока всегда оффлайн.
-      stream: Stream.value(const <String, dynamic>{}),
+    return StreamBuilder<bool>(
+      stream: PresenceService().watchOnline(widget.pairData.partnerUid),
       builder: (context, presSnap) {
-        final online = presSnap.data?['isOnline'] == true;
+        final online = presSnap.data == true;
         final hasPres = presSnap.hasData;
         return Row(
           children: [

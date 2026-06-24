@@ -1274,6 +1274,30 @@
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= pair_id && @collection.groups.members ?~ @request.auth.id"
     },
     {
+      "name": "user_presence",
+      "type": "base",
+      "fields": [
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "seen_at",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_user_presence_user_uid` ON `user_presence` (`user_uid`)"
+      ],
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
+      "updateRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
+      "deleteRule": "@request.auth.id != \"\" && user_uid = @request.auth.id"
+    },
+    {
       "name": "live_session_chat",
       "type": "base",
       "fields": [

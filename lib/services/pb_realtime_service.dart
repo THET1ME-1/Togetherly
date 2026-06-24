@@ -186,6 +186,12 @@ class PbRealtimeService {
             'channel = {:c} && user_uid = {:u}', {'c': channel, 'u': uid}),
       ).map((rows) => rows.isEmpty ? null : rows.first);
 
+  /// Презенс «онлайн» пользователя [uid] → запись|null (seen_at, heartbeat+TTL).
+  Stream<RecordModel?> watchPresence(String uid) => watchList(
+        'user_presence',
+        filter: _pb.filter('user_uid = {:u}', {'u': uid}),
+      ).map((rows) => rows.isEmpty ? null : rows.first);
+
   /// Активное приглашение co-watch (json-поле `groups.active_session`) → Map|null.
   /// Де-дуп по сырому значению: group-док шлёт событие на любое изменение, а
   /// баннер приглашения должен реагировать только на смену active_session.

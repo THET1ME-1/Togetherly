@@ -234,6 +234,12 @@ auto("live_session_presence", [
     t("pair_id", True), t("user_uid", True), num("seen_at"),
 ], ["pair_id", "user_uid"])
 
+# Презенс «онлайн» пользователя (общий, НЕ co-watch): heartbeat+TTL — клиент
+# обновляет seen_at пока приложение активно; партнёр считает «в сети», если свежо.
+auto("user_presence", [
+    t("user_uid", True), num("seen_at"),
+], ["user_uid"])
+
 # Эфемерный чат co-watch сеанса (исчезает с сессией). auto-id PB, НЕ-уникальный
 # индекс (pair_id, ts) для выборки/сортировки. reactions json (uid→эмодзи).
 auto_collections.append({

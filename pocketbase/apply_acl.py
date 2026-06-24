@@ -94,6 +94,15 @@ RULES = {
     # ключ — pair_id (= id группы)
     "live_session_presence": member_authored("user_uid", "pair_id"),
     "live_session_chat": member_authored("uid", "pair_id"),
+    # presence «онлайн»: пишешь только свой (user_uid), читают все залогиненные
+    # (онлайн-статус низкочувствителен, у записи нет привязки к группе).
+    "user_presence": {
+        "listRule": '@request.auth.id != ""',
+        "viewRule": '@request.auth.id != ""',
+        "createRule": '@request.auth.id != "" && user_uid = @request.auth.id',
+        "updateRule": '@request.auth.id != "" && user_uid = @request.auth.id',
+        "deleteRule": '@request.auth.id != "" && user_uid = @request.auth.id',
+    },
     # live-локация: канал pair_<uidA>_<uidB>; create — точку пишешь только за себя
     "live_location": same_authored(CHANNEL, "user_uid"),
     # покупки — только свои
