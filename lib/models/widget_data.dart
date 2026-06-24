@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'mood_entry.dart';
 
@@ -69,55 +68,6 @@ class WidgetData {
 
   bool get hasPhoto => photoUrl != null && photoUrl!.isNotEmpty;
   bool get hasMusic => musicTitle != null && musicTitle!.isNotEmpty;
-
-  // ── Firestore ──
-
-  Map<String, dynamic> toFirestore() => {
-    'uid': uid,
-    'displayName': displayName,
-    'avatarUrl': avatarUrl,
-    'status': status,
-    'moodEmoji': moodEmoji,
-    'moodLabel': moodLabel,
-    'message': message,
-    'photoUrl': photoUrl,
-    'photoForPartnerUrl': photoForPartnerUrl,
-    'photoForPartnerUrls': photoForPartnerUrls,
-    'photoGridCount': photoGridCount,
-    'photoGridUrls': photoGridUrls,
-    'musicTitle': musicTitle,
-    'musicArtist': musicArtist,
-    'musicUrl': musicUrl,
-    'musicCoverUrl': musicCoverUrl,
-    'gender': gender,
-    'updatedAt': FieldValue.serverTimestamp(),
-  };
-
-  factory WidgetData.fromFirestore(Map<String, dynamic> data) {
-    return WidgetData(
-      uid: data['uid'] ?? '',
-      displayName: data['displayName'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? '',
-      status: data['status'] ?? '',
-      moodEmoji: data['moodEmoji'] ?? '',
-      moodLabel: data['moodLabel'] ?? '',
-      message: data['message'] ?? '',
-      photoUrl: data['photoUrl'],
-      photoForPartnerUrl:
-          data['photoForPartnerUrl'] ?? data['photoDayUrl'],
-      photoForPartnerUrls: List<String>.from(
-        data['photoForPartnerUrls'] ?? data['photoDayUrls'] ?? [],
-      ),
-      photoGridCount: (data['photoGridCount'] as int?) ?? 1,
-      photoGridUrls: List<String>.from(data['photoGridUrls'] ?? []),
-      musicTitle: data['musicTitle'],
-      musicArtist: data['musicArtist'],
-      musicUrl: data['musicUrl'],
-      musicCoverUrl: data['musicCoverUrl'],
-      gender: data['gender'] ?? '',
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-    );
-  }
 
   /// PocketBase-запись (коллекция `widget_data`) → модель. Плоские snake_case
   /// колонки; uid = `user_uid`. Пустые text-поля PB отдаёт как `''` → nullable

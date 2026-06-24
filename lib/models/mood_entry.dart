@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../services/locale_service.dart';
@@ -262,22 +261,6 @@ class MoodEntry {
     imagePath: json['imagePath'] as String,
     label: json['label'] as String,
     timestamp: DateTime.parse(json['timestamp'] as String),
-  );
-
-  Map<String, dynamic> toFirestore() => {
-    'id': id,
-    'moodId': moodId,
-    'imagePath': imagePath,
-    'label': label,
-    'timestamp': Timestamp.fromDate(timestamp),
-  };
-
-  factory MoodEntry.fromFirestore(Map<String, dynamic> json) => MoodEntry(
-    id: json['id'] as String? ?? '',
-    moodId: json['moodId'] as String? ?? '',
-    imagePath: json['imagePath'] as String? ?? '',
-    label: json['label'] as String? ?? '',
-    timestamp: (json['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
   );
 
   /// PocketBase-запись (коллекция `mood_entries`) → модель. Плоские snake_case

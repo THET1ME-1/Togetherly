@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Types of memory content
@@ -136,94 +135,6 @@ class Memory {
       case MemoryType.movie:
         return '🎬';
     }
-  }
-
-  /// Serialize to Firestore map
-  Map<String, dynamic> toFirestore() {
-    return {
-      'groupId': groupId,
-      'authorUid': authorUid,
-      'authorName': authorName,
-      'authorAvatar': authorAvatar,
-      'type': type.name,
-      'createdAt': Timestamp.fromDate(createdAt),
-      if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
-      if (imageUrl != null) 'imageUrl': imageUrl,
-      if (imageUrls != null) 'imageUrls': imageUrls,
-      if (videoUrl != null) 'videoUrl': videoUrl,
-      if (title != null) 'title': title,
-      if (caption != null) 'caption': caption,
-      if (locationName != null) 'locationName': locationName,
-      if (latitude != null) 'latitude': latitude,
-      if (longitude != null) 'longitude': longitude,
-      if (musicTitle != null) 'musicTitle': musicTitle,
-      if (musicArtist != null) 'musicArtist': musicArtist,
-      if (musicUrl != null) 'musicUrl': musicUrl,
-      if (musicCoverUrl != null) 'musicCoverUrl': musicCoverUrl,
-      if (bookAuthor != null) 'bookAuthor': bookAuthor,
-      if (bookCoverUrl != null) 'bookCoverUrl': bookCoverUrl,
-      if (bookYear != null) 'bookYear': bookYear,
-      if (bookPublisher != null) 'bookPublisher': bookPublisher,
-      if (bookInfoUrl != null) 'bookInfoUrl': bookInfoUrl,
-      if (movieOriginalTitle != null) 'movieOriginalTitle': movieOriginalTitle,
-      if (moviePosterUrl != null) 'moviePosterUrl': moviePosterUrl,
-      if (movieYear != null) 'movieYear': movieYear,
-      if (movieKind != null) 'movieKind': movieKind,
-      if (movieGenres != null) 'movieGenres': movieGenres,
-      if (movieCountry != null) 'movieCountry': movieCountry,
-      if (movieRatingKp != null) 'movieRatingKp': movieRatingKp,
-      if (movieInfoUrl != null) 'movieInfoUrl': movieInfoUrl,
-      if (rating != null) 'rating': rating,
-      'isPinned': isPinned,
-      if (isAdult) 'isAdult': isAdult,
-    };
-  }
-
-  /// Deserialize from Firestore
-  factory Memory.fromFirestore(String id, Map<String, dynamic> data) {
-    return Memory(
-      id: id,
-      groupId: data['groupId'] ?? '',
-      authorUid: data['authorUid'] ?? '',
-      authorName: data['authorName'] ?? '',
-      authorAvatar: data['authorAvatar'] ?? '',
-      type: MemoryType.values.firstWhere(
-        (e) => e.name == data['type'],
-        orElse: () => MemoryType.text,
-      ),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
-      imageUrl: data['imageUrl'],
-      imageUrls: data['imageUrls'] != null
-          ? List<String>.from(data['imageUrls'])
-          : null,
-      videoUrl: data['videoUrl'],
-      title: data['title'],
-      caption: data['caption'],
-      locationName: data['locationName'],
-      latitude: (data['latitude'] as num?)?.toDouble(),
-      longitude: (data['longitude'] as num?)?.toDouble(),
-      musicTitle: data['musicTitle'],
-      musicArtist: data['musicArtist'],
-      musicUrl: data['musicUrl'],
-      musicCoverUrl: data['musicCoverUrl'],
-      bookAuthor: data['bookAuthor'],
-      bookCoverUrl: data['bookCoverUrl'],
-      bookYear: data['bookYear'],
-      bookPublisher: data['bookPublisher'],
-      bookInfoUrl: data['bookInfoUrl'],
-      movieOriginalTitle: data['movieOriginalTitle'],
-      moviePosterUrl: data['moviePosterUrl'],
-      movieYear: data['movieYear'],
-      movieKind: data['movieKind'],
-      movieGenres: data['movieGenres'],
-      movieCountry: data['movieCountry'],
-      movieRatingKp: data['movieRatingKp'],
-      movieInfoUrl: data['movieInfoUrl'],
-      rating: (data['rating'] as num?)?.toInt(),
-      isPinned: data['isPinned'] ?? false,
-      isAdult: data['isAdult'] ?? false,
-    );
   }
 
   /// Local JSON serialization

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'level.dart';
@@ -91,34 +90,6 @@ class Mascot {
       case 'default_zhuzha': return s.mascotZhuzhaName;
       default: return name;
     }
-  }
-
-  Map<String, dynamic> toFirestore() => {
-    'id': id,
-    'name': name,
-    'imageUrl': imageUrl,
-    'defaultAsset': defaultAsset,
-    'createdBy': createdBy,
-    'createdAt': Timestamp.fromDate(createdAt),
-    'isDefault': isDefault,
-    'recordStreak': recordStreak,
-  };
-
-  factory Mascot.fromFirestore(Map<String, dynamic> data) {
-    DateTime createdAt = DateTime.now();
-    final ts = data['createdAt'];
-    if (ts is Timestamp) createdAt = ts.toDate();
-
-    return Mascot(
-      id: data['id'] as String? ?? '',
-      name: data['name'] as String? ?? '',
-      imageUrl: data['imageUrl'] as String?,
-      defaultAsset: data['defaultAsset'] as String?,
-      createdBy: data['createdBy'] as String? ?? '',
-      createdAt: createdAt,
-      isDefault: data['isDefault'] as bool? ?? false,
-      recordStreak: (data['recordStreak'] as num?)?.toInt() ?? 0,
-    );
   }
 
   /// PocketBase-запись (коллекция `mascots`) → модель. id маскота лежит в
