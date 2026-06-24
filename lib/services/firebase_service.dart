@@ -33,6 +33,7 @@ import 'level_service.dart';
 import 'locale_service.dart';
 import 'nickname_service.dart';
 import 'pb_media_service.dart';
+import 'pocketbase_service.dart';
 import 'rate_limiter_service.dart';
 import 'supabase_service.dart';
 import 'chat_service.dart';
@@ -4920,15 +4921,26 @@ class FirebaseService {
 
       // Миграция §4: медиа теперь в PocketBase (коллекция `media`) — грузим уже
       // сжатые байты, возвращаем `pb://`-ссылку. Никакого Firebase/Supabase
-      // Storage. Имя файла и kind берём из uploadDestination (e.g. memories/...).
+      // Storage. Путь uploadDestination = `<kind>/<groupId>/<file>` → из него
+      // берём имя файла, kind и group_id.
       final bytes = await fileToUpload.readAsBytes();
-      final filename = uploadDestination.split('/').last;
-      final kind = uploadDestination.contains('/')
-          ? uploadDestination.split('/').first
-          : null;
+      final segments = uploadDestination.split('/');
+      final filename = segments.last;
+      final kind = segments.length > 1 ? segments.first : null;
+      // group_id — второй сегмент пути (memories/<groupId>/file, canvas/<groupId>/…,
+      // widget/<groupId>/…). КРИТИЧНО: после ACL по членству (b8d5daf) media
+      // createRule/viewRule пускает запись/чтение только владельцу (uid) ИЛИ члену
+      // группы (group_id). Раньше тут передавался лишь kind → uid и group_id пусты
+      // → createRule отклонял загрузку (= «нельзя загрузить воспоминание»). uid даёт
+      // create + self-view, group_id — просмотр партнёром-членом группы.
+      // (avatars/<uid>/… — здесь group_id окажется = uid: create/owner-view ок,
+      // кросс-просмотр аватара партнёром — отдельная задача, не этот путь.)
+      final groupId = segments.length >= 3 ? segments[1] : null;
       final pbRef = await PbMediaService().uploadBytes(
         bytes,
         filename,
+        uid: PocketBaseService().userId,
+        groupId: groupId,
         kind: kind,
       );
       _compressedTempFile?.delete().catchError((_) {});
