@@ -180,6 +180,31 @@ class MemoryRepository {
   }) =>
       update(groupId: groupId, memoryId: memoryId, isPinned: isPinned);
 
+  /// Переключает закладку «Избранное» для ТЕКУЩЕГО пользователя (персонально).
+  /// RMW по списку `savedBy` в json-поле `data`.
+  Future<void> toggleSaved({
+    required String groupId,
+    required String memoryId,
+  }) async {
+    final uid = _uid;
+    if (uid == null || uid.isEmpty) return;
+    final rec = await _data.loadMemoryById(memoryId);
+    if (rec == null) return;
+    final raw = rec.data['data'];
+    final map =
+        raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final saved = (map['savedBy'] is List)
+        ? List<String>.from((map['savedBy'] as List).map((e) => e.toString()))
+        : <String>[];
+    if (saved.contains(uid)) {
+      saved.remove(uid);
+    } else {
+      saved.add(uid);
+    }
+    map['savedBy'] = saved;
+    await _data.upsertMemory(groupId, memoryId, map);
+  }
+
   /// Удаляет воспоминание (hard) + связанные PB-медиа (`pb://`). Не-PB URL
   /// (Firebase http) на §3 не трогаем — чистка такого медиа уедет в §4.
   Future<void> delete({
@@ -228,6 +253,19 @@ class MemoryRepository {
       'text': text,
       'createdAt': DateTime.now().toIso8601String(),
     });
+    // Кэш-счётчик комментов в самом воспоминании — для бейджа в ленте (чтобы не
+    // держать SSE-подписку на комментарии каждой карточки). RMW по json `data`.
+    try {
+      final rec = await _data.loadMemoryById(memoryId);
+      if (rec != null) {
+        final raw = rec.data['data'];
+        final map =
+            raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        map['commentsCount'] =
+            ((map['commentsCount'] as num?)?.toInt() ?? 0) + 1;
+        await _data.upsertMemory(groupId, memoryId, map);
+      }
+    } catch (_) {}
   }
 
   Future<void> deleteComment(String commentId) =>

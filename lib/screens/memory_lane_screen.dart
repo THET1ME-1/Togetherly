@@ -772,7 +772,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   Widget _cardHeader(
     Memory memory, {
-    required String subtitle,
+    String? subtitle,
     Widget? trailing,
     Color? badgeColor,
   }) {
@@ -862,13 +862,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
               ],
             ),
           ),
@@ -884,12 +886,225 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
+  bool get _ru => LocaleService.instance.isRussian;
+
+  /// Бейдж типа воспоминания (напр. «❤️ Момент») справа в шапке. Плоский —
+  /// без теней/бордера (требование), лёгкая подложка цветом темы.
+  Widget _typeBadge(Memory memory) {
+    final meta = _typeBadgeMeta(memory.type);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(meta.$2, size: 13, color: primary),
+          const SizedBox(width: 5),
+          Text(
+            meta.$1,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  (String, IconData) _typeBadgeMeta(MemoryType type) {
+    switch (type) {
+      case MemoryType.photo:
+      case MemoryType.video:
+        return (_ru ? 'Момент' : 'Moment', Icons.favorite_rounded);
+      case MemoryType.location:
+        return (_ru ? 'Место' : 'Place', Icons.place_rounded);
+      case MemoryType.music:
+        return (_ru ? 'Музыка' : 'Music', Icons.music_note_rounded);
+      case MemoryType.videoLink:
+        return (_ru ? 'Видео' : 'Video', Icons.play_circle_fill_rounded);
+      case MemoryType.text:
+        return (_ru ? 'Заметка' : 'Note', Icons.sticky_note_2_rounded);
+      case MemoryType.book:
+        return (_ru ? 'Книга' : 'Book', Icons.menu_book_rounded);
+      case MemoryType.movie:
+        return (_ru ? 'Фильм' : 'Movie', Icons.movie_rounded);
+    }
+  }
+
+  /// Открыть полноэкранную галерею по тапу на коллаж.
+  void _openCollage(Memory memory) async {
+    final items = _allGalleryItems;
+    final idx = items.indexWhere((it) => it.memoryId == memory.id);
+    final result =
+        await _openFullscreenGallery(context, items, idx >= 0 ? idx : 0);
+    if (result != null && mounted) {
+      final mem = _memories.firstWhere(
+        (m) => m.id == result,
+        orElse: () => memory,
+      );
+      _showMemoryDetail(mem);
+    }
+  }
+
+  /// Мозаика-коллаж медиа (фото 17): 1 — крупно, 2 — в ряд, 3 — 1+2, 4+ — два
+  /// сверху и до 3 снизу, последняя ячейка с «+N», если фото больше.
+  Widget _mediaCollage(Memory memory, List<String> photos, bool hasVideo) {
+    const r = 14.0;
+    const gap = 4.0;
+    final n = photos.length;
+
+    Widget tile(int i, {bool overlay = false, int remaining = 0}) {
+      Widget cell = Stack(
+        fit: StackFit.expand,
+        children: [
+          StorageImage(
+            imageUrl: photos[i],
+            fit: BoxFit.cover,
+            memCacheWidth: 500,
+            memCacheHeight: 500,
+            errorWidget: (_, __, ___) => Container(
+              color: Colors.grey.shade200,
+              child: Icon(Icons.broken_image_rounded,
+                  color: Colors.grey.shade400, size: 26),
+            ),
+          ),
+          if (hasVideo && i == 0)
+            const Center(
+              child: Icon(Icons.play_circle_fill_rounded,
+                  color: Colors.white, size: 42),
+            ),
+          if (overlay)
+            Container(
+              color: Colors.black.withOpacity(0.45),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, color: Colors.white, size: 26),
+                  Text('$remaining',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+        ],
+      );
+      if (memory.isAdult) cell = _BlurAfterTap(child: cell);
+      return ClipRRect(borderRadius: BorderRadius.circular(r), child: cell);
+    }
+
+    if (n == 1) {
+      return AspectRatio(aspectRatio: 4 / 3, child: tile(0));
+    }
+    if (n == 2) {
+      return AspectRatio(
+        aspectRatio: 2 / 1,
+        child: Row(children: [
+          Expanded(child: tile(0)),
+          const SizedBox(width: gap),
+          Expanded(child: tile(1)),
+        ]),
+      );
+    }
+    if (n == 3) {
+      return AspectRatio(
+        aspectRatio: 3 / 2,
+        child: Row(children: [
+          Expanded(flex: 2, child: tile(0)),
+          const SizedBox(width: gap),
+          Expanded(
+            child: Column(children: [
+              Expanded(child: tile(1)),
+              const SizedBox(height: gap),
+              Expanded(child: tile(2)),
+            ]),
+          ),
+        ]),
+      );
+    }
+    // n >= 4
+    final bottomCount = n >= 5 ? 3 : 2;
+    final shown = 2 + bottomCount;
+    final remaining = n - shown;
+    return Column(children: [
+      AspectRatio(
+        aspectRatio: 2 / 1,
+        child: Row(children: [
+          Expanded(child: tile(0)),
+          const SizedBox(width: gap),
+          Expanded(child: tile(1)),
+        ]),
+      ),
+      const SizedBox(height: gap),
+      AspectRatio(
+        aspectRatio: bottomCount == 3 ? 3 / 1 : 2 / 1,
+        child: Row(children: [
+          for (int k = 0; k < bottomCount; k++) ...[
+            if (k > 0) const SizedBox(width: gap),
+            Expanded(
+              child: tile(2 + k,
+                  overlay: k == bottomCount - 1 && remaining > 0,
+                  remaining: remaining),
+            ),
+          ],
+        ]),
+      ),
+    ]);
+  }
+
+  /// Футер карточки: комментарии + закладка (лайков НЕТ — по требованию).
+  Widget _cardFooter(Memory memory) {
+    final saved = memory.isSavedBy(_myUid ?? '');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _showMemoryDetail(memory),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded,
+                    size: 19, color: Colors.grey.shade500),
+                if (memory.commentsCount > 0) ...[
+                  const SizedBox(width: 5),
+                  Text('${memory.commentsCount}',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600)),
+                ],
+              ],
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () =>
+                _memRepo.toggleSaved(groupId: _groupId, memoryId: memory.id),
+            child: Icon(
+              saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              size: 21,
+              color: saved ? primary : Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════
-  //  PHOTO TILE — social-style photo card
+  //  PHOTO TILE — social-style photo card (коллаж + футер)
   // ═══════════════════════════════════════════════════
   Widget _photoTile(Memory memory) {
-    final s = LocaleService.current;
-    // Support both legacy imageUrl and new imageUrls array
     final allPhotos = <String>[
       if (memory.imageUrls?.isNotEmpty == true)
         ...memory.imageUrls!
@@ -897,249 +1112,41 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         memory.imageUrl!,
     ];
     final hasPhotos = allPhotos.isNotEmpty;
+    final hasVideo = memory.videoUrl?.isNotEmpty == true;
+    final caption = memory.caption?.isNotEmpty == true
+        ? memory.caption!
+        : (memory.title?.isNotEmpty == true ? memory.title! : '');
 
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(
-            memory,
-            subtitle: memory.title?.isNotEmpty == true
-                ? memory.title!
-                : s.sharedAPicture,
-            badgeColor: primary,
-          ),
-          const SizedBox(height: 10),
-          // ── Photo sub-card (same style as music tile) ──
-          GestureDetector(
-            onTap: hasPhotos
-                ? () async {
-                    final items = _allGalleryItems;
-                    final idx =
-                        items.indexWhere((it) => it.memoryId == memory.id);
-                    final result = await _openFullscreenGallery(
-                      context,
-                      items,
-                      idx >= 0 ? idx : 0,
-                    );
-                    if (result != null && mounted) {
-                      final mem = _memories.firstWhere(
-                        (m) => m.id == result,
-                        orElse: () => memory,
-                      );
-                      _showMemoryDetail(mem);
-                    }
-                  }
-                : null,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.shade200, width: 1),
-                ),
-                child: Row(
-                  children: [
-                    // Left: text content
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            memory.title?.isNotEmpty == true
-                                ? memory.title!
-                                : s.sharedAPicture,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade900,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (memory.caption?.isNotEmpty == true)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: Text(
-                                memory.caption!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade500,
-                                  height: 1.35,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          if (!hasPhotos)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                LocaleService.current.noPhotoAttached,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          if (allPhotos.length > 1)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 5),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: primary.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  LocaleService.current.nPhotos(
-                                    allPhotos.length,
-                                  ),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Right: stacked deck preview (up to 3 photos)
-                    Builder(
-                      builder: (_) {
-                        if (!hasPhotos) {
-                          return Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.image_rounded,
-                              color: primary.withValues(alpha: 0.4),
-                              size: 22,
-                            ),
-                          );
-                        }
-                        final hasVideo =
-                            memory.videoUrl?.isNotEmpty == true;
-                        // Смешанный пин: видео-плитка идёт первой (поверх колоды)
-                        final deckEntries = <(String, bool)>[
-                          if (hasVideo)
-                            (
-                              memory.imageUrl?.isNotEmpty == true
-                                  ? memory.imageUrl!
-                                  : (allPhotos.isNotEmpty
-                                      ? allPhotos.first
-                                      : ''),
-                              true
-                            ),
-                          for (final p in allPhotos) (p, false),
-                        ].take(3).toList();
-                        const cardSize = 48.0;
-                        const offset = 7.0;
-                        final totalWidth =
-                            cardSize + (deckEntries.length - 1) * offset;
-                        return SizedBox(
-                          width: totalWidth,
-                          height: cardSize,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              for (int i = deckEntries.length - 1; i >= 0; i--)
-                                Positioned(
-                                  left: i * offset,
-                                  top: 0,
-                                  child: Transform.rotate(
-                                    angle: i * 0.07,
-                                    alignment: Alignment.bottomLeft,
-                                    child: Builder(builder: (_) {
-                                      final card = Container(
-                                        width: cardSize,
-                                        height: cardSize,
-                                        decoration: BoxDecoration(
-                                          color: primary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 2,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black
-                                                  .withValues(alpha: 0.12),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              StorageImage(
-                                                imageUrl: deckEntries[i].$1,
-                                                fit: BoxFit.cover,
-                                                memCacheWidth: 96,
-                                                memCacheHeight: 96,
-                                                errorWidget: (ctx, err, w) =>
-                                                    Icon(
-                                                  Icons.broken_image_rounded,
-                                                  color: Colors.grey.shade300,
-                                                  size: 22,
-                                                ),
-                                              ),
-                                              if (deckEntries[i].$2)
-                                                Container(
-                                                  color: Colors.black
-                                                      .withValues(alpha: 0.25),
-                                                  child: const Center(
-                                                    child: Icon(
-                                                      Icons
-                                                          .play_circle_fill_rounded,
-                                                      color: Colors.white,
-                                                      size: 22,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                      if (memory.isAdult) {
-                                        return _BlurAfterTap(child: card);
-                                      }
-                                      return card;
-                                    }),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+          _cardHeader(memory, trailing: _typeBadge(memory)),
+          const SizedBox(height: 12),
+          if (hasPhotos)
+            GestureDetector(
+              onTap: () => _openCollage(memory),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: _mediaCollage(memory, allPhotos, hasVideo),
+              ),
+            ),
+          if (caption.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                caption,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade800,
+                  height: 1.35,
                 ),
               ),
             ),
-          ),
           _locationDistancePill(memory),
+          const SizedBox(height: 12),
+          _cardFooter(memory),
           const SizedBox(height: 12),
         ],
       ),
@@ -1399,170 +1406,106 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  TEXT / NOTE TILE — thought bubble card
   // ═══════════════════════════════════════════════════
   Widget _textTile(Memory memory) {
-    final s = LocaleService.current;
-    final hasLocation =
-        memory.locationName != null && memory.locationName!.isNotEmpty;
-    final hasCoords = memory.latitude != null && memory.longitude != null;
+    final hasTitle = memory.title?.isNotEmpty == true;
+    final hasCaption = memory.caption?.isNotEmpty == true;
+    final body = hasCaption
+        ? memory.caption!
+        : (hasTitle ? memory.title! : '');
 
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(memory, subtitle: s.sharedAThought, badgeColor: primary),
-          const SizedBox(height: 10),
-          // ── Note sub-card (same style as music/location tiles) ──
+          // ── Жёлтый стикер-листик (post-it). Без хедера сверху — автор
+          // подписан внизу в стиле стикера. Плоский (без тени/бордера). ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
+                color: const Color(0xFFFCE08A),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Left icon
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(10),
+                  if (hasTitle && hasCaption) ...[
+                    Text(
+                      memory.title!,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF5A4A1E),
+                      ),
                     ),
-                    child: Icon(
-                      Icons.sticky_note_2_rounded,
-                      color: primary,
-                      size: 22,
+                    const SizedBox(height: 6),
+                  ],
+                  if (body.isNotEmpty)
+                    _SpoilerRichText(
+                      text: body,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        color: Color(0xFF5A4A1E),
+                        height: 1.42,
+                      ),
+                      maxLines: 14,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Text(
+                      _ru ? 'Заметка' : 'Note',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontStyle: FontStyle.italic,
+                        color: Color(0xFF8A7733),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Text content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (memory.title?.isNotEmpty == true)
-                          Text(
-                            memory.title!,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade900,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 14),
+                  // Подпись автора в стиле стикера (внизу справа).
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '— ${_liveName(memory)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            fontStyle: FontStyle.italic,
+                            color: Color(0xFF7A6526),
                           ),
-                        if (memory.caption?.isNotEmpty == true)
-                          Padding(
-                            padding: EdgeInsets.only(
-                              top: memory.title?.isNotEmpty == true ? 3 : 0,
-                            ),
-                            child: _SpoilerRichText(
-                              text: memory.caption!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                                height: 1.35,
-                              ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        if (memory.title == null && memory.caption == null)
-                          Text(
-                            s.note,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade400,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                      ],
-                    ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ClipOval(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: _liveAvatar(memory).isNotEmpty
+                              ? StorageImage(
+                                  imageUrl: _liveAvatar(memory),
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 72,
+                                  memCacheHeight: 72,
+                                  errorWidget: (_, __, ___) =>
+                                      _avatarFallback(_liveName(memory)),
+                                )
+                              : _avatarFallback(_liveName(memory)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          // Location sub-card (if available)
-          if (hasLocation || hasCoords)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200, width: 1),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.location_on_rounded,
-                        color: primary,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            memory.locationName ?? '',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (hasCoords && _userLat != null)
-                            Text(
-                              s.kmFromYou(
-                                _distanceKm(
-                                  memory.latitude!,
-                                  memory.longitude!,
-                                ),
-                              ),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (hasCoords)
-                      GestureDetector(
-                        onTap: () => _openLocationInMaps(
-                          memory.latitude!,
-                          memory.longitude!,
-                          memory.locationName,
-                        ),
-                        child: Text(
-                          s.setARoute,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: primary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+          _locationDistancePill(memory),
+          const SizedBox(height: 12),
+          _cardFooter(memory),
           const SizedBox(height: 12),
         ],
       ),
@@ -2366,22 +2309,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         onTap: enableTap ? () => _showMemoryDetail(memory) : null,
         onLongPress: () => _showMemoryActions(memory),
         child: Container(
+          // Плоский стиль пинов: без тени, свечения и бордера (требование).
           decoration: BoxDecoration(
             color: widget.theme.cardSurface,
             borderRadius: BorderRadius.circular(20),
-            border: memory.isPinned
-                ? Border.all(color: primary.withOpacity(0.25), width: 1.5)
-                : Border.all(
-                    color: widget.theme.cardBorder.withOpacity(0.5),
-                    width: 0.5,
-                  ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: child,

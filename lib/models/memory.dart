@@ -55,6 +55,16 @@ class Memory {
   bool isPinned;
   bool isAdult;
 
+  /// UID'ы пользователей, добавивших это воспоминание в «Избранное» (закладка).
+  /// Персонально: каждый партнёр видит свой набор закладок.
+  List<String> savedBy;
+
+  /// Кэш числа комментариев (для бейджа в ленте — чтобы не подписываться на
+  /// комментарии каждой карточки). Инкрементится при добавлении комментария.
+  int commentsCount;
+
+  bool isSavedBy(String uid) => uid.isNotEmpty && savedBy.contains(uid);
+
   Memory({
     required this.id,
     required this.groupId,
@@ -92,7 +102,10 @@ class Memory {
     this.rating,
     this.isPinned = false,
     this.isAdult = false,
-  });
+    List<String>? savedBy,
+    int? commentsCount,
+  })  : savedBy = savedBy ?? <String>[],
+        commentsCount = commentsCount ?? 0;
 
   /// Human-friendly type label
   String get typeLabel {
@@ -176,6 +189,8 @@ class Memory {
       'rating': rating,
       'isPinned': isPinned,
       'isAdult': isAdult,
+      'savedBy': savedBy,
+      'commentsCount': commentsCount,
     };
   }
 
@@ -224,6 +239,10 @@ class Memory {
       rating: (json['rating'] as num?)?.toInt(),
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
+      savedBy: json['savedBy'] != null
+          ? List<String>.from(json['savedBy'])
+          : null,
+      commentsCount: (json['commentsCount'] as num?)?.toInt(),
     );
   }
 
