@@ -208,9 +208,18 @@ class PbAuthService {
     }
     if (patch.isEmpty) return;
     try {
-      await _pb.collection(_usersCol).update(rec.id, body: patch);
+      final updated = await _pb.collection(_usersCol).update(rec.id, body: patch);
+      // AUTH-8: update() возвращает свежую запись, но НЕ трогает authStore.record,
+      // поэтому _svc.currentUser/currentProfile() продолжали отдавать старые
+      // имя/аватар до следующего authRefresh. Кладём обновлённую запись в стор с
+      // тем же токеном — профиль становится актуальным сразу.
+      _pb.authStore.save(_pb.authStore.token, updated);
     } catch (e) {
-      debugPrint('PbAuth._ensureProfile patch failed: $e');
+      // AUTH-3: глотание здесь НАМЕРЕННОЕ — дозаполнение имени/аватара это
+      // best-effort обогащение, и сбой патча (напр. сетевой) не должен ронять
+      // успешный вход. Профиль до-патчится при следующем входе (_ensureProfile
+      // вызывается каждый раз). Ошибка видна в debug-логе.
+      debugPrint('PbAuth._ensureProfile patch failed (best-effort, ignored): $e');
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:in_app_update/in_app_update.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
@@ -1040,7 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mascot: _mascotService.activeMascot,
               service: _mascotService,
               theme: _t,
-              streak: _mascotService.state.streakDays,
+              streak: _mascotService.state.activeStreak,
               isHidden: isHidden,
               onTap: _openMascotGallery,
               onShowOverlay: showMascotOverlay,
@@ -2353,6 +2354,16 @@ class _MascotPreviewWidget extends StatelessWidget {
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);
+    }
+    // Каталожные (уровневые) маскоты рендерятся по публичному catalogUrl.
+    // Без этой ветки они падали в Icon(face) → «нет превью» в карточке серии.
+    if (mascot.catalogUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: mascot.catalogUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, _) => const SizedBox.shrink(),
+        errorWidget: (_, _, _) => const Icon(Icons.face),
+      );
     }
     if (mascot.imageUrl != null) {
       return StorageImage(

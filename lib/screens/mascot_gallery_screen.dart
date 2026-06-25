@@ -546,7 +546,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     final mascots = _svc.mascots;
-    final streak = _svc.state.streakDays;
+    final streak = _svc.state.activeStreak;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),

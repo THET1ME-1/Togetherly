@@ -8,31 +8,35 @@
 /// Сравниваем входящее значение с сохранённым в БД: поле, которое клиент НЕ
 /// присылает в PATCH, остаётся прежним (== orig) → проходит. Меняется только
 /// то, что клиент реально пытается перезаписать.
-
-/// Глубокое сравнение значений (надёжнее JSON.stringify — не зависит от
-/// порядка ключей в объектах).
-function _deepEqual(a, b) {
-  if (a === b) return true;
-  if (a == null || b == null) return false;
-  if (typeof a !== typeof b) return false;
-  if (typeof a !== 'object') return a === b;
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!_deepEqual(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  const ka = Object.keys(a);
-  const kb = Object.keys(b);
-  if (ka.length !== kb.length) return false;
-  for (const k of ka) {
-    if (!kb.includes(k) || !_deepEqual(a[k], b[k])) return false;
-  }
-  return true;
-}
+///
+/// ВАЖНО (PB JSVM): обработчик хука сериализуется и исполняется в изолированном
+/// пуле — он НЕ видит функции/переменные уровня файла. Поэтому хелпер _deepEqual
+/// объявлен ВНУТРИ обработчика (иначе ReferenceError на каждом update → весь
+/// PATCH users падает 500). См. coins.pb.js и CUTOVER.md «грабли PB JSVM».
 
 onRecordUpdateRequest((e) => {
+  // Глубокое сравнение значений (надёжнее JSON.stringify — не зависит от
+  // порядка ключей в объектах). Объявлено внутри обработчика — см. шапку файла.
+  const _deepEqual = (a, b) => {
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+    if (typeof a !== typeof b) return false;
+    if (typeof a !== 'object') return a === b;
+    if (Array.isArray(a)) {
+      if (!Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (!_deepEqual(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    const ka = Object.keys(a);
+    const kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    for (const k of ka) {
+      if (!kb.includes(k) || !_deepEqual(a[k], b[k])) return false;
+    }
+    return true;
+  };
   let isSuper = false;
   try {
     isSuper = !!(e.auth && e.auth.collection() && e.auth.collection().name === "_superusers");

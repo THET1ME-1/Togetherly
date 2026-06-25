@@ -89,83 +89,108 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   const delCode = () => { try { $app.delete(codeRec); } catch (_) { /* гонка — ок */ } };
 
   // ── операции над группой (все через $app — правила не применяются) ────────
+  // INV-1: мутации обёрнуты в $app.runInTransaction. PB исполняет транзакции на
+  // единственном неконкурентном write-коннекте → два параллельных accept
+  // сериализуются: второй читает уже обновлённый members → не превысит max_members
+  // и не создаст дубль-группу. Внутри tx — ТОЛЬКО txApp. delCode() вызываем ПОСЛЕ
+  // коммита (если save упал — код инвайта не теряем, см. INV-4). Решение «группа не
+  // найдена → создать» принимаем ВНЕ tx, чтобы не открыть вложенную транзакцию.
   const createGroup = () => {
-    // Race-guard взаимного коннекта: уже есть живая группа с этим партнёром?
-    let mine = [];
+    let result;
     try {
-      mine = $app.findRecordsByFilter(
-        "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: myUid });
-    } catch (_) {}
-    for (let i = 0; i < mine.length; i++) {
-      if (membersOf(mine[i]).indexOf(ownerUid) !== -1) {
-        delCode();
-        return { success: true, message: "Connected!", pairId: mine[i].id };
-      }
-    }
-    const g = new Record(groupsCol);
-    const names = {}; names[ownerUid] = owner.name; names[myUid] = me.name;
-    const avatars = {}; avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
-    g.set("members", [ownerUid, myUid]);
-    g.set("member_names", names);
-    g.set("member_avatars", avatars);
-    g.set("max_members", 2);
-    g.set("relationship_type", "couple");
-    g.set("custom_relationship_types", []);
-    g.set("memories_count", 0);
-    g.set("drawings_count", 0);
-    g.set("start_date", nowIso);
-    g.set("created_at", nowIso);
-    g.set("disbanded", false);
-    try { $app.save(g); }
-    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    delCode();
-    return { success: true, message: "Connected!", pairId: g.id };
+      $app.runInTransaction((txApp) => {
+        // Race-guard взаимного коннекта: уже есть живая группа с этим партнёром?
+        let mine = [];
+        try {
+          mine = txApp.findRecordsByFilter(
+            "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: myUid });
+        } catch (_) {}
+        for (let i = 0; i < mine.length; i++) {
+          if (membersOf(mine[i]).indexOf(ownerUid) !== -1) {
+            result = { success: true, message: "Connected!", pairId: mine[i].id, _delCode: true };
+            return;
+          }
+        }
+        const g = new Record(groupsCol);
+        const names = {}; names[ownerUid] = owner.name; names[myUid] = me.name;
+        const avatars = {}; avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
+        g.set("members", [ownerUid, myUid]);
+        g.set("member_names", names);
+        g.set("member_avatars", avatars);
+        g.set("max_members", 2);
+        g.set("relationship_type", "couple");
+        g.set("custom_relationship_types", []);
+        g.set("memories_count", 0);
+        g.set("drawings_count", 0);
+        g.set("start_date", nowIso);
+        g.set("created_at", nowIso);
+        g.set("disbanded", false);
+        txApp.save(g);
+        result = { success: true, message: "Connected!", pairId: g.id, _delCode: true };
+      });
+    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
+    if (result && result._delCode) { delCode(); delete result._delCode; }
+    return result;
   };
 
   const joinGroup = (groupId) => {
-    let g;
-    try { g = $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
-    const members = membersOf(g);
-    const maxM = Number(g.get("max_members")) || 2;
-    if (members.indexOf(myUid) !== -1) {
-      return { success: false, message: "Вы уже в этой группе" };
-    }
-    if (members.length >= maxM) {
-      return { success: false, message: "Группа заполнена" };
-    }
-    const names = mapOf(g, "member_names");
-    const avatars = mapOf(g, "member_avatars");
-    members.push(myUid);
-    names[myUid] = me.name;
-    avatars[myUid] = me.avatar;
-    g.set("members", members);
-    g.set("member_names", names);
-    g.set("member_avatars", avatars);
-    try { $app.save(g); }
-    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (members.length >= maxM) delCode();
-    return { success: true, message: "Joined the group!", pairId: g.id };
+    // Существование группы решаем ВНЕ tx (createGroup откроет свою транзакцию).
+    try { $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
+    let result;
+    try {
+      $app.runInTransaction((txApp) => {
+        const g = txApp.findRecordById("groups", groupId); // свежее чтение внутри tx
+        const members = membersOf(g);
+        const maxM = Number(g.get("max_members")) || 2;
+        if (members.indexOf(myUid) !== -1) {
+          result = { success: false, message: "Вы уже в этой группе" };
+          return;
+        }
+        if (members.length >= maxM) {
+          result = { success: false, message: "Группа заполнена" };
+          return;
+        }
+        const names = mapOf(g, "member_names");
+        const avatars = mapOf(g, "member_avatars");
+        members.push(myUid);
+        names[myUid] = me.name;
+        avatars[myUid] = me.avatar;
+        g.set("members", members);
+        g.set("member_names", names);
+        g.set("member_avatars", avatars);
+        txApp.save(g);
+        result = { success: true, message: "Joined the group!", pairId: g.id, _full: members.length >= maxM };
+      });
+    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
+    if (result && result.success && result._full) delCode();
+    if (result) delete result._full;
+    return result;
   };
 
   const restoreGroup = (groupId) => {
-    let g;
-    try { g = $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
-    const members = membersOf(g);
-    if (members.indexOf(ownerUid) === -1) members.push(ownerUid);
-    if (members.indexOf(myUid) === -1) members.push(myUid);
-    const names = mapOf(g, "member_names");
-    const avatars = mapOf(g, "member_avatars");
-    names[ownerUid] = owner.name; names[myUid] = me.name;
-    avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
-    g.set("members", members);
-    g.set("member_names", names);
-    g.set("member_avatars", avatars);
-    g.set("disbanded", false);
-    g.set("disbanded_at", null);
-    try { $app.save(g); }
-    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    delCode();
-    return { success: true, message: "Reconnected!", pairId: g.id, restored: true };
+    try { $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
+    let result;
+    try {
+      $app.runInTransaction((txApp) => {
+        const g = txApp.findRecordById("groups", groupId);
+        const members = membersOf(g);
+        if (members.indexOf(ownerUid) === -1) members.push(ownerUid);
+        if (members.indexOf(myUid) === -1) members.push(myUid);
+        const names = mapOf(g, "member_names");
+        const avatars = mapOf(g, "member_avatars");
+        names[ownerUid] = owner.name; names[myUid] = me.name;
+        avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
+        g.set("members", members);
+        g.set("member_names", names);
+        g.set("member_avatars", avatars);
+        g.set("disbanded", false);
+        g.set("disbanded_at", null);
+        txApp.save(g);
+        result = { success: true, message: "Reconnected!", pairId: g.id, restored: true };
+      });
+    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
+    if (result && result.success) delCode();
+    return result;
   };
 
   // ── ветвление A/B/C/D (зеркало Dart acceptInviteCode) ────────────────────

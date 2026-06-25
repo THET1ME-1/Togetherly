@@ -16,6 +16,14 @@ import 'pocketbase_service.dart';
 ///  • [watchList]   — начальная полная загрузка (`getFullList`) + SSE-дельты
 ///    (create/update/delete мёржатся в локальный список → `Stream<List>`).
 ///  • [watchRecord] — один документ по id (напр. группа) → `Stream<RecordModel?>`.
+///
+/// Известное ограничение (RT-10): при разрыве и авто-переподключении SSE
+/// PocketBase Dart-SDK повторно подписывается, но события, пропущенные за время
+/// обрыва, не переигрываются, а начальный `getFullList` не перевызывается → после
+/// долгого обрыва список может быть устаревшим до следующей дельты. Чистого хука
+/// «on reconnect» SDK не даёт (событие PB_CONNECT обрабатывается внутри SDK и
+/// наружу не пробрасывается); поллинг противоречит realtime-модели. Требует
+/// поддержки на уровне SDK — отслеживается как ограничение (ср. AUTH-16).
 class PbRealtimeService {
   PbRealtimeService._();
   static final PbRealtimeService instance = PbRealtimeService._();
@@ -28,8 +36,15 @@ class PbRealtimeService {
   static int _strAsc(dynamic a, dynamic b) =>
       (a ?? '').toString().compareTo((b ?? '').toString());
   static int _strDesc(dynamic a, dynamic b) => _strAsc(b, a);
-  static int _numAsc(dynamic a, dynamic b) =>
-      ((a as num?) ?? 0).compareTo((b as num?) ?? 0);
+  /// RT-7: безопасное приведение к числу — PB-значение может прийти строкой
+  /// (json-колонка, коэрсинг), поэтому жёсткий `as num?` падал. Не-числа → 0.
+  static num _asNum(dynamic v) {
+    if (v is num) return v;
+    if (v is String) return num.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  static int _numAsc(dynamic a, dynamic b) => _asNum(a).compareTo(_asNum(b));
 
   /// Живой список записей коллекции по [filter]: полная загрузка + SSE-дельты.
   /// [compare] — сортировка снапшота (по умолчанию без сортировки).
@@ -46,6 +61,7 @@ class PbRealtimeService {
     // навсегда (утечка). Флаг закрывает гонку: если отменили во время старта,
     // только что созданную подписку рвём и не сохраняем.
     var cancelled = false;
+    var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
     late StreamController<List<RecordModel>> ctrl;
 
     List<RecordModel> snapshot() {
@@ -83,9 +99,18 @@ class PbRealtimeService {
           return;
         }
         unsub = u;
+        attempt = 0; // успех — сбрасываем backoff
       } catch (err) {
-        debugPrint('PbRealtime.watchList($collection) failed: $err');
-        if (!ctrl.isClosed) ctrl.addError(err);
+        // RT-3: вместо «застрять в ошибке навсегда» — авто-ретрай с экспоненциальным
+        // backoff (1,2,4,…,32с), пока стрим жив и не отменён. Транзиентные сетевые
+        // сбои/недоступность PB самовосстанавливаются без ручного «обновить».
+        debugPrint('PbRealtime.watchList($collection) failed (attempt $attempt): $err');
+        if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
+        final secs = (1 << (attempt > 5 ? 5 : attempt));
+        attempt++;
+        Future.delayed(Duration(seconds: secs), () {
+          if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
+        });
       }
     }
 
@@ -104,6 +129,7 @@ class PbRealtimeService {
   Stream<RecordModel?> watchRecord(String collection, String id) {
     UnsubscribeFunc? unsub;
     var cancelled = false; // та же гонка отписки-во-время-старта, что в watchList
+    var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
     late StreamController<RecordModel?> ctrl;
 
     Future<void> start() async {
@@ -134,9 +160,16 @@ class PbRealtimeService {
           return;
         }
         unsub = u;
+        attempt = 0; // успех — сбрасываем backoff
       } catch (err) {
-        debugPrint('PbRealtime.watchRecord($collection/$id) failed: $err');
-        if (!ctrl.isClosed) ctrl.addError(err);
+        // RT-3: авто-ретрай с backoff (1,2,4,…,32с) вместо застревания в ошибке.
+        debugPrint('PbRealtime.watchRecord($collection/$id) failed (attempt $attempt): $err');
+        if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
+        final secs = (1 << (attempt > 5 ? 5 : attempt));
+        attempt++;
+        Future.delayed(Duration(seconds: secs), () {
+          if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
+        });
       }
     }
 

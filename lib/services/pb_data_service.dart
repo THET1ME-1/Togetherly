@@ -92,7 +92,16 @@ class PbDataService {
         await _pb.collection(col).update(existing.id, body: body);
       } on ClientException catch (e) {
         if (e.statusCode == 404) {
-          await _pb.collection(col).create(body: body);
+          try {
+            await _pb.collection(col).create(body: body);
+          } on ClientException catch (_) {
+            // DATA-3: TOCTOU — между getFirstListItem(404) и create параллельный
+            // вызов уже создал запись по тому же уникальному ключу (create падает
+            // на unique-индексе). Перечитываем и обновляем существующую вместо
+            // потери записи.
+            final existing = await _pb.collection(col).getFirstListItem(f);
+            await _pb.collection(col).update(existing.id, body: body);
+          }
         } else {
           rethrow;
         }
@@ -100,6 +109,20 @@ class PbDataService {
       return true;
     } catch (e) {
       debugPrint('PbData.$op($col) failed: $e');
+      return false;
+    }
+  }
+
+  /// POST на серверный АТОМАРНЫЙ group-роут (pb_hooks/groups.pb.js). true =
+  /// сервер выполнил операцию в транзакции (ok:true). false на любой
+  /// ошибке/недоступности роута → вызывающий откатывается на локальный RMW, так
+  /// что версия-скью клиент/сервер безопасна. Закрывает гонки DATA-5/6/7/8/9.
+  Future<bool> _callGroupRoute(String path, Map<String, dynamic> body) async {
+    try {
+      final res = await _pb.send('/api/group/$path', method: 'POST', body: body);
+      return res is Map && res['ok'] == true;
+    } catch (e) {
+      debugPrint('PbData._callGroupRoute($path) fallback: $e');
       return false;
     }
   }
@@ -167,8 +190,26 @@ class PbDataService {
 
   /// RMW по json-полю-словарю группы (member_moods/names/avatars): прочитать,
   /// поменять ключ uid, записать целиком. null-значение удаляет ключ.
-  /// При гонке (параллельная запись) — перечитывает и повторяет (до 3 попыток).
+  /// Retry (до 3 попыток) спасает от ТРАНЗИЕНТНЫХ ошибок (сеть/5xx), но НЕ от
+  /// lost-update: при настоящей гонке параллельная запись проходит УСПЕШНО (без
+  /// исключения) и перетирает наше изменение, а ретрай срабатывает лишь на throw.
+  /// Полностью race-free только серверная транзакция (DATA-5, см. groups.pb.js —
+  /// TODO). Для редких правок member_* в паре из 2 человек риск низкий.
   Future<bool> _patchGroupMapField(
+    String groupId,
+    String col,
+    String uid,
+    dynamic value,
+  ) async {
+    // DATA-5: сперва атомарный серверный роут; при недоступности — локальный RMW.
+    if (await _callGroupRoute('patch-map',
+        {'groupId': groupId, 'field': col, 'uid': uid, 'value': value})) {
+      return true;
+    }
+    return _patchGroupMapFieldLocal(groupId, col, uid, value);
+  }
+
+  Future<bool> _patchGroupMapFieldLocal(
     String groupId,
     String col,
     String uid,
@@ -232,10 +273,22 @@ class PbDataService {
     }
   }
 
-  /// НЕатомарный read-modify-write с retry: при одновременном инкременте
-  /// с двух устройств возможна гонка — перечитываем и повторяем (до 3 попыток).
-  /// Для absolute точности нужен серверный atomic inc (PB-hook).
+  /// НЕатомарный read-modify-write. Retry (до 3 попыток) закрывает только
+  /// транзиентные ошибки; lost-update при одновременном инкременте с двух
+  /// устройств ретрай НЕ ловит (конкурентная запись успешна, без исключения) →
+  /// часть инкрементов теряется. Для точности нужен серверный atomic inc
+  /// (DATA-7, PB-hook/транзакция — TODO).
   Future<bool> incrementGroupCounter(String groupId, String col, int by) async {
+    // DATA-7: атомарный серверный инкремент; при недоступности — локальный RMW.
+    if (await _callGroupRoute(
+        'increment', {'groupId': groupId, 'field': col, 'by': by})) {
+      return true;
+    }
+    return _incrementGroupCounterLocal(groupId, col, by);
+  }
+
+  Future<bool> _incrementGroupCounterLocal(
+      String groupId, String col, int by) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -450,10 +503,21 @@ class PbDataService {
       });
 
   /// Убрать [uid] из группы (members + имена + аватары + настроения + недуги).
-  /// Если участников не осталось — помечаем распущенной. При гонке (параллельный
-  /// выход обоих участников) — перечитывает и повторяет (до 3 попыток).
+  /// Если участников не осталось — помечаем распущенной. Retry (до 3 попыток)
+  /// закрывает транзиентные ошибки, но НЕ lost-update: при одновременном выходе
+  /// обоих участников обе записи успешны, вторая перетирает первую → ушедший может
+  /// «воскреснуть» (DATA-6). Полный фикс — серверная транзакция (groups.pb.js,
+  /// TODO). Одновременный выход обоих — крайне редкий сценарий.
   Future<bool> leaveGroup(String groupId, String uid) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
+    // DATA-6: атомарный серверный выход; при недоступности — локальный RMW.
+    if (await _callGroupRoute('leave', {'groupId': groupId, 'uid': uid})) {
+      return true;
+    }
+    return _leaveGroupLocal(groupId, uid);
+  }
+
+  Future<bool> _leaveGroupLocal(String groupId, String uid) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -718,7 +782,11 @@ class PbDataService {
       if (hard) {
         await _pb.collection('memories').delete(id);
       } else {
-        await _upsertById('memories', id, {'deleted': true}, op: 'deleteMemory');
+        // DATA-16: soft-delete только через update. Раньше _upsertById делал
+        // create-on-404 → удаление НЕсуществующего воспоминания создавало
+        // ghost-tombstone {id, deleted:true}. Нечего удалять (404) ловит catch
+        // ниже как успех.
+        await _pb.collection('memories').update(id, body: {'deleted': true});
       }
       return true;
     } catch (e) {
@@ -1540,10 +1608,26 @@ class PbDataService {
   /// Отметить, что [uid] зашёл сегодня → ведение «огонька» пары. Порт логики
   /// Firebase.recordGroupActivity: серия растёт ТОЛЬКО когда за день зашли ОБА
   /// разных участника (первый фиксируется в streak_pending_*, второй поднимает
-  /// streak_days). При гонке (оба зашли одновременно) — retry с перечтением
-  /// (до 3 попыток), чтобы оба были засчитаны.
+  /// streak_days). Retry (до 3 попыток) закрывает транзиентные ошибки, но НЕ
+  /// lost-update: если оба заходят одновременно, оба читают пустой
+  /// streak_pending_*, оба пишут себя — вторая запись успешна и перетирает первую,
+  /// день серии может потеряться (DATA-9). Полный фикс — серверная транзакция
+  /// (groups.pb.js, TODO). Точная одновременность первого захода обоих — редкость.
   Future<void> recordGroupActivity(String groupId, String uid) async {
     if (groupId.isEmpty || uid.isEmpty) return;
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    // DATA-9: атомарный серверный учёт стрика; today = локальная дата клиента
+    // (сохраняет семантику). При недоступности роута — локальный RMW.
+    if (await _callGroupRoute('record-activity',
+        {'groupId': groupId, 'uid': uid, 'today': today})) {
+      return;
+    }
+    return _recordGroupActivityLocal(groupId, uid);
+  }
+
+  Future<void> _recordGroupActivityLocal(String groupId, String uid) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -1570,30 +1654,51 @@ class PbDataService {
         }
 
         if (bothPresent()) {
-          final lastDt = last != null ? DateTime.tryParse(last) : null;
           final todayDate = DateTime(now.year, now.month, now.day);
-          final diff = lastDt != null
-              ? todayDate
-                  .difference(DateTime(lastDt.year, lastDt.month, lastDt.day))
-                  .inDays
-              : 999;
+          int daysSince(String? iso) {
+            final dt = (iso != null && iso.isNotEmpty)
+                ? DateTime.tryParse(iso)
+                : null;
+            return dt != null
+                ? todayDate
+                    .difference(DateTime(dt.year, dt.month, dt.day))
+                    .inDays
+                : 999;
+          }
+
           final currentStreak = (d['streak_days'] as num?)?.toInt() ?? 0;
-          final newStreak = diff == 1 ? currentStreak + 1 : 1;
+          final newStreak = daysSince(last) == 1 ? currentStreak + 1 : 1;
+
+          // PER-MASCOT серия активного маскота (его собственная дата). Пропуск → 1.
+          final activeMascotId = nz(d['active_mascot_id']);
+          final raw = d['mascot_streaks'];
+          final streaks =
+              raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+          int mStreak = 0;
+          if (activeMascotId != null) {
+            final prev = streaks[activeMascotId];
+            final prevS =
+                (prev is Map ? (prev['s'] as num?)?.toInt() : 0) ?? 0;
+            final prevD = prev is Map ? prev['d']?.toString() : null;
+            mStreak = daysSince(prevD) == 1 ? prevS + 1 : 1;
+            streaks[activeMascotId] = {'s': mStreak, 'd': today};
+          }
+
           await _pb.collection('groups').update(rec.id, body: {
             'streak_days': newStreak,
             'streak_last_opened_date': today,
+            if (activeMascotId != null) 'mascot_streaks': streaks,
           });
-          final activeMascotId = nz(d['active_mascot_id']);
           if (activeMascotId != null) {
             try {
               final mascot = await _pb.collection('mascots').getFirstListItem(
                   _pb.filter('group_id = {:g} && mascot_id = {:m}',
                       {'g': groupId, 'm': activeMascotId}));
               final record = (mascot.data['record_streak'] as num?)?.toInt() ?? 0;
-              if (newStreak > record) {
+              if (mStreak > record) {
                 await _pb
                     .collection('mascots')
-                    .update(mascot.id, body: {'record_streak': newStreak});
+                    .update(mascot.id, body: {'record_streak': mStreak});
               }
             } catch (_) {}
           }
@@ -1629,6 +1734,20 @@ class PbDataService {
     String? text,
   }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
+    // DATA-8: атомарный серверный инкремент; при недоступности — локальный RMW.
+    if (await _callGroupRoute('miss-you',
+        {'groupId': groupId, 'uid': uid, 'vibe': vibe, 'text': text ?? ''})) {
+      return true;
+    }
+    return _incrementMissYouLocal(groupId, uid, vibe: vibe, text: text);
+  }
+
+  Future<bool> _incrementMissYouLocal(
+    String groupId,
+    String uid, {
+    String vibe = 'miss_you',
+    String? text,
+  }) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {

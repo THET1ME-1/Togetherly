@@ -141,12 +141,14 @@ class MascotService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Pushes the current group streak to the native «Огонёк пары» home widget.
+  /// Pushes the ACTIVE mascot's streak to the native «Огонёк» home widget
+  /// (серия теперь per-mascot, а не общая парная).
   void _syncStreakWidget() {
+    final streak = _state.activeStreak;
     final record = activeMascot?.recordStreak ?? 0;
     HomeWidgetService.instance.syncStreak(
-      streakDays: _state.streakDays,
-      recordStreak: record > _state.streakDays ? record : _state.streakDays,
+      streakDays: streak,
+      recordStreak: record > streak ? record : streak,
       lastOpenedDate: _state.streakLastOpenedDate ?? '',
     );
   }

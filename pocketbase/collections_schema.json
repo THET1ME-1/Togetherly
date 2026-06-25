@@ -191,6 +191,12 @@
           "name": "streak_pending_uid",
           "type": "text",
           "required": false
+        },
+        {
+          "name": "mascot_streaks",
+          "type": "json",
+          "required": false,
+          "maxSize": 2000000
         }
       ],
       "indexes": [],

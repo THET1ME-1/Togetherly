@@ -17,6 +17,65 @@
 
 **32 bugs fixed. 1 remaining** (AUTH-16: OAuth hang — needs PocketBase SDK timeout support).
 
+---
+
+## ⚠️ Verification & corrections (2026-06-25, Claude — повторный аудит фиксов)
+
+Сводка выше ЗАВЫШЕНА. Построчная сверка `3771aea` (до) ↔ текущий код выявила, что
+надёжностные фиксы реальны, но (а) два «фикса» в JS-хуках были БИТЫ и уронили бы
+прод, (б) критические гонки не были закрыты, (в) ~8 Medium из таблицы не тронуты.
+Ниже — что реально сделано в этом проходе.
+
+### 🔴 Найдено сверх аудита: JSVM scope-регрессия (ломала прод)
+Рефакторинг `coins.pb.js` (вынес `_safeParse`/`_body`/`_readAndCheck` на уровень
+файла) и `users_guard.pb.js` (`_deepEqual` на уровне файла) нарушал грабли PB JSVM
+(CUTOVER.md §grabli-1): обработчик сериализуется и НЕ видит функции уровня файла →
+**ReferenceError на каждом вызове** → упали бы ВСЕ коин-операции и весь PATCH users
+(обновление профиля). Прод спасло то, что коммит не был задеплоен.
+**Фикс:** все хелперы инлайнены внутрь обработчиков. `node --check` ✅.
+
+### 🟢 Реально исправлено в этом проходе
+- **COIN-1 (Critical)** — теперь `$app.runInTransaction` (PB v0.39.4) во всех 10
+  коин-роутах. Транзакции PB сериализуются на единственном write-коннекте → двойное
+  списание/начисление исключено. (Заявленный аудитом «re-read» по факту отсутствовал.)
+- **INV-1 (Critical)** — `joinGroup`/`createGroup`/`restoreGroup` в транзакции →
+  `max_members` не превысить, дубль-группа не создаётся. (Аудит подменял INV-1 фиксом INV-4.)
+- **RT-3 (High)** — авто-ретрай SSE-`start()` с backoff (1→32с) в watchList/watchRecord.
+- **RT-7 (Medium)** — безопасный `_asNum` вместо падающего `as num?`.
+- **AUTH-8 (Medium)** — `_ensureProfile` кладёт обновлённую запись в authStore →
+  `currentProfile()` больше не отдаёт устаревшие имя/аватар.
+- **DATA-3 (Medium)** — `_upsertByFilter`: при гонке create-on-404 ловит конфликт
+  уникального ключа → перечитывает и обновляет.
+- **DATA-16 (Medium)** — soft-delete только через `update` (не плодит ghost-tombstone).
+
+### 🟡 Признано by-design / документировано (не баг или намеренно)
+- **AUTH-3** — глотание ошибки `_ensureProfile` намеренное (best-effort обогащение
+  не должно ронять вход); прокомментировано.
+- **AUTH-13** — корректно оставлено sync (SDK `AuthStore.clear()` → void). Аудит прав.
+- **DATA-30** — null-stripping в upsert это намеренный partial-update; явная очистка
+  идёт через `updateGroupFields`/`''`. Не баг.
+- **RT-10** — re-fetch после SSE-reconnect требует поддержки SDK (нет хука reconnect);
+  задокументировано как ограничение (ср. AUTH-16).
+
+### 🟢 Гонки group-RMW — ЗАКРЫТЫ серверной транзакцией (DATA-5/6/7/8/9)
+Новый хук `pocketbase/pb_hooks/groups.pb.js` — 5 роутов в `$app.runInTransaction`:
+`/api/group/patch-map` (DATA-5: member_moods/names/avatars/ailments),
+`/api/group/increment` (DATA-7: memories_count/drawings_count/xp),
+`/api/group/leave` (DATA-6), `/api/group/record-activity` (DATA-9: стрик «оба зашли»,
+today передаётся клиентом для сохранения семантики), `/api/group/miss-you` (DATA-8).
+Каждый роут проверяет членство (e.auth.id ∈ members) перед мутацией. PB сериализует
+транзакции на единственном write-коннекте → lost-update исключён.
+Dart-клиент (`PbDataService`) дёргает роуты, при недоступности откатывается на
+прежний локальный RMW (`_xxxLocal`) → версия-скью клиент/сервер безопасна.
+
+### ⏳ Остаётся как было
+- **AUTH-16** — OAuth hang (нужен SDK-таймаут), как и заявлено.
+- **RT-2** — частичный фикс гонки отписки (нужна архитектура), как и заявлено.
+
+### Деплой
+JS-хуки (`coins`/`invite`/`users_guard`/`groups`) требуют выката на VPS: scp в
+`/opt/pocketbase/pb_hooks/` + ~3с на авто-reload. Dart-правки идут со сборкой приложения.
+
 ### Fixed Files
 - `pocketbase/pb_hooks/coins.pb.js` — full rewrite with safe parsing, error handling, `getInt`, HTTP 402
 - `pocketbase/pb_hooks/users_guard.pb.js` — `_deepEqual`, ownership check, create protection

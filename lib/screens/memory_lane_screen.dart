@@ -232,9 +232,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
-  /// Pull-to-refresh: лента уже live, тянуть нечего — просто завершаем индикатор.
-  Future<void> _refreshMemories() async {}
-
   /// Бесконечная прокрутка больше не нужна (вся лента live). Оставлено как no-op,
   /// чтобы не трогать обработчики скролла.
   Future<void> _loadNextPage() async {}

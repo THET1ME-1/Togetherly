@@ -69,7 +69,8 @@ class MascotRepository {
             rec == null ? const GroupMascotState() : GroupMascotState.fromPb(rec))
         .where((s) {
       final sig = '${s.activeMascotId}|${s.positionX}|${s.positionY}|'
-          '${s.scale}|${s.streakDays}|${s.streakLastOpenedDate}|${s.xp}';
+          '${s.scale}|${s.streakDays}|${s.streakLastOpenedDate}|${s.xp}|'
+          '${s.mascotStreaks}';
       if (sig == prevSig) return false;
       prevSig = sig;
       return true;

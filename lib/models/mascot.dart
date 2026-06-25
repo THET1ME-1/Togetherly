@@ -135,6 +135,11 @@ class GroupMascotState {
   final int streakDays;
   final String? streakLastOpenedDate; // "YYYY-MM-DD" local time
 
+  /// Серия КАЖДОГО маскота: {mascot_id: {s: серия, d: "YYYY-MM-DD" посл. общего дня}}.
+  /// Серия растёт когда оба партнёра зашли за день, привязана к активному маскоту;
+  /// пропуск дня → маскот «умирает» (см. [streakFor]).
+  final Map<String, dynamic> mascotStreaks;
+
   /// Общий опыт пары (растёт за действия). Уровень/ранг выводятся из него.
   final int xp;
 
@@ -145,8 +150,27 @@ class GroupMascotState {
     this.scale = 1.0,
     this.streakDays = 0,
     this.streakLastOpenedDate,
+    this.mascotStreaks = const {},
     this.xp = 0,
   });
+
+  /// Текущая серия конкретного маскота. Если последний общий день — НЕ сегодня и
+  /// не вчера, маскот «умер» → 0 (серия начнётся заново при следующем общем дне).
+  int streakFor(String? mascotId) {
+    if (mascotId == null || mascotId.isEmpty) return 0;
+    final e = mascotStreaks[mascotId];
+    if (e is! Map) return 0;
+    final s = (e['s'] as num?)?.toInt() ?? 0;
+    final d = e['d']?.toString();
+    if (d == null || d.isEmpty || s <= 0) return 0;
+    final today = _localDateStr(DateTime.now());
+    final yesterday =
+        _localDateStr(DateTime.now().subtract(const Duration(days: 1)));
+    return (d == today || d == yesterday) ? s : 0;
+  }
+
+  /// Серия активного маскота (то, что показываем на главной/виджете).
+  int get activeStreak => streakFor(activeMascotId);
 
   /// Computes the current mood based on when anyone last opened the app.
   MascotMoodState get moodState {
@@ -205,6 +229,9 @@ class GroupMascotState {
       scale: sc > 0 ? sc : 1.0,
       streakDays: (d['streak_days'] as num?)?.toInt() ?? 0,
       streakLastOpenedDate: nz(d['streak_last_opened_date']),
+      mascotStreaks: d['mascot_streaks'] is Map
+          ? Map<String, dynamic>.from(d['mascot_streaks'] as Map)
+          : const {},
       xp: (d['xp'] as num?)?.toInt() ?? 0,
     );
   }
@@ -226,6 +253,7 @@ class GroupMascotState {
     double? scale,
     int? streakDays,
     String? streakLastOpenedDate,
+    Map<String, dynamic>? mascotStreaks,
     int? xp,
     bool clearActiveMascot = false,
   }) {
@@ -238,6 +266,7 @@ class GroupMascotState {
       scale: scale ?? this.scale,
       streakDays: streakDays ?? this.streakDays,
       streakLastOpenedDate: streakLastOpenedDate ?? this.streakLastOpenedDate,
+      mascotStreaks: mascotStreaks ?? this.mascotStreaks,
       xp: xp ?? this.xp,
     );
   }
