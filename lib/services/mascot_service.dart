@@ -200,6 +200,7 @@ class MascotService extends ChangeNotifier {
     if (_groupId.isEmpty) return;
     await _repo.recordActivity(_groupId);
     unawaited(LevelService.instance.award(XpAction.dailyStreak));
+    _syncStreakWidget();
   }
 
   // ── Active mascot ──────────────────────────────────────────────────────────

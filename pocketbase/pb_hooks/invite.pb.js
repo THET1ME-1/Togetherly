@@ -116,7 +116,8 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     g.set("start_date", nowIso);
     g.set("created_at", nowIso);
     g.set("disbanded", false);
-    $app.save(g);
+    try { $app.save(g); }
+    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
     delCode();
     return { success: true, message: "Connected!", pairId: g.id };
   };
@@ -140,7 +141,8 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     g.set("members", members);
     g.set("member_names", names);
     g.set("member_avatars", avatars);
-    $app.save(g);
+    try { $app.save(g); }
+    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
     if (members.length >= maxM) delCode();
     return { success: true, message: "Joined the group!", pairId: g.id };
   };
@@ -160,7 +162,8 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     g.set("member_avatars", avatars);
     g.set("disbanded", false);
     g.set("disbanded_at", null);
-    $app.save(g);
+    try { $app.save(g); }
+    catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
     delCode();
     return { success: true, message: "Reconnected!", pairId: g.id, restored: true };
   };

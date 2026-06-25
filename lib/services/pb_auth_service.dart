@@ -51,6 +51,14 @@ class PbAuthService {
       await _pb.collection(_usersCol).authWithPassword(email, password);
       await _ensureProfile(displayName: displayName);
       return _svc.currentUser;
+    } on ClientException catch (e) {
+      // Если пользователь уже создан (create прошёл), но authWithPassword
+      // упал — выходим, чтобы не оставаться в частичном state.
+      if (e.statusCode == 400 || e.statusCode == 403) {
+        try { _svc.signOut(); } catch (_) {}
+      }
+      debugPrint('PbAuth.signUpWithEmail failed: $e');
+      rethrow;
     } catch (e, st) {
       debugPrint('PbAuth.signUpWithEmail failed: $e');
       debugPrintStack(stackTrace: st);
@@ -95,8 +103,8 @@ class PbAuthService {
       // Профиль из OAuth-меты (имя/аватар), если в записи ещё пусто.
       final meta = auth.meta;
       await _ensureProfile(
-        displayName: meta['name'] as String?,
-        avatarUrl: meta['avatarUrl'] as String? ?? meta['avatarURL'] as String?,
+        displayName: meta['name']?.toString(),
+        avatarUrl: meta['avatarUrl']?.toString() ?? meta['avatarURL']?.toString(),
       );
       return _svc.currentUser;
     } catch (e, st) {
@@ -123,8 +131,8 @@ class PbAuthService {
       } catch (_) {}
       final meta = auth.meta;
       await _ensureProfile(
-        displayName: meta['name'] as String?,
-        avatarUrl: meta['avatarUrl'] as String? ?? meta['avatarURL'] as String?,
+        displayName: meta['name']?.toString(),
+        avatarUrl: meta['avatarUrl']?.toString() ?? meta['avatarURL']?.toString(),
       );
       return _svc.currentUser;
     } catch (e, st) {
@@ -135,8 +143,14 @@ class PbAuthService {
   }
 
   /// Письмо для сброса пароля (email-провайдер PB).
-  Future<void> sendPasswordReset(String email) =>
-      _pb.collection(_usersCol).requestPasswordReset(email);
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _pb.collection(_usersCol).requestPasswordReset(email);
+    } catch (e) {
+      debugPrint('PbAuth.sendPasswordReset failed: $e');
+      rethrow;
+    }
+  }
 
   /// Профиль текущего юзера в формате camelCase — совместимо с прежним
   /// `FirebaseService.loadUserProfile` (чтобы экраны входа почти не менялись).
@@ -164,6 +178,9 @@ class PbAuthService {
       await _pb.collection(_usersCol).authRefresh();
     } catch (e) {
       debugPrint('PbAuth.authRefresh failed (сессия устарела?): $e');
+      // Токен невалиден — выходим, чтобы не оставаться в bad state.
+      _svc.signOut();
+      return null;
     }
     return _svc.isLoggedIn ? _svc.currentUser : null;
   }

@@ -445,13 +445,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
             ),
           ),
-          RefreshIndicator(
-            onRefresh: _refreshMemories,
-            color: primary,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
               slivers: [
                 _buildAppBar(),
                 if (_loading)
@@ -527,8 +524,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 SliverToBoxAdapter(child: SizedBox(height: 90 + bottomPad)),
               ],
             ),
-          ),
-          // FAB
+            // FAB
           Positioned(
             bottom: bottomPad + 24,
             left: 24,
@@ -627,18 +623,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
       actions: [
-        IconButton(
-          onPressed: _refreshMemories,
-          icon: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.refresh_rounded, color: primary, size: 18),
-          ),
-          tooltip: LocaleService.current.refreshTooltip,
-        ),
         IconButton(
           onPressed: _openPhotoGalleryScreen,
           icon: Container(

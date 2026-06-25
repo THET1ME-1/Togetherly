@@ -55,6 +55,7 @@ class PbRealtimeService {
     }
 
     Future<void> start() async {
+      cancelled = false;
       try {
         final initial =
             await _pb.collection(collection).getFullList(filter: filter);
@@ -106,6 +107,7 @@ class PbRealtimeService {
     late StreamController<RecordModel?> ctrl;
 
     Future<void> start() async {
+      cancelled = false;
       try {
         try {
           final rec = await _pb.collection(collection).getOne(id);
@@ -123,7 +125,8 @@ class PbRealtimeService {
           if (e.action == 'delete') {
             if (!ctrl.isClosed) ctrl.add(null);
           } else if (!ctrl.isClosed) {
-            ctrl.add(e.record);
+            final rec = e.record;
+            if (rec != null) ctrl.add(rec);
           }
         });
         if (cancelled) {

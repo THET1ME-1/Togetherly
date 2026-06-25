@@ -76,39 +76,51 @@ class PbPushService {
 
     // 1) Чат
     _subs.add(await _pb.collection('chat_messages').subscribe('*', (e) {
-      if (e.action != 'create') return;
-      final r = e.record;
-      if (r == null || r.data['user_uid'] != partnerUid) return;
-      if (r.data['deleted'] == true || !_pref('notif_chat')) return;
-      final name = (r.data['user_name'] ?? partnerName).toString();
-      final text = (r.data['text'] ?? '').toString();
-      _notify(r.id.hashCode, name, text.isEmpty ? '✉️' : text);
+      try {
+        if (e.action != 'create') return;
+        final r = e.record;
+        if (r == null || r.data['user_uid'] != partnerUid) return;
+        if (r.data['deleted'] == true || !_pref('notif_chat')) return;
+        final name = (r.data['user_name'] ?? partnerName).toString();
+        final text = (r.data['text'] ?? '').toString();
+        _notify(r.id.hashCode, name, text.isEmpty ? '✉️' : text);
+      } catch (err) {
+        debugPrint('PbPush chat callback error: $err');
+      }
     }, filter: gf));
 
     // 2) Настроение (widget_data партнёра)
     _subs.add(await _pb.collection('widget_data').subscribe('*', (e) {
-      final r = e.record;
-      if (r == null || r.data['user_uid'] != partnerUid) return;
-      final mood = (r.data['mood_label'] ?? '').toString();
-      if (mood.isEmpty || mood == _lastMood) return; // дедуп по изменению
-      _lastMood = mood;
-      if (!_pref('notif_mood')) return;
-      final name = (r.data['display_name'] ?? partnerName).toString();
-      _notify(('mood$partnerUid').hashCode, name, 'Настроение: $mood');
+      try {
+        final r = e.record;
+        if (r == null || r.data['user_uid'] != partnerUid) return;
+        if (!_pref('notif_mood')) return; // check preference BEFORE state mutation
+        final mood = (r.data['mood_label'] ?? '').toString();
+        if (mood.isEmpty || mood == _lastMood) return; // дедуп по изменению
+        _lastMood = mood;
+        final name = (r.data['display_name'] ?? partnerName).toString();
+        _notify(('mood$partnerUid').hashCode, name, 'Настроение: $mood');
+      } catch (err) {
+        debugPrint('PbPush mood callback error: $err');
+      }
     }, filter: gf));
 
     // 3) «Скучаю» (miss_you партнёра)
     _subs.add(await _pb.collection('miss_you').subscribe('*', (e) {
-      final r = e.record;
-      if (r == null || r.data['user_uid'] != partnerUid) return;
-      final cnt = (r.data['count'] as num?)?.toInt() ?? 0;
-      if (_lastMissCount != null && cnt <= _lastMissCount!) return; // только рост
-      _lastMissCount = cnt;
-      final vibe = (r.data['last_vibe'] ?? 'miss_you').toString();
-      final custom = (r.data['last_vibe_text'] ?? '').toString();
-      // custom доставляется всегда; остальное — по настройке notif_miss_you
-      if (vibe != 'custom' && !_pref('notif_miss_you')) return;
-      _notify(('miss$partnerUid$cnt').hashCode, partnerName, _vibeBody(vibe, custom));
+      try {
+        final r = e.record;
+        if (r == null || r.data['user_uid'] != partnerUid) return;
+        final cnt = (r.data['count'] as num?)?.toInt() ?? 0;
+        if (_lastMissCount != null && cnt <= _lastMissCount!) return; // только рост
+        final vibe = (r.data['last_vibe'] ?? 'miss_you').toString();
+        final custom = (r.data['last_vibe_text'] ?? '').toString();
+        // custom доставляется всегда; остальное — по настройке notif_miss_you
+        if (vibe != 'custom' && !_pref('notif_miss_you')) return; // check BEFORE state mutation
+        _lastMissCount = cnt;
+        _notify(('miss$partnerUid$cnt').hashCode, partnerName, _vibeBody(vibe, custom));
+      } catch (err) {
+        debugPrint('PbPush miss_you callback error: $err');
+      }
     }, filter: gf));
 
     debugPrint('PbPush: подписки запущены (group=$groupId, partner=$partnerUid)');
@@ -124,7 +136,7 @@ class PbPushService {
       case 'custom':
         return text.isNotEmpty ? text : '✉️';
       default:
-        return 'Думает о вас и вспоминает 💭';
+        return 'Думает о тебе и вспоминает 💭';
     }
   }
 
@@ -155,7 +167,9 @@ class PbPushService {
     for (final u in _subs) {
       try {
         await u();
-      } catch (_) {}
+      } catch (err) {
+        debugPrint('PbPush unsubscribe error: $err');
+      }
     }
     _subs.clear();
     _lastMissCount = null;

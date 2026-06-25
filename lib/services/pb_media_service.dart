@@ -88,8 +88,8 @@ class PbMediaService {
         return null;
       }
       final bytes = await file.readAsBytes();
-      final filename = localPath.split('/').last;
-      return uploadBytes(bytes, filename, uid: uid, groupId: groupId, kind: kind);
+      final filename = localPath.split(Platform.pathSeparator).last;
+      return await uploadBytes(bytes, filename, uid: uid, groupId: groupId, kind: kind);
     } catch (e) {
       debugPrint('PbMedia.uploadFile($localPath) failed: $e');
       return null;

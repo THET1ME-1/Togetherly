@@ -112,6 +112,7 @@ class PbDataService {
       'members': _jsonSafe(raw['members'] ?? []),
       'member_names': _jsonSafe(raw['memberNames'] ?? {}),
       'member_avatars': _jsonSafe(raw['memberAvatars'] ?? {}),
+      'member_ailments': _jsonSafe(raw['memberAilments'] ?? {}),
       'max_members': raw['maxMembers'] ?? 2,
       'relationship_type': raw['relationshipType'] ?? 'couple',
       'custom_relationship_label': raw['customRelationshipLabel'],
@@ -166,29 +167,38 @@ class PbDataService {
 
   /// RMW по json-полю-словарю группы (member_moods/names/avatars): прочитать,
   /// поменять ключ uid, записать целиком. null-значение удаляет ключ.
+  /// При гонке (параллельная запись) — перечитывает и повторяет (до 3 попыток).
   Future<bool> _patchGroupMapField(
     String groupId,
     String col,
     String uid,
     dynamic value,
   ) async {
-    try {
-      final rec = await _pb
-          .collection('groups')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
-      final cur = rec.data[col];
-      final map = cur is Map ? Map<String, dynamic>.from(cur) : <String, dynamic>{};
-      if (value == null) {
-        map.remove(uid);
-      } else {
-        map[uid] = value;
+    const maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final rec = await _pb
+            .collection('groups')
+            .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+        final cur = rec.data[col];
+        final map = cur is Map ? Map<String, dynamic>.from(cur) : <String, dynamic>{};
+        if (value == null) {
+          map.remove(uid);
+        } else {
+          map[uid] = value;
+        }
+        await _pb.collection('groups').update(rec.id, body: {col: map});
+        return true;
+      } catch (e) {
+        if (attempt == maxAttempts - 1) {
+          debugPrint('PbData._patchGroupMapField($col,$uid) failed after ${attempt + 1} attempts: $e');
+          return false;
+        }
+        // Небольшая задержка перед повтором (ponential backoff).
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
       }
-      await _pb.collection('groups').update(rec.id, body: {col: map});
-      return true;
-    } catch (e) {
-      debugPrint('PbData._patchGroupMapField($col,$uid) failed: $e');
-      return false;
     }
+    return false;
   }
 
   /// Группа по id (raw данные записи, даты — DateTime). null если нет/распущена.
@@ -222,22 +232,28 @@ class PbDataService {
     }
   }
 
-  /// ВНИМАНИЕ: НЕатомарный read-modify-write (PB не умеет серверный inc). При
-  /// одновременном изменении с двух устройств возможна гонка и дрейф счётчика
-  /// (memories_count/drawings_count/xp) — best-effort. Точный путь = серверный
-  /// атомарный inc (PB-hook/route, §6) или периодический реконсиляк по COUNT(*).
+  /// НЕатомарный read-modify-write с retry: при одновременном инкременте
+  /// с двух устройств возможна гонка — перечитываем и повторяем (до 3 попыток).
+  /// Для absolute точности нужен серверный atomic inc (PB-hook).
   Future<bool> incrementGroupCounter(String groupId, String col, int by) async {
-    try {
-      final rec = await _pb
-          .collection('groups')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
-      final cur = (rec.data[col] as num?)?.toInt() ?? 0;
-      await _pb.collection('groups').update(rec.id, body: {col: cur + by});
-      return true;
-    } catch (e) {
-      debugPrint('PbData.incrementGroupCounter($col) failed: $e');
-      return false;
+    const maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final rec = await _pb
+            .collection('groups')
+            .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+        final cur = (rec.data[col] as num?)?.toInt() ?? 0;
+        await _pb.collection('groups').update(rec.id, body: {col: cur + by});
+        return true;
+      } catch (e) {
+        if (attempt == maxAttempts - 1) {
+          debugPrint('PbData.incrementGroupCounter($col) failed after ${attempt + 1} attempts: $e');
+          return false;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
+      }
     }
+    return false;
   }
 
   // ── pairing-слой (миграция ConnectionsManager/Connection на PB) ──────────
@@ -433,42 +449,59 @@ class PbDataService {
         'disbanded_at': DateTime.now().toIso8601String(),
       });
 
-  /// Убрать [uid] из группы (members + имена + аватары). Если участников не
-  /// осталось — помечаем распущенной. PB-эквивалент removeStaleGroupFromUser
-  /// (в модели членства «выйти» = убрать себя из members).
+  /// Убрать [uid] из группы (members + имена + аватары + настроения + недуги).
+  /// Если участников не осталось — помечаем распущенной. При гонке (параллельный
+  /// выход обоих участников) — перечитывает и повторяет (до 3 попыток).
   Future<bool> leaveGroup(String groupId, String uid) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
-    try {
-      final rec = await _pb
-          .collection('groups')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
-      final members =
-          (rec.data['members'] as List?)?.map((e) => e.toString()).toList() ??
-              <String>[];
-      members.remove(uid);
-      final names = rec.data['member_names'] is Map
-          ? Map<String, dynamic>.from(rec.data['member_names'] as Map)
-          : <String, dynamic>{};
-      final avatars = rec.data['member_avatars'] is Map
-          ? Map<String, dynamic>.from(rec.data['member_avatars'] as Map)
-          : <String, dynamic>{};
-      names.remove(uid);
-      avatars.remove(uid);
-      final body = <String, dynamic>{
-        'members': members,
-        'member_names': names,
-        'member_avatars': avatars,
-      };
-      if (members.isEmpty) {
-        body['disbanded'] = true;
-        body['disbanded_at'] = DateTime.now().toIso8601String();
+    const maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final rec = await _pb
+            .collection('groups')
+            .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+        final members =
+            (rec.data['members'] as List?)?.map((e) => e.toString()).toList() ??
+                <String>[];
+        members.remove(uid);
+        final names = rec.data['member_names'] is Map
+            ? Map<String, dynamic>.from(rec.data['member_names'] as Map)
+            : <String, dynamic>{};
+        final avatars = rec.data['member_avatars'] is Map
+            ? Map<String, dynamic>.from(rec.data['member_avatars'] as Map)
+            : <String, dynamic>{};
+        final moods = rec.data['member_moods'] is Map
+            ? Map<String, dynamic>.from(rec.data['member_moods'] as Map)
+            : <String, dynamic>{};
+        final ailments = rec.data['member_ailments'] is Map
+            ? Map<String, dynamic>.from(rec.data['member_ailments'] as Map)
+            : <String, dynamic>{};
+        names.remove(uid);
+        avatars.remove(uid);
+        moods.remove(uid);
+        ailments.remove(uid);
+        final body = <String, dynamic>{
+          'members': members,
+          'member_names': names,
+          'member_avatars': avatars,
+          'member_moods': moods,
+          'member_ailments': ailments,
+        };
+        if (members.isEmpty) {
+          body['disbanded'] = true;
+          body['disbanded_at'] = DateTime.now().toIso8601String();
+        }
+        await _pb.collection('groups').update(rec.id, body: body);
+        return true;
+      } catch (e) {
+        if (attempt == maxAttempts - 1) {
+          debugPrint('PbData.leaveGroup($groupId,$uid) failed after ${attempt + 1} attempts: $e');
+          return false;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
       }
-      await _pb.collection('groups').update(rec.id, body: body);
-      return true;
-    } catch (e) {
-      debugPrint('PbData.leaveGroup($groupId,$uid) failed: $e');
-      return false;
     }
+    return false;
   }
 
   /// Выйти из пары: пару (≤2 участника) распускаем для обоих (восстановимо),
@@ -683,15 +716,13 @@ class PbDataService {
     if (id.isEmpty) return false;
     try {
       if (hard) {
-        final rec = await _pb
-            .collection('memories')
-            .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
-        await _pb.collection('memories').delete(rec.id);
+        await _pb.collection('memories').delete(id);
       } else {
         await _upsertById('memories', id, {'deleted': true}, op: 'deleteMemory');
       }
       return true;
     } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
       debugPrint('PbData.deleteMemory($id) failed: $e');
       return false;
     }
@@ -812,12 +843,10 @@ class PbDataService {
   Future<bool> deleteMood(String entryId) async {
     if (entryId.isEmpty) return false;
     try {
-      final rec = await _pb
-          .collection('mood_entries')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': entryId}));
-      await _pb.collection('mood_entries').delete(rec.id);
+      await _pb.collection('mood_entries').delete(entryId);
       return true;
     } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
       debugPrint('PbData.deleteMood($entryId) failed: $e');
       return false;
     }
@@ -1307,12 +1336,10 @@ class PbDataService {
   Future<bool> deleteStroke(String id) async {
     if (id.isEmpty) return false;
     try {
-      final rec = await _pb
-          .collection('canvas_strokes')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': id}));
-      await _pb.collection('canvas_strokes').delete(rec.id);
+      await _pb.collection('canvas_strokes').delete(id);
       return true;
     } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
       debugPrint('PbData.deleteStroke($id) failed: $e');
       return false;
     }
@@ -1432,7 +1459,6 @@ class PbDataService {
         'created_by': m['createdBy'],
         'created_at': _iso(m['createdAt']),
         'is_default': m['isDefault'] ?? false,
-        'record_streak': m['recordStreak'] ?? 0,
       }..removeWhere((k, v) => v == null);
 
   Future<bool> upsertMascot(String groupId, Map<String, dynamic> m) async {
@@ -1514,85 +1540,88 @@ class PbDataService {
   /// Отметить, что [uid] зашёл сегодня → ведение «огонька» пары. Порт логики
   /// Firebase.recordGroupActivity: серия растёт ТОЛЬКО когда за день зашли ОБА
   /// разных участника (первый фиксируется в streak_pending_*, второй поднимает
-  /// streak_days). На PB чтения бесплатны → один read-modify-write без
-  /// firestore-танца «кэш→сервер». Обновляет record_streak активного маскота.
+  /// streak_days). При гонке (оба зашли одновременно) — retry с перечтением
+  /// (до 3 попыток), чтобы оба были засчитаны.
   Future<void> recordGroupActivity(String groupId, String uid) async {
     if (groupId.isEmpty || uid.isEmpty) return;
-    try {
-      final now = DateTime.now();
-      final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
-          '${now.day.toString().padLeft(2, '0')}';
-      final rec = await _pb
-          .collection('groups')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
-      final d = rec.data;
-      // PB отдаёт пустые text-колонки как '' → коэрсим в null, иначе
-      // bothPresent ложно-сработает (pUid '' != uid).
-      String? nz(dynamic v) {
-        final s = v?.toString();
-        return (s == null || s.isEmpty) ? null : s;
-      }
-
-      final last = nz(d['streak_last_opened_date']);
-      if (last == today) return; // уже засчитано сегодня (оба заходили)
-
-      bool bothPresent() {
-        final pUid = nz(d['streak_pending_uid']);
-        return nz(d['streak_pending_date']) == today &&
-            pUid != null &&
-            pUid != uid;
-      }
-
-      // Второй РАЗНЫЙ участник отметился сегодня → пара «оба зашли» → растим.
-      if (bothPresent()) {
-        final lastDt = last != null ? DateTime.tryParse(last) : null;
-        final todayDate = DateTime(now.year, now.month, now.day);
-        final diff = lastDt != null
-            ? todayDate
-                .difference(DateTime(lastDt.year, lastDt.month, lastDt.day))
-                .inDays
-            : 999;
-        final currentStreak = (d['streak_days'] as num?)?.toInt() ?? 0;
-        final newStreak = diff == 1 ? currentStreak + 1 : 1;
-        await _pb.collection('groups').update(rec.id, body: {
-          'streak_days': newStreak,
-          'streak_last_opened_date': today,
-        });
-        // Рекорд активного маскота.
-        final activeMascotId = nz(d['active_mascot_id']);
-        if (activeMascotId != null) {
-          try {
-            final mascot = await _pb.collection('mascots').getFirstListItem(
-                _pb.filter('group_id = {:g} && mascot_id = {:m}',
-                    {'g': groupId, 'm': activeMascotId}));
-            final record = (mascot.data['record_streak'] as num?)?.toInt() ?? 0;
-            if (newStreak > record) {
-              await _pb
-                  .collection('mascots')
-                  .update(mascot.id, body: {'record_streak': newStreak});
-            }
-          } catch (_) {}
+    const maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final now = DateTime.now();
+        final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+            '${now.day.toString().padLeft(2, '0')}';
+        final rec = await _pb
+            .collection('groups')
+            .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+        final d = rec.data;
+        String? nz(dynamic v) {
+          final s = v?.toString();
+          return (s == null || s.isEmpty) ? null : s;
         }
-        return;
-      }
 
-      // Первый участник за сегодня — ставим ожидание партнёра. Огонёк не растёт.
-      final pendingDate = nz(d['streak_pending_date']);
-      final pendingUid = nz(d['streak_pending_uid']);
-      if (pendingDate != today || pendingUid == null) {
-        await _pb.collection('groups').update(rec.id, body: {
-          'streak_pending_date': today,
-          'streak_pending_uid': uid,
-        });
+        final last = nz(d['streak_last_opened_date']);
+        if (last == today) return; // уже засчитано сегодня (оба заходили)
+
+        bool bothPresent() {
+          final pUid = nz(d['streak_pending_uid']);
+          return nz(d['streak_pending_date']) == today &&
+              pUid != null &&
+              pUid != uid;
+        }
+
+        if (bothPresent()) {
+          final lastDt = last != null ? DateTime.tryParse(last) : null;
+          final todayDate = DateTime(now.year, now.month, now.day);
+          final diff = lastDt != null
+              ? todayDate
+                  .difference(DateTime(lastDt.year, lastDt.month, lastDt.day))
+                  .inDays
+              : 999;
+          final currentStreak = (d['streak_days'] as num?)?.toInt() ?? 0;
+          final newStreak = diff == 1 ? currentStreak + 1 : 1;
+          await _pb.collection('groups').update(rec.id, body: {
+            'streak_days': newStreak,
+            'streak_last_opened_date': today,
+          });
+          final activeMascotId = nz(d['active_mascot_id']);
+          if (activeMascotId != null) {
+            try {
+              final mascot = await _pb.collection('mascots').getFirstListItem(
+                  _pb.filter('group_id = {:g} && mascot_id = {:m}',
+                      {'g': groupId, 'm': activeMascotId}));
+              final record = (mascot.data['record_streak'] as num?)?.toInt() ?? 0;
+              if (newStreak > record) {
+                await _pb
+                    .collection('mascots')
+                    .update(mascot.id, body: {'record_streak': newStreak});
+              }
+            } catch (_) {}
+          }
+          return;
+        }
+
+        final pendingDate = nz(d['streak_pending_date']);
+        final pendingUid = nz(d['streak_pending_uid']);
+        if (pendingDate != today || pendingUid == null) {
+          await _pb.collection('groups').update(rec.id, body: {
+            'streak_pending_date': today,
+            'streak_pending_uid': uid,
+          });
+        }
+        return; // успех — выходим
+      } catch (e) {
+        if (attempt == maxAttempts - 1) {
+          debugPrint('PbData.recordGroupActivity failed after ${attempt + 1} attempts: $e');
+          return;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
       }
-    } catch (e) {
-      debugPrint('PbData.recordGroupActivity failed: $e');
     }
   }
 
   // ══════════════════════════════════════════════ MISS YOU (составной)
-  /// Инкремент «скучаю» + тип вайба (miss_you/thinking_of_you/want_hug/custom)
-  /// и кастом-текст — чтобы SSE-событие у партнёра несло содержимое пуша.
+  /// Инкремент «скучаю» + тип вайба. При гонке (двойное нажатие) — retry с
+  /// перечтением (до 3 попыток), чтобы счётчик рос корректно.
   Future<bool> incrementMissYou(
     String groupId,
     String uid, {
@@ -1600,33 +1629,40 @@ class PbDataService {
     String? text,
   }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
-    try {
-      final f = _pb.filter('group_id = {:g} && user_uid = {:u}',
-          {'g': groupId, 'u': uid});
-      final extra = {'last_vibe': vibe, 'last_vibe_text': text ?? ''};
+    const maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        final rec = await _pb.collection('miss_you').getFirstListItem(f);
-        final cur = (rec.data['count'] as num?)?.toInt() ?? 0;
-        await _pb.collection('miss_you').update(rec.id, body: {
-          'count': cur + 1,
-          'updated_at': DateTime.now().toIso8601String(),
-          ...extra,
-        });
-      } on ClientException catch (e) {
-        if (e.statusCode != 404) rethrow;
-        await _pb.collection('miss_you').create(body: {
-          'group_id': groupId,
-          'user_uid': uid,
-          'count': 1,
-          'updated_at': DateTime.now().toIso8601String(),
-          ...extra,
-        });
+        final f = _pb.filter('group_id = {:g} && user_uid = {:u}',
+            {'g': groupId, 'u': uid});
+        final extra = {'last_vibe': vibe, 'last_vibe_text': text ?? ''};
+        try {
+          final rec = await _pb.collection('miss_you').getFirstListItem(f);
+          final cur = (rec.data['count'] as num?)?.toInt() ?? 0;
+          await _pb.collection('miss_you').update(rec.id, body: {
+            'count': cur + 1,
+            'updated_at': DateTime.now().toIso8601String(),
+            ...extra,
+          });
+        } on ClientException catch (e) {
+          if (e.statusCode != 404) rethrow;
+          await _pb.collection('miss_you').create(body: {
+            'group_id': groupId,
+            'user_uid': uid,
+            'count': 1,
+            'updated_at': DateTime.now().toIso8601String(),
+            ...extra,
+          });
+        }
+        return true;
+      } catch (e) {
+        if (attempt == maxAttempts - 1) {
+          debugPrint('PbData.incrementMissYou failed after ${attempt + 1} attempts: $e');
+          return false;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
       }
-      return true;
-    } catch (e) {
-      debugPrint('PbData.incrementMissYou failed: $e');
-      return false;
     }
+    return false;
   }
 
   Future<bool> setMissYouCount(String groupId, String uid, int count) async {
@@ -1770,7 +1806,7 @@ class PbDataService {
     try {
       final res = await _pb.collection('chat_messages').getList(
             perPage: limit,
-            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            filter: _pb.filter('group_id = {:g} && deleted != true', {'g': groupId}),
             sort: '-ts',
           );
       return res.items;
