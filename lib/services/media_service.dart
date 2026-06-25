@@ -190,4 +190,19 @@ class MediaService {
       return null;
     }
   }
+
+  /// Удаляет ранее загруженный PocketBase-файл по его `pb://`-ссылке (удаляет
+  /// запись коллекции `media` вместе с самим файлом). Для не-PB ссылок (legacy
+  /// `http`/`gs://`/`sb://`) и локальных путей — no-op: Firebase здесь НЕ
+  /// используется. Best-effort: ошибки гасятся, чтобы не ломать вызывающий
+  /// поток замены/удаления медиа.
+  Future<void> deleteByUrl(String? url) async {
+    if (url == null || url.isEmpty) return;
+    if (!PbMediaService().isPbRef(url)) return;
+    try {
+      await PbMediaService().delete(url);
+    } catch (e) {
+      debugPrint('MediaService.deleteByUrl failed: $e');
+    }
+  }
 }

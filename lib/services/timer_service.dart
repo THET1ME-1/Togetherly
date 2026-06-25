@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
-import 'firebase_service.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
@@ -12,8 +11,8 @@ import 'timer_repository.dart';
 /// Сервис для управления пользовательскими таймерами.
 /// Хранит данные локально (SharedPreferences) и синхронизирует с PocketBase
 /// когда пользователь состоит в группе (миграция §3): групповые таймеры —
-/// `groups.timers`, соло — `users.solo_timers`. `FirebaseService` остаётся
-/// ТОЛЬКО под фоны таймеров (загрузка/удаление в Storage) — медиа §4.
+/// `groups.timers`, соло — `users.solo_timers`. Фоны таймеров (загрузка/
+/// удаление) — целиком PocketBase media через [MediaService].
 class TimerService extends ChangeNotifier {
   static const _localStorageKey = 'user_timers_local';
 
@@ -24,8 +23,6 @@ class TimerService extends ChangeNotifier {
   static const systemTimerId = 'system';
   final TimerRepository _repo = TimerRepository();
 
-  /// Только для фонов таймеров (Storage) — медиа §4.
-  final FirebaseService _fb = FirebaseService();
   List<TimerItem> _timers = [];
   String _groupId = '';
   StreamSubscription? _firestoreSub;
@@ -531,16 +528,9 @@ class TimerService extends ChangeNotifier {
       return false;
     }
     try {
-      // Удаляем старый фон из Storage, если это был URL
-      final old = timer.backgroundImagePath;
-      if (old != null &&
-          (old.startsWith('http') ||
-              old.startsWith('gs://') ||
-              old.startsWith('sb://'))) {
-        try {
-          await _fb.deleteFileByUrl(old);
-        } catch (_) {}
-      }
+      // Удаляем старый фон из PocketBase Storage (pb://). Legacy-ссылки и
+      // локальные пути deleteByUrl игнорирует — Firebase тут не используется.
+      await MediaService().deleteByUrl(timer.backgroundImagePath);
 
       final ext = localFilePath.split('.').last.toLowerCase();
       final storagePath = 'timer_backgrounds/$_groupId/${timer.id}.$ext';
@@ -565,13 +555,12 @@ class TimerService extends ChangeNotifier {
   Future<void> removeTimerBackground(TimerItem timer) async {
     final path = timer.backgroundImagePath;
     if (path == null) return;
-    // Удаляем из Firebase/Supabase Storage, если это URL
     if (path.startsWith('http') ||
         path.startsWith('gs://') ||
-        path.startsWith('sb://')) {
-      try {
-        await _fb.deleteFileByUrl(path);
-      } catch (_) {}
+        path.startsWith('sb://') ||
+        path.startsWith('pb://')) {
+      // Облачный файл: pb:// удаляется из PocketBase; legacy-ссылки — no-op.
+      await MediaService().deleteByUrl(path);
     } else {
       // Локальный файл (legacy)
       try {
