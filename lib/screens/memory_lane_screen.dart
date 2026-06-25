@@ -962,15 +962,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       Widget cell = Stack(
         fit: StackFit.expand,
         children: [
-          StorageImage(
-            imageUrl: photos[i],
-            fit: BoxFit.cover,
-            memCacheWidth: 500,
-            memCacheHeight: 500,
-            errorWidget: (_, __, ___) => Container(
-              color: Colors.grey.shade200,
-              child: Icon(Icons.broken_image_rounded,
-                  color: Colors.grey.shade400, size: 26),
+          // Фото заполняет ячейку и ОБРЕЗАЕТСЯ по её форме (cover), без
+          // искажения пропорций — как в системной галерее. Positioned.fill +
+          // ClipRRect снаружи гарантируют жёсткие границы и кроп.
+          Positioned.fill(
+            child: StorageImage(
+              imageUrl: photos[i],
+              fit: BoxFit.cover,
+              memCacheWidth: 500,
+              memCacheHeight: 500,
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.grey.shade200,
+                child: Icon(Icons.broken_image_rounded,
+                    color: Colors.grey.shade400, size: 26),
+              ),
             ),
           ),
           if (hasVideo && i == 0)
