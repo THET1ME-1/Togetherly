@@ -319,11 +319,20 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Плавно вернуться к последнему сообщению (кнопка-стрелка «вниз»).
   void _jumpToBottom() {
     if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
+    _scrollController
+        .animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) {
+      // Контент мог дорасти за время анимации (подгрузка/раскрытие пузырей) —
+      // добиваем до фактического низа, чтобы остановиться ровно на последнем
+      // сообщении, а не «где-то рядом».
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
   }
 
   void _loadMore() {
@@ -678,16 +687,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Кнопка ↻ в шапке — проиграть «влёт» сообщений заново. Меняем эпоху (ключи
   /// _EntranceSlide обновляются → перемонтаж → анимация с нуля) и открываем окно.
-  void _replayEntrance() {
-    HapticFeedback.selectionClick();
-    setState(() {
-      _entranceEpoch++;
-      _playEntrance = true;
-    });
-    Future.delayed(const Duration(milliseconds: 1300), () {
-      if (mounted) _playEntrance = false;
-    });
-  }
+  // _replayEntrance удалён вместе с кнопкой ↻ в шапке (чат realtime).
 
   /// Имя варианта мордочки → enum (или null — без лица / неизвестно).
   _FaceExpr? _faceFromName(String? name) {
@@ -1420,11 +1420,6 @@ class _ChatScreenState extends State<ChatScreen> {
         // Аватар партнёра + имя с сердечком + статус «в сети · печатает…».
         title: _buildHeaderTitle(s),
         actions: [
-          IconButton(
-            tooltip: 'Replay',
-            icon: Icon(Icons.refresh_rounded, color: Colors.grey.shade700),
-            onPressed: _replayEntrance,
-          ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_horiz_rounded, color: Colors.grey.shade700),
             shape: RoundedRectangleBorder(
@@ -1467,7 +1462,9 @@ class _ChatScreenState extends State<ChatScreen> {
           Column(
             children: [
               Expanded(
-            child: StreamBuilder<List<ChatMsg>>(
+            child: Stack(
+              children: [
+                StreamBuilder<List<ChatMsg>>(
               stream: _messagesStream,
               builder: (context, snap) {
                 // Во время пересоздания потока (пагинация) держим прошлый срез.
@@ -1515,6 +1512,45 @@ class _ChatScreenState extends State<ChatScreen> {
                       _buildItem(items[i], i, items.length),
                 );
               },
+                ),
+                // FAB «вниз» — в области списка, НАД композером (не перекрывает
+                // кнопку отправки). Виден, когда отлистали заметно вверх.
+                Positioned(
+                  right: 14,
+                  bottom: 8,
+                  child: IgnorePointer(
+                    ignoring: !_showScrollDown,
+                    child: AnimatedScale(
+                      scale: _showScrollDown ? 1 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: GestureDetector(
+                        onTap: _jumpToBottom,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: _t.primary,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
               if (_mentionQuery != null && _mentionResults.isNotEmpty)
@@ -1522,43 +1558,6 @@ class _ChatScreenState extends State<ChatScreen> {
               // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
               _buildComposer(s),
             ],
-          ),
-          // Кнопка «вернуться к последнему сообщению» — видна, когда отлистали
-          // заметно вверх. Над композером, справа.
-          Positioned(
-            right: 14,
-            bottom: 84,
-            child: IgnorePointer(
-              ignoring: !_showScrollDown,
-              child: AnimatedScale(
-                scale: _showScrollDown ? 1 : 0,
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                child: GestureDetector(
-                  onTap: _jumpToBottom,
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: _t.primary,
-                      size: 26,
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -2552,31 +2551,16 @@ class _SwipeToReplyState extends State<_SwipeToReply>
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
-    final progress = (_raw / _kTriggerRaw).clamp(0.0, 1.0);
+    // Стрелка-иконка ответа убрана по требованию — остаётся сам свайп с лёгким
+    // сдвигом пузыря и срабатыванием ответа по достижении порога.
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: _onStart,
       onHorizontalDragUpdate: _onUpdate,
       onHorizontalDragEnd: _onEnd,
-      child: Stack(
-        alignment: Alignment.centerRight,
-        children: [
-          Positioned(
-            right: 8,
-            child: Opacity(
-              opacity: progress,
-              child: Transform.scale(
-                scale: 0.6 + 0.4 * progress,
-                child: Icon(Icons.reply_rounded,
-                    color: widget.iconColor, size: 22),
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(_visual, 0),
-            child: widget.child,
-          ),
-        ],
+      child: Transform.translate(
+        offset: Offset(_visual, 0),
+        child: widget.child,
       ),
     );
   }
