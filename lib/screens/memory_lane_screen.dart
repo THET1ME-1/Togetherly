@@ -969,8 +969,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             child: StorageImage(
               imageUrl: photos[i],
               fit: BoxFit.cover,
-              memCacheWidth: 500,
-              memCacheHeight: 500,
+              // ВАЖНО: задаём ТОЛЬКО ширину кэша. Если задать и width, и height,
+              // Flutter декодирует фото точно в 500×500 (квадрат), ИГНОРИРУЯ
+              // пропорции → вертикальное фото сжимается ещё ДО cover. С одной
+              // лишь шириной пропорции сохраняются, и cover честно обрезает.
+              memCacheWidth: 700,
               errorWidget: (_, __, ___) => Container(
                 color: Colors.grey.shade200,
                 child: Icon(Icons.broken_image_rounded,
