@@ -294,6 +294,12 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Иконка-сердечко для foreground-сервиса (flutter_foreground_task),
+             чтобы в шторке не было чёрного квадрата / дефолтной иконки. -->
+        <meta-data
+            android:name="com.togetherly.love.notification_icon"
+            android:resource="@drawable/ic_notification" />
+
         <!-- AdMob App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"

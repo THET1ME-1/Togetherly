@@ -691,6 +691,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onUserChanged() {
     if (mounted) setState(() {});
+    // Тема пары меняется через userData → синкаем виджеты рабочего стола,
+    // иначе лепестковый таймер остаётся на старой/дефолтной теме.
+    _scheduleSyncHomeWidgets();
   }
 
   /// Обновление MoodService: применять изменения настроения из pairData

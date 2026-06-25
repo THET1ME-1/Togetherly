@@ -733,8 +733,8 @@ class HomeWidgetService {
   Future<void> syncTimer(
     TimerItem timer, {
     required String groupId,
-    bool isRomantic = true,
-    int themeIndex = 0,
+    bool? isRomantic,
+    int? themeIndex,
   }) async {
     try {
       // Solo mode uses 'solo' as sentinel so Kotlin WidgetGroupHelper
@@ -743,8 +743,13 @@ class HomeWidgetService {
       debugPrint(
         'HomeWidgetService.syncTimer: START title=${timer.title} startMs=${timer.startDate.millisecondsSinceEpoch} group=$g',
       );
-      if (isRomantic) _lastIsRomantic = true;
-      _lastThemeIndex = themeIndex;
+      // Если вызов не передал тему/романтичность (напр. синк из TimerService по
+      // серии/дате) — берём ПОСЛЕДНИЕ известные, чтобы не сбрасывать активную
+      // тему лепесткового виджета на дефолт.
+      final romantic = isRomantic ?? _lastIsRomantic;
+      final theme = themeIndex ?? _lastThemeIndex;
+      _lastIsRomantic = romantic;
+      _lastThemeIndex = theme;
 
       await HomeWidget.saveWidgetData<String>('timer_${g}_title', timer.title);
       await HomeWidget.saveWidgetData<String>(
@@ -767,12 +772,12 @@ class HomeWidgetService {
       // Флаг темы: 1 = романтическая (сердце/розовый), 0 = нейтральная (звезда/жёлтый)
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_is_romantic',
-        isRomantic ? '1' : '0',
+        romantic ? '1' : '0',
       );
       // Индекс темы приложения (0=pink,1=purple,2=blue,3=orange,4=green) для лепесткового виджета
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_petal_theme',
-        themeIndex.toString(),
+        theme.toString(),
       );
       // Save latest group for fallback binding (use 'solo' sentinel for solo mode)
       await HomeWidget.saveWidgetData<String>('timer_latest_group', g);

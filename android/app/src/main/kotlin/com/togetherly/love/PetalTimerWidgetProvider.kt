@@ -50,12 +50,14 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
 
                     val countdown  = if (g.isEmpty()) false else widgetData.getString("timer_${g}_is_countdown", "0") == "1"
                     val startMs    = if (g.isEmpty()) 0L else widgetData.getString("timer_${g}_start_ms", "0")?.toLongOrNull() ?: 0L
-                    val isRomantic = if (g.isEmpty()) true else widgetData.getString("timer_${g}_is_romantic", "1") != "0"
                     val themeIdx   = (if (g.isEmpty()) 0 else widgetData.getString("timer_${g}_petal_theme", "0")?.toIntOrNull() ?: 0)
                                          .coerceIn(0, ROMANTIC_BG.lastIndex)
 
-                    val bgHex = if (isRomantic) ROMANTIC_BG[themeIdx] else NEUTRAL_BG
-                    val fgHex = if (isRomantic) ROMANTIC_FG[themeIdx] else NEUTRAL_FG
+                    // Лепестковый виджет ВСЕГДА следует активной теме (палитра по
+                    // themeIdx), а не типу отношений: раньше при не-романтической
+                    // паре показывал «нейтральные» жёлто-коричневые цвета вместо темы.
+                    val bgHex = ROMANTIC_BG[themeIdx]
+                    val fgHex = ROMANTIC_FG[themeIdx]
 
                     val bmpSize = resolveBitmapSize(context)
                     val bmp = Bitmap.createBitmap(bmpSize, bmpSize, Bitmap.Config.ARGB_8888)
