@@ -35,6 +35,16 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
     super.initState();
     _ru = LocaleService.instance.isRussian;
     _loadProgress();
+    // Прогресс заданий кэшируется в [_progress]. При начислении награды
+    // LevelService уведомляет слушателей — перечитываем прогресс, иначе плитки
+    // заданий остаются «активными» (0/N), хотя коины уже выданы.
+    LevelService.instance.addListener(_loadProgress);
+  }
+
+  @override
+  void dispose() {
+    LevelService.instance.removeListener(_loadProgress);
+    super.dispose();
   }
 
   Future<void> _loadProgress() async {

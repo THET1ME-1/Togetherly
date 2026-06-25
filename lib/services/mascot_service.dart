@@ -141,6 +141,14 @@ class MascotService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Текущая серия активного маскота (для UI — превью виджета и т.п.).
+  int get activeStreak => _state.activeStreak;
+
+  /// Принудительно пере-синхронизировать «Огонёк» с актуальной серией.
+  /// Нужно, например, при открытии экрана виджетов, чтобы нативный виджет на
+  /// рабочем столе не показывал застрявшее старое значение.
+  void resyncStreakWidget() => _syncStreakWidget();
+
   /// Pushes the ACTIVE mascot's streak to the native «Огонёк» home widget
   /// (серия теперь per-mascot, а не общая парная).
   void _syncStreakWidget() {

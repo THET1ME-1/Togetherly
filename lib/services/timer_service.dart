@@ -339,7 +339,17 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _repo.upsertGroupTimer(_groupId, _timers.last);
+      final added = _timers.last;
+      if (added.isDefault && !added.isSystem) {
+        // Новый таймер сразу делают основным: пишем весь согласованный массив,
+        // чтобы на сервере остался ровно один дефолтный (иначе системный
+        // остался бы дефолтным и realtime-merge откатил бы выбор — см.
+        // updateTimer). Для СИСТЕМНОГО таймера так делать нельзя: upsert по
+        // детерминированному id схлопывает дубли при одновременном создании пары.
+        await _saveToFirestore();
+      } else {
+        await _repo.upsertGroupTimer(_groupId, added);
+      }
     }
     // Sync widget immediately after creating timer (single user mode)
     await _syncWidgetTimer();
@@ -370,7 +380,17 @@ class TimerService extends ChangeNotifier {
     _ensureDefaultFlag();
     await _saveLocal();
     if (_groupId.isNotEmpty) {
-      await _repo.upsertGroupTimer(_groupId, updated);
+      if (updated.isDefault) {
+        // Таймер сделали основным: пишем ВЕСЬ согласованный массив одним RMW,
+        // чтобы на сервере остался ровно один дефолтный. Иначе upsert только
+        // этого таймера оставил бы системный с isDefault=true → realtime-merge
+        // увидел бы два дефолтных и откатил выбор к системному (firstWhere
+        // isSystem в _mergeRemoteTimers) — кнопка «Сделать основным» «не
+        // срабатывала».
+        await _saveToFirestore();
+      } else {
+        await _repo.upsertGroupTimer(_groupId, updated);
+      }
     }
     await _syncWidgetTimer();
     notifyListeners();

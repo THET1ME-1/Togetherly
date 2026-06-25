@@ -26,12 +26,19 @@ class TimerItem {
   // ── Вычисляемые значения ──
 
   int get daysElapsed {
+    // Считаем КАЛЕНДАРНЫЕ дни между датами (без учёта времени суток),
+    // чтобы совпадать с круговым экраном-лепестком и не «терять» день,
+    // когда текущее время ещё не дотянуло до времени старта.
+    // Деление часов на 24 с округлением страхует от перехода на летнее время.
+    final now = DateTime.now();
+    final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+    final nowDay = DateTime(now.year, now.month, now.day);
     if (isCountdown) {
       // Countdown: days until target date
-      return startDate.difference(DateTime.now()).inDays;
+      return (startDay.difference(nowDay).inHours / 24).round();
     } else {
       // Count up: days since start date
-      return DateTime.now().difference(startDate).inDays;
+      return (nowDay.difference(startDay).inHours / 24).round();
     }
   }
 

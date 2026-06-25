@@ -31,6 +31,7 @@ import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
+import '../services/mascot_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
@@ -50,6 +51,7 @@ class WidgetScreen extends StatefulWidget {
   final WidgetService widgetService;
   final MoodService moodService;
   final TimerService timerService;
+  final MascotService mascotService;
   final AppTheme theme;
 
   /// Открыт по тапу на парный виджет рабочего стола — сразу разворачиваем
@@ -63,6 +65,7 @@ class WidgetScreen extends StatefulWidget {
     required this.widgetService,
     required this.moodService,
     required this.timerService,
+    required this.mascotService,
     required this.theme,
     this.openPairEditorOnStart = false,
   });
@@ -77,6 +80,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   WidgetService get _ws => widget.widgetService;
   MoodService get _moodService => widget.moodService;
   TimerService get _timerService => widget.timerService;
+  MascotService get _mascotService => widget.mascotService;
   PairData get _pair => widget.pairData;
   AppStrings get _s => LocaleService.current;
 
@@ -166,9 +170,14 @@ class _WidgetScreenState extends State<WidgetScreen>
     _ws.addListener(_onDataChanged);
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
+    _mascotService.addListener(_onDataChanged);
     for (final p in _pair.partners) {
       _moodService.listenToPartner(p.uid);
     }
+    // Превью «Огонёк пары» показывает реальную серию. Заодно форсим
+    // пере-синхронизацию нативного виджета, чтобы на рабочем столе не висело
+    // устаревшее значение.
+    _mascotService.resyncStreakWidget();
     _loadAllInitialPrefs();
 
     // Открыты по тапу на парный виджет → сразу разворачиваем его настройки.
@@ -1158,6 +1167,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     _ws.removeListener(_onDataChanged);
     _timerService.removeListener(_onDataChanged);
     _moodService.removeListener(_onDataChanged);
+    _mascotService.removeListener(_onDataChanged);
     _galleryScrollController.dispose();
     super.dispose();
   }
@@ -1907,9 +1917,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                     letterSpacing: 1.4,
                   ),
                 ),
-                const Text(
-                  '7',
-                  style: TextStyle(
+                Text(
+                  '${_mascotService.activeStreak}',
+                  style: const TextStyle(
                     fontSize: 64,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,

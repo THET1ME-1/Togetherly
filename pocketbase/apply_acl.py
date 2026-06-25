@@ -63,10 +63,17 @@ def same_authored(expr, author_field):
 GROUPS = '@request.auth.id != "" && members ?~ @request.auth.id'
 CHANNEL = '@request.auth.id != "" && channel ~ @request.auth.id'
 IAP = '@request.auth.id != "" && user_uid = @request.auth.id'
-# Медиа: владелец своих (аватары: uid) ИЛИ член пары (group_id). Полное закрытие
-# файлов (protected+token) — отдельный блокер; здесь гейтим доступ к ЗАПИСЯМ.
-MEDIA = ('@request.auth.id != "" && (uid = @request.auth.id '
-         '|| (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))')
+# Медиа. ЧТЕНИЕ (list/view): владелец своих (uid), член пары (group_id), а также
+# ЛЮБЫЕ аватары (kind=avatars/avatar) — они не приватны и их ОБЯЗАН видеть
+# партнёр. Аватар грузится с group_id = uid (а не реальный pairId), поэтому join
+# к groups его НЕ пускал → партнёр получал 403 на файл и видел заглушку-букву.
+# ЗАПИСЬ (create/update/delete) остаётся строгой: только владелец/член группы —
+# чтобы по «аватарному» послаблению нельзя было перезаписать/удалить чужой файл.
+MEDIA_READ = ('@request.auth.id != "" && (uid = @request.auth.id '
+              '|| kind = "avatars" || kind = "avatar" '
+              '|| (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))')
+MEDIA_WRITE = ('@request.auth.id != "" && (uid = @request.auth.id '
+               '|| (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))')
 PUBLIC_READ_ADMIN_WRITE = {
     "listRule": "", "viewRule": "",
     "createRule": None, "updateRule": None, "deleteRule": None,
@@ -107,8 +114,14 @@ RULES = {
     "live_location": same_authored(CHANNEL, "user_uid"),
     # покупки — только свои
     "iap_purchases": same(IAP),
-    # медиа — владелец/член
-    "media": same(MEDIA),
+    # медиа — чтение: владелец/член/любые аватары; запись: строго владелец/член
+    "media": {
+        "listRule": MEDIA_READ,
+        "viewRule": MEDIA_READ,
+        "createRule": MEDIA_WRITE,
+        "updateRule": MEDIA_WRITE,
+        "deleteRule": MEDIA_WRITE,
+    },
     # публичный контент: чтение всем, запись только суперюзер
     "app_config": dict(PUBLIC_READ_ADMIN_WRITE),
     "catalog_items": dict(PUBLIC_READ_ADMIN_WRITE),

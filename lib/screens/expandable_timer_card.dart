@@ -367,6 +367,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                         child: TextField(
                           controller: dateCtrl,
                           keyboardType: TextInputType.datetime,
+                          // Ручной ввод даты не трогает pickedDate (его меняют
+                          // только пикеры) — перестраиваем лист, чтобы
+                          // предупреждение о прошедшей дате считалось по
+                          // фактически введённому тексту, а не по pickedDate.
+                          onChanged: (_) => setSheetState(() {}),
                           decoration: _dialogInputDeco(
                             '${LocaleService.current.dateFormatHint}  ${LocaleService.current.timeFormatHint}',
                           ),
@@ -436,7 +441,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                       ),
                     ],
                   ),
-                  if (isCountdown && pickedDate.isBefore(DateTime.now()))
+                  if (isCountdown &&
+                      (_parseDate(dateCtrl.text) ?? pickedDate)
+                          .isBefore(DateTime.now()))
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Row(

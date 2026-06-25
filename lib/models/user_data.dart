@@ -245,6 +245,14 @@ class UserData extends ChangeNotifier {
           ..clear()
           ..addAll(cloudOwnedFeatures.whereType<String>());
       }
+      // Счётчик просмотров рекламы за день. Без этого после серверного
+      // начисления (Яндекс grantAdReward / AdMob SSV) клиентский «X/3» не
+      // догоняет правду сервера, счётчик «застывает» и задание не отмечается
+      // выполненным даже когда лимит исчерпан.
+      final cloudAdCount = data['adRewardsToday'];
+      if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
+      final cloudAdDate = data['adRewardsDate'];
+      if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
       await _saveLocal();
       notifyListeners();
     } catch (e) {

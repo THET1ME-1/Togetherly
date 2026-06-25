@@ -1401,8 +1401,8 @@
         "CREATE INDEX `idx_media_group_id` ON `media` (`group_id`)",
         "CREATE INDEX `idx_media_src` ON `media` (`src`)"
       ],
-      "listRule": "@request.auth.id != \"\" && (uid = @request.auth.id || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
-      "viewRule": "@request.auth.id != \"\" && (uid = @request.auth.id || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
+      "listRule": "@request.auth.id != \"\" && (uid = @request.auth.id || kind = \"avatars\" || kind = \"avatar\" || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
+      "viewRule": "@request.auth.id != \"\" && (uid = @request.auth.id || kind = \"avatars\" || kind = \"avatar\" || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
       "createRule": "@request.auth.id != \"\" && (uid = @request.auth.id || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
       "updateRule": "@request.auth.id != \"\" && (uid = @request.auth.id || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))",
       "deleteRule": "@request.auth.id != \"\" && (uid = @request.auth.id || (@collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id))"

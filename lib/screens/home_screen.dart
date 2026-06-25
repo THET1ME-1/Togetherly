@@ -662,6 +662,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final myUid = PocketBaseService().userId ?? '';
     final partnerUid = _pairData.partnerUid;
     if (isPaired && myUid.isNotEmpty && partnerUid.isNotEmpty) {
+      // Доставка уведомлений партнёра по SSE — БЕЗ FCM.
+      // (1) ГЛАВНЫЙ изолят: подписку держим всегда, пока приложение открыто —
+      // здесь та же рабочая PB-сессия и SSE, что питают живые счётчики, поэтому
+      // foreground-доставка надёжна и не зависит от запуска сервиса.
+      PbPushService().start(
+        groupId: _pairData.pairId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+        partnerName: _pairData.partnerDisplayName,
+      );
+      // (2) Android: вдобавок foreground-сервис — чтобы доставка пережила
+      // сворачивание/выгрузку приложения. Уведомления дедуплицируются по
+      // детерминированному id, поэтому двойного баннера не будет.
       if (Platform.isAndroid) {
         unawaited(PushBackgroundService().start(
           groupId: _pairData.pairId,
@@ -669,13 +682,6 @@ class _HomeScreenState extends State<HomeScreen> {
           partnerUid: partnerUid,
           partnerName: _pairData.partnerDisplayName,
         ));
-      } else {
-        PbPushService().start(
-          groupId: _pairData.pairId,
-          myUid: myUid,
-          partnerUid: partnerUid,
-          partnerName: _pairData.partnerDisplayName,
-        );
       }
     } else {
       PbPushService().stop();
@@ -1066,6 +1072,7 @@ class _HomeScreenState extends State<HomeScreen> {
       widgetService: _widgetService,
       moodService: _moodService,
       timerService: _timerService,
+      mascotService: _mascotService,
       theme: _t,
       openPairEditorOnStart: openPair,
     );
