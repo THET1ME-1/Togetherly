@@ -82,9 +82,13 @@ class _StorageImageState extends State<StorageImage> {
 
   // Стабильный cacheKey = исходная ссылка (pb://gs://sb://), чтобы смена
   // file-токена/signed-URL НЕ сбрасывала дисковый кэш картинки.
+  // Префикс версии 'v2|': прежняя версия могла закэшировать ЧУЖОЕ фото под этим
+  // ключом из-за бага переиспользования элементов ленты (FutureBuilder ниже
+  // отдавал предыдущий resolved-URL на connectionState=waiting). Смена префикса
+  // разово сбрасывает потенциально «отравленные» записи кэша на устройствах.
   Widget _buildCached(String url) => CachedNetworkImage(
         imageUrl: url,
-        cacheKey: widget.imageUrl,
+        cacheKey: 'v2|${widget.imageUrl}',
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
@@ -109,18 +113,23 @@ class _StorageImageState extends State<StorageImage> {
     // Fast path: https:// / pb:// → рендерим сразу, без async/мигания
     if (!_needsResolve) return _buildCached(_fastUrl);
 
-    // Slow path: gs:// / sb:// → ждём Signed URL
+    // Slow path: gs:// / sb:// / pb:// → ждём резолв (Signed URL / file-токен)
     return FutureBuilder<String?>(
       future: _resolvedUrl,
       builder: (context, snap) {
-        final resolved = snap.data;
-        if (resolved == null || resolved.isEmpty) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return widget.placeholder?.call(context, '') ??
-                SizedBox(width: widget.width, height: widget.height);
-          }
-          return _empty();
+        // КРИТИЧНО: пока резолвится новый URL — показываем placeholder, а НЕ
+        // snapshot.data. При смене imageUrl (элемент ленты переиспользован под
+        // другое воспоминание — записи сортируются «новые сверху», индексы
+        // сдвигаются) FutureBuilder временно отдаёт ПРЕДЫДУЩИЙ resolved-URL с
+        // connectionState=waiting. Если его отрендерить, плитка нового
+        // воспоминания покажет фото предыдущего И закэширует его под своим
+        // cacheKey. Поэтому на waiting — строго placeholder.
+        if (snap.connectionState == ConnectionState.waiting) {
+          return widget.placeholder?.call(context, '') ??
+              SizedBox(width: widget.width, height: widget.height);
         }
+        final resolved = snap.data;
+        if (resolved == null || resolved.isEmpty) return _empty();
         return _buildCached(resolved);
       },
     );

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
+import '../services/push_background_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_icon.dart';
 
@@ -731,6 +732,9 @@ class UserData extends ChangeNotifier {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     PocketBaseService().signOut();
+    // Гасим фоновый пуш-сервис (§5): иначе его постоянное уведомление и
+    // SSE-подписка с уже невалидной сессией остались бы висеть после выхода.
+    await PushBackgroundService().stop();
     _isRegistered = false;
     _displayName = '';
     _email = '';

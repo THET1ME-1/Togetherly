@@ -25,6 +25,11 @@
          без открытия приложения) — тогда нужен boot-receiver и декларация. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Пуш без FCM (§5): foreground-сервис типа dataSync держит SSE-подписку
+         PbPushService живой, пока приложение свёрнуто/выгружено (flutter_foreground_task).
+         WAKE_LOCK нужен для allowWakeLock (соединение не засыпает в Doze). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Переопределяем неявные требования GPS, чтобы не блокировать планшеты и Chromebook -->
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -444,6 +449,15 @@
                 <action android:name="com.togetherly.love.ACTION_ROTATE_TIMER" />
             </intent-filter>
         </receiver>
+
+        <!-- Пуш без FCM (§5): foreground-сервис flutter_foreground_task, держит
+             SSE-подписку PbPushService при свёрнутом/выгруженном приложении.
+             ВНИМАНИЕ: имя класса менять нельзя (его ищет плагин). Без
+             android:stopWithTask — сервис переживает свайп из недавних. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
         <!-- Иконка и цвет для FCM-уведомлений (фон / убитый процесс) -->
         <meta-data

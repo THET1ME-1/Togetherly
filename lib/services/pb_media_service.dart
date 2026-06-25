@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'pocketbase_service.dart';
 
@@ -49,6 +51,23 @@ class PbMediaService {
       return '$scheme$_col/${rec.id}/$stored';
     } catch (e) {
       debugPrint('PbMedia.uploadBytes failed: $e');
+      // Диагностика «не удалось загрузить фото/видео»: реальную причину (403 ACL,
+      // 401 протухшая сессия, сеть, валидация) глотал только debugPrint и она не
+      // была видна в проде. Кидаем в Bugsink с контекстом — статус-код у
+      // ClientException укажет точную причину сбоя загрузки воспоминания.
+      final statusCode = e is ClientException ? e.statusCode : null;
+      final response = e is ClientException ? e.response.toString() : null;
+      unawaited(Sentry.captureException(e, withScope: (s) {
+        s.level = SentryLevel.warning;
+        s.setExtra('reason', 'PbMedia.uploadBytes failed');
+        s.setExtra('kind', kind ?? '(none)');
+        s.setExtra('hasUid', (uid != null && uid.isNotEmpty).toString());
+        s.setExtra('hasGroupId', (groupId != null && groupId.isNotEmpty).toString());
+        s.setExtra('loggedIn', PocketBaseService().isLoggedIn.toString());
+        s.setExtra('filename', filename);
+        if (statusCode != null) s.setExtra('statusCode', statusCode.toString());
+        if (response != null) s.setExtra('pbResponse', response);
+      }));
       return null;
     }
   }

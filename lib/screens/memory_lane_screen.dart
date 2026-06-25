@@ -762,24 +762,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  MEMORY TILE (type-specific cards)
   // ═══════════════════════════════════════════════════
   Widget _memoryTile(Memory memory) {
-    switch (memory.type) {
-      case MemoryType.photo:
-        return _photoTile(memory);
-      case MemoryType.video:
-        return _videoTile(memory);
-      case MemoryType.videoLink:
-        return _videoLinkTile(memory);
-      case MemoryType.location:
-        return _locationTile(memory);
-      case MemoryType.music:
-        return _musicTile(memory);
-      case MemoryType.text:
-        return _textTile(memory);
-      case MemoryType.book:
-        return _bookTile(memory);
-      case MemoryType.movie:
-        return _movieTile(memory);
-    }
+    final tile = switch (memory.type) {
+      MemoryType.photo => _photoTile(memory),
+      MemoryType.video => _videoTile(memory),
+      MemoryType.videoLink => _videoLinkTile(memory),
+      MemoryType.location => _locationTile(memory),
+      MemoryType.music => _musicTile(memory),
+      MemoryType.text => _textTile(memory),
+      MemoryType.book => _bookTile(memory),
+      MemoryType.movie => _movieTile(memory),
+    };
+    // Ключ по id КРИТИЧЕН: лента отсортирована «новые сверху», при добавлении
+    // воспоминания индексы всех плиток сдвигаются. Без ключа
+    // SliverChildBuilderDelegate переиспользует элементы ПО ПОЗИЦИИ → плитка
+    // получает чужой memory/imageUrl и на миг показывает (StorageImage внутри
+    // через FutureBuilder) фото ПРЕДЫДУЩЕГО воспоминания. Ключ привязывает
+    // элемент к конкретной записи — переиспользования между разными нет.
+    return KeyedSubtree(key: ValueKey('mem_${memory.id}'), child: tile);
   }
 
   // ═══════════════════════════════════════════════════

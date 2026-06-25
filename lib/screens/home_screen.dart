@@ -21,6 +21,7 @@ import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_push_service.dart';
+import '../services/push_background_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
 import '../services/locale_service.dart';
@@ -647,21 +648,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Уведомления о партнёре (PbPushService: SSE chat/mood/miss_you → локальные
-  /// баннеры), пока приложение открыто. Foreground-сервис для фонового пуша при
-  /// мёртвом процессе — §5 (отдельный пакет).
+  /// Уведомления о партнёре (SSE chat/mood/miss_you → локальные баннеры).
+  ///
+  /// Android: доставку держит [PushBackgroundService] — foreground-сервис с
+  /// отдельным изолятом, который продолжает слушать сервер даже когда
+  /// приложение свёрнуто или выгружено из недавних (§5). Запускаем его, пока
+  /// мы на переднем плане (иначе Android 12+ заблокировал бы старт из фона).
+  ///
+  /// iOS: постоянный фоновый сокет невозможен (нужен APNs) — слушаем хотя бы
+  /// пока приложение открыто, в главном изоляте через [PbPushService].
   void _updatePartnerPush(bool isPaired) {
     final myUid = PocketBaseService().userId ?? '';
     final partnerUid = _pairData.partnerUid;
     if (isPaired && myUid.isNotEmpty && partnerUid.isNotEmpty) {
-      PbPushService().start(
-        groupId: _pairData.pairId,
-        myUid: myUid,
-        partnerUid: partnerUid,
-        partnerName: _pairData.partnerDisplayName,
-      );
+      if (Platform.isAndroid) {
+        unawaited(PushBackgroundService().start(
+          groupId: _pairData.pairId,
+          myUid: myUid,
+          partnerUid: partnerUid,
+          partnerName: _pairData.partnerDisplayName,
+        ));
+      } else {
+        PbPushService().start(
+          groupId: _pairData.pairId,
+          myUid: myUid,
+          partnerUid: partnerUid,
+          partnerName: _pairData.partnerDisplayName,
+        );
+      }
     } else {
       PbPushService().stop();
+      unawaited(PushBackgroundService().stop());
     }
   }
 
