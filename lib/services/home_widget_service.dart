@@ -873,7 +873,11 @@ class HomeWidgetService {
         final url = photoUrls[i];
         if (url.startsWith('http') ||
             url.startsWith('gs://') ||
-            url.startsWith('sb://')) {
+            url.startsWith('sb://') ||
+            url.startsWith('pb://')) {
+          // pb:// резолвится в http+token внутри _cachePhotoFromUrl и
+          // скачивается локально; File(pb://) не существует, поэтому без этой
+          // ветки фото не кэшировалось и нативный виджет получал пустой путь.
           final p = await _cachePhotoFromUrl(
             url,
             'photo_day_carousel_${widgetId}_$i',
@@ -1222,7 +1226,8 @@ class HomeWidgetService {
         final selectedUrl = ownUrls.first;
         final localPath = (selectedUrl.startsWith('http') ||
                 selectedUrl.startsWith('gs://') ||
-                selectedUrl.startsWith('sb://'))
+                selectedUrl.startsWith('sb://') ||
+                selectedUrl.startsWith('pb://'))
             ? await _cachePhotoFromUrl(selectedUrl, 'photo_day_solo_$widgetId')
             : selectedUrl;
 

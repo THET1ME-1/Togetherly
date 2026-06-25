@@ -774,7 +774,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       final path = paths[i];
       if (path.startsWith('http') ||
           path.startsWith('gs://') ||
-          path.startsWith('sb://')) {
+          path.startsWith('sb://') ||
+          path.startsWith('pb://')) {
+        // Уже загруженный URL (в т.ч. pb:// — фото «из ленты») — переиспользуем,
+        // НЕ пытаемся грузить как локальный файл (File(pb://) не существует).
         uploadedUrls.add(path);
       } else {
         try {
@@ -843,7 +846,8 @@ class _WidgetScreenState extends State<WidgetScreen>
     for (final path in paths) {
       if (path.startsWith('http') ||
           path.startsWith('gs://') ||
-          path.startsWith('sb://')) {
+          path.startsWith('sb://') ||
+          path.startsWith('pb://')) {
         uploadedUrls.add(path);
         continue;
       }
@@ -2859,7 +2863,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: ownPhotoPath != null && ownPhotoPath.isNotEmpty
-                            ? (ownPhotoPath.startsWith('http') || ownPhotoPath.startsWith('gs://') || ownPhotoPath.startsWith('sb://')
+                            ? (ownPhotoPath.startsWith('http') || ownPhotoPath.startsWith('gs://') || ownPhotoPath.startsWith('sb://') || ownPhotoPath.startsWith('pb://')
                                   ? StorageImage(
                                       imageUrl: ownPhotoPath,
                                       fit: BoxFit.cover,

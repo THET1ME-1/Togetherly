@@ -173,7 +173,8 @@ class TimerService extends ChangeNotifier {
       if (path != null &&
           !path.startsWith('http') &&
           !path.startsWith('gs://') &&
-          !path.startsWith('sb://')) {
+          !path.startsWith('sb://') &&
+          !path.startsWith('pb://')) {
         // Локальный путь от другого устройства — удаляем
         debugPrint(
           'TimerService: очищаю устаревший локальный путь у таймера ${t.id}',
