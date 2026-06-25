@@ -13,6 +13,7 @@ import 'firebase_service.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
+import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
@@ -778,6 +779,20 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_petal_theme',
         theme.toString(),
+      );
+      // Точные цвета активной темы (fg = акцент/primary, bg = фон лепестков),
+      // чтобы ЛЮБАЯ из 20 тем совпадала с приложением, а не схлопывалась в
+      // 5-цветную натив-палитру по индексу.
+      final pt = AppThemes.byIndex(theme);
+      String petalHex(int argb) =>
+          '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+      await HomeWidget.saveWidgetData<String>(
+        'timer_${g}_petal_bg',
+        petalHex(pt.timerDialBackground.value),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'timer_${g}_petal_fg',
+        petalHex(pt.primary.value),
       );
       // Save latest group for fallback binding (use 'solo' sentinel for solo mode)
       await HomeWidget.saveWidgetData<String>('timer_latest_group', g);
