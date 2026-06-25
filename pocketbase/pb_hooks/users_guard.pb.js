@@ -66,7 +66,43 @@ onRecordUpdateRequest((e) => {
       }
     }
   }
-  e.next();
+
+  // ── Денормализация профиля в группы ──────────────────────────────────────
+  // При смене аватара/имени синхронизируем member_avatars[uid]/member_names[uid]
+  // во ВСЕХ группах юзера. Партнёр читает аватар/имя из group-дока; клиентская
+  // правка member_avatars иногда теряется (гонка/проглоченная ошибка), из-за
+  // чего партнёр видел СТАРУЮ аватарку. Это серверная гарантия консистентности.
+  let prevAvatar = null, prevName = null;
+  try {
+    const o = $app.findRecordById("users", e.record.id);
+    prevAvatar = o.getString("avatar_url");
+    prevName = o.getString("display_name");
+  } catch (_) { prevAvatar = null; prevName = null; }
+  const newAvatar = e.record.getString("avatar_url");
+  const newName = e.record.getString("display_name");
+
+  e.next(); // сохраняем users
+
+  if (newAvatar !== prevAvatar || newName !== prevName) {
+    try {
+      const uid = e.record.id;
+      const groups = $app.findRecordsByFilter(
+        "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: uid });
+      for (let i = 0; i < groups.length; i++) {
+        const g = groups[i];
+        let changed = false;
+        let avMap = {};
+        try { const v = JSON.parse(g.getString("member_avatars") || "{}"); if (v && typeof v === "object") avMap = v; } catch (_) { avMap = {}; }
+        if (newAvatar && avMap[uid] !== newAvatar) { avMap[uid] = newAvatar; g.set("member_avatars", avMap); changed = true; }
+        let nmMap = {};
+        try { const v = JSON.parse(g.getString("member_names") || "{}"); if (v && typeof v === "object") nmMap = v; } catch (_) { nmMap = {}; }
+        if (newName && nmMap[uid] !== newName) { nmMap[uid] = newName; g.set("member_names", nmMap); changed = true; }
+        if (changed) $app.save(g);
+      }
+    } catch (err) {
+      try { $app.logger().error("member profile sync failed: " + String(err)); } catch (_) {}
+    }
+  }
 }, "users");
 
 onRecordCreateRequest((e) => {
