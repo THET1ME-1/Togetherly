@@ -802,11 +802,17 @@ class MemoryMusicPlayer extends StatefulWidget {
   final AppTheme theme;
   final VoidCallback? onHeaderTap;
 
+  /// true → рендерим ТОЛЬКО плеер (без собственной шапки) — для общей оболочки
+  /// ленты, где шапку/подпись/футер рисует _musicTile. false (дефолт) → старый
+  /// самодостаточный вид с шапкой (превью на главном).
+  final bool bodyOnly;
+
   const MemoryMusicPlayer({
     super.key,
     required this.memory,
     required this.theme,
     this.onHeaderTap,
+    this.bodyOnly = false,
   });
 
   @override
@@ -989,10 +995,8 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final hasCover =
-        memory.musicCoverUrl != null && memory.musicCoverUrl!.isNotEmpty;
-    final hasUrl = memory.musicUrl != null && memory.musicUrl!.isNotEmpty;
-
+    // bodyOnly → плеер без шапки (общую оболочку рисует _musicTile).
+    if (widget.bodyOnly) return _buildPlayerBody();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1126,268 +1130,321 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
           ),
         ),
         const SizedBox(height: 10),
-
-        // ── Music player sub-card (absorbs taps — не открывает деталь) ──
-        GestureDetector(
-          onTap: () {}, // поглощаем тап, чтобы не всплывал к _baseTile
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Album cover with M3 Expressive wave overlay when playing
-                      Stack(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: hasCover
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: StorageImage(
-                                      imageUrl: memory.musicCoverUrl!,
-                                      fit: BoxFit.cover,
-                                      memCacheWidth: 96,
-                                      memCacheHeight: 96,
-                                      errorWidget: (_, __, ___) => Center(
-                                        child: SvgPicture.asset(
-                                          'assets/icons/ic_music_note.svg',
-                                          width: 20,
-                                          height: 20,
-                                          colorFilter: ColorFilter.mode(
-                                            primary,
-                                            BlendMode.srcIn,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : Center(
-                                    child: SvgPicture.asset(
-                                      'assets/icons/ic_music_note.svg',
-                                      width: 20,
-                                      height: 20,
-                                      colorFilter: ColorFilter.mode(
-                                        primary,
-                                        BlendMode.srcIn,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                          // M3 Expressive wave bars overlay — fades in when playing
-                          Positioned.fill(
-                            child: AnimatedOpacity(
-                              opacity: _isPlaying ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 300),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    color: primary.withOpacity(0.72),
-                                  ),
-                                  child: Center(
-                                    child: _M3WaveBars(
-                                      isPlaying: _isPlaying,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              memory.musicTitle ??
-                                  LocaleService.current.unknownTrack,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade900,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (memory.musicArtist != null &&
-                                memory.musicArtist!.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 3),
-                                child: Wrap(
-                                  spacing: 4,
-                                  runSpacing: 2,
-                                  children: memory.musicArtist!
-                                      .split(',')
-                                      .map((a) => a.trim())
-                                      .where((a) => a.isNotEmpty)
-                                      .map(
-                                        (a) => Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: primary.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            a,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: primary,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Play / Pause button — only for local audio files
-                      if (hasUrl && !_isExternalLink)
-                        GestureDetector(
-                          onTap: _togglePlayback,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: primary.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: _loading
-                                ? SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: primary,
-                                    ),
-                                  )
-                                : SvgPicture.asset(
-                                    _isPlaying
-                                        ? 'assets/icons/ic_stop.svg'
-                                        : 'assets/icons/ic_play.svg',
-                                    width: 20,
-                                    height: 20,
-                                    colorFilter: ColorFilter.mode(
-                                      primary,
-                                      BlendMode.srcIn,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  // ── Branded link button for external streaming services ──
-                  if (_isExternalLink && hasUrl) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _togglePlayback,
-                        icon: const Icon(
-                          Icons.open_in_new_rounded,
-                          size: 15,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          LocaleService.current.openIn(
-                            _sourceName ?? LocaleService.current.audioFile,
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _sourceColor ?? primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  // ── Progress slider + time labels (only for local audio) ──
-                  if (!_isExternalLink) ...[
-                    const SizedBox(height: 6),
-                    WaveProgressBar(
-                      value: _duration.inMilliseconds > 0
-                          ? (_position.inMilliseconds /
-                                    _duration.inMilliseconds)
-                                .clamp(0.0, 1.0)
-                          : 0.0,
-                      color: primary,
-                      isPlaying: _isPlaying,
-                      height: 22,
-                      onChanged: _duration > Duration.zero
-                          ? (v) => _player?.seek(
-                              Duration(
-                                milliseconds: (v * _duration.inMilliseconds)
-                                    .toInt(),
-                              ),
-                            )
-                          : null,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _fmt(_position),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                          Text(
-                            _duration > Duration.zero
-                                ? _fmt(_duration)
-                                : '--:--',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-
+        _buildPlayerBody(),
         const SizedBox(height: 12),
       ],
+    );
+  }
+
+  /// Тело плеера. Поглощает тапы, чтобы не открывать деталь по нажатию на
+  /// элементы управления. Для файлов — богатый плеер, для ссылок — карточка.
+  Widget _buildPlayerBody() {
+    final hasUrl = memory.musicUrl != null && memory.musicUrl!.isNotEmpty;
+    final isFile = hasUrl && !_isExternalLink;
+    return GestureDetector(
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: isFile ? _buildFilePlayer() : _buildLinkCard(),
+      ),
+    );
+  }
+
+  /// Богатый плеер — ТОЛЬКО для музыкальных файлов (чтобы было видно, что трек
+  /// проигрывается прямо здесь). Градиент от АКТИВНОЙ ТЕМЫ (не фиолетовый).
+  Widget _buildFilePlayer() {
+    final hasCover =
+        memory.musicCoverUrl != null && memory.musicCoverUrl!.isNotEmpty;
+    final dark = Color.lerp(primary, Colors.black, 0.32)!;
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [primary, dark],
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              // Обложка + эквалайзер-оверлей при проигрывании.
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: hasCover
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: StorageImage(
+                                imageUrl: memory.musicCoverUrl!,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 140,
+                                memCacheHeight: 140,
+                                errorWidget: (_, _, _) =>
+                                    _coverNote(Colors.white),
+                              ),
+                            )
+                          : _coverNote(Colors.white),
+                    ),
+                    Positioned.fill(
+                      child: AnimatedOpacity(
+                        opacity: _isPlaying ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            color: Colors.black.withOpacity(0.30),
+                            child: Center(
+                              child: _M3WaveBars(
+                                isPlaying: _isPlaying,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      memory.musicTitle ?? LocaleService.current.unknownTrack,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (memory.musicArtist != null &&
+                        memory.musicArtist!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        memory.musicArtist!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Большая кнопка play/pause.
+              GestureDetector(
+                onTap: _togglePlayback,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: _loading
+                      ? Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.6,
+                            color: primary,
+                          ),
+                        )
+                      : Icon(
+                          _isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: primary,
+                          size: 30,
+                        ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          WaveProgressBar(
+            value: progress,
+            color: Colors.white,
+            isPlaying: _isPlaying,
+            height: 24,
+            onChanged: _duration > Duration.zero
+                ? (v) => _player?.seek(
+                      Duration(
+                        milliseconds: (v * _duration.inMilliseconds).toInt(),
+                      ),
+                    )
+                : null,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _fmt(_position),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withOpacity(0.75),
+                ),
+              ),
+              Text(
+                _duration > Duration.zero ? _fmt(_duration) : '--:--',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withOpacity(0.75),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Карточка-ссылка для стриминговых сервисов: обложка + название + артист и
+  /// кнопка «Открыть в …» в фирменном цвете сервиса (кнопки оставлены).
+  Widget _buildLinkCard() {
+    final hasCover =
+        memory.musicCoverUrl != null && memory.musicCoverUrl!.isNotEmpty;
+    final hasUrl = memory.musicUrl != null && memory.musicUrl!.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: hasCover
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: StorageImage(
+                          imageUrl: memory.musicCoverUrl!,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 96,
+                          memCacheHeight: 96,
+                          errorWidget: (_, _, _) => _coverNote(primary),
+                        ),
+                      )
+                    : _coverNote(primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      memory.musicTitle ?? LocaleService.current.unknownTrack,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade900,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (memory.musicArtist != null &&
+                        memory.musicArtist!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          memory.musicArtist!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: primary),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hasUrl) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _togglePlayback,
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  LocaleService.current.openIn(
+                    _sourceName ?? LocaleService.current.audioFile,
+                  ),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _sourceColor ?? primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _coverNote(Color color) {
+    return Center(
+      child: SvgPicture.asset(
+        'assets/icons/ic_music_note.svg',
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
     );
   }
 }

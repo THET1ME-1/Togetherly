@@ -12,6 +12,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -171,7 +173,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       ({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
       _feedCategories = [
     (key: 'moments', ru: 'Моменты', en: 'Moments', icon: Icons.favorite_rounded, types: {MemoryType.photo, MemoryType.video}),
-    (key: 'places', ru: 'Места', en: 'Places', icon: Icons.place_rounded, types: {MemoryType.location}),
+    (key: 'places', ru: 'Локации', en: 'Locations', icon: Icons.place_rounded, types: {MemoryType.location}),
     (key: 'music', ru: 'Музыка', en: 'Music', icon: Icons.music_note_rounded, types: {MemoryType.music}),
     (key: 'video', ru: 'Видео', en: 'Video', icon: Icons.play_circle_fill_rounded, types: {MemoryType.videoLink}),
     (key: 'notes', ru: 'Заметки', en: 'Notes', icon: Icons.sticky_note_2_rounded, types: {MemoryType.text}),
@@ -1155,7 +1157,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       case MemoryType.video:
         return (_ru ? 'Момент' : 'Moment', Icons.favorite_rounded);
       case MemoryType.location:
-        return (_ru ? 'Место' : 'Place', Icons.place_rounded);
+        return (_ru ? 'Локация' : 'Location', Icons.place_rounded);
       case MemoryType.music:
         return (_ru ? 'Музыка' : 'Music', Icons.music_note_rounded);
       case MemoryType.videoLink:
@@ -1372,6 +1374,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: _mediaCollage(memory, allPhotos, hasVideo),
               ),
+            )
+          // Видео без отдельной обложки: всё равно показываем медиа-ячейку
+          // с кнопкой play (карточка не должна остаться без превью).
+          else if (hasVideo)
+            GestureDetector(
+              onTap: () => _openCollage(memory),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: _videoOnlyCell(memory),
+              ),
             ),
           if (caption.isNotEmpty)
             Padding(
@@ -1395,250 +1407,290 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ═══════════════════════════════════════════════════
-  //  VIDEO TILE — cinematic preview card
+  //  VIDEO TILE — идентична фото-карточке (фото и видео = «Момент»).
+  //  Видео рендерится через _photoTile: коллаж показывает обложку с play,
+  //  тап открывает полноэкранную галерею (она же проигрывает видео).
   // ═══════════════════════════════════════════════════
-  Widget _videoTile(Memory memory) {
-    final hasThumb = memory.imageUrl != null && memory.imageUrl!.isNotEmpty;
-    final s = LocaleService.current;
+  Widget _videoTile(Memory memory) => _photoTile(memory);
 
-    return _baseTile(
-      memory: memory,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _cardHeader(
-            memory,
-            subtitle: memory.title?.isNotEmpty == true
-                ? memory.title!
-                : s.sharedAVideo,
-            badgeColor: primary,
-          ),
-          const SizedBox(height: 10),
-          // Video preview with play button
-          ClipRRect(
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (hasThumb)
-                    StorageImage(
-                      imageUrl: memory.imageUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 800,
-                      memCacheHeight: 450,
-                      errorWidget: (_, __, ___) =>
-                          Container(color: Colors.grey.shade200),
-                    )
-                  else
-                    Container(color: Colors.grey.shade900),
-                  Container(color: Colors.black.withOpacity(0.25)),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.92),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 20,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        size: 32,
-                        color: Color(0xFFEC4899),
-                      ),
-                    ),
-                  ),
-                  // Duration/type badge
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.videocam_rounded,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            s.videoLabel.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (memory.caption?.isNotEmpty == true)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: Text(
-                memory.caption!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-              ),
-            ),
-          _locationDistancePill(memory),
-          const SizedBox(height: 12),
-        ],
+  /// Медиа-ячейка для видео без обложки (тёмный фон + play), в стиле коллажа.
+  Widget _videoOnlyCell(Memory memory) {
+    Widget cell = Container(
+      color: Colors.grey.shade900,
+      child: const Center(
+        child: Icon(Icons.play_circle_fill_rounded,
+            color: Colors.white, size: 48),
+      ),
+    );
+    if (memory.isAdult) cell = _BlurAfterTap(child: cell);
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: cell,
       ),
     );
   }
 
   // ═══════════════════════════════════════════════════
-  //  LOCATION TILE — check-in card with route button
+  //  LOCATION TILE — превью места на карте. Оболочка как у фото:
+  //  та же шапка (бейдж «Локация») + подпись + футер (без лайков).
   // ═══════════════════════════════════════════════════
   Widget _locationTile(Memory memory) {
-    final s = LocaleService.current;
     final hasCoords = memory.latitude != null && memory.longitude != null;
+    final caption = memory.caption?.isNotEmpty == true
+        ? memory.caption!
+        : (memory.title?.isNotEmpty == true ? memory.title! : '');
 
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(memory, subtitle: s.sharedALocation, badgeColor: primary),
-          const SizedBox(height: 10),
-          // Location card body
+          _cardHeader(memory, trailing: _typeBadge(memory)),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: primary.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.location_on_rounded,
-                      color: primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          memory.locationName ?? LocaleService.current.location,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade900,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (hasCoords && _userLat != null)
-                          Text(
-                            s.kmFromYou(
-                              _distanceKm(memory.latitude!, memory.longitude!),
-                            ),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (hasCoords)
-                    GestureDetector(
-                      onTap: () => _openLocationInMaps(
-                        memory.latitude!,
-                        memory.longitude!,
-                        memory.locationName,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          s.setARoute,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: primary,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            child: hasCoords
+                ? _locationMapPreview(memory)
+                : _placeInfoCard(memory, floating: false),
           ),
-          // Caption / thought text
-          if (memory.caption?.isNotEmpty == true)
+          if (caption.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text(
-                memory.caption!,
+                caption,
                 style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
+                  fontSize: 15,
                   color: Colors.grey.shade800,
+                  height: 1.35,
                 ),
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
+          const SizedBox(height: 12),
+          _cardFooter(memory),
           const SizedBox(height: 12),
         ],
       ),
     );
   }
 
+  /// Превью места на карте (OSM-тайлы, как в LiveMapCard) с булавкой и плавающей
+  /// карточкой места снизу. Карта не интерактивна; тап открывает деталь.
+  Widget _locationMapPreview(Memory memory) {
+    final center = LatLng(memory.latitude!, memory.longitude!);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 16 / 10,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: 15,
+                interactionOptions:
+                    const InteractionOptions(flags: InteractiveFlag.none),
+                onTap: (_, _) => _showMemoryDetail(memory),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.togetherly.love',
+                  maxNativeZoom: 19,
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: center,
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.bottomCenter,
+                      child: Icon(
+                        Icons.location_on_rounded,
+                        color: primary,
+                        size: 42,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black38,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            // Плавающая карточка места снизу.
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: _placeInfoCard(memory, floating: true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Карточка места: миниатюра/иконка-булавка + название + чип дистанции
+  /// (тап → маршрут). [floating]=true — белая карточка с тенью поверх карты;
+  /// false — лёгкая карточка с рамкой (когда координат нет, карты тоже нет).
+  Widget _placeInfoCard(Memory memory, {required bool floating}) {
+    final hasCoords = memory.latitude != null && memory.longitude != null;
+    final name = memory.locationName?.isNotEmpty == true
+        ? memory.locationName!
+        : LocaleService.current.location;
+    final thumbUrl = memory.imageUrl?.isNotEmpty == true
+        ? memory.imageUrl!
+        : (memory.imageUrls?.isNotEmpty == true
+            ? memory.imageUrls!.first
+            : '');
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: floating
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+        border: floating ? null : Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 46,
+              height: 46,
+              child: thumbUrl.isNotEmpty
+                  ? StorageImage(
+                      imageUrl: thumbUrl,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 140,
+                      errorWidget: (_, __, ___) => _pinIconBox(),
+                    )
+                  : _pinIconBox(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+                height: 1.2,
+              ),
+            ),
+          ),
+          if (hasCoords) ...[
+            const SizedBox(width: 8),
+            _routeChip(memory),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _pinIconBox() {
+    return Container(
+      color: primary.withOpacity(0.10),
+      alignment: Alignment.center,
+      child: Icon(Icons.location_on_rounded, color: primary, size: 22),
+    );
+  }
+
+  /// Чип «маршрут»: показывает дистанцию (если есть GPS) или иконку; тап
+  /// открывает место во внешних картах. Цвет — по дистанции (как пилюля фото).
+  Widget _routeChip(Memory memory) {
+    final dist = _distanceKm(memory.latitude!, memory.longitude!);
+    final color =
+        dist.isNotEmpty ? _distanceColor(memory.latitude!, memory.longitude!) : primary;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openLocationInMaps(
+        memory.latitude!,
+        memory.longitude!,
+        memory.locationName,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.directions_rounded, size: 14, color: color),
+            if (dist.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(
+                dist,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════
-  //  MUSIC TILE — streaming-style card
+  //  MUSIC TILE — оболочка как у фото (шапка с бейджем + подпись + футер),
+  //  внутри богатый плеер (только для файлов) / карточка-ссылка (для стримингов).
   // ═══════════════════════════════════════════════════
   Widget _musicTile(Memory memory) {
+    final caption = memory.caption?.isNotEmpty == true ? memory.caption! : '';
     return _baseTile(
       memory: memory,
-      enableTap: false,
-      child: MemoryMusicPlayer(
-        key: ValueKey(memory.id),
-        memory: memory,
-        theme: widget.theme,
-        onHeaderTap: () => _showMemoryDetail(memory),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(memory, trailing: _typeBadge(memory)),
+          const SizedBox(height: 12),
+          MemoryMusicPlayer(
+            key: ValueKey('player_${memory.id}'),
+            memory: memory,
+            theme: widget.theme,
+            bodyOnly: true,
+          ),
+          if (caption.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                caption,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade800,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          _cardFooter(memory),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }
