@@ -141,8 +141,8 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                 return GestureDetector(
                   onTap: () async {
                     // sb://gs:// → signed URL, иначе внешний плеер не откроет.
-                    final playable = await FirebaseService()
-                        .resolveMediaUrl(item.videoUrl!);
+                    final playable = await PbMediaService()
+                        .resolvePlayable(item.videoUrl!);
                     await launchUrl(
                       Uri.parse(playable),
                       mode: LaunchMode.externalApplication,

@@ -33,7 +33,7 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/ad_banner.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_media_service.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
@@ -3336,25 +3336,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       return;
     }
 
-    // gs:// пути нельзя скачать напрямую (http.get кидает
-    // "unsupported scheme 'gs'") — резолвим во временный Signed URL
-    // через Cloud Function, как это делает StorageImage.
+    // pb:// → authed HTTPS (PocketBase protected media). Легаси gs:// больше
+    // НЕ резолвим (Firebase убран) — такой url уйдёт в http.get и не скачается.
     final isGsPath = url.startsWith('gs://');
-    if (isGsPath) {
-      final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-      url = await FirebaseService().getSignedUrl(gsPath);
-      if (url == null || url.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(LocaleService.current.downloadFailed('no access')),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-    }
+    url = await PbMediaService().resolvePlayable(url);
 
     // For external links (Spotify, YouTube etc.) just open them.
     // Signed URL (storage.googleapis.com) не содержит 'firebase' — поэтому

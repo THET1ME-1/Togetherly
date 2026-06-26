@@ -99,6 +99,15 @@ class PbMediaService {
   /// `true`, если ссылка — наша PB-схема.
   bool isPbRef(String? url) => url != null && url.startsWith(scheme);
 
+  /// Готовая к скачиванию/воспроизведению ссылка: `pb://` → authed HTTPS,
+  /// остальное (http/локальные) — как есть. Заменяет прежний
+  /// FirebaseService.resolveMediaUrl. Легаси `gs://`/`sb://` НЕ резолвятся
+  /// (Firebase убран) — вернутся как есть и просто не загрузятся.
+  Future<String> resolvePlayable(String url) async {
+    if (isPbRef(url)) return (await resolveUrlAuthed(url)) ?? url;
+    return url;
+  }
+
   /// Резолвит `pb://media/<id>/<file>` → HTTPS-URL PB БЕЗ токена. Не-pb ссылки
   /// возвращает как есть. Файлы media теперь `protected` → этот «голый» URL без
   /// токена отдаст 403; используется как стабильный cacheKey и для разбора id.

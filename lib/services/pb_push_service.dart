@@ -21,6 +21,10 @@ class PbPushService {
   static final PbPushService instance = PbPushService._();
   factory PbPushService() => instance;
 
+  /// Группа открытого сейчас чата — пуш о новом сообщении этой группы не
+  /// показываем (чат и так на экране). Раньше жил в FirebaseService.
+  static String? activeChatGroupId;
+
   PocketBase get _pb => PocketBaseService().pb;
 
   final FlutterLocalNotificationsPlugin _ln = FlutterLocalNotificationsPlugin();
@@ -80,6 +84,7 @@ class PbPushService {
         if (e.action != 'create') return;
         final r = e.record;
         if (r == null || r.data['user_uid'] != partnerUid) return;
+        if (activeChatGroupId == groupId) return; // чат открыт — не дублируем
         if (r.data['deleted'] == true || !_pref('notif_chat')) return;
         final name = (r.data['user_name'] ?? partnerName).toString();
         final text = (r.data['text'] ?? '').toString();
@@ -138,6 +143,18 @@ class PbPushService {
       default:
         return 'Думает о тебе и вспоминает 💭';
     }
+  }
+
+  /// Публичный показ локального уведомления (бейджи, награды и т.п.).
+  /// Заменяет прежний FirebaseService.showLocalNotification. Гарантирует
+  /// инициализацию плагина перед показом.
+  Future<void> showLocal({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    await _notify(id, title, body);
   }
 
   Future<void> _notify(int id, String title, String body) async {

@@ -12,7 +12,7 @@ import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
-import '../services/firebase_service.dart';
+import '../services/pb_push_service.dart';
 import '../services/locale_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
@@ -215,7 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     // Пока этот чат открыт — foreground-пуш о новом сообщении не дублируем.
-    FirebaseService.activeChatGroupId = _groupId;
+    PbPushService.activeChatGroupId = _groupId;
     _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
     _captureUnreadAnchor();
     _watchPartnerReads();
@@ -279,8 +279,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    if (FirebaseService.activeChatGroupId == _groupId) {
-      FirebaseService.activeChatGroupId = null;
+    if (PbPushService.activeChatGroupId == _groupId) {
+      PbPushService.activeChatGroupId = null;
     }
     _readsSub?.cancel();
     _typingStopTimer?.cancel();

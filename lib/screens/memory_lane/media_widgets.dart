@@ -747,7 +747,7 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
   /// resolveMediaUrl покрывает обе схемы (sb:// и gs://); если signed URL получить
   /// не удалось, вернётся исходный url и initialize() бросит → ловим в catch.
   Future<void> _init() async {
-    final playable = await FirebaseService().resolveMediaUrl(widget.url);
+    final playable = await PbMediaService().resolvePlayable(widget.url);
     if (!mounted) return;
     final controller = VideoPlayerController.networkUrl(Uri.parse(playable));
     _controller = controller;

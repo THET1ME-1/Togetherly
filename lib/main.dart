@@ -4,10 +4,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
@@ -18,7 +16,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'models/user_data.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
-import 'services/firebase_service.dart';
+import 'services/pb_push_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'services/locale_service.dart';
@@ -96,12 +94,7 @@ Future<void> _initConsentAndAds() async {
   }
 }
 
-/// Top-level background handler — должен быть функцией верхнего уровня.
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  await FirebaseService.handleBackgroundMessage(message);
-}
+// FCM-фоновый хендлер удалён: пуши на PocketBase (PbPushService).
 
 /// Вызывается нативным виджетом (LoveWidgetProvider.onUpdate) через
 /// HomeWidgetBackgroundReceiver, когда процесс Flutter мёртв.
@@ -216,9 +209,6 @@ void main() async {
   await PocketBaseService().init();
   await PbAuthService().signInSilently();
 
-  // Firebase — инициализация
-  await Firebase.initializeApp();
-
   // Крашрепортинг — self-hosted Bugsink (Sentry-совместимый, наш VPS), замена
   // Firebase Crashlytics. Перехватываем:
   //  • FlutterError.onError — синхронные ошибки фреймворка (build/layout/paint);
@@ -272,7 +262,6 @@ void main() async {
   const kInstallKey = 'app_installed_v1';
   if (!prefs.containsKey(kInstallKey)) {
     try {
-      await FirebaseService().signOut();
       PocketBaseService().signOut();
     } catch (_) {}
     await prefs.clear();
@@ -288,18 +277,12 @@ void main() async {
   const currentBuildMode = kDebugMode ? 'debug' : 'release';
   if (lastBuildMode == 'debug' && currentBuildMode == 'release') {
     try {
-      if (FirebaseService().isLoggedIn) {
-        await FirebaseService().signOut();
-      }
       if (PocketBaseService().isLoggedIn) {
         PocketBaseService().signOut();
       }
     } catch (_) {}
   }
   await prefs.setString(kLastBuildMode, currentBuildMode);
-
-  // FCM background handler — регистрируем до чего угодно
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // На Samsung One UI / aggressive battery saver путь
   // HomeWidgetBackgroundReceiver -> JobIntentService нестабилен
@@ -317,9 +300,6 @@ void main() async {
 
   // Deep links — инициализация
   DeepLinkService().init();
-
-  // FCM — push-уведомления
-  FirebaseService().initFCM();
 
   // Локальное напоминание, если пользователь долго не открывает приложение
   await MascotInactivityNotificationService.instance.init();
@@ -554,7 +534,7 @@ class _LoveAppState extends State<LoveApp> {
       if (sponsorEmails.contains(_userData.email)) {
         final granted = await _userData.grantSpecialBadge('Sponsor');
         if (granted) {
-          await FirebaseService().showLocalNotification(
+          await PbPushService().showLocal(
             id: 8801,
             title: '🎉 Вам вручён значок «Спонсор»!',
             body:
@@ -565,7 +545,7 @@ class _LoveAppState extends State<LoveApp> {
       } else if (helperEmails.contains(_userData.email)) {
         final granted = await _userData.grantSpecialBadge('Helper');
         if (granted) {
-          await FirebaseService().showLocalNotification(
+          await PbPushService().showLocal(
             id: 8802,
             title: '🎉 Вам вручён значок «Помощник»!',
             body: 'Спасибо за помощь проекту — особый бейдж теперь ваш 💖',

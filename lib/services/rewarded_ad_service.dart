@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
-import 'firebase_service.dart';
 import 'pb_coins_service.dart';
 
 /// Загрузка и показ rewarded-видео по схеме «водопад»: сначала Яндекс, и если

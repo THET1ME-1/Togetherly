@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../services/firebase_service.dart';
 import '../services/pb_media_service.dart';
 
 /// Drop-in замена [CachedNetworkImage] с поддержкой pb:// / gs:// / sb:// путей.
@@ -46,10 +45,7 @@ class _StorageImageState extends State<StorageImage> {
   // Асинхронного разрешения требуют: gs:// (Firebase signed URL), sb:// (Supabase)
   // И pb:// (PocketBase protected-файл → нужен ?token=, добываемый асинхронно).
   // https:// и локальные пути рендерятся сразу.
-  bool get _needsResolve =>
-      widget.imageUrl.startsWith('gs://') ||
-      widget.imageUrl.startsWith('sb://') ||
-      PbMediaService().isPbRef(widget.imageUrl);
+  bool get _needsResolve => PbMediaService().isPbRef(widget.imageUrl);
 
   /// URL для немедленного рендера (только не-резолв-схемы: https/локальные).
   String get _fastUrl => widget.imageUrl;
@@ -69,15 +65,12 @@ class _StorageImageState extends State<StorageImage> {
   }
 
   Future<String?> _resolve(String url) async {
-    // pb:// → HTTPS с file-токеном (protected media PocketBase).
+    // Только pb:// (PocketBase protected media) → HTTPS с file-токеном.
+    // Легаси gs:// / sb:// больше не резолвим (Firebase убран) — отдаём как есть.
     if (PbMediaService().isPbRef(url)) {
       return PbMediaService().resolveUrlAuthed(url);
     }
-    // sb:// → передаём ссылку целиком (Supabase сам её разрешит).
-    if (url.startsWith('sb://')) return FirebaseService().getSignedUrl(url);
-    // gs:// → снимаем префикс bucket'а, Cloud Function ждёт «голый» путь.
-    final gsPath = url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-    return FirebaseService().getSignedUrl(gsPath);
+    return url;
   }
 
   // Стабильный cacheKey = исходная ссылка (pb://gs://sb://), чтобы смена

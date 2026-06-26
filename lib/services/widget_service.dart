@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
-import 'firebase_service.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
@@ -899,20 +898,11 @@ class WidgetService extends ChangeNotifier {
       if (PbMediaService().isPbRef(url)) {
         httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
       }
-      // gs:// (Firebase) и sb:// (Supabase) не поддерживаются http.get —
-      // получаем подписанный https:// URL.
+      // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
+      // убран. Такие старые ссылки в виджет не подгрузятся.
       else if (url.startsWith('gs://') || url.startsWith('sb://')) {
-        // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
-        final path = url.startsWith('sb://')
-            ? url
-            : url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-        final signedUrl = await FirebaseService().getSignedUrl(path);
-        if (signedUrl == null || signedUrl.isEmpty) {
-          debugPrint('_downloadPhoto($key): no signed URL for $url');
-          await HomeWidget.saveWidgetData<String>(key, '');
-          return;
-        }
-        httpUrl = signedUrl;
+        await HomeWidget.saveWidgetData<String>(key, '');
+        return;
       }
 
       final prefs = await SharedPreferences.getInstance();
