@@ -20,6 +20,10 @@ class MemoryLanePreview extends StatelessWidget {
   final double? userLng;
   final UserData? userData;
 
+  /// Тап по вкладке общего навбара внутри открытой Ленты — главный экран
+  /// закрывает Ленту и переключает вкладку. null → навбар в Ленте не рисуется.
+  final void Function(int index)? onNavTab;
+
   const MemoryLanePreview({
     super.key,
     required this.isPaired,
@@ -29,6 +33,7 @@ class MemoryLanePreview extends StatelessWidget {
     this.userLat,
     this.userLng,
     this.userData,
+    this.onNavTab,
   });
 
   @override
@@ -329,8 +334,17 @@ class MemoryLanePreview extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            MemoryLaneScreen(pairData: pairData, theme: theme, userData: userData),
+        builder: (_) => MemoryLaneScreen(
+          pairData: pairData,
+          theme: theme,
+          userData: userData,
+          onNavTab: onNavTab == null
+              ? null
+              : (i) {
+                  Navigator.of(context).pop();
+                  onNavTab!(i);
+                },
+        ),
         settings: const RouteSettings(name: '/memory_lane'),
       ),
     );

@@ -40,6 +40,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/common/m3_loading.dart';
+import 'home/home_bottom_nav.dart';
 import 'map_picker_screen.dart';
 import 'memories_map_screen.dart';
 import 'memory_photo_form_screen.dart';
@@ -96,6 +97,12 @@ class MemoryLaneScreen extends StatefulWidget {
 
   /// Авто-открыть деталь конкретного пина после загрузки (переход из чата).
   final String? initialMemoryId;
+
+  /// Тап по вкладке общего навбара внутри Ленты (Главная/Виджеты/Пара/Профиль).
+  /// Главный экран закрывает Ленту и переключает свою вкладку. null → навбар
+  /// в Ленте не показывается (например, при входе из чата/лепестка).
+  final void Function(int index)? onNavTab;
+
   const MemoryLaneScreen({
     super.key,
     required this.pairData,
@@ -104,6 +111,7 @@ class MemoryLaneScreen extends StatefulWidget {
     this.userData,
     this.openCreateOnStart = false,
     this.initialMemoryId,
+    this.onNavTab,
   });
 
   @override
@@ -567,56 +575,76 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       ),
                     ),
                 ],
-                SliverToBoxAdapter(child: SizedBox(height: 90 + bottomPad)),
+                SliverToBoxAdapter(
+                    child: SizedBox(
+                        height: (widget.onNavTab != null ? 116 : 90) +
+                            bottomPad)),
               ],
             ),
-            // FAB
-          Positioned(
-            bottom: bottomPad + 24,
-            left: 24,
-            right: 24,
-            child: Center(
-              child: GestureDetector(
-                onTap: _showAddMemorySheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: primary,
-                    borderRadius: BorderRadius.circular(50),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primary.withOpacity(0.35),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
+            // Нижняя зона: общий навбар (вход из главной) либо пилюля «Добавить»
+            // (вход из чата/лепестка, где навбар не нужен).
+            if (widget.onNavTab != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: HomeBottomNav(
+                  // Лента — не одна из 4 вкладок: -1 = ни одна не подсвечена.
+                  selectedIndex: -1,
+                  theme: widget.theme,
+                  isPaired: pair.isPaired,
+                  onTap: (i) => widget.onNavTab!(i),
+                  // В Ленте боковая кнопка всегда «+» (создать пин).
+                  onCreatePin: _showAddMemorySheet,
+                ),
+              )
+            else
+              Positioned(
+                bottom: bottomPad + 24,
+                left: 24,
+                right: 24,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: _showAddMemorySheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 14,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 22,
+                      decoration: BoxDecoration(
+                        color: primary,
+                        borderRadius: BorderRadius.circular(50),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primary.withOpacity(0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        LocaleService.current.addMemoryBtn,
-                        style: GoogleFonts.rubik(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            LocaleService.current.addMemoryBtn,
+                            style: GoogleFonts.rubik(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
         ],
       ),
     );

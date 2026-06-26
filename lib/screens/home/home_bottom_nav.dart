@@ -9,8 +9,19 @@ class HomeBottomNav extends StatelessWidget {
   final AppTheme theme;
   final bool isPaired;
   final ValueChanged<int> onTap;
-  /// Круглая кнопка «+» справа от таблицы — создание нового пина.
+  /// Круглая боковая кнопка справа от навбара. Тап — [onCreatePin]; null прячет
+  /// кнопку. На главной морфится в стрелку → (открыть Ленту) либо плюс +
+  /// (создать пин) — управляется [sideIsArrow]. В Ленте всегда плюс.
   final VoidCallback? onCreatePin;
+
+  /// true → иконка-стрелка → (открыть Ленту); false → плюс + (создать пин).
+  final bool sideIsArrow;
+
+  /// Удержание боковой кнопки — переключить стрелку ↔ плюс. null отключает.
+  final VoidCallback? onSideLongPress;
+
+  /// Ключ боковой кнопки — для позиционирования одноразовой подсказки.
+  final Key? sideButtonKey;
 
   const HomeBottomNav({
     super.key,
@@ -19,6 +30,9 @@ class HomeBottomNav extends StatelessWidget {
     required this.isPaired,
     required this.onTap,
     this.onCreatePin,
+    this.sideIsArrow = false,
+    this.onSideLongPress,
+    this.sideButtonKey,
   });
 
   static const String _homeIcon =
@@ -123,7 +137,19 @@ class HomeBottomNav extends StatelessWidget {
           ),
           if (onCreatePin != null) ...[
             const SizedBox(width: 12),
-            _CreatePinButton(color: primary, onTap: onCreatePin!),
+            // Hero делает кнопку «непрерывной» при переходе главная↔Лента —
+            // круг остаётся на месте, пока экраны сменяются, а иконка
+            // оказывается уже «плюсом» в Ленте. Тег общий для обоих экранов.
+            Hero(
+              tag: 'home_side_action_button',
+              child: _CreatePinButton(
+                buttonKey: sideButtonKey,
+                color: primary,
+                isArrow: sideIsArrow,
+                onTap: onCreatePin!,
+                onLongPress: onSideLongPress,
+              ),
+            ),
           ],
         ],
       ),
@@ -131,27 +157,56 @@ class HomeBottomNav extends StatelessWidget {
   }
 }
 
-/// Круглая кнопка создания пина — справа от навбара.
+/// Круглая боковая кнопка справа от навбара. Иконка плавно морфится между
+/// стрелкой → (открыть Ленту) и плюсом + (создать пин) через AnimatedSwitcher.
 class _CreatePinButton extends StatelessWidget {
   final Color color;
+  final bool isArrow;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final Key? buttonKey;
 
-  const _CreatePinButton({required this.color, required this.onTap});
+  const _CreatePinButton({
+    required this.color,
+    required this.isArrow,
+    required this.onTap,
+    this.onLongPress,
+    this.buttonKey,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
+      key: buttonKey,
       color: color,
       shape: const CircleBorder(),
       elevation: 6,
       shadowColor: color.withValues(alpha: 0.45),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         customBorder: const CircleBorder(),
-        child: const SizedBox(
+        child: SizedBox(
           width: 56,
           height: 56,
-          child: Icon(Icons.add_rounded, color: Colors.white, size: 30),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutBack,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, anim) => RotationTransition(
+              turns: Tween<double>(begin: 0.7, end: 1.0).animate(anim),
+              child: ScaleTransition(
+                scale: anim,
+                child: FadeTransition(opacity: anim, child: child),
+              ),
+            ),
+            child: Icon(
+              isArrow ? Icons.arrow_forward_rounded : Icons.add_rounded,
+              key: ValueKey<bool>(isArrow),
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
         ),
       ),
     );

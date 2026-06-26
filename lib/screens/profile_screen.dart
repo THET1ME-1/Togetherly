@@ -23,6 +23,7 @@ import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../models/profile_icon.dart';
 import '../services/locale_service.dart';
+import '../services/ui_prefs.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
@@ -111,6 +112,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _lockScreenMood = false;
   static const _kLockScreenMood = 'lock_screen_mood_enabled';
 
+  // Режим боковой кнопки навбара: стрелка → (открыть Ленту) или плюс + (создать
+  // пин). См. [UiPrefs]; синхронно с удержанием кнопки на главной.
+  bool _sideActionIsArrow = true;
+
   // Подсказка про колесо «Дни вместе» под полем «Годовщина».
   // Скрывается навсегда по крестику.
   bool _anniversaryHintDismissed = false;
@@ -163,6 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
       _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
+      _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
       _anniversaryHintDismissed =
           prefs.getBool(_kAnniversaryHintDismissed) ?? false;
     });
@@ -177,6 +183,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'notifChat': prefs.getBool(_kNotifChat) ?? true,
       });
     }
+  }
+
+  /// Переключить режим боковой кнопки навбара (стрелка ↔ плюс) и запомнить.
+  /// Заодно гасим одноразовую подсказку — юзер и так нашёл настройку.
+  Future<void> _toggleSideAction() async {
+    final next = !_sideActionIsArrow;
+    setState(() => _sideActionIsArrow = next);
+    await UiPrefs.setSideActionIsArrow(next);
+    await UiPrefs.markSideActionHintSeen();
   }
 
   Future<void> _saveNotifPref(String key, bool value) async {
@@ -2304,6 +2319,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await prefs.setBool(_kLockScreenMood, v);
                 if (mounted) setState(() => _lockScreenMood = v);
               },
+            ),
+          ),
+          _divider(),
+          _settingsTile(
+            icon: Icons.touch_app_outlined,
+            label: _s.sideActionTitle,
+            onTap: _toggleSideAction,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _sideActionIsArrow
+                      ? _s.sideActionOpenFeed
+                      : _s.sideActionCreatePin,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.swap_horiz_rounded,
+                  color: Colors.grey.shade400,
+                  size: 20,
+                ),
+              ],
             ),
           ),
           _divider(),

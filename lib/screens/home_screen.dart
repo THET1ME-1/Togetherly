@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -27,6 +28,7 @@ import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -83,6 +85,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
+
+  // Боковая кнопка навбара: стрелка → (открыть Ленту, дефолт) либо плюс +
+  // (сразу создать пин). Хранится в [UiPrefs]; переключается удержанием кнопки
+  // или тумблером в настройках. _sideBtnKey нужен для позиционирования
+  // одноразовой подсказки про удержание.
+  bool _sideActionIsArrow = true;
+  final GlobalKey _sideBtnKey = GlobalKey();
+  OverlayEntry? _sideHintEntry;
   // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
   // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
   bool _openPairEditorOnWidgetsTab = false;
@@ -148,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     _timerService.init();
     _initPairData();
+    _loadSideActionPref();
 
     // Онлайн-презенс: heartbeat в PocketBase, пока приложение активно.
     PresenceService().start();
@@ -175,6 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Ежедневный бонус и разовые награды — через 4с после старта
     Future.delayed(const Duration(seconds: 4), _tryClaimStartupRewards);
+
+    // Одноразовая подсказка про удержание боковой кнопки — после первого кадра
+    // и небольшой задержки (даём навбару отрисоваться и паре загрузиться).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 1600), _maybeShowSideHint);
+    });
 
     // Пересчёт расписания уведомлений о праздниках при каждом старте.
     Future.microtask(() async {
@@ -206,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _dismissSideHint();
     _syncWidgetsDebounce?.cancel();
     _syncMoodWidgetDebounce?.cancel();
     _moodStreakRewardDebounce?.cancel();
@@ -276,20 +294,10 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _selectedNavIndex = 0);
       }
     }
-    // loveapp://memory_lane → открыть Memory Lane
+    // loveapp://memory_lane → открыть Memory Lane (с общим навбаром)
     else if (uri.host == 'memory_lane') {
       if (mounted && _pairData.isPaired) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MemoryLaneScreen(
-              pairData: _pairData,
-              theme: _t,
-              userData: widget.userData,
-            ),
-            settings: const RouteSettings(name: '/memory_lane'),
-          ),
-        );
+        _openMemoryLane();
       }
     }
     // loveapp://mood → открыть Mood Calendar
@@ -314,6 +322,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onPairChanged() {
     if (!mounted) return;
     unawaited(_handlePairChanged());
+    // Появилась пара → можно показать одноразовую подсказку про боковую кнопку.
+    unawaited(_maybeShowSideHint());
   }
 
   /// Когда меняется дефолтный таймер — синхронизируем все виджеты,
@@ -834,8 +844,16 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedIndex: _selectedNavIndex,
               theme: _t,
               isPaired: _pairData.isPaired,
-              onTap: (i) => setState(() => _selectedNavIndex = i),
-              onCreatePin: _pairData.isPaired ? _openCreatePin : null,
+              onTap: (i) {
+                setState(() => _selectedNavIndex = i);
+                // Возврат на главную — освежаем режим боковой кнопки (мог
+                // смениться в Настройках → Профиль).
+                if (i == 0) unawaited(_loadSideActionPref());
+              },
+              onCreatePin: _pairData.isPaired ? _onSideAction : null,
+              sideIsArrow: _sideActionIsArrow,
+              onSideLongPress: _pairData.isPaired ? _toggleSideAction : null,
+              sideButtonKey: _sideBtnKey,
             ),
           ),
         ],
@@ -862,8 +880,45 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Открыть Memory Lane сразу на создании нового пина (кнопка «+» в навбаре).
-  void _openCreatePin() {
+  Future<void> _loadSideActionPref() async {
+    final isArrow = await UiPrefs.sideActionIsArrow();
+    if (!mounted) return;
+    setState(() => _sideActionIsArrow = isArrow);
+  }
+
+  /// Тап по боковой кнопке навбара. Стрелка → открывает Ленту (без авто-создания),
+  /// плюс + сразу открывает создание пина.
+  void _onSideAction() {
+    if (_sideActionIsArrow) {
+      _openMemoryLane();
+    } else {
+      _openCreatePin();
+    }
+  }
+
+  /// Удержание боковой кнопки — переключить режим стрелка ↔ плюс и запомнить.
+  Future<void> _toggleSideAction() async {
+    final next = !_sideActionIsArrow;
+    setState(() => _sideActionIsArrow = next);
+    HapticFeedback.selectionClick();
+    await UiPrefs.setSideActionIsArrow(next);
+    // Если подсказку ещё не закрывали — удержание её закрывает (юзер всё понял).
+    _dismissSideHint();
+    unawaited(UiPrefs.markSideActionHintSeen());
+    if (!mounted) return;
+    final s = LocaleService.current;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1600),
+        content: Text(next ? s.sideActionOpenFeed : s.sideActionCreatePin),
+      ),
+    );
+  }
+
+  /// Открыть Ленту воспоминаний (общий навбар внутри; вкладки возвращают
+  /// на главную через onNavTab). Без авто-создания пина.
+  void _openMemoryLane({bool openCreateOnStart = false}) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -871,11 +926,158 @@ class _HomeScreenState extends State<HomeScreen> {
           pairData: _pairData,
           theme: _t,
           userData: widget.userData,
-          openCreateOnStart: true,
+          openCreateOnStart: openCreateOnStart,
+          onNavTab: (i) {
+            Navigator.of(context).pop();
+            setState(() => _selectedNavIndex = i);
+          },
         ),
         settings: const RouteSettings(name: '/memory_lane'),
       ),
     );
+  }
+
+  /// Открыть Memory Lane сразу на создании нового пина (режим «плюс»).
+  void _openCreatePin() => _openMemoryLane(openCreateOnStart: true);
+
+  // ── Одноразовая подсказка про удержание боковой кнопки ──────────────────────
+  bool _sideHintResolved = false;
+
+  /// Показывает подсказку один раз: пара есть, мы на главной, кнопка отрисована
+  /// и юзер ещё её не видел. Идемпотентно — безопасно дёргать много раз.
+  Future<void> _maybeShowSideHint() async {
+    if (_sideHintResolved || _sideHintEntry != null) return;
+    if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
+    if (await UiPrefs.sideActionHintSeen()) {
+      _sideHintResolved = true;
+      return;
+    }
+    if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
+    if (_sideBtnKey.currentContext == null) return; // ещё не отрисована — позже
+    _sideHintResolved = true;
+    _showSideHint();
+  }
+
+  void _showSideHint() {
+    final ctx = _sideBtnKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final overlay = Overlay.of(context);
+    final pos = box.localToGlobal(Offset.zero);
+    final screen = MediaQuery.of(context).size;
+    final s = LocaleService.current;
+    const bubbleW = 244.0;
+    double left = screen.width - 16 - bubbleW;
+    if (left < 12) left = 12;
+    final bottom = screen.height - pos.dy + 6; // чуть выше кнопки
+    // Стрелка-указатель примерно под центром кнопки (правый край экрана).
+    final arrowRight = (screen.width - (pos.dx + box.size.width / 2) - 18)
+        .clamp(8.0, bubbleW - 36);
+
+    _sideHintEntry = OverlayEntry(
+      builder: (_) => Positioned.fill(
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: _dismissSideHint,
+          child: Stack(
+            children: [
+              Positioned(
+                left: left,
+                bottom: bottom,
+                width: bubbleW,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 12, 6),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.touch_app_rounded,
+                                    color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    s.sideActionHint,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      height: 1.25,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _dismissSideHint,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  s.gotIt,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.only(right: arrowRight),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Transform.translate(
+                            offset: const Offset(0, -6),
+                            child: Icon(Icons.arrow_drop_down,
+                                color: primary, size: 38),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_sideHintEntry!);
+    unawaited(UiPrefs.markSideActionHintSeen());
+    Future.delayed(const Duration(seconds: 9), _dismissSideHint);
+  }
+
+  void _dismissSideHint() {
+    _sideHintEntry?.remove();
+    _sideHintEntry = null;
   }
 
   // =============================================
@@ -1031,6 +1233,7 @@ class _HomeScreenState extends State<HomeScreen> {
               userLat: _userLat,
               userLng: _userLng,
               userData: widget.userData,
+              onNavTab: (i) => setState(() => _selectedNavIndex = i),
             ),
           ),
           const SizedBox(height: 40),

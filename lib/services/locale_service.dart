@@ -721,6 +721,10 @@ abstract class AppStrings {
   String get supportedPlatforms;
   String get pasteLinkSupported;
   String get gotIt;
+  String get sideActionTitle;
+  String get sideActionOpenFeed;
+  String get sideActionCreatePin;
+  String get sideActionHint;
   String get supportedServices;
   String get pasteLinkFromSupported;
   String get selectTextAndPress;
@@ -2569,6 +2573,15 @@ class _RuStrings extends AppStrings {
       'Вставьте ссылку с любой поддерживаемой платформы';
   @override
   String get gotIt => 'Понятно';
+  @override
+  String get sideActionTitle => 'Кнопка действия';
+  @override
+  String get sideActionOpenFeed => 'Открывать Ленту →';
+  @override
+  String get sideActionCreatePin => 'Создавать пин +';
+  @override
+  String get sideActionHint =>
+      'Удерживайте кнопку, чтобы переключать → (открыть Ленту) и + (создать пин)';
   @override
   String get supportedServices => 'Поддерживаемые сервисы';
   @override
@@ -5030,6 +5043,15 @@ class _EnStrings extends AppStrings {
   String get pasteLinkSupported => 'Paste a link from any supported platform';
   @override
   String get gotIt => 'Got it';
+  @override
+  String get sideActionTitle => 'Action button';
+  @override
+  String get sideActionOpenFeed => 'Open the feed →';
+  @override
+  String get sideActionCreatePin => 'Create a memory +';
+  @override
+  String get sideActionHint =>
+      'Long-press the button to switch between → (open feed) and + (create memory)';
   @override
   String get supportedServices => 'Supported Services';
   @override
