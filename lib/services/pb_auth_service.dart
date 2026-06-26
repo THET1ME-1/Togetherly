@@ -205,16 +205,29 @@ class PbAuthService {
     try {
       await _pb.collection(_usersCol).authRefresh();
     } catch (e, st) {
-      debugPrint('PbAuth.authRefresh failed (сессия устарела?): $e');
-      // Тихая потеря сессии = жалобы «всё сбросилось». Репортим (warning), чтобы
-      // отличать штатное протухание токена от реальной поломки авторизации.
-      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
-        s.setExtra('reason', 'authRefresh failed → silent sign-out');
-        s.level = SentryLevel.warning;
-      }));
-      // Токен невалиден — выходим, чтобы не оставаться в bad state.
-      _svc.signOut();
-      return null;
+      // КЛЮЧЕВОЕ: выходим (рвём persisted-сессию) ТОЛЬКО при реальной ошибке
+      // авторизации — токен отозван/протух/невалиден (401/403). Транзиентные
+      // сбои (нет сети, таймаут, DNS, 5xx, captive-portal на старте) НЕ должны
+      // уничтожать ещё валидную сессию: иначе один сетевой «чих» при запуске
+      // молча разлогинивает, и приложение каждый раз стартует БЕЗ токена —
+      // groups GET → 404 (правило viewRule), coins → 401, таймер 0, синка нет —
+      // до ручного перелогина. Это и есть «всё сбросилось». При транзиентном
+      // сбое держим текущий токен: он всё ещё валиден, запросы продолжат его
+      // слать и заработают, как только вернётся связь.
+      final isAuthError = e is ClientException &&
+          (e.statusCode == 401 || e.statusCode == 403);
+      debugPrint(
+          'PbAuth.authRefresh failed (authError=$isAuthError): $e');
+      if (isAuthError) {
+        unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+          s.setExtra('reason', 'authRefresh 401/403 → sign-out');
+          s.level = SentryLevel.warning;
+        }));
+        _svc.signOut();
+        return null;
+      }
+      // Транзиент — сессию сохраняем как есть.
+      return _svc.isLoggedIn ? _svc.currentUser : null;
     }
     return _svc.isLoggedIn ? _svc.currentUser : null;
   }

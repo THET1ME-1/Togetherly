@@ -28,6 +28,7 @@ import 'services/pb_data_service.dart';
 import 'models/widget_data.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
 
@@ -186,6 +187,15 @@ bool _isBenignBackgroundError(Object error) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // iOS: home_widget работает поверх общего App Group контейнера. Любой вызов
+  // saveWidgetData/updateWidget/clearWidget ДО setAppGroupId падает с
+  // PlatformException(-7, «AppGroupId not set. Call setAppGroupId first»).
+  // Группа должна совпадать с App Group из Runner.entitlements и
+  // TogetherlyWidget.entitlements (= group.com.togetherly.love), иначе виджет и
+  // приложение пишут в разные контейнеры. На Android метод — no-op, поэтому
+  // выставляем безусловно и максимально рано, до первой синхронизации виджетов.
+  await HomeWidget.setAppGroupId('group.com.togetherly.love');
 
   // Принудительно используем системный Android Photo Picker (ACTION_PICK_IMAGES)
   // вместо legacy ACTION_GET_CONTENT, который на MIUI открывает файловый
@@ -586,9 +596,24 @@ class _LoveAppState extends State<LoveApp> {
     if (!_userData.hasSeenWelcome) {
       return WelcomeScreen(userData: _userData);
     }
-    // 2. Профиль есть локально — сразу домой.
-    //    Firebase сессия восстановлена в _init() через signInSilently().
+    // 2. Профиль есть локально.
     if (_userData.isRegistered) {
+      // PB-сессия восстановлена в main()/_init() через signInSilently().
+      // Если она НЕвалидна (токен протух за 5 дней, потерян, или не долетел до
+      // клиента при OAuth-входе) — Home показывать НЕЛЬЗЯ: он будет молча
+      // сломан (groups GET → 404 по viewRule, coins → 401, таймер 00:00, синка
+      // с партнёром нет — всё уходит с пустым auth-токеном). Тихого
+      // восстановления нет (OAuth требует участия пользователя), поэтому мягко
+      // ведём на перелогин. LoginScreen.register(isReturningUser: true) НЕ
+      // стирает локальный профиль/группу/таймеры — после входа возвращает на
+      // Home уже с валидной сессией, и синк сразу оживает.
+      //
+      // Офлайн не страдает: isLoggedIn = локальная проверка exp JWT, поэтому при
+      // живом (непротухшем) токене без сети остаёмся на Home; на перелогин ведём
+      // только когда токен реально мёртв и Home всё равно работать не будет.
+      if (!PocketBaseService().isLoggedIn) {
+        return LoginScreen(userData: _userData);
+      }
       return HomeScreen(userData: _userData);
     }
     // 3. Профиль не заполнен — на экран входа
