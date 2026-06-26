@@ -816,7 +816,8 @@ class WidgetService extends ChangeNotifier {
       if (cachedAsset == assetPath &&
           cachedPath.isNotEmpty &&
           File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        await HomeWidget.saveWidgetData<String>(
+            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
         return;
       }
 
@@ -839,7 +840,8 @@ class WidgetService extends ChangeNotifier {
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/$key.png');
       await file.writeAsBytes(byteData.buffer.asUint8List());
-      await HomeWidget.saveWidgetData<String>(key, file.path);
+      await HomeWidget.saveWidgetData<String>(
+          key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
       await prefs.setString('${key}_cached_asset', assetPath);
       await prefs.setString('${key}_cached_path', file.path);
       debugPrint('_cacheEmojiForWidget: $key cached at ${file.path}');
@@ -859,7 +861,8 @@ class WidgetService extends ChangeNotifier {
       if (cachedAsset == url &&
           cachedPath.isNotEmpty &&
           File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        await HomeWidget.saveWidgetData<String>(
+            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
         return;
       }
       final resp = await http.get(Uri.parse(url));
@@ -867,7 +870,8 @@ class WidgetService extends ChangeNotifier {
         final dir = await getApplicationSupportDirectory();
         final file = File('${dir.path}/$key.webp');
         await file.writeAsBytes(resp.bodyBytes);
-        await HomeWidget.saveWidgetData<String>(key, file.path);
+        await HomeWidget.saveWidgetData<String>(
+            key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
         await prefs.setString('${key}_cached_asset', url);
         await prefs.setString('${key}_cached_path', file.path);
         return;
@@ -913,7 +917,8 @@ class WidgetService extends ChangeNotifier {
       if (cachedUrl == url &&
           cachedPath.isNotEmpty &&
           File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(key, cachedPath);
+        await HomeWidget.saveWidgetData<String>(
+            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
         return;
       }
 
@@ -926,7 +931,8 @@ class WidgetService extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
-        await HomeWidget.saveWidgetData<String>(key, file.path);
+        await HomeWidget.saveWidgetData<String>(
+            key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
         await prefs.setString('${key}_cached_url', url);
         await prefs.setString('${key}_cached_path', file.path);
         debugPrint('_downloadPhoto: $key cached at ${file.path}');

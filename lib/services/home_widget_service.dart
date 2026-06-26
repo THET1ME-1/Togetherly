@@ -131,6 +131,37 @@ class HomeWidgetService {
   static const _photoDayPendingConfigsKey = 'photo_day_pending_configs';
   static const _widgetChannel = MethodChannel('love_app/widgets');
 
+  /// iOS-мост: копирование медиа виджетов в контейнер App Group
+  /// (AppDelegate.copyToAppGroup). Расширение виджета — отдельный процесс со
+  /// своей песочницей и читать файлы из getApplicationSupportDirectory НЕ может;
+  /// картинку видно, только если она лежит в общем App Group контейнере.
+  static const _iosMediaChannel = MethodChannel('love_app/ios_widget_media');
+
+  /// Делает локальный файл [localPath] доступным расширению виджета.
+  /// • iOS — копирует в контейнер App Group и возвращает путь ВНУТРИ контейнера
+  ///   (только он читается виджетом); сбой/пусто → '' (sandbox-путь виджету всё
+  ///   равно бесполезен, лучше пустое фото, чем «битый» путь).
+  /// • Android — путь как есть (виджету доступно обычное app-storage).
+  /// [name] — стабильное имя файла в контейнере (перезапись = обновление фото).
+  /// Публичная обёртка [_toWidgetReadablePath] — для [WidgetService] (парный
+  /// виджет), чтобы не дублировать iOS App Group мост.
+  Future<String> appGroupReadablePath(String localPath, String name) =>
+      _toWidgetReadablePath(localPath, name);
+
+  Future<String> _toWidgetReadablePath(String localPath, String name) async {
+    if (localPath.isEmpty || !Platform.isIOS) return localPath;
+    try {
+      final res = await _iosMediaChannel.invokeMethod<String>(
+        'copyToAppGroup',
+        {'srcPath': localPath, 'name': name},
+      );
+      return (res != null && res.isNotEmpty) ? res : '';
+    } catch (e) {
+      debugPrint('HomeWidgetService._toWidgetReadablePath failed: $e');
+      return '';
+    }
+  }
+
   /// Привязать тип виджета к группе (вызывается при пине).
   Future<void> bindWidgetToGroup(String widgetType, String groupId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -908,7 +939,9 @@ class HomeWidgetService {
             final suffix = widgetId != null ? '_${widgetId}_$i' : '_$i';
             final target = File('${dir.path}/widget_photo_day$suffix.jpg');
             await file.copy(target.path);
-            localPaths.add(target.path);
+            final readable =
+                await _toWidgetReadablePath(target.path, 'photo_day$suffix');
+            if (readable.isNotEmpty) localPaths.add(readable);
           }
         }
       }
@@ -1013,7 +1046,7 @@ class HomeWidgetService {
         final suffix = widgetId != null ? '_$widgetId' : '';
         final file = File('${dir.path}/widget_photo_day$suffix.jpg');
         await localFile.copy(file.path);
-        localPath = file.path;
+        localPath = await _toWidgetReadablePath(file.path, 'photo_day$suffix');
       } else {
         localPath = await _cachePhotoFromUrl(
           photoUrl,
@@ -1964,7 +1997,9 @@ class HomeWidgetService {
       // полностью на PocketBase. Старые такие фото в виджете не подгрузятся
       // (отдаём кэш, если он есть). Новое медиа приходит как pb:// (см. выше).
       else if (url.startsWith('gs://') || url.startsWith('sb://')) {
-        return file.existsSync() ? file.path : '';
+        return file.existsSync()
+            ? await _toWidgetReadablePath(file.path, 'cache_$key')
+            : '';
       }
 
       final response = await http
@@ -1974,16 +2009,16 @@ class HomeWidgetService {
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
         debugPrint('HomeWidgetService: photo cached → ${file.path}');
-        return file.path;
+        return await _toWidgetReadablePath(file.path, 'cache_$key');
       }
       // Download failed — fall back to previously cached file if it exists
       if (file.existsSync()) {
         debugPrint('HomeWidgetService: download failed (${response.statusCode}), using cached file');
-        return file.path;
+        return await _toWidgetReadablePath(file.path, 'cache_$key');
       }
     } catch (e) {
       debugPrint('HomeWidgetService._cachePhotoFromUrl failed: $e');
-      if (file.existsSync()) return file.path;
+      if (file.existsSync()) return await _toWidgetReadablePath(file.path, 'cache_$key');
     }
     return '';
   }
@@ -2171,8 +2206,11 @@ class HomeWidgetService {
       final fileName = assetPath.split('/').last;
       final file = File('${dir.path}/widget_mood_$fileName');
 
-      // Если уже скопировано — не копируем повторно
-      if (file.existsSync()) return file.path;
+      // Если уже скопировано — не копируем повторно (но на iOS всё равно отдаём
+      // путь из App Group контейнера, иначе виджет файл не прочитает).
+      if (file.existsSync()) {
+        return await _toWidgetReadablePath(file.path, 'mood_$fileName');
+      }
 
       // Грузим ассет; если его нет в этой сборке (партнёр прислал эмодзи из
       // пака, которого у нас нет — постепенный раскат) — падаем на эквивалент
@@ -2189,7 +2227,7 @@ class HomeWidgetService {
         bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
       );
       debugPrint('HomeWidgetService: asset copied → ${file.path}');
-      return file.path;
+      return await _toWidgetReadablePath(file.path, 'mood_$fileName');
     } catch (e) {
       debugPrint('HomeWidgetService._copyAssetToLocal failed: $e');
     }
@@ -2203,12 +2241,15 @@ class HomeWidgetService {
     try {
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/widget_mood_url_${url.hashCode}.webp');
-      if (file.existsSync()) return file.path;
+      final moodName = 'mood_url_${url.hashCode}';
+      if (file.existsSync()) {
+        return await _toWidgetReadablePath(file.path, moodName);
+      }
       final resp = await http.get(Uri.parse(url));
       if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
         await file.writeAsBytes(resp.bodyBytes);
         debugPrint('HomeWidgetService: mood url downloaded → ${file.path}');
-        return file.path;
+        return await _toWidgetReadablePath(file.path, moodName);
       }
     } catch (e) {
       debugPrint('HomeWidgetService._downloadToLocal failed: $e');
