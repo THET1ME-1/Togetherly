@@ -152,6 +152,48 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   StreamSubscription<List<Memory>>? _memSub;
   bool _firstMemLoad = true;
 
+  // ── Фильтр-теги ленты (этап 2 редизайна) ───────────────────────────────────
+  // «Моменты» = фото+видео (общий бейдж «Момент»); остальные категории —
+  // один-в-один к [_typeBadgeMeta]. null = «Всё». [_favoritesOnly] —
+  // независимый круглый тег слева: показывает только личные закладки (savedBy).
+  String? _categoryKey;
+  bool _favoritesOnly = false;
+
+  static final List<
+      ({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
+      _feedCategories = [
+    (key: 'moments', ru: 'Моменты', en: 'Moments', icon: Icons.favorite_rounded, types: {MemoryType.photo, MemoryType.video}),
+    (key: 'places', ru: 'Места', en: 'Places', icon: Icons.place_rounded, types: {MemoryType.location}),
+    (key: 'music', ru: 'Музыка', en: 'Music', icon: Icons.music_note_rounded, types: {MemoryType.music}),
+    (key: 'video', ru: 'Видео', en: 'Video', icon: Icons.play_circle_fill_rounded, types: {MemoryType.videoLink}),
+    (key: 'notes', ru: 'Заметки', en: 'Notes', icon: Icons.sticky_note_2_rounded, types: {MemoryType.text}),
+    (key: 'books', ru: 'Книги', en: 'Books', icon: Icons.menu_book_rounded, types: {MemoryType.book}),
+    (key: 'movies', ru: 'Фильмы', en: 'Movies', icon: Icons.movie_rounded, types: {MemoryType.movie}),
+  ];
+
+  /// Категории, реально присутствующие в ленте (чтобы не показывать пустые теги).
+  List<({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
+      get _presentCategories {
+    final present = _memories.map((m) => m.type).toSet();
+    return _feedCategories
+        .where((c) => c.types.any(present.contains))
+        .toList();
+  }
+
+  bool get _feedFiltered => _favoritesOnly || _categoryKey != null;
+
+  /// Проходит ли воспоминание текущий тег-фильтр (категория + «Избранное»).
+  bool _passesFeedFilter(Memory m) {
+    if (_favoritesOnly && !m.isSavedBy(_myUid ?? '')) return false;
+    if (_categoryKey == null) return true;
+    final cat = _feedCategories.firstWhere((c) => c.key == _categoryKey,
+        orElse: () => _feedCategories.first);
+    return cat.types.contains(m.type);
+  }
+
+  bool get _hasVisibleMemories =>
+      _pinnedMemories.isNotEmpty || _groupedByDate.isNotEmpty;
+
   // User location for distance display
   double? _userLat;
   double? _userLng;
@@ -245,9 +287,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   // ── Organize memories ──
   List<Memory> get _pinnedMemories {
-    final pinned = _memories.where((m) => m.isPinned).toList();
     if (widget.filterMode != MemoryFilterMode.none) return [];
-    return pinned;
+    return _memories
+        .where((m) => m.isPinned && _passesFeedFilter(m))
+        .toList();
   }
 
   /// Memories filtered by current day/month across all years, grouped by year
@@ -279,7 +322,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Group non-pinned memories by date, newest first
   Map<String, List<Memory>> get _groupedByDate {
     if (widget.filterMode != MemoryFilterMode.none) return {};
-    final nonPinned = _memories.where((m) => !m.isPinned).toList()
+    final nonPinned = _memories
+        .where((m) => !m.isPinned && _passesFeedFilter(m))
+        .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     final Map<String, List<Memory>> grouped = {};
@@ -452,6 +497,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   SliverFillRemaining(child: M3PageLoading(color: widget.theme.primaryLight))
                 else if (_memories.isEmpty)
                   _buildEmpty()
+                else if (_feedFiltered && !_hasVisibleMemories) ...[
+                  const SliverToBoxAdapter(child: SizedBox(height: 6)),
+                  _buildFilteredEmpty(),
+                ]
                 else ...[
                   const SliverToBoxAdapter(child: SizedBox(height: 6)),
                   // Pinned section (only in normal mode)
@@ -580,6 +629,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       backgroundColor: widget.theme.bgGradient[0].withOpacity(0.95),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      bottom: _filterBar(),
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: Container(
@@ -713,6 +763,161 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  FILTER BAR (тег-фильтры + «Избранное»)
+  // ═══════════════════════════════════════════════════
+  /// Горизонтальная лента тегов под заголовком. Показывается только в обычном
+  /// режиме (не day/month) и когда есть что фильтровать (>1 категории или есть
+  /// личные закладки). Плоские теги: без тени/свечения/бордера; выбранный —
+  /// залит активным цветом темы. Слева — круглый тег «Избранное».
+  PreferredSizeWidget? _filterBar() {
+    if (widget.filterMode != MemoryFilterMode.none) return null;
+    if (_loading || _memories.isEmpty) return null;
+    final cats = _presentCategories;
+    final hasFavorites = _memories.any((m) => m.isSavedBy(_myUid ?? ''));
+    // Нечего фильтровать (один тип контента и ни одной закладки) — прячем бар.
+    if (cats.length < 2 && !hasFavorites) return null;
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(50),
+      child: SizedBox(
+        height: 50,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          children: [
+            _favCircle(),
+            const SizedBox(width: 8),
+            _filterTag(
+              label: _ru ? 'Всё' : 'All',
+              selected: _categoryKey == null,
+              onTap: () => setState(() => _categoryKey = null),
+            ),
+            for (final c in cats) ...[
+              const SizedBox(width: 8),
+              _filterTag(
+                label: _ru ? c.ru : c.en,
+                icon: c.icon,
+                selected: _categoryKey == c.key,
+                onTap: () => setState(() => _categoryKey = c.key),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Круглый тег-значок «Избранное» (слева от «Всё»). Активен — залит цветом
+  /// темы с белым сердцем; иначе — приглушённый фон, контурное сердце.
+  Widget _favCircle() {
+    final selected = _favoritesOnly;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _favoritesOnly = !selected),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? primary : Colors.white,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          selected ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          size: 18,
+          color: selected ? Colors.white : Colors.grey.shade600,
+        ),
+      ),
+    );
+  }
+
+  /// Плоский тег-фильтр. Выбранный залит активным цветом темы (белый текст);
+  /// невыбранный — приглушённый фон. Без тени, свечения и бордера.
+  Widget _filterTag({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    IconData? icon,
+  }) {
+    final fg = selected ? Colors.white : Colors.grey.shade700;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: selected ? primary : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: fg),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Пустое состояние при активном фильтре (тег не дал результатов).
+  SliverToBoxAdapter _buildFilteredEmpty() {
+    final favEmpty = _favoritesOnly;
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 70, 24, 24),
+        child: Column(
+          children: [
+            Icon(
+              favEmpty
+                  ? Icons.favorite_border_rounded
+                  : Icons.search_off_rounded,
+              size: 52,
+              color: primary.withOpacity(0.35),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              favEmpty
+                  ? (_ru ? 'Пока нет избранного' : 'No favorites yet')
+                  : (_ru
+                      ? 'Нет воспоминаний в этой категории'
+                      : 'No memories in this category'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            if (favEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                _ru
+                    ? 'Отмечайте воспоминания закладкой — они появятся здесь'
+                    : 'Bookmark memories to find them here',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+            ],
           ],
         ),
       ),
