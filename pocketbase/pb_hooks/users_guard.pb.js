@@ -121,10 +121,21 @@ onRecordCreateRequest((e) => {
       "partner_invite_reward_granted", "partner_invite_rewarded_keys",
       "mood_streak_rewards",
     ];
+    // Проверяем ТОЛЬКО реально присланные клиентом поля, а не дефолты записи:
+    // e.record.get() для json-полей экономики (owned_*/granted_badges/
+    // partner_invite_rewarded_keys/mood_streak_rewards) возвращает БАЙТЫ → ложно
+    // «непусто» → рубило даже чистую регистрацию (email/пароль/имя). Источник
+    // истины — тело запроса; пустые/дефолтные значения разрешаем, блокируем
+    // только попытку клиента выставить РЕАЛЬНУЮ экономику.
+    const body = (e.requestInfo().body || {});
     for (let i = 0; i < PROTECTED.length; i++) {
       const f = PROTECTED[i];
-      const val = e.record.get(f);
-      if (val != null && val !== '' && val !== 0 && val !== false) {
+      if (!(f in body)) continue; // клиент не присылал поле — ок (дефолт схемы)
+      const v = body[f];
+      const empty = (v == null || v === '' || v === 0 || v === false ||
+        (Array.isArray(v) && v.length === 0) ||
+        (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0));
+      if (!empty) {
         throw new ForbiddenError("read-only economy field");
       }
     }
