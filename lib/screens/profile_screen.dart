@@ -3431,60 +3431,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     unawaited(_rewardedAd.load());
     if (!earned || !mounted) return;
 
-    // Яндекс (основная сеть): начисление авторитетное и синхронное —
-    // grantAdReward уже вернул реальный баланс. Применяем его точно, без
-    // оптимистичного угадывания. Если сервер не начислил (дневной лимит) —
-    // не рисуем фейковую награду; если callable не ответил (null) — тянем
-    // правду с сервера.
-    if (_rewardedAd.lastShowWasYandex) {
-      final serverCoins = _rewardedAd.lastServerCoins;
-      if (serverCoins != null) {
-        widget.userData.applyServerAdReward(
-          coins: serverCoins,
-          granted: _rewardedAd.lastRewardGranted,
-        );
-        if (mounted) {
-          if (_rewardedAd.lastRewardGranted) {
-            CoinRewardToast.show(context,
-                amount: UserData.adRewardAmount, label: _s.watchAdTitle);
-          } else if (_rewardedAd.lastRateLimited) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_s.adRewardLimitReached),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+    // Начисление авторитетное для ОБЕИХ сетей: и Яндекс, и AdMob на PocketBase
+    // идут через серверный роут /api/coins/ad-reward (Google-SSV нет ни у той,
+    // ни у другой). Сервер вернул реальный баланс и сам увеличил суточный
+    // счётчик — применяем точно, без оптимистичного угадывания (иначе «X/3»
+    // откатывался к нулю при синке профиля). Если сервер не начислил (дневной
+    // лимит) — не рисуем фейк; если не ответил (null) — тянем правду с сервера.
+    final serverCoins = _rewardedAd.lastServerCoins;
+    if (serverCoins != null) {
+      widget.userData.applyServerAdReward(
+        coins: serverCoins,
+        granted: _rewardedAd.lastRewardGranted,
+      );
+      if (mounted) {
+        if (_rewardedAd.lastRewardGranted) {
+          CoinRewardToast.show(context,
+              amount: UserData.adRewardAmount, label: _s.watchAdTitle);
+        } else if (_rewardedAd.lastRateLimited) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_s.adRewardLimitReached),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
         }
-      } else {
-        await widget.userData.refreshCoinsFromServer();
       }
-      if (mounted) setState(() {});
-      return;
+    } else {
+      await widget.userData.refreshCoinsFromServer();
     }
-
-    // AdMob (резерв): награда приходит асинхронно через SSV-коллбэк, поэтому
-    // показываем мгновенно и подтягиваем реальное значение позже.
-    widget.userData.applyOptimisticAdReward(UserData.adRewardAmount);
-    CoinRewardToast.show(context,
-        amount: UserData.adRewardAmount, label: _s.watchAdTitle);
-    setState(() {});
-    // Запомним оптимистичный баланс — он нижняя граница при синхронизации.
-    final rewardedCoins = widget.userData.coins;
-
-    // В фоне синхронизируем с сервером, чтобы подтянуть реальное значение.
-    // Если SSV ещё не успел — сервер вернёт старый баланс, поэтому
-    // ensureCoinsAtLeast не даёт просесть ниже уже показанного значения.
-    unawaited(() async {
-      for (final delayMs in const [2000, 5000]) {
-        await Future<void>.delayed(Duration(milliseconds: delayMs));
-        if (!mounted) return;
-        await widget.userData.refreshCoinsFromServer();
-        widget.userData.ensureCoinsAtLeast(rewardedCoins);
-        if (mounted) setState(() {});
-      }
-    }());
+    if (mounted) setState(() {});
   }
 
   Widget _coinShopItem({

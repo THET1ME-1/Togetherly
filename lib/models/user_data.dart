@@ -45,6 +45,10 @@ class UserData extends ChangeNotifier {
   /// Монет за один просмотр рекламы (зеркало AD_REWARD_AMOUNT на сервере)
   static const int adRewardAmount = 3;
 
+  /// Кулдаун ежедневного бонуса и награды за воспоминание (зеркало COOLDOWN в
+  /// coins.pb.js: 20ч). В пределах окна задание считается «выполненным».
+  static const int _coinCooldownMs = 20 * 60 * 60 * 1000;
+
   // ── Getters ──
   String get displayName => _displayName;
   String get email => _email;
@@ -102,6 +106,25 @@ class UserData extends ChangeNotifier {
   bool _memoryRewardClaimedThisSession = false;
   bool _memoryRewardClaimInProgress = false;
   bool get memoryRewardClaimedThisSession => _memoryRewardClaimedThisSession;
+
+  /// Восстанавливает статус «выполнено» для ежедневного бонуса/воспоминания из
+  /// серверных таймстампов кулдауна (epoch-ms). Без этого ✓ держится только на
+  /// сессионном флаге, который ставится лишь при успешном начислении В ЭТОМ
+  /// запуске → при повторном входе (или когда коин за период уже получен)
+  /// задание ошибочно показывается невыполненным. В пределах кулдауна (20ч)
+  /// считаем выполненным. Не сбрасываем уже выставленный флаг (на случай гонки
+  /// между авто-начислением на старте и синком профиля).
+  void _seedClaimFlagsFromServer(dynamic lastDailyMs, dynamic lastMemoryMs) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (lastDailyMs is num && lastDailyMs > 0 &&
+        now - lastDailyMs.toInt() < _coinCooldownMs) {
+      _dailyBonusClaimedThisSession = true;
+    }
+    if (lastMemoryMs is num && lastMemoryMs > 0 &&
+        now - lastMemoryMs.toInt() < _coinCooldownMs) {
+      _memoryRewardClaimedThisSession = true;
+    }
+  }
 
   /// Сколько rewarded-просмотров пользователь сделал сегодня (UTC).
   /// Если последняя дата начисления — не сегодня, возвращает 0.
@@ -253,6 +276,7 @@ class UserData extends ChangeNotifier {
       if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
       final cloudAdDate = data['adRewardsDate'];
       if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
+      _seedClaimFlagsFromServer(data['lastDailyBonusMs'], data['lastMemoryRewardMs']);
       await _saveLocal();
       notifyListeners();
     } catch (e) {
@@ -550,6 +574,8 @@ class UserData extends ChangeNotifier {
         if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
         final cloudAdDate = data['adRewardsDate'];
         if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
+        _seedClaimFlagsFromServer(
+            data['lastDailyBonusMs'], data['lastMemoryRewardMs']);
 
         final bdRaw = data['birthDate'];
         if (bdRaw is String && bdRaw.isNotEmpty) {

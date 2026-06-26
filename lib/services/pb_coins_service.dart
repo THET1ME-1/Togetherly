@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'pocketbase_service.dart';
 
@@ -30,8 +33,15 @@ class PbCoinsService {
         body: body,
       );
       return res is Map ? Map<String, dynamic>.from(res) : null;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('PbCoins.$path failed: $e');
+      // Коины = деньги пользователя: сбой начисления/покупки/списания репортим
+      // (warning — часть это штатные 4xx вроде cooldown/insufficient, но дешевле
+      // отфильтровать в панели, чем пропустить реальный сбой экономики).
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.setExtra('reason', 'coins route /api/coins/$path failed');
+        s.level = SentryLevel.warning;
+      }));
       return null;
     }
   }

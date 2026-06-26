@@ -183,7 +183,7 @@ class RewardedAdService {
       }
       if (_ad != null) {
         _lastShowWasYandex = false;
-        return await _showAdMob(_ad!, uid);
+        return await _showAdMob(_ad!);
       }
       return false;
     } finally {
@@ -191,14 +191,8 @@ class RewardedAdService {
     }
   }
 
-  Future<bool> _showAdMob(RewardedAd ad, String uid) async {
+  Future<bool> _showAdMob(RewardedAd ad) async {
     _ad = null; // одноразовая
-
-    ad.setServerSideOptions(
-      ServerSideVerificationOptions(
-        customData: uid, // SSV-callback увидит это в поле custom_data
-      ),
-    );
 
     bool earned = false;
     final completer = Completer<bool>();
@@ -228,8 +222,15 @@ class RewardedAdService {
       },
     );
     final result = await completer.future;
-    if (!result) {
-      // Закрыл рекламу до награды (или SSV не сработал) — коинов не будет.
+    if (result) {
+      // У AdMob на PocketBase серверного SSV-callback нет (adSsvCallback не
+      // портирован), поэтому начисляем тем же авторитетным роутом, что и Яндекс
+      // (/api/coins/ad-reward). Без этого сервер не видит просмотр → суточный
+      // счётчик «X/3» откатывался к нулю при следующем синке профиля, а коины
+      // держались лишь оптимистично (ensureCoinsAtLeast).
+      await _grantAdReward();
+    } else {
+      // Закрыл рекламу до награды — коинов не будет.
       // Breadcrumb (не ошибка: чаще это просто ранний выход пользователя).
       Sentry.addBreadcrumb(Breadcrumb(
           message: 'ad_reward: AdMob dismissed without earned reward',
@@ -258,7 +259,7 @@ class RewardedAdService {
         onRewarded: (reward) {
           if (earned) return; // защита от повторного события
           earned = true;
-          grantFuture = _grantYandexReward();
+          grantFuture = _grantAdReward();
         },
         onAdDismissed: finish,
         onAdFailedToShow: (error) {
@@ -294,11 +295,13 @@ class RewardedAdService {
     return earned;
   }
 
-  /// Серверное начисление за Яндекс-показ (у Яндекса нет Google-SSV). Зовётся
-  /// из onRewarded. Авторитетно, с дневным лимитом. Результат — в
+  /// Серверное начисление за rewarded-показ. Ни у Яндекса, ни у AdMob на
+  /// PocketBase нет Google-SSV, поэтому начисляем авторитетным роутом
+  /// `/api/coins/ad-reward` для ОБЕИХ сетей: Яндекс зовёт из onRewarded, AdMob —
+  /// после досмотра. С дневным лимитом на сервере. Результат — в
   /// [lastServerCoins]/[lastRewardGranted]/[lastRateLimited]: вызывающий
   /// применяет точный баланс и не рисует фейк при лимите.
-  Future<void> _grantYandexReward() async {
+  Future<void> _grantAdReward() async {
     try {
       final res = await PbCoinsService().adReward();
       if (res != null) {

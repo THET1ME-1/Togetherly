@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'pocketbase_service.dart';
@@ -62,6 +65,9 @@ class PbAuthService {
     } catch (e, st) {
       debugPrint('PbAuth.signUpWithEmail failed: $e');
       debugPrintStack(stackTrace: st);
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.setExtra('reason', 'signUpWithEmail failed');
+      }));
       rethrow;
     }
   }
@@ -75,8 +81,17 @@ class PbAuthService {
       await _pb.collection(_usersCol).authWithPassword(email, password);
       await _ensureProfile();
       return _svc.currentUser;
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('PbAuth.signInWithEmail failed: $e');
+      // Неверный пароль/почта (400/403) — пользовательская ошибка, не баг:
+      // не шумим в Bugsink. Остальное (5xx, сеть, неожиданное) — репортим.
+      final cred = e is ClientException &&
+          (e.statusCode == 400 || e.statusCode == 403);
+      if (!cred) {
+        unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+          s.setExtra('reason', 'signInWithEmail failed');
+        }));
+      }
       rethrow;
     }
   }
@@ -112,6 +127,10 @@ class PbAuthService {
     } catch (e, st) {
       debugPrint('PbAuth.signInWithOAuth2($provider) failed: $e');
       debugPrintStack(stackTrace: st);
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.setExtra('reason', 'signInWithOAuth2($provider) failed');
+        s.level = SentryLevel.warning; // часть — отмена пользователем, не баг
+      }));
       rethrow;
     }
   }
@@ -157,8 +176,14 @@ class PbAuthService {
     if (!_svc.isLoggedIn) return null;
     try {
       await _pb.collection(_usersCol).authRefresh();
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('PbAuth.authRefresh failed (сессия устарела?): $e');
+      // Тихая потеря сессии = жалобы «всё сбросилось». Репортим (warning), чтобы
+      // отличать штатное протухание токена от реальной поломки авторизации.
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.setExtra('reason', 'authRefresh failed → silent sign-out');
+        s.level = SentryLevel.warning;
+      }));
       // Токен невалиден — выходим, чтобы не оставаться в bad state.
       _svc.signOut();
       return null;
