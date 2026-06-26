@@ -141,7 +141,8 @@ struct PetalTimerWidget: Widget {
         }
         .configurationDisplayName("Лепестковый таймер")
         .description("Живой циферблат: годы, месяцы, дни, часы.")
-        .supportedFamilies([.systemMedium])
+        // Большой квадрат — циферблат круглый, ему нужна квадратная площадь.
+        .supportedFamilies([.systemLarge])
     }
 }
 

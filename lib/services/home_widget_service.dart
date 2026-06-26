@@ -9,7 +9,6 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'firebase_service.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
@@ -1961,19 +1960,11 @@ class HomeWidgetService {
       if (PbMediaService().isPbRef(url)) {
         httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
       }
-      // Для gs:// (Firebase) и sb:// (Supabase) путей запрашиваем Signed URL.
+      // Legacy gs:// (Firebase) / sb:// (Supabase) БОЛЬШЕ НЕ резолвим — проект
+      // полностью на PocketBase. Старые такие фото в виджете не подгрузятся
+      // (отдаём кэш, если он есть). Новое медиа приходит как pb:// (см. выше).
       else if (url.startsWith('gs://') || url.startsWith('sb://')) {
-        // sb:// передаём целиком; gs:// — снимаем префикс bucket'а.
-        final path = url.startsWith('sb://')
-            ? url
-            : url.replaceFirst(RegExp(r'^gs://[^/]+/'), '');
-        final signedUrl = await FirebaseService().getSignedUrl(path);
-        if (signedUrl == null || signedUrl.isEmpty) {
-          debugPrint('HomeWidgetService._cachePhotoFromUrl: no signed URL for $url');
-          if (file.existsSync()) return file.path;
-          return '';
-        }
-        httpUrl = signedUrl;
+        return file.existsSync() ? file.path : '';
       }
 
       final response = await http

@@ -16,6 +16,8 @@ private func yearsText(_ totalDays: Int) -> String {
 }
 
 struct DaysCounterWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+
     var body: some View {
         let s = Store()
         let g = s.latestGroup("days_counter_latest_group")
@@ -35,17 +37,19 @@ struct DaysCounterWidgetView: View {
         }()
         let flip = myGender == "female" && partnerGender == "male"
         let brown = Color(hex: 0x5D4037)
+        // Крупнее на большом (квадрат 4×4); маленький — как было.
+        let k: CGFloat = family == .systemLarge ? 1.9 : 1.0
 
         ZStack {
             // Низ: рисунок пары ИЛИ две аватарки
             VStack {
                 Spacer(minLength: 0)
                 if showAvatars {
-                    HStack(spacing: -10) {
-                        avatarCircle(myAvatar!)
-                        avatarCircle(partnerAvatar!)
+                    HStack(spacing: -10 * k) {
+                        avatarCircle(myAvatar!, size: 56 * k)
+                        avatarCircle(partnerAvatar!, size: 56 * k)
                     }
-                    .padding(.bottom, 14)
+                    .padding(.bottom, 14 * k)
                 } else {
                     Image(coupleName)
                         .resizable()
@@ -58,26 +62,26 @@ struct DaysCounterWidgetView: View {
             // Верх: «N лет уже ❤️»
             VStack {
                 Text(yearsText(count))
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12 * k, weight: .bold))
                     .foregroundColor(brown)
-                    .padding(.top, 16)
+                    .padding(.top, 16 * k)
                 Spacer(minLength: 0)
             }
 
             // Центр: число дней / «дней» / дата
             VStack(spacing: 0) {
                 Text("\(count)")
-                    .font(.system(size: 36, weight: .bold))
+                    .font(.system(size: 36 * k, weight: .bold))
                     .foregroundColor(brown)
                 Text("дней")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14 * k, weight: .bold))
                     .foregroundColor(brown)
                     .padding(.top, -2)
                 if !date.isEmpty {
                     Text(date)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 10 * k, weight: .bold))
                         .foregroundColor(brown)
-                        .padding(.top, 8)
+                        .padding(.top, 8 * k)
                 }
             }
         }
@@ -85,11 +89,11 @@ struct DaysCounterWidgetView: View {
         .pinkBorderCard()
     }
 
-    private func avatarCircle(_ image: UIImage) -> some View {
+    private func avatarCircle(_ image: UIImage, size: CGFloat) -> some View {
         Image(uiImage: image)
             .resizable()
             .scaledToFill()
-            .frame(width: 56, height: 56)
+            .frame(width: size, height: size)
             .clipShape(Circle())
     }
 }
@@ -101,7 +105,7 @@ struct DaysCounterWidget: Widget {
         }
         .configurationDisplayName("Дней вместе")
         .description("Сколько дней вы вместе.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemLarge])
     }
 }
 
@@ -200,7 +204,7 @@ struct StreakWidget: Widget {
         }
         .configurationDisplayName("Огонёк пары")
         .description("Сколько дней подряд вы заходите вместе.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -214,29 +218,31 @@ private struct StatCard: View {
     let iconColor: Color
     let gradStart: Color
     let gradEnd: Color
+    var scale: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
-                Circle().fill(Color.white).frame(width: 32, height: 32)
+                Circle().fill(Color.white).frame(width: 32 * scale, height: 32 * scale)
                 Image(systemName: symbol)
-                    .font(.system(size: 16))
+                    .font(.system(size: 16 * scale))
                     .foregroundColor(iconColor)
             }
             Text("\(value)")
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 22 * scale, weight: .bold))
                 .foregroundColor(Color(hex: 0x212121))
                 .lineLimit(1)
-                .padding(.top, 8)
+                .minimumScaleFactor(0.6)
+                .padding(.top, 8 * scale)
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 10 * scale))
                 .foregroundColor(Color(hex: 0x757575))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(12)
+        .padding(12 * scale)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
                 .fill(LinearGradient(colors: [gradStart, gradEnd],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
         )
@@ -244,6 +250,8 @@ private struct StatCard: View {
 }
 
 struct RelationshipStatsWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+
     var body: some View {
         let s = Store()
         let g = s.latestGroup("stats_latest_group")
@@ -251,26 +259,28 @@ struct RelationshipStatsWidgetView: View {
         let memories = s.int("stats_\(g)_memories")
         let drawings = s.int("stats_\(g)_drawings")
         let missYou = s.int("stats_\(g)_miss_you")
+        // Высокий вариант (квадрат 4×4) — крупнее карточки/цифры.
+        let k: CGFloat = family == .systemLarge ? 1.6 : 1.0
 
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(spacing: 8 * k) {
+            HStack(spacing: 8 * k) {
                 StatCard(value: days, label: s.string("stats_\(g)_days_label", "дней"),
                          symbol: "calendar", iconColor: Color(hex: 0xE91E63),
-                         gradStart: Color(hex: 0xFCE4EC), gradEnd: Color(hex: 0xF8BBD0))
+                         gradStart: Color(hex: 0xFCE4EC), gradEnd: Color(hex: 0xF8BBD0), scale: k)
                 StatCard(value: memories, label: s.string("stats_\(g)_memories_label", "моментов"),
                          symbol: "photo.fill", iconColor: Color(hex: 0x2196F3),
-                         gradStart: Color(hex: 0xE3F2FD), gradEnd: Color(hex: 0xBBDEFB))
+                         gradStart: Color(hex: 0xE3F2FD), gradEnd: Color(hex: 0xBBDEFB), scale: k)
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 8 * k) {
                 StatCard(value: drawings, label: s.string("stats_\(g)_drawings_label", "рисунков"),
                          symbol: "paintbrush.fill", iconColor: Color(hex: 0xFFA000),
-                         gradStart: Color(hex: 0xFFF8E1), gradEnd: Color(hex: 0xFFECB3))
+                         gradStart: Color(hex: 0xFFF8E1), gradEnd: Color(hex: 0xFFECB3), scale: k)
                 StatCard(value: missYou, label: s.string("stats_\(g)_miss_you_label", "скучаю"),
                          symbol: "heart.fill", iconColor: Color(hex: 0x9C27B0),
-                         gradStart: Color(hex: 0xF3E5F5), gradEnd: Color(hex: 0xE1BEE7))
+                         gradStart: Color(hex: 0xF3E5F5), gradEnd: Color(hex: 0xE1BEE7), scale: k)
             }
         }
-        .padding(8)
+        .padding(8 * k)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .statsContainerBackground()
     }
@@ -283,7 +293,8 @@ struct RelationshipStatsWidget: Widget {
         }
         .configurationDisplayName("Статистика отношений")
         .description("Дни, моменты, рисунки и «я скучаю».")
-        .supportedFamilies([.systemMedium])
+        // Высокий вариант (квадрат 4×4) — карточки 2×2 становятся крупными.
+        .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
 
