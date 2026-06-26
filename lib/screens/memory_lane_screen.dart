@@ -13,7 +13,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+// show LatLng: latlong2 также экспортирует класс Path<LatLng>, который перекрывал
+// dart:ui Path в пейнтерах волны (media_widgets — part of этой библиотеки).
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';

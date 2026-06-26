@@ -81,13 +81,15 @@ class PbAuthService {
     }
   }
 
-  /// Вход через Google (OAuth2 web-flow PocketBase): открывает страницу
-  /// провайдера в браузере, PB ловит редирект и возвращает сессию по realtime.
-  /// Требует настроенного провайдера `google` в панели PB.
-  Future<RecordModel?> signInWithGoogle() async {
+  /// Универсальный OAuth2-вход (web-flow PocketBase): открывает страницу
+  /// провайдера в in-app браузере, PB ловит редирект и возвращает сессию по
+  /// realtime. [provider] — ключ провайдера в панели PB: `google` / `apple` /
+  /// `yandex` / `vk` / `facebook`. Требует настроенного провайдера (Client
+  /// ID/Secret + redirect `<host>/api/oauth2-redirect`).
+  Future<RecordModel?> signInWithOAuth2(String provider) async {
     try {
       final auth = await _pb.collection(_usersCol).authWithOAuth2(
-        'google',
+        provider,
         (url) async {
           // In-app браузер держит приложение на переднем плане → realtime-
           // websocket OAuth-флоу PB выживает и сессия возвращается в приложение
@@ -108,39 +110,18 @@ class PbAuthService {
       );
       return _svc.currentUser;
     } catch (e, st) {
-      debugPrint('PbAuth.signInWithGoogle failed: $e');
+      debugPrint('PbAuth.signInWithOAuth2($provider) failed: $e');
       debugPrintStack(stackTrace: st);
       rethrow;
     }
   }
 
-  /// Вход через Apple (OAuth2 web-flow PocketBase): открывает страницу
-  /// провайдера в браузере, PB ловит редирект и возвращает сессию.
-  /// Требует настроенного провайдера `apple` в панели PB (Services ID + ключ;
-  /// секрет авто-обновляется кроном на VPS — см. pocketbase/apple_secret.py).
-  Future<RecordModel?> signInWithApple() async {
-    try {
-      final auth = await _pb.collection(_usersCol).authWithOAuth2(
-        'apple',
-        (url) async {
-          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
-        },
-      );
-      try {
-        await closeInAppWebView();
-      } catch (_) {}
-      final meta = auth.meta;
-      await _ensureProfile(
-        displayName: meta['name']?.toString(),
-        avatarUrl: meta['avatarUrl']?.toString() ?? meta['avatarURL']?.toString(),
-      );
-      return _svc.currentUser;
-    } catch (e, st) {
-      debugPrint('PbAuth.signInWithApple failed: $e');
-      debugPrintStack(stackTrace: st);
-      rethrow;
-    }
-  }
+  /// Вход через Google. Требует настроенного провайдера `google` в панели PB.
+  Future<RecordModel?> signInWithGoogle() => signInWithOAuth2('google');
+
+  /// Вход через Apple. Требует провайдера `apple` в панели PB (Services ID +
+  /// ключ; секрет авто-обновляется кроном на VPS — см. pocketbase/apple_secret.py).
+  Future<RecordModel?> signInWithApple() => signInWithOAuth2('apple');
 
   /// Письмо для сброса пароля (email-провайдер PB).
   Future<void> sendPasswordReset(String email) async {

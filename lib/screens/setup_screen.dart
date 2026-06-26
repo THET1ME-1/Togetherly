@@ -15,6 +15,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../widgets/auth_widgets.dart';
 
 
 class SetupScreen extends StatefulWidget {
@@ -37,11 +38,15 @@ class _SetupScreenState extends State<SetupScreen>
   final _passwordController = TextEditingController();
   String _avatarUrl = '';
   XFile? _selectedAvatarFile; // Локальный файл для загрузки после регистрации
-  bool _obscurePassword = true;
   bool _agreeToTerms = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
+
+  // OAuth: PB authWithOAuth2 зависает, если закрыть окно провайдера крестиком
+  // (нет сигнала отмены). Ловим возврат в приложение и снимаем спиннер.
+  AppLifecycleListener? _lifecycle;
+  bool _oauthInFlight = false;
 
   // Colors based on gender
   Color get _accent {
@@ -70,15 +75,31 @@ class _SetupScreenState extends State<SetupScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _fadeController.forward();
+    _lifecycle = AppLifecycleListener(onResume: _onOAuthResume);
   }
 
   @override
   void dispose() {
+    _lifecycle?.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  /// Вернулись из in-app браузера. Если OAuth-вход не завершился (юзер отменил) —
+  /// снимаем бесконечную загрузку. На успехе `_oauthInFlight` уже сброшен.
+  void _onOAuthResume() {
+    if (!_oauthInFlight) return;
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted && _oauthInFlight) {
+        setState(() {
+          _isLoading = false;
+          _oauthInFlight = false;
+        });
+      }
+    });
   }
 
   void _goToStep(int step) {
@@ -88,20 +109,19 @@ class _SetupScreenState extends State<SetupScreen>
     });
   }
 
-  Future<void> _signInWithGoogle() =>
-      _handleOAuth(() => PbAuthService().signInWithGoogle());
-
-  /// Вход через Apple (OAuth2 web-flow PB). Провайдер `apple` готов в панели PB.
-  Future<void> _signInWithApple() =>
-      _handleOAuth(() => PbAuthService().signInWithApple());
+  /// Универсальный OAuth-вход: google / apple / yandex / vk / facebook.
+  Future<void> _oauthSignIn(String provider) =>
+      _handleOAuth(() => PbAuthService().signInWithOAuth2(provider));
 
   /// Общий обработчик OAuth-входа (Google/Apple) через PocketBase. Есть профиль
   /// с полом → домой; нет → дозаполняем профиль (пол из выбранного) и домой.
   Future<void> _handleOAuth(Future<RecordModel?> Function() signIn) async {
     setState(() => _isLoading = true);
+    _oauthInFlight = true;
     try {
       final auth = PbAuthService();
       final user = await signIn();
+      _oauthInFlight = false;
       if (user != null) {
         // Профиль из записи users PB (camelCase — как раньше Firestore).
         final profile = auth.currentProfile();
@@ -171,6 +191,7 @@ class _SetupScreenState extends State<SetupScreen>
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
+      _oauthInFlight = false;
       if (mounted) {
         setState(() => _isLoading = false);
         final errorMsg = e.toString();
@@ -431,6 +452,7 @@ class _SetupScreenState extends State<SetupScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -660,407 +682,278 @@ class _SetupScreenState extends State<SetupScreen>
   //  STEP 2: REGISTRATION
   // ═══════════════════════════════════════════════════
   Widget _buildRegistrationStep() {
-    final _s = LocaleService.current;
+    final s = LocaleService.current;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          // Back button
-          Align(
+    return Column(
+      children: [
+        // ── Кнопка «назад» поверх фона ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+          child: Align(
             alignment: Alignment.centerLeft,
             child: GestureDetector(
               onTap: () => _goToStep(0),
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withOpacity(0.75),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: Colors.white.withOpacity(0.6)),
                 ),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.grey.shade700,
-                  size: 20,
-                ),
+                child: Icon(Icons.arrow_back_rounded,
+                    color: Colors.grey.shade800, size: 20),
               ),
             ),
           ),
-          const SizedBox(height: 36),
-          // Title
-          Text(
-            _s.createAccountBtn,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
-            ),
-          ),
-          const SizedBox(height: 28),
-          // ═══ Form Card ═══
-          Container(
+        ),
+        const SizedBox(height: 18),
+        // ── Белая карточка с формой (как в референсе) ──
+        Expanded(
+          child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Avatar (centered)
-                Center(
-                  child: GestureDetector(
-                    onTap: _pickAvatar,
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _accentLight,
-                            border: Border.all(
-                              color: _accent.withOpacity(0.2),
-                              width: 3,
-                            ),
-                          ),
-                          child: _selectedAvatarFile != null
-                              ? ClipOval(
-                                  child: Image.file(
-                                    File(_selectedAvatarFile!.path),
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : _avatarUrl.isNotEmpty
-                              ? ClipOval(
-                                  child: StorageImage(
-                                    imageUrl: _avatarUrl,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (context, url, error) => Icon(
-                                      Icons.person_rounded,
-                                      color: _accent.withOpacity(0.5),
-                                      size: 36,
-                                    ),
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.person_rounded,
-                                  color: _accent.withOpacity(0.5),
-                                  size: 36,
-                                ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: _accent,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt_rounded,
-                              color: Colors.white,
-                              size: 13,
-                            ),
-                          ),
-                        ),
-                      ],
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(28, 30, 28, 28 + bottomInset),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Text(
+                      s.createAccountBtn,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.grey.shade900,
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                // Full Name
-                _buildFormLabel(_s.fullName),
-                const SizedBox(height: 8),
-                _buildFormField(controller: _nameController, hint: _s.yourName),
-                const SizedBox(height: 18),
-                // Email
-                _buildFormLabel(_s.email),
-                const SizedBox(height: 8),
-                _buildFormField(
-                  controller: _emailController,
-                  hint: 'your@email.com',
-                  keyboardType: TextInputType.emailAddress,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.deny(RegExp(r'[а-яёА-ЯЁ]')),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                // Password
-                _buildFormLabel(_s.password),
-                const SizedBox(height: 8),
-                _buildFormPasswordField(),
-                const SizedBox(height: 14),
-                _buildPasswordChecks(),
-                const SizedBox(height: 18),
-                // Terms checkbox
-                GestureDetector(
-                  onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
+                  const SizedBox(height: 22),
+                  Center(child: _avatarPicker()),
+                  const SizedBox(height: 24),
+                  AuthField(
+                    controller: _nameController,
+                    label: s.fullName,
+                    hint: s.yourName,
+                    accent: _accent,
+                  ),
+                  const SizedBox(height: 18),
+                  AuthField(
+                    controller: _emailController,
+                    label: s.email,
+                    hint: 'your@email.com',
+                    accent: _accent,
+                    keyboardType: TextInputType.emailAddress,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'[а-яёА-ЯЁ]')),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  AuthField(
+                    controller: _passwordController,
+                    label: s.password,
+                    hint: s.yourPassword,
+                    accent: _accent,
+                    isPassword: true,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildPasswordChecks(),
+                  const SizedBox(height: 18),
+                  _termsCheckbox(s),
+                  const SizedBox(height: 24),
+                  _signUpButton(s),
+                  const SizedBox(height: 26),
+                  AuthSocialRow(
+                    label: s.signUpWith,
+                    onGoogle:
+                        _isLoading ? null : () => _oauthSignIn('google'),
+                    onYandex:
+                        _isLoading ? null : () => _oauthSignIn('yandex'),
+                    onApple: Platform.isIOS
+                        ? (_isLoading ? null : () => _oauthSignIn('apple'))
+                        : null,
+                  ),
+                  const SizedBox(height: 28),
+                  // Already have an account? Sign In
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: _agreeToTerms ? _accent : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _agreeToTerms
-                                ? _accent
-                                : Colors.grey.shade400,
-                            width: 2,
-                          ),
-                        ),
-                        child: _agreeToTerms
-                            ? const Icon(
-                                Icons.check_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              )
-                            : null,
+                      Text(
+                        '${s.alreadyHaveAccountLogin} ',
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.grey.shade600),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
+                      GestureDetector(
+                        onTap: _isLoading ? null : _goToLogin,
                         child: Text(
-                          _s.agreeToTerms,
+                          s.login,
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade700,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _accent,
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 24),
-          // Create Account button
-          SizedBox(
-            width: double.infinity,
-            height: 58,
-            child: ElevatedButton(
-              onPressed: (_isLoading || !_agreeToTerms) ? null : _completeSetup,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: _accent.withOpacity(0.4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(32),
-                ),
-                elevation: 12,
-                shadowColor: _accent.withOpacity(0.4),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      _s.createAccountBtn,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
+        ),
+      ],
+    );
+  }
+
+  void _goToLogin() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => LoginScreen(userData: widget.userData),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  Widget _avatarPicker() {
+    return GestureDetector(
+      onTap: _pickAvatar,
+      child: Stack(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _accentLight,
+              border: Border.all(color: _accent.withOpacity(0.2), width: 3),
+            ),
+            child: _selectedAvatarFile != null
+                ? ClipOval(
+                    child: Image.file(
+                      File(_selectedAvatarFile!.path),
+                      fit: BoxFit.cover,
                     ),
+                  )
+                : _avatarUrl.isNotEmpty
+                    ? ClipOval(
+                        child: StorageImage(
+                          imageUrl: _avatarUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Icon(
+                            Icons.person_rounded,
+                            color: _accent.withOpacity(0.5),
+                            size: 36,
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        Icons.person_rounded,
+                        color: _accent.withOpacity(0.5),
+                        size: 36,
+                      ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: _accent,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Colors.white,
+                size: 13,
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          // Divider
-          Row(
-            children: [
-              Expanded(child: Divider(color: Colors.grey.shade200)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _s.or,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade400,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              Expanded(child: Divider(color: Colors.grey.shade200)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Google Sign In button
-          _buildSocialButton(
-            onPressed: _isLoading ? null : _signInWithGoogle,
-            icon: const _GoogleLogoSmall(),
-            label: _s.continueWithGoogle,
-          ),
-          // Apple Sign In button — провайдер `apple` в PB готов (iOS).
-          if (Platform.isIOS) ...[
-            const SizedBox(height: 12),
-            _buildSocialButton(
-              onPressed: _isLoading ? null : _signInWithApple,
-              icon: const Icon(Icons.apple, size: 24, color: Colors.black),
-              label: _s.continueWithApple,
-            ),
-          ],
-          const SizedBox(height: 28),
-          // Already have account?
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${_s.alreadyHaveAccountLogin} ',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-              ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pushReplacement(
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) =>
-                          LoginScreen(userData: widget.userData),
-                      transitionsBuilder: (_, animation, __, child) =>
-                          FadeTransition(opacity: animation, child: child),
-                      transitionDuration: const Duration(milliseconds: 300),
-                    ),
-                  );
-                },
-                child: Text(
-                  _s.login,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _accent,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 36),
         ],
       ),
     );
   }
 
-  Widget _buildFormLabel(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey.shade600,
-      ),
-    );
-  }
-
-  Widget _buildFormField({
-    required TextEditingController controller,
-    required String hint,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: Colors.grey.shade900,
-      ),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: Colors.grey.shade400,
-          fontWeight: FontWeight.w400,
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: _accent, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 16,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFormPasswordField() {
-    return TextField(
-      controller: _passwordController,
-      obscureText: _obscurePassword,
-      onChanged: (_) => setState(() {}),
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: Colors.grey.shade900,
-      ),
-      decoration: InputDecoration(
-        hintText: LocaleService.current.yourPassword,
-        hintStyle: TextStyle(
-          color: Colors.grey.shade400,
-          fontWeight: FontWeight.w400,
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        suffixIcon: GestureDetector(
-          onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-          child: Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Icon(
-              _obscurePassword
-                  ? Icons.visibility_off_outlined
-                  : Icons.visibility_outlined,
-              color: Colors.grey.shade500,
-              size: 20,
+  Widget _termsCheckbox(AppStrings s) {
+    return GestureDetector(
+      onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: _agreeToTerms ? _accent : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: _agreeToTerms ? _accent : Colors.grey.shade400,
+                width: 2,
+              ),
+            ),
+            child: _agreeToTerms
+                ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              s.agreeToTerms,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _signUpButton(AppStrings s) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: (_isLoading || !_agreeToTerms) ? null : _completeSetup,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _accent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: _accent.withOpacity(0.4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 8,
+          shadowColor: _accent.withOpacity(0.4),
         ),
-        suffixIconConstraints: const BoxConstraints(minHeight: 0, minWidth: 0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: _accent, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 16,
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
+                s.createAccountBtn,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
       ),
     );
   }
@@ -1107,62 +1000,4 @@ class _SetupScreenState extends State<SetupScreen>
     );
   }
 
-  Widget _buildSocialButton({
-    required VoidCallback? onPressed,
-    required Widget icon,
-    required String label,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.grey.shade800,
-          side: BorderSide(color: Colors.grey.shade200),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: Colors.white,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GoogleLogoSmall extends StatelessWidget {
-  const _GoogleLogoSmall();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Center(
-        child: Text(
-          'G',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF4285F4),
-          ),
-        ),
-      ),
-    );
-  }
 }

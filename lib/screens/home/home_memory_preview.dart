@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
 import '../../models/user_data.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/memory_tile_builder.dart';
+import '../../widgets/storage_image.dart';
 import '../memory_lane_screen.dart';
 
-/// Секция «Воспоминания» на главном экране: превью последних 3 記憶.
-/// Если партнёр не подключён — заглушка.
+/// Секция «Воспоминания» на главном экране: превью последних 3 воспоминаний.
+/// Если партнёр не подключён — заглушка. Карточки повторяют новый дизайн ленты
+/// (плоско, аватар + бейдж типа, коллаж/стикер/карточка места), компактно;
+/// тап по любой карточке открывает полную Ленту.
 class MemoryLanePreview extends StatelessWidget {
   final bool isPaired;
   final List<Memory> memories;
@@ -46,31 +47,23 @@ class MemoryLanePreview extends StatelessWidget {
 
   Widget _buildPaired(BuildContext context) {
     final primary = theme.primary;
-    final tileBuilder = MemoryTileBuilder(
-      primary: primary,
-      cardSurface: Colors.white,
-      cardBorder: const Color(0xFFE5E5E5),
-    );
 
-    String? liveAvatarFor(String uid) {
-      // Свой аватар — самый свежий из локального профиля (как в ленте), чтобы
-      // сразу после смены аватара он не выглядел устаревшим до пропагации в
-      // group-doc. Прежний путь через FirebaseService убран (auth уже на PB).
+    String avatarFor(Memory m) {
       final ud = userData;
-      if (ud != null && uid == ud.uid && ud.avatarUrl.isNotEmpty) {
+      if (ud != null && m.authorUid == ud.uid && ud.avatarUrl.isNotEmpty) {
         return ud.avatarUrl;
       }
-      for (final m in pairData.members) {
-        if (m.uid == uid && m.avatar.isNotEmpty) return m.avatar;
+      for (final mem in pairData.members) {
+        if (mem.uid == m.authorUid && mem.avatar.isNotEmpty) return mem.avatar;
       }
-      return null;
+      return m.authorAvatar;
     }
 
-    String? liveNameFor(String uid) {
-      for (final m in pairData.members) {
-        if (m.uid == uid && m.name.isNotEmpty) return m.name;
+    String nameFor(Memory m) {
+      for (final mem in pairData.members) {
+        if (mem.uid == m.authorUid && mem.name.isNotEmpty) return mem.name;
       }
-      return null;
+      return m.authorName;
     }
 
     return Column(
@@ -92,10 +85,8 @@ class MemoryLanePreview extends StatelessWidget {
               GestureDetector(
                 onTap: () => _openMemoryLane(context),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(20),
@@ -112,11 +103,7 @@ class MemoryLanePreview extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 3),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        size: 18,
-                        color: primary,
-                      ),
+                      Icon(Icons.chevron_right_rounded, size: 18, color: primary),
                     ],
                   ),
                 ),
@@ -139,11 +126,8 @@ class MemoryLanePreview extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.photo_album_outlined,
-                      size: 32,
-                      color: Colors.grey.shade300,
-                    ),
+                    Icon(Icons.photo_album_outlined,
+                        size: 32, color: Colors.grey.shade300),
                     const SizedBox(height: 8),
                     Text(
                       LocaleService.current.noMemoriesYet,
@@ -156,10 +140,7 @@ class MemoryLanePreview extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       LocaleService.current.addFirstMemory,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade400,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                     ),
                   ],
                 ),
@@ -172,9 +153,17 @@ class MemoryLanePreview extends StatelessWidget {
             child: Column(
               children: [
                 for (int i = 0; i < memories.length && i < 3; i++)
-                  _buildTile(context, tileBuilder, memories[i],
-                      liveAvatarFor: liveAvatarFor,
-                      liveNameFor: liveNameFor),
+                  _PreviewCard(
+                    memory: memories[i],
+                    theme: theme,
+                    authorName: nameFor(memories[i]),
+                    authorAvatar: avatarFor(memories[i]),
+                    distanceText: _distanceKm(
+                      memories[i].latitude,
+                      memories[i].longitude,
+                    ),
+                    onTap: () => _openMemoryLane(context),
+                  ),
               ],
             ),
           ),
@@ -215,11 +204,8 @@ class MemoryLanePreview extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.photo_library_outlined,
-                  size: 36,
-                  color: Colors.grey.shade300,
-                ),
+                Icon(Icons.photo_library_outlined,
+                    size: 36, color: Colors.grey.shade300),
                 const SizedBox(height: 12),
                 Text(
                   LocaleService.current.memoriesWillAppear,
@@ -239,92 +225,6 @@ class MemoryLanePreview extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  // ── Single tile ────────────────────────────────────────────────────────────
-
-  Widget _buildTile(
-    BuildContext context,
-    MemoryTileBuilder tileBuilder,
-    Memory memory, {
-    String? Function(String uid)? liveAvatarFor,
-    String? Function(String uid)? liveNameFor,
-  }) {
-    final distanceText = memory.latitude != null && memory.longitude != null
-        ? _distanceKm(memory.latitude!, memory.longitude!)
-        : null;
-
-    if (memory.type == MemoryType.music) {
-      return tileBuilder.buildTile(
-        memory,
-        liveAvatarFor: liveAvatarFor,
-        liveNameFor: liveNameFor,
-        musicPlayerWidget: MemoryMusicPlayer(
-          key: ValueKey(memory.id),
-          memory: memory,
-          theme: theme,
-        ),
-      );
-    }
-
-    if (memory.type == MemoryType.text) {
-      return tileBuilder.buildTile(
-        memory,
-        liveAvatarFor: liveAvatarFor,
-        liveNameFor: liveNameFor,
-        onTap: () => _showNoteDetail(context, memory),
-        onOpenLocation: (lat, lng, label) =>
-            _openLocationInMaps(lat, lng, label),
-        distanceText: distanceText,
-      );
-    }
-
-    return tileBuilder.buildTile(
-      memory,
-      liveAvatarFor: liveAvatarFor,
-      liveNameFor: liveNameFor,
-      onTap: () => _openMemoryLane(context),
-      onOpenGallery: (urls, index) {
-        final sorted = [...memories]
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        final allItems = <GalleryItem>[];
-        for (final m in sorted) {
-          if (m.type == MemoryType.photo) {
-            final mUrls = <String>[
-              if (m.imageUrls?.isNotEmpty == true)
-                ...m.imageUrls!
-              else if (m.imageUrl?.isNotEmpty == true)
-                m.imageUrl!,
-            ];
-            for (final url in mUrls) {
-              allItems.add(GalleryItem(url: url, memoryId: m.id, caption: m.caption));
-            }
-          } else if (m.type == MemoryType.video && m.videoUrl?.isNotEmpty == true) {
-            allItems.add(GalleryItem(
-              url: m.imageUrl?.isNotEmpty == true ? m.imageUrl! : m.videoUrl!,
-              videoUrl: m.videoUrl,
-              memoryId: m.id,
-              caption: m.caption,
-            ));
-          }
-        }
-        final tappedUrl = urls.isNotEmpty ? urls[index] : '';
-        int globalIndex = allItems.indexWhere(
-          (item) => item.memoryId == memory.id && item.url == tappedUrl,
-        );
-        if (globalIndex < 0) globalIndex = 0;
-        Navigator.of(context).push(
-          PageRouteBuilder(
-            opaque: false,
-            barrierColor: Colors.black,
-            pageBuilder: (_, __, e) =>
-                FullscreenGallery(items: allItems, initialIndex: globalIndex),
-          ),
-        );
-      },
-      onOpenLocation: (lat, lng, label) => _openLocationInMaps(lat, lng, label),
-      distanceText: distanceText,
     );
   }
 
@@ -350,201 +250,639 @@ class MemoryLanePreview extends StatelessWidget {
     );
   }
 
-  // ── Note detail bottom-sheet ───────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-  void _showNoteDetail(BuildContext context, Memory memory) {
-    final primary = theme.primary;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  String _distanceKm(double? lat, double? lng) {
+    if (lat == null || lng == null || userLat == null || userLng == null) {
+      return '';
+    }
+    final d = Geolocator.distanceBetween(userLat!, userLng!, lat, lng);
+    if (d < 1000) return '${d.round()} м';
+    return '${(d / 1000).toStringAsFixed(1)} км';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Компактная карточка превью (новый дизайн ленты, read-only, тап → Лента)
+// ════════════════════════════════════════════════════════════════════════════
+class _PreviewCard extends StatelessWidget {
+  final Memory memory;
+  final AppTheme theme;
+  final String authorName;
+  final String authorAvatar;
+  final String distanceText;
+  final VoidCallback onTap;
+
+  const _PreviewCard({
+    required this.memory,
+    required this.theme,
+    required this.authorName,
+    required this.authorAvatar,
+    required this.distanceText,
+    required this.onTap,
+  });
+
+  Color get primary => theme.primary;
+  bool get _ru => LocaleService.instance.isRussian;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE8EEF0)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _header(),
+              const SizedBox(height: 12),
+              _body(),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
       ),
-      backgroundColor: Colors.white,
-      builder: (_) {
-        final hasLocation =
-            memory.locationName != null && memory.locationName!.isNotEmpty;
-        final hasCoords = memory.latitude != null && memory.longitude != null;
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.55,
-          maxChildSize: 0.9,
-          builder: (_, sc) => SingleChildScrollView(
-            controller: sc,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  // ── Header: аватар · имя · время · бейдж типа ──
+  Widget _header() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: primary.withOpacity(0.18), width: 1.5),
+            ),
+            child: ClipOval(
+              child: authorAvatar.isNotEmpty
+                  ? StorageImage(
+                      imageUrl: authorAvatar,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 120,
+                      memCacheHeight: 120,
+                      errorWidget: (_, _, _) => _avatarFallback(),
+                    )
+                  : _avatarFallback(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.sticky_note_2_rounded,
-                        color: primary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            memory.authorName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade900,
-                            ),
-                          ),
-                          Text(
-                            LocaleService.current.sharedAThought,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                if (memory.title?.isNotEmpty == true) ...[
-                  Text(
-                    memory.title!,
+                Flexible(
+                  child: Text(
+                    authorName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                       color: Colors.grey.shade900,
-                      height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                ],
-                if (memory.caption?.isNotEmpty == true)
-                  Text(
-                    memory.caption!,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade700,
-                      height: 1.6,
-                    ),
-                  ),
-                if (hasLocation || hasCoords) ...[
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: hasCoords
-                        ? () {
-                            Navigator.pop(context);
-                            _openLocationInMaps(
-                              memory.latitude!,
-                              memory.longitude!,
-                              memory.locationName,
-                            );
-                          }
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: primary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: primary.withOpacity(0.15),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.location_on_rounded,
-                            color: primary,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              memory.locationName ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (hasCoords)
-                            Text(
-                              LocaleService.current.setARoute,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: primary,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+                Text(
+                  '  ·  ${_timeAgo(memory.createdAt)}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
               ],
             ),
           ),
-        );
-      },
+          _typeBadge(),
+        ],
+      ),
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  String _distanceKm(double lat, double lng) {
-    if (userLat == null || userLng == null) return '';
-    final d = Geolocator.distanceBetween(userLat!, userLng!, lat, lng);
-    if (d < 1000) return '${d.round()}m';
-    return '${(d / 1000).toStringAsFixed(1)}km';
+  Widget _avatarFallback() {
+    final letter =
+        authorName.trim().isNotEmpty ? authorName.trim()[0].toUpperCase() : '♥';
+    return Container(
+      color: primary.withOpacity(0.12),
+      alignment: Alignment.center,
+      child: Text(
+        letter,
+        style: TextStyle(
+          color: primary,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+    );
   }
 
-  static Future<void> _openLocationInMaps(
-    double lat,
-    double lng,
-    String? label,
-  ) async {
-    final query = label != null ? Uri.encodeComponent(label) : '$lat,$lng';
-    final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng($query)');
-    final appleMapsUri = Uri.parse(
-      'https://maps.apple.com/?q=$query&ll=$lat,$lng',
+  Widget _typeBadge() {
+    final meta = _badgeMeta(memory.type);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(meta.$2, size: 13, color: primary),
+          const SizedBox(width: 5),
+          Text(
+            meta.$1,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: primary,
+            ),
+          ),
+        ],
+      ),
     );
+  }
 
-    if (await canLaunchUrl(geoUri)) {
-      await launchUrl(geoUri);
-    } else if (await canLaunchUrl(appleMapsUri)) {
-      await launchUrl(appleMapsUri, mode: LaunchMode.externalApplication);
-    } else {
-      final webUri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
-      );
-      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+  (String, IconData) _badgeMeta(MemoryType t) {
+    switch (t) {
+      case MemoryType.photo:
+      case MemoryType.video:
+        return (_ru ? 'Момент' : 'Moment', Icons.favorite_rounded);
+      case MemoryType.location:
+        return (_ru ? 'Локация' : 'Location', Icons.place_rounded);
+      case MemoryType.music:
+        return (_ru ? 'Музыка' : 'Music', Icons.music_note_rounded);
+      case MemoryType.videoLink:
+        return (_ru ? 'Видео' : 'Video', Icons.play_circle_fill_rounded);
+      case MemoryType.text:
+        return (_ru ? 'Заметка' : 'Note', Icons.sticky_note_2_rounded);
+      case MemoryType.book:
+        return (_ru ? 'Книга' : 'Book', Icons.menu_book_rounded);
+      case MemoryType.movie:
+        return (_ru ? 'Фильм' : 'Movie', Icons.movie_rounded);
     }
+  }
+
+  // ── Body per type ──
+  Widget _body() {
+    switch (memory.type) {
+      case MemoryType.music:
+        return MemoryMusicPlayer(
+          key: ValueKey('preview_player_${memory.id}'),
+          memory: memory,
+          theme: theme,
+          bodyOnly: true,
+        );
+      case MemoryType.text:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: _noteSticker(),
+        );
+      case MemoryType.location:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _placeCard(),
+              _caption(),
+            ],
+          ),
+        );
+      case MemoryType.book:
+      case MemoryType.movie:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: _coverRow(),
+        );
+      case MemoryType.videoLink:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _videoThumb(),
+              _caption(),
+            ],
+          ),
+        );
+      case MemoryType.photo:
+      case MemoryType.video:
+        final photos = <String>[
+          if (memory.imageUrls?.isNotEmpty == true)
+            ...memory.imageUrls!
+          else if (memory.imageUrl?.isNotEmpty == true)
+            memory.imageUrl!,
+        ];
+        final hasVideo = memory.videoUrl?.isNotEmpty == true;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (photos.isNotEmpty)
+                _collage(photos, hasVideo)
+              else if (hasVideo)
+                _videoOnly(),
+              _caption(),
+            ],
+          ),
+        );
+    }
+  }
+
+  // ── Подпись (заголовок + описание) ──
+  Widget _caption() {
+    final title = memory.title?.isNotEmpty == true ? memory.title! : '';
+    final cap = memory.caption?.isNotEmpty == true ? memory.caption! : '';
+    if (title.isEmpty && cap.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty)
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+              ),
+            ),
+          if (cap.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: title.isNotEmpty ? 2 : 0),
+              child: Text(
+                cap,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: Colors.grey.shade600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Коллаж фото (компактный) ──
+  Widget _collage(List<String> photos, bool hasVideo) {
+    const gap = 4.0;
+    final n = photos.length;
+
+    Widget tile(int i, {int extra = 0}) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            StorageImage(
+              imageUrl: photos[i],
+              fit: BoxFit.cover,
+              memCacheWidth: 500,
+              errorWidget: (_, _, _) => Container(
+                color: Colors.grey.shade200,
+                child: Icon(Icons.broken_image_rounded,
+                    color: Colors.grey.shade400, size: 22),
+              ),
+            ),
+            if (hasVideo && i == 0)
+              const Center(
+                child: Icon(Icons.play_circle_fill_rounded,
+                    color: Colors.white, size: 34),
+              ),
+            if (extra > 0)
+              Container(
+                color: Colors.black.withOpacity(0.45),
+                alignment: Alignment.center,
+                child: Text(
+                  '+$extra',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    if (n == 1) {
+      return AspectRatio(aspectRatio: 16 / 9, child: tile(0));
+    }
+    if (n == 2) {
+      return SizedBox(
+        height: 100,
+        child: Row(children: [
+          Expanded(child: tile(0)),
+          const SizedBox(width: gap),
+          Expanded(child: tile(1)),
+        ]),
+      );
+    }
+    final extra = n - 3;
+    return SizedBox(
+      height: 100,
+      child: Row(children: [
+        Expanded(child: tile(0)),
+        const SizedBox(width: gap),
+        Expanded(child: tile(1)),
+        const SizedBox(width: gap),
+        Expanded(child: tile(2, extra: extra)),
+      ]),
+    );
+  }
+
+  Widget _videoOnly() {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          color: Colors.grey.shade900,
+          child: const Center(
+            child: Icon(Icons.play_circle_fill_rounded,
+                color: Colors.white, size: 40),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Видео-ссылка: превью с play ──
+  Widget _videoThumb() {
+    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasThumb)
+              StorageImage(
+                imageUrl: memory.imageUrl!,
+                fit: BoxFit.cover,
+                memCacheWidth: 600,
+                errorWidget: (_, _, _) => Container(color: Colors.grey.shade300),
+              )
+            else
+              Container(color: Colors.grey.shade800),
+            Container(color: Colors.black.withOpacity(0.22)),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.play_arrow_rounded, color: primary, size: 24),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Заметка: жёлтый стикер ──
+  Widget _noteSticker() {
+    final title = memory.title?.isNotEmpty == true ? memory.title! : '';
+    final body = memory.caption?.isNotEmpty == true
+        ? memory.caption!
+        : (title.isEmpty ? (_ru ? 'Заметка' : 'Note') : '');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCE08A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF5A4A1E),
+                ),
+              ),
+            ),
+          if (body.isNotEmpty)
+            Text(
+              body,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF5A4A1E),
+                height: 1.4,
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            '— $authorName',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFF7A6526),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Место: компактная карточка (без живой карты, для лёгкости главной) ──
+  Widget _placeCard() {
+    final name = memory.locationName?.isNotEmpty == true
+        ? memory.locationName!
+        : LocaleService.current.location;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: primary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(Icons.location_on_rounded, color: primary, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade900,
+                height: 1.2,
+              ),
+            ),
+          ),
+          if (distanceText.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: primary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                distanceText,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: primary,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Книга / фильм: обложка + название ──
+  Widget _coverRow() {
+    final cover = memory.type == MemoryType.book
+        ? memory.bookCoverUrl
+        : memory.moviePosterUrl;
+    final title = memory.title?.isNotEmpty == true
+        ? memory.title!
+        : (_ru ? 'Без названия' : 'Untitled');
+    final subtitle = memory.type == MemoryType.book
+        ? (memory.bookAuthor ?? '')
+        : (memory.movieYear ?? '');
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 54,
+              height: 78,
+              child: (cover != null && cover.isNotEmpty)
+                  ? StorageImage(
+                      imageUrl: cover,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 160,
+                      errorWidget: (_, _, _) => _coverFallback(),
+                    )
+                  : _coverFallback(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade900,
+                    height: 1.25,
+                  ),
+                ),
+                if (subtitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                  ),
+                if (memory.caption?.isNotEmpty == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      memory.caption!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _coverFallback() {
+    return Container(
+      color: primary.withOpacity(0.10),
+      alignment: Alignment.center,
+      child: Icon(
+        memory.type == MemoryType.book
+            ? Icons.menu_book_rounded
+            : Icons.movie_rounded,
+        color: primary,
+        size: 22,
+      ),
+    );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final s = LocaleService.current;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return s.justNow;
+    if (diff.inMinutes < 60) return s.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return s.hoursAgo(diff.inHours);
+    if (diff.inDays < 30) return s.daysAgo(diff.inDays);
+    return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
   }
 }

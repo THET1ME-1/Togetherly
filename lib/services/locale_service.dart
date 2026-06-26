@@ -163,6 +163,9 @@ abstract class AppStrings {
   String get createAccountBtn;
   String get continueWithGoogle;
   String get continueWithApple;
+  String get signInWith;
+  String get signUpWith;
+  String get rememberMe;
   String get alreadyHaveAccountLogin;
   String get passwordRequirements;
 
@@ -1440,6 +1443,12 @@ class _RuStrings extends AppStrings {
   String get continueWithGoogle => 'Продолжить через Google';
   @override
   String get continueWithApple => 'Продолжить через Apple';
+  @override
+  String get signInWith => 'Войти через';
+  @override
+  String get signUpWith => 'Регистрация через';
+  @override
+  String get rememberMe => 'Запомнить меня';
   @override
   String get alreadyHaveAccountLogin => 'Уже есть аккаунт?';
   @override
@@ -3908,6 +3917,12 @@ class _EnStrings extends AppStrings {
   String get continueWithGoogle => 'Continue with Google';
   @override
   String get continueWithApple => 'Continue with Apple';
+  @override
+  String get signInWith => 'Sign in with';
+  @override
+  String get signUpWith => 'Sign up with';
+  @override
+  String get rememberMe => 'Remember me';
   @override
   String get alreadyHaveAccountLogin => 'Already have an account?';
   @override
