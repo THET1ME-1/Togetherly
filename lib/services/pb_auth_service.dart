@@ -82,17 +82,45 @@ class PbAuthService {
       await _ensureProfile();
       return _svc.currentUser;
     } catch (e, st) {
+      final cred = e is ClientException &&
+          (e.statusCode == 400 || e.statusCode == 403);
+      // Мигрированный из Firebase юзер: scrypt-хеш в PB не переносится, поэтому
+      // первый вход паролем падает (cred-ошибка). «Мост» просит сервер проверить
+      // пароль в Firebase Auth и, если верный, перенести его в PB → повторяем
+      // вход. Ноль писем/сброса для основной массы юзеров (см. migrate_bridge).
+      if (cred && await _tryFirebaseBridge(email, password)) {
+        await _pb.collection(_usersCol).authWithPassword(email, password);
+        await _ensureProfile();
+        return _svc.currentUser;
+      }
       debugPrint('PbAuth.signInWithEmail failed: $e');
       // Неверный пароль/почта (400/403) — пользовательская ошибка, не баг:
       // не шумим в Bugsink. Остальное (5xx, сеть, неожиданное) — репортим.
-      final cred = e is ClientException &&
-          (e.statusCode == 400 || e.statusCode == 403);
       if (!cred) {
         unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
           s.setExtra('reason', 'signInWithEmail failed');
         }));
       }
       rethrow;
+    }
+  }
+
+  /// «Мост» миграции паролей Firebase→PB: при первом входе мигрированного юзера
+  /// (в PB ещё нет пароля) сервер (pb_hook `/api/migrate/verify-password`)
+  /// проверяет email+пароль в Firebase Auth и при успехе записывает пароль в
+  /// PB-запись. true → пароль перенесён, можно повторить authWithPassword.
+  /// Никаких писем/сброса. См. pocketbase/pb_hooks/migrate_bridge.pb.js.
+  Future<bool> _tryFirebaseBridge(String email, String password) async {
+    try {
+      final res = await _pb.send(
+        '/api/migrate/verify-password',
+        method: 'POST',
+        body: {'email': email, 'password': password},
+      );
+      return res is Map && res['ok'] == true;
+    } catch (e) {
+      debugPrint('PbAuth._tryFirebaseBridge failed: $e');
+      return false;
     }
   }
 
