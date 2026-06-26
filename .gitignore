@@ -70,3 +70,5 @@ play-publisher*.json
 .claude/worktrees/
 # Локальные настройки/разрешения Claude Code — у каждого свои, не версионируем
 .claude/settings.local.json
+# iOS Xcode build artifacts (do not commit)
+ios/build/

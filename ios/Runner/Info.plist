@@ -2,10 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Love App</string>
+	<string>Togetherly</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,9 +22,85 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.togetherly.love.invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>loveapp</string>
+			</array>
+		</dict>
+		<!-- Google Sign-In: обратный CLIENT_ID из GoogleService-Info.plist.
+		     Без этой схемы OAuth-колбэк не возвращается в приложение и вход
+		     через Google (а также signInSilently при восстановлении сессии)
+		     молча падает на iOS — пользователь остаётся неаутентифицированным,
+		     из-за чего Firestore отвергает все чтения/записи (таймер, настроение,
+		     маскоты не синхронизируются). -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.togetherly.love.googlesignin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.941141989934-213e5lei669lppqe72lo1bnc7o6tsaqg</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-1956369312643059~9958268140</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<!-- Фоновые push-уведомления: remote-notification нужен, чтобы iOS будил
+	     приложение по data-сообщениям (например, type=widget_update), а fetch —
+	     для фонового обновления. Без этого фоновые пуши на iOS не обрабатываются. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to take photos for your memories</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We need your location to add location-based memories</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to add location-based memories</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need access to save photos to your library</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photos to add memories to your shared gallery</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Your data will be used to show you more relevant ads.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -41,38 +119,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	
-	<!-- Google Mobile Ads: iOS App ID из AdMob-аккаунта (Apps → App settings → App ID) -->
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-1956369312643059~ЗАМЕНИ_НА_IOS_APP_ID</string>
-
-	<!-- Permissions для фото/видео -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photos to add memories to your shared gallery</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>We need access to save photos to your library</string>
-	
-	<!-- Permissions для геолокации -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to add location-based memories and to share your live position on the map with your partner.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>We use your location in the background to keep your live position on the shared map up to date for your partner.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We use your location in the background to keep your live position on the shared map up to date for your partner.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-
-	<!-- Permissions для камеры (если будет добавлено позже) -->
-	<key>NSCameraUsageDescription</key>
-	<string>We need camera access to take photos for your memories</string>
 </dict>
-
 </plist>
