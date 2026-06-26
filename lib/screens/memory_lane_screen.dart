@@ -2145,7 +2145,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  VIDEO LINK TILE — card for shared web video link
   // ═══════════════════════════════════════════════════
   Widget _videoLinkTile(Memory memory) {
-    final s = LocaleService.current;
     final platform = _detectVideoPlatform(memory.videoUrl ?? '');
     final platformColor = platform['color'] as Color;
     final platformName = platform['name'] as String;
@@ -2369,15 +2368,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(
-            memory,
-            subtitle: memory.title?.isNotEmpty == true
-                ? memory.title!
-                : s.sharedAVideoLink,
-            badgeColor: platformColor,
-          ),
-          const SizedBox(height: 10),
-          // ── Video link sub-card ──
+          // Оболочка как везде: шапка с бейглом «Видео» справа + футер снизу.
+          _cardHeader(memory, trailing: _typeBadge(memory)),
+          const SizedBox(height: 12),
+          // ── Превью видео + кнопки «Открыть в …» и «Смотреть вместе» ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: platformName == 'YouTube'
@@ -2390,6 +2384,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   )
                 : buildSubCard(),
           ),
+          const SizedBox(height: 12),
+          _cardFooter(memory),
           const SizedBox(height: 12),
         ],
       ),
