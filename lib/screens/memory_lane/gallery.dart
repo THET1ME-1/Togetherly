@@ -57,8 +57,10 @@ class _PhotoGalleryScreen extends StatelessWidget {
                 StorageImage(
                   imageUrl: item.url,
                   fit: BoxFit.cover,
+                  // Кэшируем только по ширине: задание И высоты декодирует фото
+                  // в квадрат 300×300 и искажает пропорции ДО cover (то же
+                  // чинили в коллаже ленты). Только ширина — аспект сохраняется.
                   memCacheWidth: 300,
-                  memCacheHeight: 300,
                   errorWidget: (_, __, ___) => Container(
                     color: Colors.grey.shade900,
                     child: const Icon(

@@ -130,12 +130,18 @@ class TogetherLauncher {
       return;
     }
 
+    // Навигатор захватываем ДО рекламы. Полноэкранный rewarded пересобирает
+    // ленту, и context КАРТОЧКИ видео к возврату часто уже размонтирован —
+    // тогда переход на просмотр тихо не происходил (юзер «застревал» в ленте).
+    // NavigatorState экрана выше по дереву и переживает показ рекламы.
+    final navigator = Navigator.of(context);
+
     // Rewarded на старте ОБЯЗАТЕЛЕН (только хост); фейл-опен лишь при no-fill.
     await _requireStartAd(context);
-    if (!context.mounted) return;
+    if (!navigator.mounted) return;
 
     unawaited(LevelService.instance.award(XpAction.watchTogether));
-    Navigator.of(context).push(
+    navigator.push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(
           pairId: pairId,
@@ -163,12 +169,18 @@ class TogetherLauncher {
       return;
     }
 
+    // Навигатор захватываем ДО рекламы. Полноэкранный rewarded пересобирает
+    // ленту, и context КАРТОЧКИ видео к возврату часто уже размонтирован —
+    // тогда переход на просмотр тихо не происходил (юзер «застревал» в ленте).
+    // NavigatorState экрана выше по дереву и переживает показ рекламы.
+    final navigator = Navigator.of(context);
+
     // Rewarded на старте ОБЯЗАТЕЛЕН (только хост); фейл-опен лишь при no-fill.
     await _requireStartAd(context);
-    if (!context.mounted) return;
+    if (!navigator.mounted) return;
 
     unawaited(LevelService.instance.award(XpAction.watchTogether));
-    Navigator.of(context).push(
+    navigator.push(
       MaterialPageRoute(
         builder: (_) => WatchTogetherScreen(
           pairId: pairId,

@@ -50,12 +50,17 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Вернулись из in-app браузера. Если OAuth-вход не завершился за пару секунд
+  /// Вернулись из in-app браузера. Если OAuth-вход не завершился за грейс-период
   /// (юзер отменил) — снимаем бесконечную загрузку. На успехе `_oauthInFlight`
   /// уже сброшен (см. `_oauthSignIn`), поэтому ложно не срабатывает.
+  /// ⚠️ Грейс ДОЛЖЕН быть щедрым: на Android вкладка не закрывается сама, юзер
+  /// возвращается раньше, чем realtime-редирект + register дозавершатся (особенно
+  /// на медленной сети). Прежние 1500мс рубили загрузку ПОСРЕДИ успешного входа
+  /// → спиннер пропадал, казалось «сбой», хотя вход проходил. 8с покрывают успех;
+  /// истинная отмена всё равно снимется (просто чуть позже).
   void _onOAuthResume() {
     if (!_oauthInFlight) return;
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(const Duration(seconds: 8), () {
       if (mounted && _oauthInFlight) {
         setState(() {
           _isLoading = false;
