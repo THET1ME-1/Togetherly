@@ -69,7 +69,11 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to take photos for your memories</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need microphone access to record sound for your video memories</string>
 	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We need your location to add location-based memories</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We need your location to add location-based memories</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need your location to add location-based memories</string>
