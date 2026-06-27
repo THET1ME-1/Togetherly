@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -30,6 +31,16 @@ class PbRealtimeService {
   factory PbRealtimeService() => instance;
 
   PocketBase get _pb => PocketBaseService().pb;
+
+  // RT-3 / Фикс #1: общий джиттер-backoff для авто-ретрая подписок. Джиттер
+  // критичен — без него после рестарта/моргания PB все клиенты ломятся
+  // переподключаться синхронно (thundering herd). 429 (сервер просит
+  // притормозить) обрабатывается отдельным длинным полом в самих start().
+  static final _rnd = Random();
+  static int _backoffMs(int attempt) {
+    final base = 1000 * (1 << (attempt > 5 ? 5 : attempt)); // 1,2,4,…,32с
+    return base ~/ 2 + _rnd.nextInt(base ~/ 2 + 1); // равный джиттер: [base/2, base]
+  }
 
   // ── сравнители для сортировки ───────────────────────────────────────────
   /// ISO-строки сравниваются лексикографически = хронологически.
@@ -73,13 +84,19 @@ class PbRealtimeService {
     Future<void> start() async {
       cancelled = false;
       try {
-        final initial =
-            await _pb.collection(collection).getFullList(filter: filter);
-        if (cancelled) return;
-        byId
-          ..clear()
-          ..addEntries(initial.map((r) => MapEntry(r.id, r)));
-        if (!ctrl.isClosed) ctrl.add(snapshot());
+        // Фикс #1: начальную ПОЛНУЮ загрузку делаем только если снапшота ещё нет.
+        // На ретрае (подписка отвалилась, но данные уже есть) НЕ перекачиваем весь
+        // список заново — лишь переподписываемся. Убирает «перекачать всё» при
+        // каждом обрыве и снимает часть нагрузки thundering herd после рестарта PB.
+        if (byId.isEmpty) {
+          final initial =
+              await _pb.collection(collection).getFullList(filter: filter);
+          if (cancelled) return;
+          byId
+            ..clear()
+            ..addEntries(initial.map((r) => MapEntry(r.id, r)));
+          if (!ctrl.isClosed) ctrl.add(snapshot());
+        }
         final u = await _pb.collection(collection).subscribe(
           '*',
           (e) {
@@ -106,9 +123,12 @@ class PbRealtimeService {
         // сбои/недоступность PB самовосстанавливаются без ручного «обновить».
         debugPrint('PbRealtime.watchList($collection) failed (attempt $attempt): $err');
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
-        final secs = (1 << (attempt > 5 ? 5 : attempt));
+        // Фикс #1: backoff с джиттером (не синхронно); на 429 — длинный пол 30–60с.
+        final is429 = err is ClientException && err.statusCode == 429;
+        final delayMs =
+            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
         attempt++;
-        Future.delayed(Duration(seconds: secs), () {
+        Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
         });
       }
@@ -130,20 +150,27 @@ class PbRealtimeService {
     UnsubscribeFunc? unsub;
     var cancelled = false; // та же гонка отписки-во-время-старта, что в watchList
     var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
+    var loaded = false; // Фикс #1: начальный getOne уже сделан — на ретрае пропускаем
     late StreamController<RecordModel?> ctrl;
 
     Future<void> start() async {
       cancelled = false;
       try {
-        try {
-          final rec = await _pb.collection(collection).getOne(id);
-          if (cancelled) return;
-          if (!ctrl.isClosed) ctrl.add(rec);
-        } on ClientException catch (e) {
-          if (e.statusCode == 404) {
-            if (!ctrl.isClosed) ctrl.add(null);
-          } else {
-            rethrow;
+        // Фикс #1: начальный getOne только если ещё не грузили. На ретрае
+        // (подписка отвалилась, запись уже есть) — лишь переподписываемся.
+        if (!loaded) {
+          try {
+            final rec = await _pb.collection(collection).getOne(id);
+            if (cancelled) return;
+            if (!ctrl.isClosed) ctrl.add(rec);
+            loaded = true;
+          } on ClientException catch (e) {
+            if (e.statusCode == 404) {
+              if (!ctrl.isClosed) ctrl.add(null);
+              loaded = true;
+            } else {
+              rethrow;
+            }
           }
         }
         if (cancelled) return;
@@ -165,9 +192,12 @@ class PbRealtimeService {
         // RT-3: авто-ретрай с backoff (1,2,4,…,32с) вместо застревания в ошибке.
         debugPrint('PbRealtime.watchRecord($collection/$id) failed (attempt $attempt): $err');
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
-        final secs = (1 << (attempt > 5 ? 5 : attempt));
+        // Фикс #1: backoff с джиттером; на 429 — длинный пол 30–60с.
+        final is429 = err is ClientException && err.statusCode == 429;
+        final delayMs =
+            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
         attempt++;
-        Future.delayed(Duration(seconds: secs), () {
+        Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
         });
       }
