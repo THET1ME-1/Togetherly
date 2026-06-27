@@ -51,15 +51,18 @@ workflows:
           find . -name "Podfile" -execdir pod install \;
       - name: Set up code signing (авто-создание сертификата и профилей)
         script: |
+          set -e  # падать сразу при ошибке (а не «успех» за 2с)
           keychain initialize
           # Создаём (если ещё нет) App ID, distribution-сертификат и
           # provisioning-профиль для приложения И для виджет-расширения.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE --create --verbose
           app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE --create --verbose
           keychain add-certificates
-          xcode-project use-profiles
+          echo "--- провижн-профили на диске ---"
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
+          xcode-project use-profiles --verbose
       - name: Build IPA
         script: |
           # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
