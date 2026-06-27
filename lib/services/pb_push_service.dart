@@ -94,17 +94,22 @@ class PbPushService {
       }
     }, filter: gf));
 
-    // 2) Настроение (widget_data партнёра)
-    _subs.add(await _pb.collection('widget_data').subscribe('*', (e) {
+    // 2) Реакция/настроение дня (mood_entries партнёра). Раньше слушали
+    //    widget_data.mood_label, но «реакцию на день» правит mood_entries —
+    //    его и слушаем (источник истины календаря настроений; ловит и смену
+    //    реакции прошлого дня, а не только текущей на виджете).
+    _subs.add(await _pb.collection('mood_entries').subscribe('*', (e) {
       try {
+        if (e.action != 'create' && e.action != 'update') return;
         final r = e.record;
         if (r == null || r.data['user_uid'] != partnerUid) return;
-        if (!_pref('notif_mood')) return; // check preference BEFORE state mutation
-        final mood = (r.data['mood_label'] ?? '').toString();
-        if (mood.isEmpty || mood == _lastMood) return; // дедуп по изменению
-        _lastMood = mood;
-        final name = (r.data['display_name'] ?? partnerName).toString();
-        _notify(('mood$partnerUid').hashCode, name, 'Настроение: $mood');
+        if (!_pref('notif_mood')) return;
+        final label = (r.data['label'] ?? '').toString();
+        final key = '${r.id}|$label';
+        if (key == _lastMood) return; // дедуп повторных эмитов того же
+        _lastMood = key;
+        _notify(('mood$partnerUid').hashCode, partnerName,
+            label.isEmpty ? 'Отметил реакцию дня 🗓️' : 'Реакция дня: $label');
       } catch (err) {
         debugPrint('PbPush mood callback error: $err');
       }
@@ -125,6 +130,20 @@ class PbPushService {
         _notify(('miss$partnerUid$cnt').hashCode, partnerName, _vibeBody(vibe, custom));
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
+      }
+    }, filter: gf));
+
+    // 4) Новое воспоминание (memories партнёра)
+    _subs.add(await _pb.collection('memories').subscribe('*', (e) {
+      try {
+        if (e.action != 'create') return;
+        final r = e.record;
+        if (r == null || r.data['author_uid'] != partnerUid) return;
+        if (r.data['deleted'] == true || !_pref('notif_new_memory')) return;
+        final name = (r.data['author_name'] ?? partnerName).toString();
+        _notify(('mem${r.id}').hashCode, name, 'Добавил новое воспоминание 📸');
+      } catch (err) {
+        debugPrint('PbPush memory callback error: $err');
       }
     }, filter: gf));
 

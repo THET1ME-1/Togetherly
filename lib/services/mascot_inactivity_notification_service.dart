@@ -104,7 +104,7 @@ class MascotInactivityNotificationService {
       await _plugin.zonedSchedule(
         id: _notificationId,
         title: 'Ваш маскот скучает 🥺',
-        body: 'Не заходи так долго — он ждёт тебя в Togetherly уже целый день.',
+        body: 'Ты так давно не заходил — войди и обрадуй маскотика 🐾',
         scheduledDate: scheduledAt,
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
