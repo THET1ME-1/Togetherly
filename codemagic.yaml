@@ -24,13 +24,6 @@ workflows:
       # ИМЯ ключа App Store Connect, заведённого в Codemagic (шаг 1 выше).
       app_store_connect: TogetherlyASC
     environment:
-      ios_signing:
-        # Codemagic сам создаст/обновит distribution-сертификат и provisioning-
-        # профиль через App Store Connect API — включая capability Sign in with
-        # Apple, Push и Associated Domains (они объявлены в Runner.entitlements
-        # и в App ID на портале — см. docs/IOS_RELEASE.md).
-        distribution_type: app_store
-        bundle_identifier: com.togetherly.love
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -51,8 +44,17 @@ workflows:
       - name: Pod install
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Apply signing profiles to Xcode project
-        script: xcode-project use-profiles
+      - name: Set up code signing (авто-создание сертификата и профилей)
+        script: |
+          keychain initialize
+          # Создаём (если ещё нет) App ID, distribution-сертификат и
+          # provisioning-профиль для приложения И для виджет-расширения.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
+            --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build IPA
         script: |
           # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
