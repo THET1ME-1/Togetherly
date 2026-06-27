@@ -527,7 +527,11 @@ class _LoveAppState extends State<LoveApp> {
       // блокируем.
       if (Platform.isAndroid) {
         try {
-          final minBuild = await PbDataService().fetchMinSupportedBuild();
+          // Таймаут: медленный/перегруженный PB НЕ должен морозить сплэш (иначе
+          // пользователи перезапускают приложение и добивают сервер). fail-open ⇒ 0.
+          final minBuild = await PbDataService()
+              .fetchMinSupportedBuild()
+              .timeout(const Duration(seconds: 3), onTimeout: () => 0);
           if (minBuild > 0) {
             final info = await PackageInfo.fromPlatform();
             final current = int.tryParse(info.buildNumber) ?? 0;

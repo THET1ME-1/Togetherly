@@ -1,9 +1,16 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import 'pocketbase_service.dart';
+
+/// Результат вызова серверного атомарного group-роута: [ok] — выполнен;
+/// [missing] — роута нет (404) → легитимный локальный RMW-фолбэк; [backpressure]
+/// — сервер под нагрузкой (429/5xx/timeout/сеть) → НЕ откатываться на локальный
+/// RMW (это ломало backpressure сервера и раскручивало retry-шторм).
+enum _GroupRouteResult { ok, missing, backpressure }
 
 /// Слой данных PocketBase (миграция Firebase→PB, Этап 6, слой Данные).
 ///
@@ -117,13 +124,35 @@ class PbDataService {
   /// сервер выполнил операцию в транзакции (ok:true). false на любой
   /// ошибке/недоступности роута → вызывающий откатывается на локальный RMW, так
   /// что версия-скью клиент/сервер безопасна. Закрывает гонки DATA-5/6/7/8/9.
-  Future<bool> _callGroupRoute(String path, Map<String, dynamic> body) async {
+  Future<_GroupRouteResult> _callGroupRoute(
+      String path, Map<String, dynamic> body) async {
     try {
-      final res = await _pb.send('/api/group/$path', method: 'POST', body: body);
-      return res is Map && res['ok'] == true;
+      final res = await _pb
+          .send('/api/group/$path', method: 'POST', body: body)
+          .timeout(const Duration(seconds: 12));
+      if (res is Map && res['ok'] == true) return _GroupRouteResult.ok;
+      // 200, но без ok:true — роут не подтвердил операцию → локальный фолбэк.
+      return _GroupRouteResult.missing;
+    } on ClientException catch (e) {
+      // 404 — атомарного роута нет на этом сервере → легитимный локальный RMW.
+      if (e.statusCode == 404) return _GroupRouteResult.missing;
+      // 429/5xx/сеть(0) — сервер под нагрузкой. НЕ долбить локальным RMW: это
+      // ровно то, что ломало backpressure сервера и раскручивало шторм.
+      if (e.statusCode == 429 || e.statusCode == 0 || e.statusCode >= 500) {
+        debugPrint('PbData._callGroupRoute($path) backpressure ${e.statusCode}');
+        return _GroupRouteResult.backpressure;
+      }
+      // Прочие 4xx (400/403/422) — роут ответил отказом; локальный RMW не
+      // поможет, но поведение сохраняем как раньше (фолбэк).
+      debugPrint('PbData._callGroupRoute($path) ${e.statusCode}: ${e.response}');
+      return _GroupRouteResult.missing;
+    } on TimeoutException {
+      debugPrint('PbData._callGroupRoute($path) timeout → backpressure');
+      return _GroupRouteResult.backpressure;
     } catch (e) {
-      debugPrint('PbData._callGroupRoute($path) fallback: $e');
-      return false;
+      // Сеть/неизвестное — транзиент, не амплифицируем повторами.
+      debugPrint('PbData._callGroupRoute($path) transient: $e');
+      return _GroupRouteResult.backpressure;
     }
   }
 
@@ -202,10 +231,11 @@ class PbDataService {
     dynamic value,
   ) async {
     // DATA-5: сперва атомарный серверный роут; при недоступности — локальный RMW.
-    if (await _callGroupRoute('patch-map',
-        {'groupId': groupId, 'field': col, 'uid': uid, 'value': value})) {
-      return true;
-    }
+    final r = await _callGroupRoute('patch-map',
+        {'groupId': groupId, 'field': col, 'uid': uid, 'value': value});
+    if (r == _GroupRouteResult.ok) return true;
+    // Под нагрузкой (429/timeout) НЕ откатываемся на локальный RMW — это усиливало шторм.
+    if (r == _GroupRouteResult.backpressure) return false;
     return _patchGroupMapFieldLocal(groupId, col, uid, value);
   }
 
@@ -280,10 +310,10 @@ class PbDataService {
   /// (DATA-7, PB-hook/транзакция — TODO).
   Future<bool> incrementGroupCounter(String groupId, String col, int by) async {
     // DATA-7: атомарный серверный инкремент; при недоступности — локальный RMW.
-    if (await _callGroupRoute(
-        'increment', {'groupId': groupId, 'field': col, 'by': by})) {
-      return true;
-    }
+    final r = await _callGroupRoute(
+        'increment', {'groupId': groupId, 'field': col, 'by': by});
+    if (r == _GroupRouteResult.ok) return true;
+    if (r == _GroupRouteResult.backpressure) return false;
     return _incrementGroupCounterLocal(groupId, col, by);
   }
 
@@ -511,9 +541,9 @@ class PbDataService {
   Future<bool> leaveGroup(String groupId, String uid) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
     // DATA-6: атомарный серверный выход; при недоступности — локальный RMW.
-    if (await _callGroupRoute('leave', {'groupId': groupId, 'uid': uid})) {
-      return true;
-    }
+    final r = await _callGroupRoute('leave', {'groupId': groupId, 'uid': uid});
+    if (r == _GroupRouteResult.ok) return true;
+    if (r == _GroupRouteResult.backpressure) return false;
     return _leaveGroupLocal(groupId, uid);
   }
 
@@ -1620,10 +1650,11 @@ class PbDataService {
         '${now.day.toString().padLeft(2, '0')}';
     // DATA-9: атомарный серверный учёт стрика; today = локальная дата клиента
     // (сохраняет семантику). При недоступности роута — локальный RMW.
-    if (await _callGroupRoute('record-activity',
-        {'groupId': groupId, 'uid': uid, 'today': today})) {
-      return;
-    }
+    final r = await _callGroupRoute('record-activity',
+        {'groupId': groupId, 'uid': uid, 'today': today});
+    if (r == _GroupRouteResult.ok) return;
+    // Под нагрузкой не долбим локальным RMW (стрик до-учтётся при следующем заходе).
+    if (r == _GroupRouteResult.backpressure) return;
     return _recordGroupActivityLocal(groupId, uid);
   }
 
@@ -1735,10 +1766,10 @@ class PbDataService {
   }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
     // DATA-8: атомарный серверный инкремент; при недоступности — локальный RMW.
-    if (await _callGroupRoute('miss-you',
-        {'groupId': groupId, 'uid': uid, 'vibe': vibe, 'text': text ?? ''})) {
-      return true;
-    }
+    final r = await _callGroupRoute('miss-you',
+        {'groupId': groupId, 'uid': uid, 'vibe': vibe, 'text': text ?? ''});
+    if (r == _GroupRouteResult.ok) return true;
+    if (r == _GroupRouteResult.backpressure) return false;
     return _incrementMissYouLocal(groupId, uid, vibe: vibe, text: text);
   }
 
