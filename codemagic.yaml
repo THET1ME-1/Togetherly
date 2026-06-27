@@ -38,7 +38,7 @@ workflows:
         BUNDLE_ID: "com.togetherly.love"
         # Числовой Apple ID приложения из App Store Connect (App Information →
         # General → Apple ID). Нужен для авто-публикации в TestFlight.
-        APP_STORE_APP_ID: 0000000000
+        APP_STORE_APP_ID: 6781019737
     triggering:
       events:
         - tag
