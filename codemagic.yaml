@@ -24,16 +24,12 @@ workflows:
       # ИМЯ ключа App Store Connect, заведённого в Codemagic (шаг 1 выше).
       app_store_connect: TogetherlyASC
     environment:
-      ios_signing:
-        # Управляемая подпись Codemagic: САМА генерирует приватный ключ серта,
-        # создаёт distribution-сертификат + app_store-профиль основного приложения
-        # и кладёт серт+ключ в keychain CLI. (Сырой fetch-signing-files --create
-        # без ключа падал «Cannot save without private key» — здесь ключ генерится
-        # автоматически.) Профиль виджета доскачиваем скриптом ниже — он берёт ТОТ
-        # ЖЕ серт+ключ. Ранее падало ТОЛЬКО из-за отозванного ключа интеграции;
-        # ключ XU8YHQFQAX (Admin) валиден → теперь создастся.
-        distribution_type: app_store
-        bundle_identifier: com.togetherly.love
+      # ПОДПИСЬ целиком в скрипте ниже — БЕЗ управляемого ios_signing (он не
+      # создавал профиль → «No matching profiles») и БЕЗ ручных переменных.
+      # Приватный ключ сертификата ГЕНЕРИМ ПРЯМО В БИЛДЕ (openssl) и отдаём
+      # fetch-signing-files --certificate-key → он сам создаёт distribution-
+      # сертификат с этим ключом + app_store-профили (приложение И виджет).
+      # Ключ интеграции TogetherlyASC доступен CLI автоматически как env.
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -59,15 +55,26 @@ workflows:
       - name: Pod install
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Set up provisioning profiles (widget) + apply
-        # Управляемый ios_signing уже создал серт (с ключом) + профиль основного
-        # приложения и положил серт+ключ в keychain CLI. Доскачиваем профиль
-        # виджет-расширения (берёт ТОТ ЖЕ серт — ключ уже доступен, 401 не будет),
-        # затем применяем профили: use-profiles переводит проект в РУЧНУЮ подпись
-        # (иначе архив уходит в «автоматический» режим → No Accounts).
+      - name: Set up code signing (generate key, create cert + profiles)
+        # Управляемый ios_signing не создавал профиль, а сырой --create без ключа
+        # падал «Cannot save without private key». Решение без ручных переменных:
+        # генерим приватный ключ ПРЯМО ТУТ и отдаём его fetch-signing-files
+        # --certificate-key → он создаёт distribution-сертификат С этим ключом +
+        # app_store-профили приложения И виджета. add-certificates кладёт серт+ключ
+        # в keychain, use-profiles переводит проект в РУЧНУЮ подпись (иначе архив
+        # уходит в «автоматический» режим → No Accounts).
         script: |
+          keychain initialize
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+            -out /tmp/dist_cert_key.pem
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/dist_cert_key.pem \
+            --create
           app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
-            --type IOS_APP_STORE --create
+            --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/dist_cert_key.pem \
+            --create
           keychain add-certificates
           xcode-project use-profiles
       - name: Build IPA
