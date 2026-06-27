@@ -4,27 +4,29 @@
 // ============================================================
 
 const String ruWhatsNew =
-    '— ДОБАВИЛИ отображение геолокации пары на карте с фоновым трекингом 24/7. Блок карты под блоком Маскотов в главном меню.\n'
+    'Мы сменили базу данных на доступную в России. Потери данных быть не должно.\n'
     '\n'
-    '— Исправили ошибку при отказе в доступе к камере или галерее.\n'
-    '— Исправили фоновую ошибку обновления уведомления с настроением.\n'
-    '— Исправили обработку неудачной загрузки фото или видео в облако.\n'
-    '— Исправили фоновую ошибку обновления статуса «в сети».\n'
-    '— Исправили ошибку при выборе цветовой темы.\n'
-    '— Исправили ошибку при вводе кода для подключения партнёра.\n'
-    '— Исправили ошибку загрузки шрифта при отсутствии интернета.\n'
-    '— Исправили ошибку при открытии системных настроек уведомлений на устройствах, где такого экрана нет.\n'
-    '— Устранили ошибку подписки на данные реального времени.';
+    '‼️ ПОСЛЕ обновления каждому снова нужно будет войти в аккаунт. ‼️\n'
+    '\n'
+    '— Встречайте редизайн «Ленты воспоминаний»: новые фото/видео-пины, текстовые пины, пины локации; добавлены теги сортировки и «Избранное».\n'
+    '— Улучшили навигацию: теперь два режима — создать воспоминание сразу или просто перейти в «Ленту воспоминаний».\n'
+    '— Добавили кнопку выключения геолокации в карте «Где мы».\n'
+    '— Сделали редизайн экрана входа и регистрации.\n'
+    '— Фото наконец-то больше не растягиваются.\n'
+    '— Убрали лишние стрелки на баннерах дня рождения и годовщины.\n'
+    '— Добавили уведомления, что партнёр выложил новое воспоминание (вкл/выкл).\n'
+    '— Исправили уведомление о скучающем маскоте.';
 
 const String enWhatsNew =
-    '— ADDED a live map of your partner\'s location with 24/7 background tracking. The map block sits under the Mascot block on the home screen.\n'
+    'We moved our database to one available in Russia. No data loss is expected.\n'
     '\n'
-    '— Fixed an error when camera or gallery access is denied.\n'
-    '— Fixed a background error while updating the mood notification.\n'
-    '— Fixed handling of failed photo or video uploads to the cloud.\n'
-    '— Fixed a background error while updating the "online" status.\n'
-    '— Fixed an error when choosing a color theme.\n'
-    '— Fixed an error when entering the partner connection code.\n'
-    '— Fixed a font loading error when offline.\n'
-    '— Fixed an error opening system notification settings on devices without that screen.\n'
-    '— Fixed a real-time data subscription error.';
+    '‼️ AFTER the update everyone will need to sign in to their account again. ‼️\n'
+    '\n'
+    '— Meet the redesigned "Memory Feed": new photo/video pins, text pins, location pins; sorting tags and "Favorites" added.\n'
+    '— Improved navigation: two modes now — create a memory right away or just open the Feed.\n'
+    '— Added a button to turn off location sharing on the "Where we are" map.\n'
+    '— Redesigned the sign-in and registration screens.\n'
+    '— Photos finally no longer stretch.\n'
+    '— Removed the extra arrows on the birthday and anniversary banners.\n'
+    '— Added notifications when your partner posts a new memory (on/off).\n'
+    '— Fixed the lonely-mascot notification.';
