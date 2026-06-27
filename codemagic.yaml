@@ -24,12 +24,11 @@ workflows:
       # ИМЯ ключа App Store Connect, заведённого в Codemagic (шаг 1 выше).
       app_store_connect: TogetherlyASC
     environment:
-      ios_signing:
-        # Создаёт серт (с приватным ключом) + профиль основного приложения и
-        # экспортирует ключ интеграции в env. Профиль виджета доскачиваем в
-        # скрипте «Set up provisioning profiles» ниже.
-        distribution_type: app_store
-        bundle_identifier: com.togetherly.love
+      # ПОДПИСЬ: НЕ используем управляемый `ios_signing` — он НЕ создавал
+      # app_store-профиль (в аккаунте было 0 сертификатов / 0 профилей) и падал с
+      # «No matching profiles» ещё ДО шага скриптов. Делаем подпись ЯВНО через
+      # App Store Connect CLI ниже (флаг --create создаёт и сертификат, и профили).
+      # Ключ интеграции TogetherlyASC доступен CLI автоматически как env-переменные.
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -55,11 +54,16 @@ workflows:
       - name: Pod install
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Set up provisioning profiles
-        # ios_signing выше создал серт (с ключом) + профиль основного приложения
-        # и экспортировал ключ в env. Доскачиваем профиль для виджет-расширения
-        # (ключ уже доступен → 401 не будет), затем применяем все профили.
+      - name: Set up code signing (cert + profiles, create if missing)
+        # Явная подпись через App Store Connect CLI (документированный путь
+        # Codemagic). --create создаёт distribution-сертификат (приватный ключ
+        # кладётся в keychain) и app_store-профили под основное приложение И
+        # виджет, если их ещё нет. Именно это чинит «No matching profiles»:
+        # профилей/сертификатов в аккаунте не было, а управляемый режим их не делал.
         script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE --create
           app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
             --type IOS_APP_STORE --create
           keychain add-certificates
