@@ -1237,6 +1237,8 @@ abstract class AppStrings {
   String get liveMapTitle;
   String get liveMapEnableCta;
   String get liveMapEnableHint;
+  String get liveMapStopCta;
+  String get liveMapStopped;
   String get liveMapPermissionDenied;
   String get liveMapWaitingPartner;
   String get liveMapYou;
@@ -3712,6 +3714,10 @@ class _RuStrings extends AppStrings {
   @override
   String get liveMapNotPaired => 'Подключите партнёра, чтобы видеть карту';
   @override
+  String get liveMapStopCta => 'Выключить';
+  @override
+  String get liveMapStopped => 'Геопозиция выключена';
+  @override
   String get liveLocationServiceTitle => 'Геопозиция включена';
   @override
   String get liveLocationServiceText => 'Партнёр видит вас на карте «Где мы»';
@@ -6138,6 +6144,10 @@ class _EnStrings extends AppStrings {
   String get liveMapOpenFull => 'Open map';
   @override
   String get liveMapNotPaired => 'Connect a partner to see the map';
+  @override
+  String get liveMapStopCta => 'Stop sharing';
+  @override
+  String get liveMapStopped => 'Location sharing off';
   @override
   String get liveLocationServiceTitle => 'Location sharing on';
   @override

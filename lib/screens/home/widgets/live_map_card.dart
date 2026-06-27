@@ -162,6 +162,19 @@ class _LiveMapCardState extends State<LiveMapCard> {
     }
   }
 
+  Future<void> _disableSharing() async {
+    await LiveLocationService.instance.setSharingEnabled(
+      false,
+      pairId: widget.pairId,
+      partnerUid: widget.partnerUid,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LocaleService.current.liveMapStopped)),
+      );
+    }
+  }
+
   void _openFull() {
     final both = _bothCenter();
     Navigator.of(context).push(
@@ -364,6 +377,14 @@ class _LiveMapCardState extends State<LiveMapCard> {
               // CTA включения шеринга поверх превью.
               if (!sharing) _enableOverlay(t),
 
+              // Кнопка выключения шеринга (когда включён).
+              if (sharing)
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: _stopChip(),
+                ),
+
               // Ждём партнёра (шеринг включён, но точки партнёра нет).
               if (sharing && partner == null)
                 Positioned(
@@ -465,6 +486,45 @@ class _LiveMapCardState extends State<LiveMapCard> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stopChip() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _disableSharing,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_off_rounded,
+                  size: 14, color: Colors.grey.shade700),
+              const SizedBox(width: 5),
+              Text(
+                LocaleService.current.liveMapStopCta,
+                style: GoogleFonts.rubik(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
