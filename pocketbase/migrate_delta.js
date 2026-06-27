@@ -342,6 +342,15 @@ async function migrateNewUsers() {
 }
 
 (async () => {
+  // ⛔ CUTOVER ЗАВЕРШЁН (2026-06-27) — миграция РЕТАЙРНУТА. Повторный прогон по
+  // живой базе клал PocketBase (PK-коллизии «id уже есть» + batch-локи до 169с,
+  // держащие единственный SQLite-writer → заморозка всех записей приложения).
+  // Запуск намеренно заблокирован. Если ДЕЙСТВИТЕЛЬНО нужно (новый чистый стенд):
+  //   MIGRATION_ALLOW=cutover-done-i-am-sure node pocketbase/migrate_delta.js ...
+  if (process.env.MIGRATION_ALLOW !== 'cutover-done-i-am-sure') {
+    console.error('⛔ migrate_delta РЕТАЙРНУТ (cutover завершён, см. комментарий). Обход: MIGRATION_ALLOW=cutover-done-i-am-sure');
+    process.exit(1);
+  }
   if (!PB_PW) throw new Error('PB_PW env required');
   await authPb();
   console.log(`ДЕЛЬТА с ${SINCE_DATE.toISOString()} (ms=${SINCE_MS})${NO_BACKFILL ? ' [без бэкфилла штрихов]' : ' [+ бэкфилл штрихов]'}${ONLY_GROUP ? ' [группа ' + ONLY_GROUP + ']' : ''}`);

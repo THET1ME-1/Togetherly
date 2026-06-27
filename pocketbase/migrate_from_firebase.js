@@ -570,6 +570,15 @@ async function migrateGroup(gid) {
 }
 
 (async () => {
+  // ⛔ CUTOVER ЗАВЕРШЁН (2026-06-27) — миграция РЕТАЙРНУТА. Повторный полный засев
+  // по живой базе клал PocketBase: PK-коллизии (id уже есть) + batch-транзакции до
+  // 169с, держащие единственный SQLite-writer → заморозка всех записей приложения.
+  // Запуск намеренно заблокирован. Если ДЕЙСТВИТЕЛЬНО нужно (новый чистый стенд):
+  //   MIGRATION_ALLOW=cutover-done-i-am-sure node pocketbase/migrate_from_firebase.js ...
+  if (process.env.MIGRATION_ALLOW !== 'cutover-done-i-am-sure') {
+    console.error('⛔ migrate_from_firebase РЕТАЙРНУТ (cutover завершён, см. комментарий). Обход: MIGRATION_ALLOW=cutover-done-i-am-sure');
+    process.exit(1);
+  }
   if (!PB_PW) throw new Error('PB_PW env required');
   await authPb();
   await loadMigratedSet();
