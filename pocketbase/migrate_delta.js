@@ -36,9 +36,17 @@ const PB = 'https://togetherly.duckdns.org';
 const PB_PW = process.env.PB_PW;
 let TOKEN = null;
 
-const BATCH_CHUNK = 300;
+const BATCH_CHUNK = 50;    // было 300: пачка = ОДНА SQLite-транзакция. 300 строк (особенно холст с тяжёлым JSON) держали единственный writer PocketBase до 169с и морозили ВСЕ записи приложения. 50 — короткая транзакция.
 const MEDIA_CONC = 8;
-const GROUP_CONC = 30;
+const GROUP_CONC = 5;      // было 30: столько групп обходим параллельно. 30 параллельных пачек = до 30 одновременных транзакций в single-writer SQLite → захлёб. 5 — щадящий темп.
+const CHUNK_PAUSE_MS = 40; // пауза между пачками — дать writer'у выдохнуть.
+// Коллекции append-only: запись после миграции НЕ меняется. На повторном прогоне их
+// id уже есть → пере-создавать бессмысленно (это и был шторм ~90k PK-коллизий + дорогой
+// per-item фолбэк). Для них пропускаем уже существующие id (повторный прогон → почти 0
+// записей, только дешёвые чтения). Изменяемое состояние (groups/widget/miss_you/mascots/
+// mood/meta/reads) СЮДА НЕ входит — оно намеренно ре-синкается.
+const SKIP_EXISTING = new Set(['memories', 'memory_comments', 'canvas_strokes', 'chat_messages']);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── аргументы ────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -92,16 +100,43 @@ async function upsertByFilter(col, filter, body) {
   const r = await pb('POST', `/api/collections/${col}/records`, body);
   if (r.status !== 200) { console.log(`  ! ${col}: ${r.status} ${JSON.stringify(r.data).slice(0, 160)}`); bump('failed'); } return r;
 }
+// Возвращает Set уже существующих в PB id из переданного списка (дешёвые indexed-чтения).
+async function existingIds(col, ids) {
+  const found = new Set();
+  for (let i = 0; i < ids.length; i += 50) {
+    const slice = ids.slice(i, i + 50);
+    const filter = slice.map((id) => `id="${id}"`).join(' || ');
+    const r = await pb('GET', `/api/collections/${col}/records?perPage=${slice.length}&skipTotal=1&fields=id&filter=${encodeURIComponent(filter)}`);
+    if (r.data && r.data.items) for (const it of r.data.items) found.add(it.id);
+  }
+  return found;
+}
 async function batchWrite(col, items, statKey) {
+  const skipExisting = SKIP_EXISTING.has(col);
   for (let i = 0; i < items.length; i += BATCH_CHUNK) {
-    const slice = items.slice(i, i + BATCH_CHUNK);
+    let slice = items.slice(i, i + BATCH_CHUNK);
+    // На повторном прогоне append-only коллекций: выкинуть уже существующие id, чтобы
+    // НЕ пытаться их создавать (это и был шторм PK-коллизий + дорогой per-item фолбэк).
+    if (skipExisting) {
+      const ids = slice.filter((it) => it.id != null).map((it) => it.id);
+      if (ids.length) {
+        const have = await existingIds(col, ids);
+        if (have.size) {
+          const before = slice.length;
+          slice = slice.filter((it) => it.id == null || !have.has(it.id));
+          for (let k = 0; k < before - slice.length; k++) bump(statKey + '_skip');
+        }
+      }
+      if (!slice.length) continue;
+    }
     let ok = false;
     try {
       const requests = slice.map((it) => ({ method: 'POST', url: `/api/collections/${col}/records`, body: it.id != null ? { id: it.id, ...it.body } : it.body }));
       const r = await pb('POST', '/api/batch', { requests }); ok = r.status === 200;
     } catch (_) { ok = false; }
-    if (ok) { for (let k = 0; k < slice.length; k++) bump(statKey); continue; }
-    for (const it of slice) { if (it.id != null) await upsertById(col, it.id, it.body); else await upsertByFilter(col, it.filter, it.body); bump(statKey); }
+    if (ok) { for (let k = 0; k < slice.length; k++) bump(statKey); }
+    else { for (const it of slice) { if (it.id != null) await upsertById(col, it.id, it.body); else await upsertByFilter(col, it.filter, it.body); bump(statKey); } }
+    await sleep(CHUNK_PAUSE_MS);
   }
 }
 
