@@ -24,6 +24,12 @@ workflows:
       # ИМЯ ключа App Store Connect, заведённого в Codemagic (шаг 1 выше).
       app_store_connect: TogetherlyASC
     environment:
+      ios_signing:
+        # bundle_identifier НЕ указываем → Codemagic сам создаёт/обновляет
+        # сертификат (с приватным ключом) и provisioning-профили для ВСЕХ
+        # таргетов проекта — приложение com.togetherly.love И виджет
+        # com.togetherly.love.TogetherlyWidget.
+        distribution_type: app_store
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -49,24 +55,10 @@ workflows:
       - name: Pod install
         script: |
           find . -name "Podfile" -execdir pod install \;
-      - name: Set up code signing (авто-создание сертификата и профилей)
-        script: |
-          set -e  # падать сразу при ошибке (а не «успех» за 2с)
-          keychain initialize
-          echo "--- существующие distribution-сертификаты в аккаунте ---"
-          app-store-connect certificates list --type IOS_DISTRIBUTION || true
-          # Существующие серты идут БЕЗ приватного ключа (он остался на маке, где
-          # их создавали) → создаём НОВЫЙ серт вместе с приватным ключом.
-          echo "--- создаём новый distribution-сертификат с приватным ключом ---"
-          app-store-connect certificates create --type IOS_DISTRIBUTION --save
-          keychain add-certificates
-          # Профили для приложения И для виджет-расширения (серт с ключом уже есть).
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE --create
-          app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
-            --type IOS_APP_STORE --create
-          keychain add-certificates
-          xcode-project use-profiles
+      - name: Set up provisioning profiles
+        # Codemagic (через блок ios_signing выше) уже скачал/создал сертификат и
+        # профили; эта команда прописывает их в Xcode-проект (manual signing).
+        script: xcode-project use-profiles
       - name: Build IPA
         script: |
           # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
