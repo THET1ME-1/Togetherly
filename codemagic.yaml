@@ -1,0 +1,77 @@
+# Codemagic CI — сборка/подпись/публикация iOS в облачном Mac.
+# Android по-прежнему собирается в GitHub Actions (.github/workflows/release-apk.yml).
+#
+# ПЕРЕД ПЕРВЫМ ЗАПУСКОМ (один раз, в панели Codemagic):
+#   1. Teams → Integrations → App Store Connect → добавить API-ключ (.p8 + Key ID +
+#      Issuer ID). Назвать его ИМЕННО как в `integrations.app_store_connect` ниже.
+#   2. Подключить репозиторий github.com/JbSharan2/love_app.
+#   3. (Если GoogleService-Info.plist НЕ закоммичен) — добавить его как зашифрованную
+#      переменную и распаковывать в скрипте; сейчас предполагается, что он в репо
+#      по пути ios/Runner/GoogleService-Info.plist.
+#
+# Запуск: пуш тега вида `ios-1.14.0` (см. triggering ниже) или вручную (Start build).
+
+definitions:
+  instance: &instance
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+
+workflows:
+  ios-appstore:
+    name: iOS — App Store / TestFlight
+    <<: *instance
+    integrations:
+      # ИМЯ ключа App Store Connect, заведённого в Codemagic (шаг 1 выше).
+      app_store_connect: TogetherlyASC
+    environment:
+      ios_signing:
+        # Codemagic сам создаст/обновит distribution-сертификат и provisioning-
+        # профиль через App Store Connect API — включая capability Sign in with
+        # Apple, Push и Associated Domains (они объявлены в Runner.entitlements
+        # и в App ID на портале — см. docs/IOS_RELEASE.md).
+        distribution_type: app_store
+        bundle_identifier: com.togetherly.love
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.togetherly.love"
+        # Числовой Apple ID приложения из App Store Connect (App Information →
+        # General → Apple ID). Нужен для авто-публикации в TestFlight.
+        APP_STORE_APP_ID: 0000000000
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'ios-*'
+          include: true
+    scripts:
+      - name: Flutter packages
+        script: flutter pub get
+      - name: Pod install
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Apply signing profiles to Xcode project
+        script: xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # На первом этапе — только TestFlight (внутреннее тестирование).
+        # Когда убедитесь, что сборка работает — можно включить submit_to_app_store.
+        submit_to_testflight: true
+        submit_to_app_store: false
+      email:
+        recipients:
+          - sasamatrosov87@gmail.com
+        notify:
+          success: true
+          failure: true
