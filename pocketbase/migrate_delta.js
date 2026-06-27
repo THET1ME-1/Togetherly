@@ -38,7 +38,7 @@ let TOKEN = null;
 
 const BATCH_CHUNK = 300;
 const MEDIA_CONC = 8;
-const GROUP_CONC = 10;
+const GROUP_CONC = 30;
 
 // ── аргументы ────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
