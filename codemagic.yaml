@@ -40,7 +40,12 @@ workflows:
           include: true
     scripts:
       - name: Flutter packages
-        script: flutter pub get
+        script: |
+          # SPM (экспериментальный) конфликтует на tocropviewcontroller
+          # (image_cropper 3.x vs dkimagepickercontroller 2.x) — собираем через
+          # CocoaPods (Podfile + шаг Pod install ниже).
+          flutter config --no-enable-swift-package-manager
+          flutter pub get
       - name: Pod install
         script: |
           find . -name "Podfile" -execdir pod install \;
