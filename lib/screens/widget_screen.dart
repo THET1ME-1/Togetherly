@@ -3820,20 +3820,29 @@ class _WidgetScreenState extends State<WidgetScreen>
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
                   shape: BoxShape.circle,
-                  image: _pair.partnerAvatarUrl.isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(_pair.partnerAvatarUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
                 ),
-                child: _pair.partnerAvatarUrl.isEmpty
-                    ? Icon(
+                // pb://-аватар partner'а теперь protected → только через
+                // StorageImage (резолвит file-токен). Сырой NetworkImage давал
+                // 403 после миграции на PocketBase.
+                child: _pair.partnerAvatarUrl.isNotEmpty
+                    ? ClipOval(
+                        child: StorageImage(
+                          imageUrl: _pair.partnerAvatarUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Icon(
+                            Icons.person_rounded,
+                            color: Colors.grey.shade500,
+                            size: 22,
+                          ),
+                        ),
+                      )
+                    : Icon(
                         Icons.person_rounded,
                         color: Colors.grey.shade500,
                         size: 22,
-                      )
-                    : null,
+                      ),
               ),
               const SizedBox(width: 10),
               Column(
