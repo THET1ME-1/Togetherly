@@ -25,11 +25,11 @@ workflows:
       app_store_connect: TogetherlyASC
     environment:
       ios_signing:
-        # bundle_identifier НЕ указываем → Codemagic сам создаёт/обновляет
-        # сертификат (с приватным ключом) и provisioning-профили для ВСЕХ
-        # таргетов проекта — приложение com.togetherly.love И виджет
-        # com.togetherly.love.TogetherlyWidget.
+        # Создаёт серт (с приватным ключом) + профиль основного приложения и
+        # экспортирует ключ интеграции в env. Профиль виджета доскачиваем в
+        # скрипте «Set up provisioning profiles» ниже.
         distribution_type: app_store
+        bundle_identifier: com.togetherly.love
       flutter: stable
       xcode: latest
       cocoapods: default
@@ -56,9 +56,14 @@ workflows:
         script: |
           find . -name "Podfile" -execdir pod install \;
       - name: Set up provisioning profiles
-        # Codemagic (через блок ios_signing выше) уже скачал/создал сертификат и
-        # профили; эта команда прописывает их в Xcode-проект (manual signing).
-        script: xcode-project use-profiles
+        # ios_signing выше создал серт (с ключом) + профиль основного приложения
+        # и экспортировал ключ в env. Доскачиваем профиль для виджет-расширения
+        # (ключ уже доступен → 401 не будет), затем применяем все профили.
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
+            --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build IPA
         script: |
           # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
