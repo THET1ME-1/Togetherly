@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await PbAuthService().sendPasswordReset(email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: Text(LocaleService.current.passwordResetSent(email)),
           behavior: SnackBarBehavior.floating,
@@ -263,7 +263,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    // maybeOf + mounted: _showError зовётся из catch-блоков после async-гэпа,
+    // когда экран мог быть снят с дерева → ScaffoldMessenger.of делает `!` по
+    // null ("Null check operator used on a null value"). См. Bugsink TypeError.
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(msg),
         behavior: SnackBarBehavior.floating,

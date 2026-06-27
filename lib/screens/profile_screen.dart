@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/safe_text.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
@@ -2072,9 +2073,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final relColor = _relTypeToColor(
                   entry.connection.relationshipType,
                 );
-                final initial = entry.member.name.isNotEmpty
-                    ? entry.member.name[0].toUpperCase()
-                    : '?';
+                final initial = entry.member.name.firstGraphemeUpper('?');
                 return GestureDetector(
                   onTap: () {
                     final uid = entry.member.uid;

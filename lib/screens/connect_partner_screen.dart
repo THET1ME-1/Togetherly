@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/safe_text.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
 import 'package:flutter/services.dart';
@@ -1020,7 +1021,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   Widget _memberAvatar(String url, String name, double size) {
-    final initial = (name.isNotEmpty) ? name[0].toUpperCase() : '?';
+    final initial = name.firstGraphemeUpper('?');
     return Container(
       width: size,
       height: size,
@@ -1750,7 +1751,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   Widget _avatarFallback(String name, double size) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initial = name.firstGraphemeUpper('?');
     return Container(
       width: size,
       height: size,

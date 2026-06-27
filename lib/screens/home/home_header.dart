@@ -1,6 +1,7 @@
 import '../../widgets/mood_image.dart';
 import '../../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
+import '../../utils/safe_text.dart';
 import '../../models/pair_data.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/animations.dart';
@@ -188,9 +189,7 @@ class HomeHeader extends StatelessWidget {
   }
 
   static Widget _avatarPlaceholder(String? name, {required Color primary}) {
-    final initial = (name != null && name.isNotEmpty)
-        ? name[0].toUpperCase()
-        : '?';
+    final initial = (name ?? '').firstGraphemeUpper('?');
     return Container(
       color: primary.withOpacity(0.15),
       child: Center(

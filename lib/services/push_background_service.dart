@@ -30,6 +30,10 @@ class PushBackgroundService {
   factory PushBackgroundService() => instance;
 
   bool _configured = false;
+  // Защита от пересекающихся start(): без неё два вызова подряд (resume + смена
+  // пары) ловят PlatformException(permissionRequestInProgress) на запросе
+  // разрешения уведомлений. См. Bugsink: push_background_service.dart:start.
+  bool _starting = false;
 
   void _ensureConfigured() {
     if (_configured) return;
@@ -72,35 +76,56 @@ class PushBackgroundService {
   }) async {
     if (!Platform.isAndroid) return;
     if (groupId.isEmpty || myUid.isEmpty || partnerUid.isEmpty) return;
-    _ensureConfigured();
+    if (_starting) return; // параллельный старт уже идёт
+    _starting = true;
+    try {
+      _ensureConfigured();
 
-    // Контекст пары для изолята обработчика — он прочитает его в onStart.
-    await FlutterForegroundTask.saveData(key: _kGroupId, value: groupId);
-    await FlutterForegroundTask.saveData(key: _kMyUid, value: myUid);
-    await FlutterForegroundTask.saveData(key: _kPartnerUid, value: partnerUid);
-    await FlutterForegroundTask.saveData(key: _kPartnerName, value: partnerName);
+      // Контекст пары для изолята обработчика — он прочитает его в onStart.
+      await FlutterForegroundTask.saveData(key: _kGroupId, value: groupId);
+      await FlutterForegroundTask.saveData(key: _kMyUid, value: myUid);
+      await FlutterForegroundTask.saveData(key: _kPartnerUid, value: partnerUid);
+      await FlutterForegroundTask.saveData(
+          key: _kPartnerName, value: partnerName);
 
-    if (await FlutterForegroundTask.isRunningService) return;
+      if (await FlutterForegroundTask.isRunningService) return;
 
-    // Разрешение на уведомления (А13+) — без него сервис не покажет ни иконку,
-    // ни баннеры. Запрашиваем из главного изолята (UI), пока есть контекст.
-    final perm = await FlutterForegroundTask.checkNotificationPermission();
-    if (perm != NotificationPermission.granted) {
-      await FlutterForegroundTask.requestNotificationPermission();
+      // Разрешение на уведомления (А13+) — без него сервис не покажет ни иконку,
+      // ни баннеры. Запрашиваем из главного изолята (UI), пока есть контекст.
+      // Запрос бросает PlatformException, если юзер закрыл диалог или другой
+      // запрос уже в процессе — это не повод падать: сервис всё равно стартует
+      // (без разрешения на А13+ просто не будет видимого баннера).
+      try {
+        final perm = await FlutterForegroundTask.checkNotificationPermission();
+        if (perm != NotificationPermission.granted) {
+          await FlutterForegroundTask.requestNotificationPermission();
+        }
+      } catch (e) {
+        debugPrint('PushBackgroundService: запрос разрешения не удался: $e');
+      }
+
+      // Старт foreground-сервиса тоже может бросить (напр. на А12+
+      // "Service.startForeground() not allowed", если приложение успело уйти в
+      // фон между проверкой и стартом) — глушим, чтобы не ронять приложение.
+      try {
+        await FlutterForegroundTask.startService(
+          serviceId: 4711,
+          serviceTypes: const [ForegroundServiceTypes.dataSync],
+          notificationTitle: 'Togetherly на связи',
+          notificationText: 'Получаем уведомления от партнёра',
+          // Иконка-сердечко (та же, что у локальных уведомлений) — без неё
+          // сервис ставит дефолт/чёрный квадрат в шторке.
+          notificationIcon: const NotificationIcon(
+            metaDataName: 'com.togetherly.love.notification_icon',
+          ),
+          callback: pushServiceCallback,
+        );
+      } catch (e) {
+        debugPrint('PushBackgroundService: старт сервиса не удался: $e');
+      }
+    } finally {
+      _starting = false;
     }
-
-    await FlutterForegroundTask.startService(
-      serviceId: 4711,
-      serviceTypes: const [ForegroundServiceTypes.dataSync],
-      notificationTitle: 'Togetherly на связи',
-      notificationText: 'Получаем уведомления от партнёра',
-      // Иконка-сердечко (та же, что у локальных уведомлений) — без неё сервис
-      // ставит дефолт/чёрный квадрат в шторке.
-      notificationIcon: const NotificationIcon(
-        metaDataName: 'com.togetherly.love.notification_icon',
-      ),
-      callback: pushServiceCallback,
-    );
   }
 
   /// Остановить фоновую доставку (выход из аккаунта / распад пары).

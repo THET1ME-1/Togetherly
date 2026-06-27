@@ -1,9 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'pocketbase_service.dart';
+
+/// Исход разовой dev-выдачи. Нужен, чтобы вызывающий отличал окончательный
+/// отказ сервера (не разработчик → больше не спрашивать) от транзиентного сбоя
+/// (сеть/сессия → можно повторить позже).
+enum DevCoinsResult { ok, denied, retry }
+
+class DevCoinsOutcome {
+  final DevCoinsResult result;
+  final Map<String, dynamic>? data;
+  const DevCoinsOutcome(this.result, this.data);
+}
 
 /// Клиент серверной коин-логики PocketBase (миграция §6 — замена вызовов
 /// Firebase Cloud Functions `callGrant*`/`callPurchase*`/`callSpendCoins`).
@@ -49,7 +61,31 @@ class PbCoinsService {
   Future<Map<String, dynamic>?> dailyBonus() => _call('daily-bonus');
   Future<Map<String, dynamic>?> memoryReward() => _call('memory-reward');
   Future<Map<String, dynamic>?> adReward() => _call('ad-reward');
-  Future<Map<String, dynamic>?> devCoins() => _call('dev-coins');
+
+  /// Разовая dev-выдача. НЕ через [_call]: тот схлопывает любую ошибку в null,
+  /// из-за чего не-разработчики (403) ретраили вызов на каждом lifecycle-событии
+  /// и забивали сервер/Bugsink (см. issue `dev-coins 403`). Здесь различаем:
+  /// 4xx (кроме 401/429) = окончательный отказ → больше не спрашивать;
+  /// 0/5xx/401/429 = транзиентно → можно повторить в следующей сессии. 403 не
+  /// репортим в Sentry — это ожидаемый «ты не дев», а не сбой.
+  Future<DevCoinsOutcome> devCoinsGrant() async {
+    try {
+      final res = await PocketBaseService().pb.send(
+        '/api/coins/dev-coins',
+        method: 'POST',
+      );
+      final m = res is Map ? Map<String, dynamic>.from(res) : null;
+      return DevCoinsOutcome(DevCoinsResult.ok, m);
+    } on ClientException catch (e) {
+      final sc = e.statusCode;
+      if (sc >= 400 && sc < 500 && sc != 401 && sc != 429) {
+        return const DevCoinsOutcome(DevCoinsResult.denied, null);
+      }
+      return const DevCoinsOutcome(DevCoinsResult.retry, null);
+    } catch (_) {
+      return const DevCoinsOutcome(DevCoinsResult.retry, null);
+    }
+  }
 
   Future<Map<String, dynamic>?> partnerInvite(String partnerUid) =>
       _call('partner-invite', {'partnerUid': partnerUid});

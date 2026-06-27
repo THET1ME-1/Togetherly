@@ -109,6 +109,11 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
   // ── Плавное перемещение камеры ────────────────────────────────────────────
   void _animatedMapMove(LatLng dest, double destZoom) {
+    // До onMapReady внутреннее состояние карты не создано, и `_mapController
+    // .camera` бросает "Null check operator used on a null value". Кнопки
+    // «центрировать»/«обе точки» могут сработать раньше готовности карты —
+    // тихо выходим. См. Bugsink: live_map_screen.dart:_centerOnMe.
+    if (!_mapReady) return;
     final camera = _mapController.camera;
     final latTween =
         Tween<double>(begin: camera.center.latitude, end: dest.latitude);
@@ -137,6 +142,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
   }
 
   void _showBoth() {
+    if (!_mapReady) return; // fitCamera тоже читает состояние карты (см. выше)
     final me = _me;
     final partner = _partner?.latLng;
     if (me != null && partner != null) {

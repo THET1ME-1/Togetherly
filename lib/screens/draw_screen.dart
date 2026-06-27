@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
+import '../utils/safe_text.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -2081,7 +2082,7 @@ class _DrawScreenState extends State<DrawScreen>
                     ],
                   ),
                   child: Text(
-                    name.length > 8 ? name.substring(0, 8) : name,
+                    name.truncateGraphemes(8),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -2170,7 +2171,7 @@ class _DrawScreenState extends State<DrawScreen>
             children: [
               if (isDrawing) ...[const _PulsingDot(), const SizedBox(width: 4)],
               Text(
-                p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                p.name.firstGraphemeUpper('?'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,

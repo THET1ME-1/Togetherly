@@ -65,9 +65,44 @@ class PbPushService {
     return v is bool ? v : true; // по умолчанию включено
   }
 
+  // Сериализация start/stop. Подписки в _subs мутируются и из start(), и из
+  // stop(), а stop() итерирует список с `await` внутри. Без взаимоблокировки
+  // два пересекающихся start() (быстрая смена пары, повторный resume, гонка
+  // главного изолята и foreground-сервиса) роняли ConcurrentModificationError
+  // (см. Bugsink: pb_push_service.dart:stop) и плодили дубли подписок.
+  // Цепочка-мьютекс гарантирует строго последовательное выполнение операций.
+  Future<void> _lock = Future<void>.value();
+
+  Future<T> _synchronized<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    final prev = _lock;
+    _lock = completer.future.then((_) {}, onError: (_) {});
+    prev.whenComplete(() async {
+      try {
+        completer.complete(await action());
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
   /// Запускает подписки на события партнёра в группе. [partnerUid] — чей
-  /// активности уведомляем (только не свои).
+  /// активности уведомляем (только не свои). Сериализовано с [stop].
   Future<void> start({
+    required String groupId,
+    required String myUid,
+    required String partnerUid,
+    String partnerName = 'Партнёр',
+  }) =>
+      _synchronized(() => _startLocked(
+            groupId: groupId,
+            myUid: myUid,
+            partnerUid: partnerUid,
+            partnerName: partnerName,
+          ));
+
+  Future<void> _startLocked({
     required String groupId,
     required String myUid,
     required String partnerUid,
@@ -75,7 +110,7 @@ class PbPushService {
   }) async {
     if (groupId.isEmpty) return;
     await init();
-    await stop();
+    await _stopLocked();
     final gf = _pb.filter('group_id = {:g}', {'g': groupId});
 
     // 1) Чат
@@ -199,15 +234,21 @@ class PbPushService {
     );
   }
 
-  Future<void> stop() async {
-    for (final u in _subs) {
+  Future<void> stop() => _synchronized(_stopLocked);
+
+  Future<void> _stopLocked() async {
+    // Снимок + немедленная очистка живого списка ДО итерации: даже если новый
+    // start() как-то добавит подписку в _subs, мы итерируем неизменяемую копию,
+    // а он пишет уже в свежий список — ConcurrentModificationError невозможен.
+    final subs = List<UnsubscribeFunc>.of(_subs);
+    _subs.clear();
+    for (final u in subs) {
       try {
         await u();
       } catch (err) {
         debugPrint('PbPush unsubscribe error: $err');
       }
     }
-    _subs.clear();
     _lastMissCount = null;
     _lastMood = null;
   }

@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  characters: ^1.4.0 # графемы для безопасной работы с эмодзи (utils/safe_text)
   google_fonts: ^6.2.1
   shared_preferences: ^2.3.4
   google_sign_in: ^6.2.2

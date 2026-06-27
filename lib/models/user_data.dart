@@ -7,6 +7,7 @@ import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_text.dart';
 import 'profile_icon.dart';
 
 enum Gender { male, female }
@@ -36,6 +37,13 @@ class UserData extends ChangeNotifier {
   // Иконки-награды, выданные вручную (Sponsor/Helper).
   final Set<String> _grantedBadges = <String>{};
   bool _devCoinsGranted = false;
+  // В этой сессии уже обращались за dev-грантом (любой исход) — не долбим на
+  // каждом lifecycle-событии (load/silent-sign-in/регистрация).
+  bool _devCoinsAttempted = false;
+  // Сервер дал ОКОНЧАТЕЛЬНЫЙ ответ (выдано или «ты не дев» 403/400) — persistent,
+  // чтобы не-разработчики больше НИКОГДА не дёргали dev-coins (раньше это были
+  // сотни `dev-coins 403` в Bugsink). Сбрасывается только на logout.
+  bool _devCoinsChecked = false;
   int _adRewardsToday = 0;
   String _adRewardsDate = ''; // YYYY-MM-DD UTC; '' = ещё не получал
 
@@ -438,26 +446,33 @@ class UserData extends ChangeNotifier {
   /// Единоразовая серверная выдача монет разработчику (проверка email
   /// делается на сервере по auth-токену, обойти невозможно).
   Future<void> _maybeGrantDevCoins() async {
-    if (_devCoinsGranted) return; // быстрый локальный шорткат
-    final r = await PbCoinsService().devCoins();
-    if (r == null) return;
-    _applyServerResult(r);
-    if (r['ok'] == true) {
-      _devCoinsGranted = true;
-      await _saveLocal();
+    if (_devCoinsGranted || _devCoinsChecked) return; // уже выдано/отвечено
+    if (_devCoinsAttempted) return; // в этой сессии уже пробовали — не долбим
+    _devCoinsAttempted = true;
+    final r = await PbCoinsService().devCoinsGrant();
+    if (r.result == DevCoinsResult.retry) return; // сеть/сессия — позже
+    // Сервер ответил окончательно (выдано или отказано) — больше не спрашиваем.
+    _devCoinsChecked = true;
+    final data = r.data;
+    if (r.result == DevCoinsResult.ok && data != null) {
+      _applyServerResult(data);
+      if (data['ok'] == true) _devCoinsGranted = true;
     }
+    await _saveLocal();
   }
 
   /// Whether the timer card shows a morphing blob shape (true by default)
   bool get blobAnimationEnabled => _blobAnimationEnabled;
 
   String get initials {
-    if (_displayName.isEmpty) return '?';
-    final parts = _displayName.trim().split(' ');
+    final name = _displayName.trim();
+    if (name.isEmpty) return '?';
+    // По графемам, иначе имя с ведущим эмодзи рвёт суррогатную пару (см. SafeText).
+    final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      return '${parts[0].firstGraphemeUpper('')}${parts[1].firstGraphemeUpper('')}';
     }
-    return _displayName[0].toUpperCase();
+    return name.firstGraphemeUpper();
   }
 
   // ── Persistence (локальный кэш + Firestore) ──
@@ -478,6 +493,7 @@ class UserData extends ChangeNotifier {
       _badge = prefs.getString('badge');
       _coins = prefs.getInt('coins') ?? 0;
       _devCoinsGranted = prefs.getBool('devCoinsGranted') ?? false;
+      _devCoinsChecked = prefs.getBool('devCoinsChecked') ?? false;
       _adRewardsToday = prefs.getInt('adRewardsToday') ?? 0;
       _adRewardsDate = prefs.getString('adRewardsDate') ?? '';
       final bdMs = prefs.getInt('birthDate');
@@ -635,6 +651,7 @@ class UserData extends ChangeNotifier {
       }
       await prefs.setInt('coins', _coins);
       await prefs.setBool('devCoinsGranted', _devCoinsGranted);
+      await prefs.setBool('devCoinsChecked', _devCoinsChecked);
       await prefs.setInt('adRewardsToday', _adRewardsToday);
       await prefs.setString('adRewardsDate', _adRewardsDate);
       await prefs.setStringList(
@@ -790,6 +807,8 @@ class UserData extends ChangeNotifier {
     await prefs.remove('timer_selected_time_unit');
     _coins = 0;
     _devCoinsGranted = false;
+    _devCoinsChecked = false;
+    _devCoinsAttempted = false;
     _ownedThemes.clear();
     _ownedIcons.clear();
     _ownedFeatures.clear();
@@ -799,6 +818,7 @@ class UserData extends ChangeNotifier {
     _adRewardsDate = '';
     await prefs.remove('coins');
     await prefs.remove('devCoinsGranted');
+    await prefs.remove('devCoinsChecked');
     await prefs.remove('ownedThemes');
     await prefs.remove('ownedIcons');
     await prefs.remove('ownedFeatures');

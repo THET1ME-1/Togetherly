@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
+import '../utils/safe_text.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
@@ -429,7 +430,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (title.isNotEmpty) return title;
     final caption = (m.caption ?? '').trim();
     if (caption.isNotEmpty) {
-      return caption.length > 30 ? '${caption.substring(0, 30)}…' : caption;
+      return caption.truncateGraphemes(30, ellipsis: '…');
     }
     final loc = (m.locationName ?? '').trim();
     if (loc.isNotEmpty) return loc;
@@ -1350,7 +1351,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _headerAvatar(bool online) {
     final url = widget.pairData.partnerAvatarUrl;
     final name = widget.pairData.partnerDisplayName.trim();
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '♥';
+    final initial = name.firstGraphemeUpper('♥');
     final fallback = Container(
       color: _t.primary.withOpacity(0.15),
       alignment: Alignment.center,

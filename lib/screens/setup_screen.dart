@@ -372,7 +372,10 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    // maybeOf + mounted: зовётся из catch после async-гэпа, когда экран мог быть
+    // снят с дерева → ScaffoldMessenger.of даёт `!` по null. См. Bugsink TypeError.
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(msg),
         behavior: SnackBarBehavior.floating,

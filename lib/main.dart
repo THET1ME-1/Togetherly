@@ -185,6 +185,33 @@ bool _isBenignBackgroundError(Object error) {
       s.contains('allowRuntimeFetching');
 }
 
+/// Транспортные сетевые сбои = недоступность сервера или плохая сеть юзера
+/// (часто из-за блокировок в РФ), НЕ баги приложения. Такие события не шлём в
+/// Bugsink (`beforeSend → null`), чтобы реальные краши не тонули в шуме.
+bool _isNetworkNoise(Object error) {
+  final s = error.toString();
+  if (s.contains('SocketException') ||
+      s.contains('HandshakeException') ||
+      s.contains('Connection closed') ||
+      s.contains('Connection reset') ||
+      s.contains('Connection refused') ||
+      s.contains('Connection failed') ||
+      s.contains('Connection terminated') ||
+      s.contains('Connection abort') || // вкл. "Software caused connection abort"
+      s.contains('Network is unreachable') ||
+      s.contains('Connection timed out') ||
+      s.contains('Operation timed out')) {
+    return true;
+  }
+  // PocketBase ClientException транспортного уровня: запрос отменён / сервер не
+  // ответил. 4xx/5xx (реальные ответы сервера) НЕ трогаем — они информативны.
+  if (s.contains('ClientException') &&
+      (s.contains('isAbort: true') || s.contains('statusCode: 0'))) {
+    return true;
+  }
+  return false;
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -230,6 +257,14 @@ void main() async {
     options.environment = kDebugMode ? 'debug' : 'production';
     options.tracesSampleRate = 0.0; // только краши, без performance-трейсинга
     options.attachStacktrace = true;
+    // Не шлём транспортный сетевой шум (обрывы сокета, недоступность сервера,
+    // плохая сеть пользователя — особенно при блокировках в РФ). Это не баги
+    // приложения, а они тонной забивали панель и топили реальные краши.
+    options.beforeSend = (event, hint) {
+      final t = event.throwable;
+      if (t != null && _isNetworkNoise(t)) return null; // выбросить событие
+      return event;
+    };
   });
   Sentry.configureScope(
     (scope) => scope.setUser(SentryUser(id: PocketBaseService().userId ?? '')),

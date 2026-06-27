@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../widgets/storage_image.dart';
+import '../utils/safe_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7323,9 +7324,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Avatar fallback with initial letter
   Widget _avatarFallback(String? name) {
-    final initial = (name != null && name.isNotEmpty)
-        ? name[0].toUpperCase()
-        : '?';
+    final initial = (name ?? '').firstGraphemeUpper('?');
     return Container(
       color: primary.withOpacity(0.15),
       child: Center(
