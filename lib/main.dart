@@ -254,7 +254,13 @@ void main() async {
   // fail-open: при ошибке открытия кэша приложение работает как раньше (онлайн).
   await LocalStore.instance.init();
   unawaited(ConnectivityService.instance.init());
-  await PbAuthService().signInSilently();
+  // signInSilently освежает токен СЕТЕВЫМ запросом (authRefresh) — НЕ блокируем
+  // им холодный старт: токен уже восстановлен из SharedPreferences (init выше),
+  // запросы пойдут с ним сразу, а refresh идёт в фоне. Раньше старт висел на
+  // authRefresh, ожидая медленный/перегруженный сервер (на слабой связи — до
+  // таймаута), и UI не показывался даже при наличии локального кэша. userId ниже
+  // берётся из persisted-сессии, поэтому в готовности signInSilently не нуждается.
+  unawaited(PbAuthService().signInSilently());
   // Привязываем кэш к владельцу: если на устройстве сменился аккаунт — кэш
   // полностью чистится (защита от утечки данных между пользователями).
   await LocalStore.instance.ensureOwner(PocketBaseService().userId);

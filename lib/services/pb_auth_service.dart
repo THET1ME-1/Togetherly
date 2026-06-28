@@ -203,7 +203,13 @@ class PbAuthService {
   Future<RecordModel?> signInSilently() async {
     if (!_svc.isLoggedIn) return null;
     try {
-      await _pb.collection(_usersCol).authRefresh();
+      // Таймаут: на перегруженном/медленном сервере authRefresh мог висеть очень
+      // долго. По таймауту бросаем — это НЕ 401/403, значит ниже трактуется как
+      // транзиент: валидная сессия сохраняется, запросы продолжают слать токен.
+      await _pb
+          .collection(_usersCol)
+          .authRefresh()
+          .timeout(const Duration(seconds: 8));
     } catch (e, st) {
       // КЛЮЧЕВОЕ: выходим (рвём persisted-сессию) ТОЛЬКО при реальной ошибке
       // авторизации — токен отозван/протух/невалиден (401/403). Транзиентные
