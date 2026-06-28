@@ -1,5 +1,25 @@
 part of '../memory_lane_screen.dart';
 
+/// Готовит источник для just_audio с учётом наших схем:
+/// • localfile:// → локальный файл (медиа, созданное офлайн);
+/// • pb:// → HTTPS с file-токеном (раньше pb://-музыка не резолвилась — не играла);
+/// • остальное (http/локальный путь) — как есть.
+Future<void> _setAudioSource(AudioPlayer player, String url) async {
+  if (MediaCache.instance.isLocalRef(url)) {
+    final p = MediaCache.instance.localPath(url);
+    if (p != null) {
+      await player.setFilePath(p);
+      return;
+    }
+  }
+  if (PbMediaService().isPbRef(url)) {
+    final resolved = await PbMediaService().resolveUrlAuthed(url);
+    await player.setUrl(resolved ?? url);
+    return;
+  }
+  await player.setUrl(url);
+}
+
 // ── Standalone music player widget for detail sheet ──
 class _MusicPlayerWidget extends StatefulWidget {
   final Memory memory;
@@ -154,7 +174,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
         }
       });
 
-      await _player!.setUrl(url);
+      await _setAudioSource(_player!, url);
       if (mounted) setState(() => _loading = false);
       await _player!.play();
     } catch (e) {
@@ -968,7 +988,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
       });
 
       if (!mounted) return;
-      await _player!.setUrl(url);
+      await _setAudioSource(_player!, url);
       if (mounted) setState(() => _loading = false);
       await _player!.play();
     } catch (e) {

@@ -7,6 +7,7 @@ import '../services/analytics_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
+import '../services/offline/offline_reset.dart';
 import 'connection.dart';
 
 /// Manages multiple connections/groups
@@ -667,6 +668,7 @@ class ConnectionsManager extends ChangeNotifier {
           'UID mismatch: stored=$storedUid, current=$currentUid. Clearing connections.',
         );
         await clearAllData();
+        await resetOfflineState(); // сменился пользователь → чистим и офлайн-кэш
         return;
       }
 

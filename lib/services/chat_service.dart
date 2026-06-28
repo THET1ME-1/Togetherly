@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_msg.dart';
+import 'offline/local_store.dart';
+import 'offline/outbox_service.dart';
+import 'offline/pb_id.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -61,24 +64,51 @@ class ChatService {
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return false;
-    final rec = await _data.createMessage(groupId, {
-      'uid': _uid,
-      'name': senderName,
+    final id = newPbId();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    // 1) оптимистично в кэш (snake_case-колонки, как читает ChatMsg.fromPb)
+    await LocalStore.instance.upsertRaw('chat_messages', id, {
+      'id': id,
+      'group_id': groupId,
+      'user_uid': _uid,
+      'user_name': senderName,
       'text': trimmed,
-      'ts': DateTime.now().millisecondsSinceEpoch,
-      'pinId': pinId,
-      'pinTitle': pinTitle,
-      'pinThumb': pinThumb,
-      'replyToId': replyToId,
-      'replyToName': replyToName,
-      'replyToText': replyToText,
-      'face': face,
-      'color': color,
-      'faceX': faceX,
-      'faceY': faceY,
+      'ts': ts,
+      'deleted': false,
+      'pin_id': ?pinId,
+      'pin_title': ?pinTitle,
+      'pin_thumb': ?pinThumb,
+      'reply_to_id': ?replyToId,
+      'reply_to_name': ?replyToName,
+      'reply_to_text': ?replyToText,
+      'face': ?face,
+      'color': ?color,
+      'face_x': ?faceX,
+      'face_y': ?faceY,
     });
-    // Пуш партнёру — через PbPushService (SSE-подписка на chat_messages), не здесь.
-    return rec != null;
+    // 2) в очередь (camelCase — как ожидает PbDataService.chatSend)
+    await OutboxService.instance.enqueue('chatUpsert', {
+      'groupId': groupId,
+      'id': id,
+      'msg': {
+        'uid': _uid,
+        'name': senderName,
+        'text': trimmed,
+        'ts': ts,
+        'pinId': pinId,
+        'pinTitle': pinTitle,
+        'pinThumb': pinThumb,
+        'replyToId': replyToId,
+        'replyToName': replyToName,
+        'replyToText': replyToText,
+        'face': face,
+        'color': color,
+        'faceX': faceX,
+        'faceY': faceY,
+      },
+    });
+    // Пуш партнёру — через PbPushService (SSE на chat_messages при отправке очереди).
+    return true; // оптимистично: сообщение в кэше и очереди
   }
 
   /// Редактировать своё сообщение. null-значения оформления СТИРАЮТ поле:
@@ -95,14 +125,17 @@ class ChatService {
   }) async {
     final trimmed = newText.trim();
     if (messageId.isEmpty || trimmed.isEmpty) return;
-    await _data.chatUpdate(messageId, {
+    final fields = <String, dynamic>{
       'text': trimmed,
       'edited_ts': DateTime.now().millisecondsSinceEpoch,
       'face': face ?? '',
       'color': color ?? 0,
       'face_x': faceX ?? 0,
       'face_y': faceY ?? 0,
-    });
+    };
+    await _patchCachedMessage(messageId, fields); // оптимистично
+    await OutboxService.instance.enqueue('chatUpdate',
+        {'id': messageId, 'fields': fields});
   }
 
   /// Мягко удалить сообщение (томбстоун — партнёр видит «сообщение удалено»).
@@ -111,13 +144,25 @@ class ChatService {
     required String messageId,
   }) async {
     if (messageId.isEmpty) return;
-    await _data.chatUpdate(messageId, {
+    final fields = <String, dynamic>{
       'deleted': true,
       'text': '',
       'pin_id': '',
       'pin_title': '',
       'edited_ts': DateTime.now().millisecondsSinceEpoch,
-    });
+    };
+    await _patchCachedMessage(messageId, fields); // оптимистично
+    await OutboxService.instance.enqueue('chatUpdate',
+        {'id': messageId, 'fields': fields});
+  }
+
+  /// Оптимистично применить snake_case-поля к кэш-ряду сообщения.
+  Future<void> _patchCachedMessage(
+      String messageId, Map<String, dynamic> fields) async {
+    final rec = await LocalStore.instance.getRecord('chat_messages', messageId);
+    if (rec == null) return;
+    final row = Map<String, dynamic>.from(rec.data)..addAll(fields);
+    await LocalStore.instance.upsertRaw('chat_messages', messageId, row);
   }
 
   /// Поставить/снять свою реакцию на сообщение. [emoji] == null убирает её.
@@ -128,7 +173,24 @@ class ChatService {
     required String? emoji,
   }) async {
     if (messageId.isEmpty || _uid.isEmpty) return;
-    await _data.setChatReaction(messageId, _uid, emoji);
+    // оптимистично: RMW reactions в кэш-ряду
+    final rec = await LocalStore.instance.getRecord('chat_messages', messageId);
+    if (rec != null) {
+      final row = Map<String, dynamic>.from(rec.data);
+      final cur = row['reactions'];
+      final r =
+          cur is Map ? Map<String, dynamic>.from(cur) : <String, dynamic>{};
+      if (emoji == null || emoji.isEmpty) {
+        r.remove(_uid);
+      } else {
+        r[_uid] = emoji;
+      }
+      row['reactions'] = r;
+      await LocalStore.instance.upsertRaw('chat_messages', messageId, row);
+    }
+    // в очередь (setChatReaction идемпотентен: ставит uid→emoji / снимает)
+    await OutboxService.instance.enqueue(
+        'chatSetReaction', {'id': messageId, 'uid': _uid, 'emoji': emoji});
   }
 
   // ── «Печатает…» (эфемерный презенс на PB heartbeat+TTL) ─────────────────────

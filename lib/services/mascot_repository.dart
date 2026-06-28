@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import '../models/mascot.dart';
+import 'offline/local_store.dart';
+import 'offline/outbox_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -77,16 +79,30 @@ class MascotRepository {
     });
   }
 
-  Future<void> setActive(String groupId, String? mascotId) =>
-      _data.setActiveMascot(groupId, mascotId);
+  /// Активный маскот — состояние в group-доке: оптимистично в кэш + в очередь.
+  Future<void> setActive(String groupId, String? mascotId) async {
+    final cols = {'active_mascot_id': mascotId ?? ''};
+    await LocalStore.instance.patchRecordFields('groups', groupId, cols);
+    await OutboxService.instance
+        .enqueue('groupUpdateFields', {'groupId': groupId, 'cols': cols});
+  }
 
+  /// Позиция/масштаб маскота — состояние в group-доке: оптимистично + очередь.
   Future<void> updatePosition(
     String groupId, {
     required double x,
     required double y,
     required double scale,
-  }) =>
-      _data.updateMascotPosition(groupId, x, y, scale);
+  }) async {
+    final cols = {
+      'mascot_position_x': x,
+      'mascot_position_y': y,
+      'mascot_scale': scale,
+    };
+    await LocalStore.instance.patchRecordFields('groups', groupId, cols);
+    await OutboxService.instance
+        .enqueue('groupUpdateFields', {'groupId': groupId, 'cols': cols});
+  }
 
   /// Отметить дневную активность текущего пользователя (ведение «огонька»).
   Future<void> recordActivity(String groupId) async {

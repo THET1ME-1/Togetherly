@@ -2,7 +2,7 @@ name: love_app
 description: "Togetherly — a private space for couples with shared memories, mood tracking, timers, drawings, and widgets."
 publish_to: "none"
 
-version: 1.15.1+90
+version: 1.15.2+91
 
 environment:
   sdk: ^3.10.4
@@ -37,6 +37,9 @@ dependencies:
   flutter_svg: ^2.0.9
   home_widget: ^0.9.0
   cached_network_image: ^3.4.1
+  # Транзитивно тянется cached_network_image; объявляем явно — нужен прямой доступ
+  # к CacheManager для долгоживущего (невытесняемого) кэша офлайн-просмотра медиа.
+  flutter_cache_manager: ^3.3.0
   fl_chart: ^1.2.0
   archive: ^4.0.9
   flutter_image_compress: ^2.3.0
@@ -63,6 +66,9 @@ dependencies:
   flutter_rustore_billing: ^9.0.0
   pocketbase: ^0.24.0
   flutter_foreground_task: ^9.2.2
+  # Офлайн-кэш (offline-first): чистый Dart NoSQL-стор документов — кладём
+  # JSON-записи PB как есть, без нативного кода (сборки iOS/RuStore не трогаем).
+  sembast: ^3.7.0
 
 dev_dependencies:
   flutter_test:

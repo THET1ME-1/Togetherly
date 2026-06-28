@@ -4,22 +4,21 @@ import '../models/comment.dart';
 import '../models/memory.dart';
 import 'analytics_service.dart';
 import 'level_service.dart';
+import 'offline/local_store.dart';
+import 'offline/outbox_service.dart';
+import 'offline/pb_id.dart';
 import 'pb_auth_service.dart';
 import 'pb_data_service.dart';
-import 'pb_media_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
 
-/// Репозиторий «Воспоминаний» поверх PocketBase (миграция Firebase→PB, §3).
+/// Репозиторий «Воспоминаний» поверх PocketBase + offline-first.
 ///
-/// Доменная обёртка над [PbDataService] (CRUD) и [PbRealtimeService] (live SSE):
-/// экраны работают с моделями [Memory]/[MemoryComment], а не с `RecordModel`.
-/// Чтения на self-hosted PB БЕСПЛАТНЫ → лента целиком live, БЕЗ лимитов/пагинации
-/// и ручных кнопок «обновить» (директива пользователя, memory
-/// `togetherly_pb_realtime_no_limits`).
-///
-/// Медиа на §3 ещё грузятся вызывающим (Firebase Storage); §4 переведёт на
-/// [PbMediaService]. Здесь мы лишь чистим уже-PB-ссылки (`pb://`) при удалении.
+/// Чтения: живая лента из локального кэша (sembast) с фоновой синхронизацией
+/// (см. [PbRealtimeService.watchMemories]). Записи: оптимистично применяются в
+/// кэш (UI обновляется мгновенно) и кладутся в очередь отправки
+/// ([OutboxService]); при наличии сети очередь сливается на сервер. Поэтому
+/// создание/правка/удаление воспоминания работают офлайн.
 class MemoryRepository {
   MemoryRepository._();
   static final MemoryRepository instance = MemoryRepository._();
@@ -27,23 +26,45 @@ class MemoryRepository {
 
   final PbDataService _data = PbDataService();
   final PbRealtimeService _rt = PbRealtimeService();
+  final LocalStore _cache = LocalStore.instance;
+  final OutboxService _outbox = OutboxService.instance;
 
   String? get _uid => PocketBaseService().userId;
 
   // ── Лента ────────────────────────────────────────────────────────────────
-  /// Живая лента группы (новые сверху), soft-deleted скрыты.
+  /// Живая лента группы (новые сверху), soft-deleted скрыты. Из локального кэша.
   Stream<List<Memory>> watch(String groupId) =>
       _rt.watchMemories(groupId).map((recs) => recs.map(Memory.fromPb).toList());
 
-  /// Точечное чтение пина (deep-link из чата), если его нет в live-списке.
+  /// Точечное чтение пина (deep-link из чата). Сперва кэш, затем сеть.
   Future<Memory?> getById(String memoryId) async {
+    final cached = await _cache.getRecord('memories', memoryId);
+    if (cached != null && cached.data['deleted'] != true) {
+      return Memory.fromPb(cached);
+    }
     final rec = await _data.loadMemoryById(memoryId);
     return rec == null ? null : Memory.fromPb(rec);
   }
 
+  /// «Сырой» ряд колонок коллекции `memories` для кэша (= тело upsertMemory без
+  /// серверных id/created/updated). [Memory.fromPb] читает его без изменений.
+  Map<String, dynamic> _row(String groupId, Memory m) => {
+        'id': m.id,
+        'group_id': groupId,
+        'type': m.type.name,
+        'author_uid': m.authorUid,
+        'author_name': m.authorName,
+        'author_avatar': m.authorAvatar,
+        'created_at': m.createdAt.toIso8601String(),
+        'edited_at': m.editedAt?.toIso8601String(),
+        'is_pinned': m.isPinned,
+        'deleted': false,
+        'data': m.toJson(),
+      };
+
   // ── Запись ───────────────────────────────────────────────────────────────
-  /// Создаёт воспоминание (id генерит сервер). Медиа-URL уже загружены
-  /// вызывающим. Возвращает модель с серверным id или null.
+  /// Создаёт воспоминание (id генерится локально и принимается сервером).
+  /// Оптимистично в кэш + в очередь. Возвращает модель с этим id.
   Future<Memory?> add({
     required String groupId,
     required String authorName,
@@ -80,8 +101,8 @@ class MemoryRepository {
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return null;
-    final draft = Memory(
-      id: '',
+    final memory = Memory(
+      id: newPbId(), // валидный PB-id, который сервер примет при отправке
       groupId: groupId,
       authorUid: uid,
       authorName: authorName,
@@ -113,23 +134,24 @@ class MemoryRepository {
       movieCountry: movieCountry,
       movieRatingKp: movieRatingKp,
       movieInfoUrl: movieInfoUrl,
-      // 0 = «без оценки» (как в update()): нормализуем в null, чтобы оба пути
-      // записи трактовали 0 одинаково.
       rating: rating == 0 ? null : rating,
       isAdult: isAdult,
     );
-    final rec = await _data.createMemory(groupId, draft.toJson());
-    if (rec == null) return null;
-    unawaited(_data.incrementGroupCounter(groupId, 'memories_count', 1));
-    // Паритет с прежним FirebaseService.addMemory: начисляем XP паре за действие
-    // и логируем аналитику (Analytics остаётся на Firebase до §7).
+    // 1) оптимистично в кэш → лента показывает сразу (и офлайн)
+    await _cache.upsertRaw('memories', memory.id, _row(groupId, memory));
+    // 2) в очередь: создание + инкремент счётчика воспоминаний
+    await _outbox.enqueue('memoryUpsert',
+        {'groupId': groupId, 'id': memory.id, 'data': memory.toJson()});
+    await _outbox.enqueue('counterInc',
+        {'groupId': groupId, 'field': 'memories_count', 'by': 1});
+    // XP/аналитика — best-effort (онлайн); офлайн просто не начислится.
     unawaited(LevelService.instance.award(XpAction.addMemory));
     unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
-    return Memory.fromPb(rec);
+    return memory;
   }
 
-  /// Частичное редактирование (RMW по json-полю `data`): читаем текущую карту,
-  /// меняем переданные поля, пишем целиком + синк индексированных колонок.
+  /// Частичное редактирование: RMW по кэшированной карте `data`, оптимистично в
+  /// кэш + полный upsert в очередь.
   Future<void> update({
     required String groupId,
     required String memoryId,
@@ -147,11 +169,19 @@ class MemoryRepository {
     bool? isAdult,
     DateTime? customDate,
   }) async {
-    final rec = await _data.loadMemoryById(memoryId);
-    if (rec == null) return;
-    final raw = rec.data['data'];
-    final map =
-        raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    var cached = await _cache.getRecord('memories', memoryId);
+    if (cached == null) {
+      // Нет в кэше (напр. дип-линк) — подтягиваем с сервера (только онлайн).
+      final rec = await _data.loadMemoryById(memoryId);
+      if (rec == null) return;
+      await _cache.upsert('memories', rec);
+      cached = await _cache.getRecord('memories', memoryId);
+      if (cached == null) return;
+    }
+    final row = Map<String, dynamic>.from(cached.data);
+    final map = (row['data'] is Map)
+        ? Map<String, dynamic>.from(row['data'] as Map)
+        : <String, dynamic>{};
     void put(String k, dynamic v) {
       if (v != null) map[k] = v;
     }
@@ -170,7 +200,16 @@ class MemoryRepository {
     if (isAdult != null) map['isAdult'] = isAdult;
     if (customDate != null) map['createdAt'] = customDate.toIso8601String();
     map['editedAt'] = DateTime.now().toIso8601String();
-    await _data.upsertMemory(groupId, memoryId, map);
+
+    // Синхронизируем индексные колонки кэш-ряда (для scope/сортировки/fromPb).
+    row['data'] = map;
+    if (isPinned != null) row['is_pinned'] = isPinned;
+    if (customDate != null) row['created_at'] = customDate.toIso8601String();
+    row['edited_at'] = map['editedAt'];
+
+    await _cache.upsertRaw('memories', memoryId, row);
+    await _outbox.enqueue(
+        'memoryUpsert', {'groupId': groupId, 'id': memoryId, 'data': map});
   }
 
   Future<void> togglePin({
@@ -180,33 +219,39 @@ class MemoryRepository {
   }) =>
       update(groupId: groupId, memoryId: memoryId, isPinned: isPinned);
 
-  /// Переключает закладку «Избранное» для ТЕКУЩЕГО пользователя (персонально).
-  /// RMW по списку `savedBy` в json-поле `data`.
+  /// Переключает «Избранное» для ТЕКУЩЕГО пользователя (персонально). Оптимистично
+  /// в кэш + идемпотентная set-saved операция в очередь (на сервере приводит
+  /// присутствие uid к желаемому — не затирает партнёра, повтор безопасен).
   Future<void> toggleSaved({
     required String groupId,
     required String memoryId,
   }) async {
     final uid = _uid;
     if (uid == null || uid.isEmpty) return;
-    final rec = await _data.loadMemoryById(memoryId);
-    if (rec == null) return;
-    final raw = rec.data['data'];
-    final map =
-        raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final cached = await _cache.getRecord('memories', memoryId);
+    if (cached == null) return;
+    final row = Map<String, dynamic>.from(cached.data);
+    final map = (row['data'] is Map)
+        ? Map<String, dynamic>.from(row['data'] as Map)
+        : <String, dynamic>{};
     final saved = (map['savedBy'] is List)
         ? List<String>.from((map['savedBy'] as List).map((e) => e.toString()))
         : <String>[];
-    if (saved.contains(uid)) {
-      saved.remove(uid);
-    } else {
+    final willSave = !saved.contains(uid);
+    if (willSave) {
       saved.add(uid);
+    } else {
+      saved.remove(uid);
     }
     map['savedBy'] = saved;
-    await _data.upsertMemory(groupId, memoryId, map);
+    row['data'] = map;
+    await _cache.upsertRaw('memories', memoryId, row);
+    await _outbox.enqueue('memorySetSaved',
+        {'memoryId': memoryId, 'uid': uid, 'saved': willSave});
   }
 
-  /// Удаляет воспоминание (hard) + связанные PB-медиа (`pb://`). Не-PB URL
-  /// (Firebase http) на §3 не трогаем — чистка такого медиа уедет в §4.
+  /// Удаляет воспоминание: оптимистично из кэша + удаление (с чисткой PB-медиа)
+  /// и декремент счётчика в очередь.
   Future<void> delete({
     required String groupId,
     required String memoryId,
@@ -215,25 +260,24 @@ class MemoryRepository {
     String? musicUrl,
     String? musicCoverUrl,
   }) async {
-    final media = PbMediaService();
-    for (final url in [imageUrl, videoUrl, musicUrl, musicCoverUrl]) {
-      if (url != null && media.isPbRef(url)) unawaited(media.delete(url));
-    }
-    final ok = await _data.deleteMemory(memoryId, hard: true);
-    if (ok) {
-      unawaited(_data.incrementGroupCounter(groupId, 'memories_count', -1));
-    }
+    await _cache.deleteRecord('memories', memoryId);
+    final refs = [imageUrl, videoUrl, musicUrl, musicCoverUrl]
+        .whereType<String>()
+        .toList();
+    await _outbox.enqueue('memoryDelete',
+        {'groupId': groupId, 'id': memoryId, 'mediaRefs': refs});
+    await _outbox.enqueue('counterInc',
+        {'groupId': groupId, 'field': 'memories_count', 'by': -1});
   }
 
   // ── Комментарии ──────────────────────────────────────────────────────────
-  /// Живые комментарии воспоминания (старые сверху).
+  /// Живые комментарии воспоминания (старые сверху). Из локального кэша.
   Stream<List<MemoryComment>> watchComments(String memoryId) => _rt
       .watchComments(memoryId)
       .map((recs) => recs.map(MemoryComment.fromPb).toList());
 
-  /// Добавляет комментарий. Имя/аватар автора по умолчанию берутся из профиля
-  /// текущего пользователя PB ([PbAuthService.currentProfile]) — вызывающему не
-  /// нужно их прокидывать.
+  /// Добавляет комментарий: оптимистично в кэш (+ бейдж commentsCount) и в
+  /// очередь (создание + RMW-бамп счётчика) → работает офлайн.
   Future<void> addComment({
     required String groupId,
     required String memoryId,
@@ -244,30 +288,53 @@ class MemoryRepository {
     final uid = _uid;
     if (uid == null) return;
     final profile = PbAuthService().currentProfile();
-    final name = authorName ?? (profile?['displayName'] as String? ?? '');
-    await _data.createComment(groupId, memoryId, {
-      'authorUid': uid,
-      // Паритет с прежним поведением: пустое имя → плейсхолдер 'User'.
-      'authorName': name.isNotEmpty ? name : 'User',
-      'authorAvatar': authorAvatar ?? (profile?['avatarUrl'] as String? ?? ''),
+    final rawName = authorName ?? (profile?['displayName'] as String? ?? '');
+    final name = rawName.isNotEmpty ? rawName : 'User';
+    final avatar = authorAvatar ?? (profile?['avatarUrl'] as String? ?? '');
+    final id = newPbId();
+    final createdAt = DateTime.now().toIso8601String();
+    // 1) оптимистично сам комментарий
+    await _cache.upsertRaw('memory_comments', id, {
+      'id': id,
+      'group_id': groupId,
+      'memory_id': memoryId,
+      'deleted': false,
+      'author_uid': uid,
+      'author_name': name,
+      'author_avatar': avatar,
       'text': text,
-      'createdAt': DateTime.now().toIso8601String(),
+      'created_at': createdAt,
     });
-    // Кэш-счётчик комментов в самом воспоминании — для бейджа в ленте (чтобы не
-    // держать SSE-подписку на комментарии каждой карточки). RMW по json `data`.
-    try {
-      final rec = await _data.loadMemoryById(memoryId);
-      if (rec != null) {
-        final raw = rec.data['data'];
-        final map =
-            raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
-        map['commentsCount'] =
-            ((map['commentsCount'] as num?)?.toInt() ?? 0) + 1;
-        await _data.upsertMemory(groupId, memoryId, map);
-      }
-    } catch (_) {}
+    // 2) оптимистично бейдж commentsCount в кэш-ряду воспоминания
+    final memRec = await _cache.getRecord('memories', memoryId);
+    if (memRec != null) {
+      final row = Map<String, dynamic>.from(memRec.data);
+      final m = (row['data'] is Map)
+          ? Map<String, dynamic>.from(row['data'] as Map)
+          : <String, dynamic>{};
+      m['commentsCount'] = ((m['commentsCount'] as num?)?.toInt() ?? 0) + 1;
+      row['data'] = m;
+      await _cache.upsertRaw('memories', memoryId, row);
+    }
+    // 3) в очередь
+    await _outbox.enqueue('commentUpsert', {
+      'groupId': groupId,
+      'memoryId': memoryId,
+      'id': id,
+      'data': {
+        'authorUid': uid,
+        'authorName': name,
+        'authorAvatar': avatar,
+        'text': text,
+        'createdAt': createdAt,
+      },
+    });
+    await _outbox.enqueue('memoryBumpComments',
+        {'groupId': groupId, 'memoryId': memoryId, 'by': 1});
   }
 
-  Future<void> deleteComment(String commentId) =>
-      _data.deleteComment(commentId);
+  Future<void> deleteComment(String commentId) async {
+    await _cache.deleteRecord('memory_comments', commentId);
+    await _outbox.enqueue('commentDelete', {'id': commentId});
+  }
 }

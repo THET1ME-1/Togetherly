@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../services/offline/media_cache.dart';
+import '../services/offline/media_view_cache.dart';
 import '../services/pb_media_service.dart';
 
 /// Drop-in замена [CachedNetworkImage] с поддержкой pb:// / gs:// / sb:// путей.
@@ -82,6 +86,8 @@ class _StorageImageState extends State<StorageImage> {
   Widget _buildCached(String url) => CachedNetworkImage(
         imageUrl: url,
         cacheKey: 'v2|${widget.imageUrl}',
+        // Долгоживущий кэш → уже виденное фото гарантированно открывается офлайн.
+        cacheManager: OfflineImageCacheManager.instance,
         width: widget.width,
         height: widget.height,
         fit: widget.fit,
@@ -102,6 +108,21 @@ class _StorageImageState extends State<StorageImage> {
     final url = widget.imageUrl;
 
     if (url.isEmpty) return _empty();
+
+    // Офлайн-медиа: созданное без сети показываем прямо с диска (Image.file).
+    if (MediaCache.instance.isLocalRef(url)) {
+      final p = MediaCache.instance.localPath(url);
+      if (p != null && File(p).existsSync()) {
+        return Image.file(
+          File(p),
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          errorBuilder: (_, _, _) => _empty(),
+        );
+      }
+      return _empty();
+    }
 
     // Fast path: https:// / pb:// → рендерим сразу, без async/мигания
     if (!_needsResolve) return _buildCached(_fastUrl);

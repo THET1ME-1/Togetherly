@@ -25,12 +25,17 @@ import 'services/mood_pack_service.dart';
 import 'services/pocketbase_service.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
+import 'services/offline/local_store.dart';
+import 'services/offline/connectivity_service.dart';
+import 'services/offline/outbox_service.dart';
+import 'services/offline/media_cache.dart';
 import 'models/widget_data.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
+import 'widgets/offline_sync_banner.dart';
 
 /// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob SDK.
 /// МobileAds.initialize() ДОЛЖЕН вызываться ПОСЛЕ завершения consent flow,
@@ -244,7 +249,20 @@ void main() async {
   // Crashlytics, Messaging и Supabase убираем ПОСЛЕДНИМ шагом cutover'а, когда
   // все слои переведены (см. pocketbase/CUTOVER.md §1, §7).
   await PocketBaseService().init();
+  // Офлайн-фундамент: локальный кэш (sembast) + детектор связи. Открываем ДО
+  // первых watch*, чтобы экраны читали из кэша мгновенно и работали офлайн.
+  // fail-open: при ошибке открытия кэша приложение работает как раньше (онлайн).
+  await LocalStore.instance.init();
+  unawaited(ConnectivityService.instance.init());
   await PbAuthService().signInSilently();
+  // Привязываем кэш к владельцу: если на устройстве сменился аккаунт — кэш
+  // полностью чистится (защита от утечки данных между пользователями).
+  await LocalStore.instance.ensureOwner(PocketBaseService().userId);
+  // Очередь офлайн-записи: дослать на сервер изменения, сделанные офлайн в
+  // прошлой сессии (если уже есть сеть), и реагировать на её появление.
+  unawaited(OutboxService.instance.init());
+  // Отложенные медиа (созданные офлайн) — дослать в PB при появлении сети.
+  unawaited(MediaCache.instance.init());
 
   // Крашрепортинг — self-hosted Bugsink (Sentry-совместимый, наш VPS), замена
   // Firebase Crashlytics. Перехватываем:
@@ -619,6 +637,9 @@ class _LoveAppState extends State<LoveApp> {
         debugShowCheckedModeBanner: false,
         theme: _themeFor(_userData.themeAccent),
         navigatorObservers: [AnalyticsService.instance.observer],
+        // Глобальная плашка «офлайн / ожидает синхронизации» поверх любого экрана.
+        builder: (context, child) =>
+            OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
         home: _loading
             ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
             : _buildInitialScreen(),

@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import '../models/mood_entry.dart';
+import 'offline/local_store.dart';
+import 'offline/outbox_service.dart';
+import 'offline/pb_id.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -37,8 +40,8 @@ class MoodRepository {
     return recs.map(MoodEntry.fromPb).toList();
   }
 
-  /// Создаёт запись настроения (id генерит сервер). Личность — текущий PB-юзер.
-  /// Возвращает модель с серверным id или null.
+  /// Создаёт запись настроения (id генерится локально, принимается сервером).
+  /// Оптимистично в кэш + в очередь → работает офлайн. Личность — текущий юзер.
   Future<MoodEntry?> add({
     required String groupId,
     required String moodId,
@@ -48,15 +51,39 @@ class MoodRepository {
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return null;
-    final rec = await _data.createMood(groupId, uid, {
-      'moodId': moodId,
-      'imagePath': imagePath,
+    final id = newPbId();
+    final ts = timestamp.toIso8601String();
+    await LocalStore.instance.upsertRaw('mood_entries', id, {
+      'id': id,
+      'group_id': groupId,
+      'user_uid': uid,
+      'mood_id': moodId,
+      'image_path': imagePath,
       'label': label,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': ts,
     });
-    return rec == null ? null : MoodEntry.fromPb(rec);
+    await OutboxService.instance.enqueue('moodUpsert', {
+      'groupId': groupId,
+      'uid': uid,
+      'entry': {
+        'id': id,
+        'moodId': moodId,
+        'imagePath': imagePath,
+        'label': label,
+        'timestamp': ts,
+      },
+    });
+    return MoodEntry(
+        id: id,
+        moodId: moodId,
+        imagePath: imagePath,
+        label: label,
+        timestamp: timestamp);
   }
 
-  /// Удаляет запись настроения по id (= id PB-записи из [MoodEntry.fromPb]).
-  Future<void> delete(String entryId) => _data.deleteMood(entryId);
+  /// Удаляет запись настроения по id: оптимистично из кэша + в очередь.
+  Future<void> delete(String entryId) async {
+    await LocalStore.instance.deleteRecord('mood_entries', entryId);
+    await OutboxService.instance.enqueue('moodDelete', {'id': entryId});
+  }
 }

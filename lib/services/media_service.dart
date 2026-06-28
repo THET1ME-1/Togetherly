@@ -7,6 +7,8 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'pocketbase_service.dart';
 import 'pb_media_service.dart';
+import 'offline/connectivity_service.dart';
+import 'offline/media_cache.dart';
 
 /// Медиа-загрузки приложения: WebP/видео-компрессия на устройстве + заливка
 /// в PocketBase (коллекция `media`, схема `pb://`).
@@ -147,6 +149,18 @@ class MediaService {
       // группы (group_id). uid даёт create + self-view, group_id — просмотр
       // партнёром-членом группы. (avatars/<uid>/… — group_id окажется = uid.)
       final groupId = segments.length >= 3 ? segments[1] : null;
+      // Офлайн + медиа воспоминания (memories/music) → откладываем: прячем
+      // сжатый файл локально и возвращаем localfile://. Реальную заливку и
+      // подмену ссылки на pb:// сделает MediaCache.flushPending при появлении
+      // сети. Прочие kind (avatars/mascots/canvas) офлайн не откладываем.
+      final deferrable = kind == 'memories' || kind == 'music';
+      if (deferrable && !ConnectivityService.instance.isOnline) {
+        final localRef = await MediaCache.instance
+            .stash(bytes, filename, kind: kind, groupId: groupId);
+        compressedTempFile?.delete().ignore();
+        debugPrint('uploadFile → офлайн, отложено: $localRef');
+        return localRef;
+      }
       final pbRef = await PbMediaService().uploadBytes(
         bytes,
         filename,
@@ -154,7 +168,7 @@ class MediaService {
         groupId: groupId,
         kind: kind,
       );
-      compressedTempFile?.delete().catchError((_) {});
+      compressedTempFile?.delete().ignore();
       debugPrint('uploadFile → PocketBase: $pbRef');
       return pbRef;
     } catch (e) {

@@ -35,6 +35,7 @@ import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/ad_banner.dart';
 import '../services/pb_media_service.dart';
+import '../services/offline/media_cache.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
@@ -157,6 +158,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
   List<Memory> _memories = [];
   bool _loading = true;
+  // Ленивая пагинация ленты: рендерим окно из последних N воспоминаний и растим
+  // его по мере прокрутки. Данные все в кэше — это окно ПО UI, не по сети.
+  static const int _feedPageSize = 30;
+  int _visibleLimit = _feedPageSize;
+  final ScrollController _feedScroll = ScrollController();
   // Пагинация мертва: на PB чтения бесплатны → лента целиком live (см.
   // _subscribeMemories). Поля сохранены, чтобы не трогать UI «загрузить ещё»:
   // _loadedAll=true → блок подгрузки не рендерится, _loadingMore всегда false.
@@ -218,6 +224,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   void initState() {
     super.initState();
     _subscribeMemories();
+    _feedScroll.addListener(_onFeedScroll); // ленивая пагинация по скроллу
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
     if (widget.openCreateOnStart) {
@@ -291,9 +298,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// чтобы не трогать обработчики скролла.
   Future<void> _loadNextPage() async {}
 
+  /// Подрастить окно ленты (ленивая пагинация по скроллу).
+  void _growWindow() {
+    if (!_canShowMore) return;
+    setState(() => _visibleLimit += _feedPageSize);
+  }
+
+  void _onFeedScroll() {
+    if (!_feedScroll.hasClients || !_canShowMore) return;
+    final pos = _feedScroll.position;
+    if (pos.pixels >= pos.maxScrollExtent - 600) _growWindow();
+  }
+
   @override
   void dispose() {
     _memSub?.cancel();
+    _feedScroll.dispose();
     widget.pairData.removeListener(_onPairChanged);
     super.dispose();
   }
@@ -332,18 +352,26 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return grouped;
   }
 
-  /// Group non-pinned memories by date, newest first
-  Map<String, List<Memory>> get _groupedByDate {
-    if (widget.filterMode != MemoryFilterMode.none) return {};
-    final nonPinned = _memories
+  /// Все непин-воспоминания, прошедшие фильтр, новые первыми (без окна).
+  List<Memory> get _nonPinnedSortedAll {
+    if (widget.filterMode != MemoryFilterMode.none) return const [];
+    return _memories
         .where((m) => !m.isPinned && _passesFeedFilter(m))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
 
+  /// Есть ли воспоминания за пределами текущего окна (для подгрузки по скроллу).
+  bool get _canShowMore =>
+      widget.filterMode == MemoryFilterMode.none &&
+      _nonPinnedSortedAll.length > _visibleLimit;
+
+  /// Group non-pinned memories by date, newest first — ОКНО (_visibleLimit).
+  Map<String, List<Memory>> get _groupedByDate {
+    if (widget.filterMode != MemoryFilterMode.none) return {};
     final Map<String, List<Memory>> grouped = {};
-    for (var m in nonPinned) {
-      final key = _dateKey(m.createdAt);
-      grouped.putIfAbsent(key, () => []).add(m);
+    for (final m in _nonPinnedSortedAll.take(_visibleLimit)) {
+      grouped.putIfAbsent(_dateKey(m.createdAt), () => []).add(m);
     }
     return grouped;
   }
@@ -504,6 +532,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
+            controller: _feedScroll,
               slivers: [
                 _buildAppBar(),
                 if (_loading)

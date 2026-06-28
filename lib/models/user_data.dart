@@ -6,6 +6,7 @@ import '../services/pb_coins_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
+import '../services/offline/offline_reset.dart';
 import '../theme/app_theme.dart';
 import '../utils/safe_text.dart';
 import 'profile_icon.dart';
@@ -783,6 +784,9 @@ class UserData extends ChangeNotifier {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     PocketBaseService().signOut();
+    // Офлайн-кэш предыдущего юзера не должен пережить выход (иначе следующий
+    // увидит чужие данные). Чистим локальную копию данных.
+    await resetOfflineState();
     // Гасим фоновый пуш-сервис (§5): иначе его постоянное уведомление и
     // SSE-подписка с уже невалидной сессией остались бы висеть после выхода.
     await PushBackgroundService().stop();

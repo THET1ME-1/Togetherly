@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../services/locale_service.dart';
+import '../services/offline/local_store.dart';
+import '../services/offline/outbox_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
@@ -282,11 +284,16 @@ class Connection {
       updatedAt: DateTime.now(),
     );
     onChanged?.call();
-    await PbDataService().setMemberMood(pairId, myUid, {
+    final mood = {
       'imagePath': imagePath,
       'label': label,
       'updatedAt': DateTime.now().toIso8601String(),
-    });
+    };
+    // Offline-first: оптимистично в кэш группы + в очередь (досыл при сети).
+    await LocalStore.instance
+        .patchRecordMapEntry('groups', pairId, 'member_moods', myUid, mood);
+    await OutboxService.instance.enqueue(
+        'groupSetMemberMood', {'groupId': pairId, 'uid': myUid, 'mood': mood});
   }
 
   /// Clear my mood
@@ -294,7 +301,10 @@ class Connection {
     if (pairId.isEmpty) return;
     memberMoods.remove(_uid);
     onChanged?.call();
-    await PbDataService().clearMemberMood(pairId, _uid);
+    await LocalStore.instance
+        .patchRecordMapEntry('groups', pairId, 'member_moods', _uid, null);
+    await OutboxService.instance.enqueue(
+        'groupSetMemberMood', {'groupId': pairId, 'uid': _uid, 'mood': null});
   }
 
   /// Моё самочувствие (актуальное).
@@ -331,12 +341,16 @@ class Connection {
       updatedAt: DateTime.now(),
     );
     onChanged?.call();
-    await PbDataService().setMemberAilment(pairId, myUid, {
+    final ailment = {
       'id': id,
       'label': label,
       'emoji': emoji,
       'updatedAt': DateTime.now().toIso8601String(),
-    });
+    };
+    await LocalStore.instance.patchRecordMapEntry(
+        'groups', pairId, 'member_ailments', myUid, ailment);
+    await OutboxService.instance.enqueue('groupSetMemberAilment',
+        {'groupId': pairId, 'uid': myUid, 'ailment': ailment});
   }
 
   /// Снять своё самочувствие («Здоров(а)»).
@@ -344,7 +358,10 @@ class Connection {
     if (pairId.isEmpty) return;
     memberAilments.remove(_uid);
     onChanged?.call();
-    await PbDataService().clearMemberAilment(pairId, _uid);
+    await LocalStore.instance
+        .patchRecordMapEntry('groups', pairId, 'member_ailments', _uid, null);
+    await OutboxService.instance.enqueue('groupSetMemberAilment',
+        {'groupId': pairId, 'uid': _uid, 'ailment': null});
   }
 
   void setRelationshipType(
@@ -439,7 +456,11 @@ class Connection {
     if (pairId.isEmpty) return;
     currentStatus = status;
     onChanged?.call();
-    await PbDataService().setGroupStatus(pairId, status.toJson());
+    final json = status.toJson();
+    await LocalStore.instance
+        .patchRecordFields('groups', pairId, {'current_status': json});
+    await OutboxService.instance
+        .enqueue('groupSetStatus', {'groupId': pairId, 'status': json});
   }
 
   /// Clear the current relationship status
@@ -447,7 +468,10 @@ class Connection {
     if (pairId.isEmpty) return;
     currentStatus = null;
     onChanged?.call();
-    await PbDataService().clearGroupStatus(pairId);
+    await LocalStore.instance
+        .patchRecordFields('groups', pairId, {'current_status': null});
+    await OutboxService.instance
+        .enqueue('groupSetStatus', {'groupId': pairId, 'status': null});
   }
 
   /// Add a new custom status
