@@ -4,15 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import 'centrifugo_service.dart';
 import 'pocketbase_service.dart';
 
 /// Пуш-уведомления БЕЗ Firebase (миграция Firebase→PB, Этап 6, слой Пуш).
 ///
 /// Заменяет связку «event-документ → Cloud Function → FCM → клиент». Теперь:
-/// партнёр пишет в PB (chat_messages / widget_data-настроение / miss_you) →
-/// SSE-событие приходит подписчику → приложение поднимает ЛОКАЛЬНОЕ уведомление.
-/// Ноль FCM/Google. Для доставки в фоне сервис крутится в Android
-/// foreground-сервисе (держит SSE-сокет живым) — см. cutover-интеграцию.
+/// партнёр пишет в PB (chat_messages / mood_entries / miss_you / memories) → PB
+/// публикует дельту в Centrifugo → подписчик её получает по WebSocket →
+/// приложение поднимает ЛОКАЛЬНОЕ уведомление. Ноль FCM/Google. Для доставки в
+/// фоне сервис крутится в Android foreground-сервисе (держит WS живым) — см.
+/// cutover-интеграцию.
 ///
 /// Тексты уведомлений зеркалят прежние Cloud Functions (onMissYouEvent/
 /// onWidgetDataEvent/onChatMessageEvent).
@@ -24,8 +26,6 @@ class PbPushService {
   /// Группа открытого сейчас чата — пуш о новом сообщении этой группы не
   /// показываем (чат и так на экране). Раньше жил в FirebaseService.
   static String? activeChatGroupId;
-
-  PocketBase get _pb => PocketBaseService().pb;
 
   final FlutterLocalNotificationsPlugin _ln = FlutterLocalNotificationsPlugin();
   static const String _channelId = 'partner_notifications';
@@ -111,10 +111,10 @@ class PbPushService {
     if (groupId.isEmpty) return;
     await init();
     await _stopLocked();
-    final gf = _pb.filter('group_id = {:g}', {'g': groupId});
 
     // 1) Чат
-    _subs.add(await _pb.collection('chat_messages').subscribe('*', (e) {
+    _subs.add(await CentrifugoService.instance
+        .subscribeDelta('pair:$groupId', 'chat_messages', (e) {
       try {
         if (e.action != 'create') return;
         final r = e.record;
@@ -127,13 +127,14 @@ class PbPushService {
       } catch (err) {
         debugPrint('PbPush chat callback error: $err');
       }
-    }, filter: gf));
+    }));
 
     // 2) Реакция/настроение дня (mood_entries партнёра). Раньше слушали
     //    widget_data.mood_label, но «реакцию на день» правит mood_entries —
     //    его и слушаем (источник истины календаря настроений; ловит и смену
     //    реакции прошлого дня, а не только текущей на виджете).
-    _subs.add(await _pb.collection('mood_entries').subscribe('*', (e) {
+    _subs.add(await CentrifugoService.instance
+        .subscribeDelta('pair:$groupId', 'mood_entries', (e) {
       try {
         if (e.action != 'create' && e.action != 'update') return;
         final r = e.record;
@@ -148,10 +149,11 @@ class PbPushService {
       } catch (err) {
         debugPrint('PbPush mood callback error: $err');
       }
-    }, filter: gf));
+    }));
 
     // 3) «Скучаю» (miss_you партнёра)
-    _subs.add(await _pb.collection('miss_you').subscribe('*', (e) {
+    _subs.add(await CentrifugoService.instance
+        .subscribeDelta('pair:$groupId', 'miss_you', (e) {
       try {
         final r = e.record;
         if (r == null || r.data['user_uid'] != partnerUid) return;
@@ -166,10 +168,11 @@ class PbPushService {
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
       }
-    }, filter: gf));
+    }));
 
     // 4) Новое воспоминание (memories партнёра)
-    _subs.add(await _pb.collection('memories').subscribe('*', (e) {
+    _subs.add(await CentrifugoService.instance
+        .subscribeDelta('pair:$groupId', 'memories', (e) {
       try {
         if (e.action != 'create') return;
         final r = e.record;
@@ -180,7 +183,7 @@ class PbPushService {
       } catch (err) {
         debugPrint('PbPush memory callback error: $err');
       }
-    }, filter: gf));
+    }));
 
     debugPrint('PbPush: подписки запущены (group=$groupId, partner=$partnerUid)');
   }

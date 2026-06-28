@@ -4,30 +4,34 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import 'centrifugo_service.dart';
 import 'offline/connectivity_service.dart';
 import 'offline/local_store.dart';
 import 'offline/record_scope.dart';
 import 'pocketbase_service.dart';
 
-/// Realtime-слой PocketBase (миграция Firebase→PB, Этап 6).
+/// Realtime-слой (миграция Firebase→PB, Этап 6; транспорт перенесён с SSE PB на
+/// Centrifugo, см. [CentrifugoService] и серверный хук centrifugo.pb.js).
 ///
-/// Заменяет Firestore-листенеры и RTDB живыми SSE-подписками. ВАЖНО (директива
-/// пользователя): на self-hosted PB чтения БЕСПЛАТНЫ → списки грузятся БЕЗ
-/// лимитов/пагинации, всё в реальном времени, ручные кнопки «обновить» не нужны.
-/// См. memory togetherly_pb_realtime_no_limits.
+/// Начальная загрузка и инкрементальная синхронизация остаются на REST PB (чтения
+/// на self-hosted БЕСПЛАТНЫ → списки без лимитов/пагинации; кнопки «обновить» не
+/// нужны, см. memory togetherly_pb_realtime_no_limits). А ЖИВЫЕ ДЕЛЬТЫ теперь
+/// приходят через Centrifugo (WebSocket): PB на изменение записи публикует дельту
+/// в канал пары, клиент её получает. ЗАЧЕМ перенос: SSE PB держал долгоживущие
+/// read-транзакции SQLite → WAL не чекпойнтился, PB упирался в CPU.
 ///
 /// Дженерики:
-///  • [watchList]   — начальная полная загрузка (`getFullList`) + SSE-дельты
+///  • [watchList]   — начальная полная загрузка (`getFullList`) + дельты Centrifugo
 ///    (create/update/delete мёржатся в локальный список → `Stream<List>`).
 ///  • [watchRecord] — один документ по id (напр. группа) → `Stream<RecordModel?>`.
+///  Обёртки передают `rtChannel` (канал Centrifugo) и `rtMatch` (клиентский фильтр
+///  дельт: канал `pair:<id>` несёт изменения всей пары, лишнее отсекаем).
 ///
-/// Известное ограничение (RT-10): при разрыве и авто-переподключении SSE
-/// PocketBase Dart-SDK повторно подписывается, но события, пропущенные за время
-/// обрыва, не переигрываются, а начальный `getFullList` не перевызывается → после
-/// долгого обрыва список может быть устаревшим до следующей дельты. Чистого хука
-/// «on reconnect» SDK не даёт (событие PB_CONNECT обрабатывается внутри SDK и
-/// наружу не пробрасывается); поллинг противоречит realtime-модели. Требует
-/// поддержки на уровне SDK — отслеживается как ограничение (ср. AUTH-16).
+/// Ограничение (RT-10): события, пропущенные за время обрыва WebSocket, не
+/// переигрываются (history каналов выключен ради экономии RAM). Для кэш-вариантов
+/// это закрывает ре-синхронизация по возврату сети (`conn.onOnlineChanged` →
+/// `syncOnce`); для in-memory-вариантов список может быть устаревшим до следующей
+/// дельты — как и прежде на SSE.
 class PbRealtimeService {
   PbRealtimeService._();
   static final PbRealtimeService instance = PbRealtimeService._();
@@ -67,11 +71,17 @@ class PbRealtimeService {
     String? filter,
     RecordScope? scope,
     int Function(RecordModel, RecordModel)? compare,
+    String? rtChannel,
+    bool Function(RecordModel)? rtMatch,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
     // поведение (не-переведённые обёртки + live-only коллекции).
-    if (scope != null) return _watchCached(collection, filter, scope, compare);
+    // [rtChannel]/[rtMatch] — канал Centrifugo и клиентский фильтр дельт (канал
+    // pair:<id> несёт изменения всей пары, лишнее отсекаем по collection+match).
+    if (scope != null) {
+      return _watchCached(collection, filter, scope, compare, rtChannel, rtMatch);
+    }
     final byId = <String, RecordModel>{};
     UnsubscribeFunc? unsub;
     // Гонка: слушатель может отписаться (onCancel), пока ещё идёт начальная
@@ -105,8 +115,16 @@ class PbRealtimeService {
             ..addEntries(initial.map((r) => MapEntry(r.id, r)));
           if (!ctrl.isClosed) ctrl.add(snapshot());
         }
-        final u = await _pb.collection(collection).subscribe(
-          '*',
+        // Дельты из Centrifugo (вместо SSE PB). Канал несёт изменения всей пары;
+        // фильтр по collection+match делает CentrifugoService. Без rtChannel —
+        // только начальная загрузка (realtime не подключаем).
+        if (rtChannel == null) {
+          attempt = 0;
+          return;
+        }
+        final u = await CentrifugoService.instance.subscribeDelta(
+          rtChannel,
+          collection,
           (e) {
             final rec = e.record;
             if (rec == null) return;
@@ -117,7 +135,7 @@ class PbRealtimeService {
             }
             if (!ctrl.isClosed) ctrl.add(snapshot());
           },
-          filter: filter,
+          match: rtMatch,
         );
         if (cancelled) {
           await u(); // отменили, пока подписывались — рвём и не сохраняем
@@ -156,8 +174,8 @@ class PbRealtimeService {
   /// Живой одиночный документ по id (напр. group-doc). delete → null.
   /// [useCache]=true → offline-first кэш-вариант (sembast + сеть в фоне).
   Stream<RecordModel?> watchRecord(String collection, String id,
-      {bool useCache = false}) {
-    if (useCache) return _watchRecordCached(collection, id);
+      {bool useCache = false, String? rtChannel}) {
+    if (useCache) return _watchRecordCached(collection, id, rtChannel);
     UnsubscribeFunc? unsub;
     var cancelled = false; // та же гонка отписки-во-время-старта, что в watchList
     var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
@@ -185,14 +203,25 @@ class PbRealtimeService {
           }
         }
         if (cancelled) return;
-        final u = await _pb.collection(collection).subscribe(id, (e) {
-          if (e.action == 'delete') {
-            if (!ctrl.isClosed) ctrl.add(null);
-          } else if (!ctrl.isClosed) {
-            final rec = e.record;
-            if (rec != null) ctrl.add(rec);
-          }
-        });
+        // Дельты одного документа из Centrifugo. match по id — на канале пары
+        // может быть несколько записей коллекции, нам нужна ровно эта.
+        if (rtChannel == null) {
+          attempt = 0;
+          return;
+        }
+        final u = await CentrifugoService.instance.subscribeDelta(
+          rtChannel,
+          collection,
+          (e) {
+            if (e.action == 'delete') {
+              if (!ctrl.isClosed) ctrl.add(null);
+            } else {
+              final rec = e.record;
+              if (rec != null && !ctrl.isClosed) ctrl.add(rec);
+            }
+          },
+          match: (r) => r.id == id,
+        );
         if (cancelled) {
           await u();
           return;
@@ -237,6 +266,8 @@ class PbRealtimeService {
     String? networkFilter,
     RecordScope scope,
     int Function(RecordModel, RecordModel)? compare,
+    String? rtChannel,
+    bool Function(RecordModel)? rtMatch,
   ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
@@ -289,9 +320,10 @@ class PbRealtimeService {
       try {
         await syncOnce();
         if (cancelled) return;
-        if (unsub == null) {
-          final u = await _pb.collection(collection).subscribe(
-            '*',
+        if (unsub == null && rtChannel != null) {
+          final u = await CentrifugoService.instance.subscribeDelta(
+            rtChannel,
+            collection,
             (e) {
               final rec = e.record;
               if (rec == null) return;
@@ -305,7 +337,7 @@ class PbRealtimeService {
                 }
               }
             },
-            filter: networkFilter,
+            match: rtMatch,
           );
           if (cancelled) {
             await u();
@@ -356,7 +388,8 @@ class PbRealtimeService {
   }
 
   /// Кэш-бэкенд для [watchRecord] (одиночный документ, напр. группа).
-  Stream<RecordModel?> _watchRecordCached(String collection, String id) {
+  Stream<RecordModel?> _watchRecordCached(
+      String collection, String id, String? rtChannel) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
     UnsubscribeFunc? unsub;
@@ -381,15 +414,20 @@ class PbRealtimeService {
           }
         }
         if (cancelled) return;
-        if (unsub == null) {
-          final u = await _pb.collection(collection).subscribe(id, (e) {
-            if (e.action == 'delete') {
-              unawaited(store.deleteRecord(collection, id));
-            } else {
-              final rec = e.record;
-              if (rec != null) unawaited(store.upsert(collection, rec));
-            }
-          });
+        if (unsub == null && rtChannel != null) {
+          final u = await CentrifugoService.instance.subscribeDelta(
+            rtChannel,
+            collection,
+            (e) {
+              if (e.action == 'delete') {
+                unawaited(store.deleteRecord(collection, id));
+              } else {
+                final rec = e.record;
+                if (rec != null) unawaited(store.upsert(collection, rec));
+              }
+            },
+            match: (r) => r.id == id,
+          );
           if (cancelled) {
             await u();
             return;
@@ -438,7 +476,7 @@ class PbRealtimeService {
   // ── типизированные обёртки (фильтр+сортировка под каждую сущность) ───────
   /// Группа (метаданные пары) — live. Замена listenToPair.
   Stream<RecordModel?> watchGroup(String groupId) =>
-      watchRecord('groups', groupId, useCache: true);
+      watchRecord('groups', groupId, useCache: true, rtChannel: 'pair:$groupId');
 
   /// Живой список всех активных групп пользователя — замена Firestore user-doc
   /// листенера (pairIds). Членство в PB = массив `groups.members`, поэтому новые
@@ -451,16 +489,20 @@ class PbRealtimeService {
         filter: _pb.filter('members ~ {:u}', {'u': uid}),
         scope: RecordScope('mygroups:u=$uid',
             contains: {'members': uid}, equals: {'disbanded': false}),
+        // Изменения групп сервер шлёт в user:<member> (см. centrifugo.pb.js) →
+        // появление новой пары/выход партнёра приезжает на свой user-канал.
+        rtChannel: 'user:$uid',
       );
 
   /// Состояние co-watch сеанса (id=pairId) → запись|null (null = сеанс завершён).
   Stream<RecordModel?> watchSession(String pairId) =>
-      watchRecord('live_sessions', pairId);
+      watchRecord('live_sessions', pairId, rtChannel: 'pair:$pairId');
 
   /// Презенс сеанса — записи участников (свежесть оценивает вызывающий).
   Stream<List<RecordModel>> watchSessionPresence(String pairId) => watchList(
         'live_session_presence',
         filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
+        rtChannel: 'pair:$pairId',
       );
 
   /// Чат сеанса — старые сверху (по ts).
@@ -468,6 +510,7 @@ class PbRealtimeService {
         'live_session_chat',
         filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
         compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
+        rtChannel: 'pair:$pairId',
       );
 
   /// Точка live-локации участника [uid] в канале пары → запись|null.
@@ -475,12 +518,15 @@ class PbRealtimeService {
         'live_location',
         filter: _pb.filter(
             'channel = {:c} && user_uid = {:u}', {'c': channel, 'u': uid}),
+        rtChannel: 'loc:$channel',
+        rtMatch: (r) => r.data['user_uid'] == uid,
       ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Презенс «онлайн» пользователя [uid] → запись|null (seen_at, heartbeat+TTL).
   Stream<RecordModel?> watchPresence(String uid) => watchList(
         'user_presence',
         filter: _pb.filter('user_uid = {:u}', {'u': uid}),
+        rtChannel: 'user:$uid',
       ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Активное приглашение co-watch (json-поле `groups.active_session`) → Map|null.
@@ -506,15 +552,20 @@ class PbRealtimeService {
             equals: {'group_id': groupId, 'deleted': false}),
         compare: (a, b) =>
             _strDesc(a.data['created_at'], b.data['created_at']),
+        rtChannel: 'pair:$groupId',
       );
 
-  /// Комментарии воспоминания — старые сверху.
-  Stream<List<RecordModel>> watchComments(String memoryId) => watchList(
+  /// Комментарии воспоминания — старые сверху. [groupId] нужен для канала пары
+  /// (комменты группы летят на `pair:<groupId>`, нужный memory фильтруем клиентом).
+  Stream<List<RecordModel>> watchComments(String groupId, String memoryId) =>
+      watchList(
         'memory_comments',
         filter: _pb.filter('memory_id = {:m}', {'m': memoryId}),
         scope: RecordScope('comments:m=$memoryId',
             equals: {'memory_id': memoryId, 'deleted': false}),
         compare: (a, b) => _strAsc(a.data['created_at'], b.data['created_at']),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['memory_id'] == memoryId,
       );
 
   /// Настроения пользователя в группе.
@@ -525,6 +576,8 @@ class PbRealtimeService {
         scope: RecordScope('moods:g=$groupId:u=$uid',
             equals: {'group_id': groupId, 'user_uid': uid}),
         compare: (a, b) => _strDesc(a.data['timestamp'], b.data['timestamp']),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['user_uid'] == uid,
       );
 
   /// Чат группы — старые сверху (по ts).
@@ -533,6 +586,7 @@ class PbRealtimeService {
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope: RecordScope('chat:g=$groupId', equals: {'group_id': groupId}),
         compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
+        rtChannel: 'pair:$groupId',
       );
 
   /// Маскоты группы — дефолтные первыми, затем по дате.
@@ -546,6 +600,7 @@ class PbRealtimeService {
           if (ad != bd) return ad ? -1 : 1;
           return _strAsc(a.data['created_at'], b.data['created_at']);
         },
+        rtChannel: 'pair:$groupId',
       );
 
   /// Штрихи холста — по order_index.
@@ -555,6 +610,8 @@ class PbRealtimeService {
         filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
             {'g': groupId, 'c': canvasId}),
         compare: (a, b) => _numAsc(a.data['order_index'], b.data['order_index']),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['canvas_id'] == canvasId,
       );
 
   /// Виджет-данные группы (оба слота: свой + партнёрский).
@@ -562,6 +619,7 @@ class PbRealtimeService {
         'widget_data',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope: RecordScope('widget:g=$groupId', equals: {'group_id': groupId}),
+        rtChannel: 'pair:$groupId',
       );
 
   /// Виджет-данные ОДНОГО участника (свой слот или партнёрский) → запись|null.
@@ -571,12 +629,15 @@ class PbRealtimeService {
             'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
         scope: RecordScope('widget:g=$groupId:u=$uid',
             equals: {'group_id': groupId, 'user_uid': uid}),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['user_uid'] == uid,
       ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Каталог холстов группы.
   Stream<List<RecordModel>> watchCanvasCatalogue(String groupId) => watchList(
         'canvas_catalogue',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        rtChannel: 'pair:$groupId',
       );
 
   /// Мета холста (bg/rotation/clear_version) — одна запись на (group,canvas).
@@ -585,6 +646,8 @@ class PbRealtimeService {
         'canvas_meta',
         filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
             {'g': groupId, 'c': canvasId}),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['canvas_id'] == canvasId,
       );
 
   /// Live-штрихи (in-progress) на холсте — запись на участника, исключение
@@ -594,6 +657,8 @@ class PbRealtimeService {
         'canvas_live',
         filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
             {'g': groupId, 'c': canvasId}),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['canvas_id'] == canvasId,
       );
 
   /// Статусы прочтения чата {uid: lastReadTs} — live.
@@ -602,6 +667,7 @@ class PbRealtimeService {
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope:
             RecordScope('chatreads:g=$groupId', equals: {'group_id': groupId}),
+        rtChannel: 'pair:$groupId',
       ).map((rows) => {
             for (final r in rows)
               (r.data['user_uid'] ?? '').toString():
@@ -613,6 +679,7 @@ class PbRealtimeService {
   Stream<Map<String, int>> watchTyping(String groupId) => watchList(
         'chat_typing',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        rtChannel: 'pair:$groupId',
       ).map((rows) => {
             for (final r in rows)
               (r.data['user_uid'] ?? '').toString():
@@ -624,6 +691,7 @@ class PbRealtimeService {
         'miss_you',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope: RecordScope('missyou:g=$groupId', equals: {'group_id': groupId}),
+        rtChannel: 'pair:$groupId',
       ).map((rows) => {
             for (final r in rows)
               (r.data['user_uid'] ?? '').toString():

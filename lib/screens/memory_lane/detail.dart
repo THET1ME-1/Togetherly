@@ -1904,7 +1904,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
 
         // Comment list (real-time)
         StreamBuilder<List<MemoryComment>>(
-          stream: MemoryRepository().watchComments(widget.memoryId),
+          stream: MemoryRepository().watchComments(widget.groupId, widget.memoryId),
           builder: (context, snap) {
             final comments = snap.data ?? [];
             if (comments.isEmpty) {

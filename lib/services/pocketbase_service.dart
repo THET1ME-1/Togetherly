@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'centrifugo_service.dart';
 
 /// Ядро клиента PocketBase — единая точка доступа к нашему self-hosted бэкенду
 /// на VPS (миграция Firebase→PocketBase, Этап 6).
@@ -69,6 +73,11 @@ class PocketBaseService {
   /// Запись текущего юзера (профиль из коллекции users) или null.
   RecordModel? get currentUser => _pb?.authStore.record;
 
-  /// Сбрасывает сессию (выход). Чистит и persisted-копию (через AsyncAuthStore).
-  void signOut() => _pb?.authStore.clear();
+  /// Сбрасывает сессию (выход). Чистит и persisted-копию (через AsyncAuthStore)
+  /// и рвёт WebSocket-соединение Centrifugo (иначе оно бы зациклилось на
+  /// рефреше токена с 401 после очистки сессии).
+  void signOut() {
+    _pb?.authStore.clear();
+    unawaited(CentrifugoService.instance.reset());
+  }
 }

@@ -272,9 +272,11 @@ class MemoryRepository {
 
   // ── Комментарии ──────────────────────────────────────────────────────────
   /// Живые комментарии воспоминания (старые сверху). Из локального кэша.
-  Stream<List<MemoryComment>> watchComments(String memoryId) => _rt
-      .watchComments(memoryId)
-      .map((recs) => recs.map(MemoryComment.fromPb).toList());
+  /// [groupId] нужен для realtime-канала пары (Centrifugo).
+  Stream<List<MemoryComment>> watchComments(String groupId, String memoryId) =>
+      _rt
+          .watchComments(groupId, memoryId)
+          .map((recs) => recs.map(MemoryComment.fromPb).toList());
 
   /// Добавляет комментарий: оптимистично в кэш (+ бейдж commentsCount) и в
   /// очередь (создание + RMW-бамп счётчика) → работает офлайн.
