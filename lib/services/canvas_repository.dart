@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../models/draw_stroke.dart';
+import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 
@@ -127,26 +128,54 @@ class CanvasRepository {
       _data.upsertCanvasMeta(groupId, canvasId,
           rotation: rotationMilliRadians);
 
-  // ── Рисование: live-штрихи (in-progress) ──────────────────────────────────
-  /// Live-штрихи партнёров {uid: liveData}, СВОЙ uid исключён (паритет с
-  /// listenToLiveDrawingStrokes). liveData — карта `DrawStroke.toLiveMap()`.
-  Stream<Map<String, Map<String, dynamic>>> watchLive(
-          String groupId, String canvasId, String myUid) =>
-      _rt.watchCanvasLive(groupId, canvasId).map((recs) {
-        final out = <String, Map<String, dynamic>>{};
-        for (final r in recs) {
-          final uid = (r.data['user_uid'] ?? '').toString();
-          if (uid.isEmpty || uid == myUid) continue;
-          final raw = r.data['data'];
-          if (raw is Map) out[uid] = Map<String, dynamic>.from(raw);
-        }
-        return out;
-      });
+  // ── Рисование: live-штрихи (in-progress) — ЭФЕМЕРНО через Centrifugo ───────
+  // НЕ пишем в БД: раньше каждый in-progress штрих = запись в коллекцию
+  // canvas_live → шторм на единственном SQLite-writer'е. Теперь публикуем и
+  // слушаем НАПРЯМУЮ через Centrifugo (канал draw:<groupId>): ноль нагрузки на
+  // БД, ниже задержка, рисование плавнее. Финальные штрихи как и прежде идут в
+  // canvas_strokes (durable). liveData — карта `DrawStroke.toLiveMap()`.
+  String _liveChannel(String groupId) => 'draw:$groupId';
 
+  /// Live-штрихи партнёров {uid: liveData} для (group,canvas); СВОЙ uid исключён.
+  /// Состояние держим в памяти из публикаций Centrifugo (надгробие — data:null).
+  Stream<Map<String, Map<String, dynamic>>> watchLive(
+      String groupId, String canvasId, String myUid) {
+    final state = <String, Map<String, dynamic>>{};
+    RtUnsub? unsub;
+    late StreamController<Map<String, Map<String, dynamic>>> ctrl;
+    ctrl = StreamController<Map<String, Map<String, dynamic>>>.broadcast(
+      onListen: () async {
+        if (!ctrl.isClosed) ctrl.add(Map.of(state));
+        unsub = await CentrifugoService.instance
+            .subscribeRaw(_liveChannel(groupId), (m) {
+          final uid = (m['uid'] ?? '').toString();
+          if (uid.isEmpty || uid == myUid) return;
+          if ((m['canvasId'] ?? '').toString() != canvasId) return;
+          final data = m['data'];
+          if (data == null) {
+            state.remove(uid);
+          } else if (data is Map) {
+            state[uid] = Map<String, dynamic>.from(data);
+          }
+          if (!ctrl.isClosed) ctrl.add(Map.of(state));
+        });
+      },
+      onCancel: () async {
+        await unsub?.call();
+        unsub = null;
+      },
+    );
+    return ctrl.stream;
+  }
+
+  /// Опубликовать свой in-progress штрих (эфемерно, мимо БД).
   Future<void> setLive(String groupId, String canvasId, String uid,
           Map<String, dynamic> liveData) =>
-      _data.setLiveStroke(groupId, canvasId, uid, liveData);
+      CentrifugoService.instance.publish(_liveChannel(groupId),
+          {'uid': uid, 'canvasId': canvasId, 'data': liveData});
 
+  /// Снять свой in-progress штрих (надгробие data:null).
   Future<void> clearLive(String groupId, String canvasId, String uid) =>
-      _data.clearLiveStroke(groupId, canvasId, uid);
+      CentrifugoService.instance.publish(_liveChannel(groupId),
+          {'uid': uid, 'canvasId': canvasId, 'data': null});
 }

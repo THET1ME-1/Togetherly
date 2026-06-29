@@ -80,6 +80,12 @@ class CentrifugoService {
     return c;
   }
 
+  _ChannelHub _hub(String channel) {
+    _ensureClient();
+    return _channels.putIfAbsent(
+        channel, () => _ChannelHub(_ensureClient(), channel, _pb));
+  }
+
   /// Подписаться на дельты [channel], отфильтрованные по [collection] и
   /// (опц.) предикату [match]. [onEvent] получает RtEvent с теми же полями,
   /// что у RecordSubscriptionEvent. Возвращает функцию отписки.
@@ -89,9 +95,7 @@ class CentrifugoService {
     void Function(RtEvent) onEvent, {
     bool Function(RecordModel)? match,
   }) async {
-    _ensureClient();
-    final hub = _channels.putIfAbsent(
-        channel, () => _ChannelHub(_ensureClient(), channel, _pb));
+    final hub = _hub(channel);
     final listener = _ChannelListener(collection, match, onEvent);
     hub.add(listener);
     return () async {
@@ -99,6 +103,27 @@ class CentrifugoService {
       if (hub.isEmpty) await hub.idle();
     };
   }
+
+  /// Подписка на СЫРЫЕ публикации канала (не PB-дельты): для эфемерных данных,
+  /// которые клиент публикует НАПРЯМУЮ в Centrifugo, минуя PocketBase (live-
+  /// штрихи рисования — нет записи в БД, нет нагрузки на SQLite-writer).
+  /// [onData] получает декодированный JSON публикации.
+  Future<RtUnsub> subscribeRaw(
+      String channel, void Function(Map<String, dynamic>) onData) async {
+    final hub = _hub(channel);
+    hub.addRaw(onData);
+    return () async {
+      hub.removeRaw(onData);
+      if (hub.isEmpty) await hub.idle();
+    };
+  }
+
+  /// Опубликовать [data] прямо в [channel] (требует серверный namespace с
+  /// allow_publish_for_subscriber). Клиент должен быть подписан на канал —
+  /// поднимаем подписку при необходимости. Ошибки глотаем: эфемерная публикация
+  /// (потерянный кадр live-штриха некритичен).
+  Future<void> publish(String channel, Map<String, dynamic> data) =>
+      _hub(channel).publish(data);
 
   /// Полный сброс (logout/смена аккаунта): рвём все подписки и соединение.
   Future<void> reset() async {
@@ -130,6 +155,8 @@ class _ChannelHub {
   final PocketBase _pb;
   late final centrifuge.Subscription _sub;
   final List<_ChannelListener> _listeners = [];
+  // Слушатели СЫРЫХ публикаций (эфемерные данные мимо PB, напр. live-штрихи).
+  final List<void Function(Map<String, dynamic>)> _rawListeners = [];
   StreamSubscription<centrifuge.PublicationEvent>? _pubSub;
   bool _subscribed = false;
 
@@ -159,6 +186,16 @@ class _ChannelHub {
   void _onPublication(centrifuge.PublicationEvent ev) {
     try {
       final map = jsonDecode(utf8.decode(ev.data)) as Map<String, dynamic>;
+      // Сырые слушатели (эфемерные публикации без PB-формата {collection,record}).
+      if (_rawListeners.isNotEmpty) {
+        for (final r in List<void Function(Map<String, dynamic>)>.of(_rawListeners)) {
+          try {
+            r(map);
+          } catch (e) {
+            debugPrint('Centrifugo raw listener error ($channel): $e');
+          }
+        }
+      }
       final collection = map['collection'] as String?;
       final action = (map['event'] as String?) ?? 'update';
       RecordModel? rec;
@@ -177,8 +214,7 @@ class _ChannelHub {
     }
   }
 
-  void add(_ChannelListener l) {
-    _listeners.add(l);
+  void _ensureSubscribed() {
     // Канал мог быть переведён в idle (unsubscribe) при опустении — поднимаем.
     if (!_subscribed) {
       _subscribed = true;
@@ -186,9 +222,33 @@ class _ChannelHub {
     }
   }
 
+  void add(_ChannelListener l) {
+    _listeners.add(l);
+    _ensureSubscribed();
+  }
+
   void remove(_ChannelListener l) => _listeners.remove(l);
 
-  bool get isEmpty => _listeners.isEmpty;
+  void addRaw(void Function(Map<String, dynamic>) l) {
+    _rawListeners.add(l);
+    _ensureSubscribed();
+  }
+
+  void removeRaw(void Function(Map<String, dynamic>) l) =>
+      _rawListeners.remove(l);
+
+  /// Публикация в канал (allow_publish_for_subscriber). Требует активной
+  /// подписки. Ошибки глотаем — эфемерные данные, потеря кадра некритична.
+  Future<void> publish(Map<String, dynamic> data) async {
+    _ensureSubscribed();
+    try {
+      await _sub.publish(utf8.encode(jsonEncode(data)));
+    } catch (e) {
+      debugPrint('Centrifugo publish($channel) failed: $e');
+    }
+  }
+
+  bool get isEmpty => _listeners.isEmpty && _rawListeners.isEmpty;
 
   /// Слушателей не осталось — освобождаем серверную подписку, но объект
   /// Subscription сохраняем (переиспользуем при повторном add → subscribe).
