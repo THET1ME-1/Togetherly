@@ -63,12 +63,22 @@ class PbDataService {
   }) async {
     body.remove('id');
     try {
-      await _pb.collection(col).update(id, body: body);
+      // Таймаут: под нагрузкой запись на PB может висеть очень долго (один
+      // SQLite-writer). Без него flush очереди залипал на одной операции →
+      // плашка «Синхронизация…» не уходила. По таймауту → false → ограниченный
+      // ретрай; повтор безопасен (идемпотентно по id: update→404→create).
+      await _pb
+          .collection(col)
+          .update(id, body: body)
+          .timeout(const Duration(seconds: 15));
       return true;
     } on ClientException catch (e) {
       if (e.statusCode == 404) {
         try {
-          await _pb.collection(col).create(body: {'id': id, ...body});
+          await _pb
+              .collection(col)
+              .create(body: {'id': id, ...body}).timeout(
+                  const Duration(seconds: 15));
           return true;
         } catch (e2) {
           debugPrint('PbData.$op create($col/$id) failed: $e2');

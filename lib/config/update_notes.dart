@@ -4,17 +4,19 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Постарались ускорить работу и убрать тормоза.\n'
+    'Исправили синхронизацию — стало стабильнее.\n'
     '\n'
-    '— Приложение бережнее обращается с сервером — меньше зависаний и «вечной загрузки».\n'
-    '— Фото и данные грузятся быстрее, особенно при слабой связи.\n'
-    '— Надёжнее переподключение после обрыва интернета.\n'
+    '— Убрали «вечную синхронизацию»: изменения больше не зависают в очереди.\n'
+    '— Ваши правки (настроение, статус, маскот) больше не откатываются назад.\n'
+    '— Чат открывается мгновенно: старые сообщения подгружаются при прокрутке.\n'
+    '— Надёжнее при слабой связи — ничего не теряется.\n'
     '— Мелкие исправления.';
 
 const String enWhatsNew =
-    'We worked on making things faster and smoother.\n'
+    'Sync fixes — more stable and faster.\n'
     '\n'
-    '— The app is gentler on the server — fewer freezes and "endless loading".\n'
-    '— Photos and data load faster, especially on a weak connection.\n'
-    '— More reliable reconnection after the internet drops.\n'
+    '— No more "endless syncing": changes no longer get stuck in the queue.\n'
+    '— Your edits (mood, status, mascot) no longer revert.\n'
+    '— Chat opens instantly: older messages load as you scroll.\n'
+    '— More reliable on weak connections — nothing gets lost.\n'
     '— Minor fixes.';

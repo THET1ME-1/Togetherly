@@ -7,6 +7,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'centrifugo_service.dart';
 import 'offline/connectivity_service.dart';
 import 'offline/local_store.dart';
+import 'offline/outbox_service.dart';
 import 'offline/record_scope.dart';
 import 'pocketbase_service.dart';
 
@@ -73,14 +74,20 @@ class PbRealtimeService {
     int Function(RecordModel, RecordModel)? compare,
     String? rtChannel,
     bool Function(RecordModel)? rtMatch,
+    int? windowLimit,
+    String? windowSort,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
     // поведение (не-переведённые обёртки + live-only коллекции).
     // [rtChannel]/[rtMatch] — канал Centrifugo и клиентский фильтр дельт (канал
     // pair:<id> несёт изменения всей пары, лишнее отсекаем по collection+match).
+    // [windowLimit]/[windowSort] — «ленивый» режим (чат): начальная выборка лишь
+    // новейших windowLimit записей (sort=windowSort), а не всей истории; догрузка
+    // старых — повторная подписка с бо́льшим лимитом (см. chat_screen `_loadMore`).
     if (scope != null) {
-      return _watchCached(collection, filter, scope, compare, rtChannel, rtMatch);
+      return _watchCached(collection, filter, scope, compare, rtChannel, rtMatch,
+          windowLimit, windowSort);
     }
     final byId = <String, RecordModel>{};
     UnsubscribeFunc? unsub;
@@ -268,6 +275,8 @@ class PbRealtimeService {
     int Function(RecordModel, RecordModel)? compare,
     String? rtChannel,
     bool Function(RecordModel)? rtMatch,
+    int? windowLimit,
+    String? windowSort,
   ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
@@ -282,6 +291,25 @@ class PbRealtimeService {
     // `updated`), далее — только `updated > водяной_знак` (страницами). Каждую
     // страницу сразу применяем в кэш (прогрессивно, не одним блобом).
     Future<void> syncOnce() async {
+      // Ленивый режим (чат): тянем ТОЛЬКО новейшие windowLimit записей (sort по
+      // windowSort, напр. '-ts'), без пагинации всей истории и без водяного знака.
+      // Догрузку старых делает UI повторной подпиской с бо́льшим лимитом
+      // (chat_screen `_loadMore` → `_limit += _kPageSize`). Живые новые приходят
+      // дельтой Centrifugo (подписка ниже). Кэш накапливает просмотренное.
+      if (windowLimit != null) {
+        final res = await _pb.collection(collection).getList(
+              page: 1,
+              perPage: windowLimit,
+              filter: networkFilter ?? '',
+              sort: windowSort ?? '-updated',
+            );
+        if (cancelled) return;
+        final toApply = res.items
+            .where((r) => !OutboxService.instance.isPending(collection, r.id))
+            .toList();
+        if (toApply.isNotEmpty) await store.applyDelta(collection, toApply);
+        return;
+      }
       final token = scope.token;
       final wm = await store.lastUpdated(token);
       final baseFilter = networkFilter ?? '';
@@ -302,7 +330,14 @@ class PbRealtimeService {
               sort: 'updated',
             );
         if (res.items.isEmpty) break;
-        await store.applyDelta(collection, res.items);
+        // Не перезатираем записи с неотправленными локальными правками
+        // (водяной знак двигаем по ВСЕМ, т.к. их серверный `updated` всё равно
+        // старый — после отправки правки строка получит новый `updated` и
+        // до-синхронизируется инкрементом).
+        final toApply = res.items
+            .where((r) => !OutboxService.instance.isPending(collection, r.id))
+            .toList();
+        if (toApply.isNotEmpty) await store.applyDelta(collection, toApply);
         for (final r in res.items) {
           final u = r.data['updated'];
           if (u is String && u.compareTo(maxU) > 0) maxU = u;
@@ -327,6 +362,9 @@ class PbRealtimeService {
             (e) {
               final rec = e.record;
               if (rec == null) return;
+              // Запись с неотправленной правкой не трогаем (и водяной знак по ней
+              // не двигаем — до-синхронизируется после отправки правки).
+              if (OutboxService.instance.isPending(collection, rec.id)) return;
               if (e.action == 'delete') {
                 unawaited(store.deleteRecord(collection, rec.id));
               } else {
@@ -405,10 +443,19 @@ class PbRealtimeService {
         try {
           final rec = await _pb.collection(collection).getOne(id);
           if (cancelled) return;
-          await store.upsert(collection, rec);
+          // Не перезатираем локальную запись серверным стейлом, пока её правка
+          // ещё не отправлена из очереди — иначе оптимистичное изменение
+          // «откатывается» (маскот телепортируется назад, настроение/статус
+          // возвращается). После подтверждения отправки isPending снимется и
+          // следующий getOne/дельта принесёт согласованное значение.
+          if (!OutboxService.instance.isPending(collection, id)) {
+            await store.upsert(collection, rec);
+          }
         } on ClientException catch (e) {
           if (e.statusCode == 404) {
-            await store.deleteRecord(collection, id);
+            if (!OutboxService.instance.isPending(collection, id)) {
+              await store.deleteRecord(collection, id);
+            }
           } else {
             rethrow;
           }
@@ -419,6 +466,8 @@ class PbRealtimeService {
             rtChannel,
             collection,
             (e) {
+              // Не перезатираем запись с неотправленной локальной правкой.
+              if (OutboxService.instance.isPending(collection, id)) return;
               if (e.action == 'delete') {
                 unawaited(store.deleteRecord(collection, id));
               } else {
@@ -580,13 +629,20 @@ class PbRealtimeService {
         rtMatch: (r) => r.data['user_uid'] == uid,
       );
 
-  /// Чат группы — старые сверху (по ts).
-  Stream<List<RecordModel>> watchMessages(String groupId) => watchList(
+  /// Чат группы — старые сверху (по ts). [limit] (ленивый режим): начальная
+  /// выборка лишь новейших [limit] сообщений (по убыванию ts), а не всей истории;
+  /// догрузка старых — повторный вызов с бо́льшим [limit] (UI: chat_screen
+  /// `_loadMore`). null → вся история (прежнее поведение). Кэш накапливает
+  /// просмотренное; живые новые сообщения приходят дельтой Centrifugo.
+  Stream<List<RecordModel>> watchMessages(String groupId, {int? limit}) =>
+      watchList(
         'chat_messages',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope: RecordScope('chat:g=$groupId', equals: {'group_id': groupId}),
         compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
         rtChannel: 'pair:$groupId',
+        windowLimit: limit,
+        windowSort: '-ts',
       );
 
   /// Маскоты группы — дефолтные первыми, затем по дате.

@@ -8,10 +8,13 @@ import '../services/offline/outbox_service.dart';
 
 /// Глобальная тонкая плашка состояния синхронизации поверх любого экрана
 /// (через `MaterialApp.builder`). Показывается, только когда есть что показать:
-/// • офлайн / есть несинхронизированные изменения — некликабельная подсказка;
-/// • есть «ядопытые» операции (сервер упорно отверг) — КЛИКАБЕЛЬНАЯ плашка
-///   «повторить» (вызывает [OutboxService.retryPoison]).
-/// Пустые зоны вокруг плашек прозрачны для касаний — экран под ними кликается.
+/// • офлайн — некликабельная подсказка (сразу);
+/// • идёт синхронизация — мягкая плашка со спиннером, но с ДЕБАУНСОМ: появляется
+///   лишь если отправка висит дольше [_syncDebounce] (быстрые синки не мигают
+///   плашкой и не раздражают);
+/// • есть «ядовитые» операции (сервер упорно отверг) — КЛИКАБЕЛЬНАЯ плашка
+///   «повторить» (вызывает [OutboxService.retryPoison]), показывается сразу.
+/// Цвета берутся из текущей темы. Пустые зоны прозрачны для касаний.
 class OfflineSyncBanner extends StatelessWidget {
   const OfflineSyncBanner({super.key, required this.child});
 
@@ -45,7 +48,15 @@ class _SyncChips extends StatefulWidget {
 }
 
 class _SyncChipsState extends State<_SyncChips> {
+  /// Сколько «висящая» синхронизация должна продержаться, прежде чем показать
+  /// плашку. Короткие отправки (доли секунды) проходят незаметно.
+  static const Duration _syncDebounce = Duration(seconds: 3);
+
   StreamSubscription<bool>? _connSub;
+  Timer? _debounce;
+
+  /// Прошёл ли дебаунс «идёт синхронизация» — только тогда показываем плашку.
+  bool _showSyncing = false;
 
   @override
   void initState() {
@@ -54,10 +65,38 @@ class _SyncChipsState extends State<_SyncChips> {
     OutboxService.instance.poisonCount.addListener(_onChange);
     _connSub =
         ConnectivityService.instance.onOnlineChanged.listen((_) => _onChange());
+    _reconcile();
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _reconcile();
+    setState(() {});
+  }
+
+  /// Управляет дебаунс-таймером показа «Синхронизация…».
+  void _reconcile() {
+    final pending = OutboxService.instance.pendingCount.value;
+    final online = ConnectivityService.instance.isOnline;
+    final syncing = online && pending > 0;
+    if (syncing) {
+      // запустить таймер, если ещё не показываем и не запущен
+      if (!_showSyncing && _debounce == null) {
+        _debounce = Timer(_syncDebounce, () {
+          _debounce = null;
+          if (!mounted) return;
+          // показываем, только если к моменту срабатывания всё ещё синкаем
+          if (ConnectivityService.instance.isOnline &&
+              OutboxService.instance.pendingCount.value > 0) {
+            setState(() => _showSyncing = true);
+          }
+        });
+      }
+    } else {
+      _debounce?.cancel();
+      _debounce = null;
+      _showSyncing = false;
+    }
   }
 
   @override
@@ -65,6 +104,7 @@ class _SyncChipsState extends State<_SyncChips> {
     OutboxService.instance.pendingCount.removeListener(_onChange);
     OutboxService.instance.poisonCount.removeListener(_onChange);
     _connSub?.cancel();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -74,78 +114,114 @@ class _SyncChipsState extends State<_SyncChips> {
     final poison = OutboxService.instance.poisonCount.value;
     final online = ConnectivityService.instance.isOnline;
     final ru = LocaleService.instance.isRussian;
+    final scheme = Theme.of(context).colorScheme;
 
     final chips = <Widget>[];
 
-    // Подсказка офлайн / ожидает синхронизации (некликабельная).
-    if (!online || pending > 0) {
-      final IconData icon;
-      final String text;
-      if (!online) {
-        icon = Icons.cloud_off_rounded;
-        text = pending > 0
-            ? (ru
-                ? 'Офлайн · $pending ожидает отправки'
-                : 'Offline · $pending pending')
-            : (ru ? 'Офлайн' : 'Offline');
-      } else {
-        icon = Icons.sync_rounded;
-        text = ru ? 'Синхронизация… ($pending)' : 'Syncing… ($pending)';
-      }
+    if (!online) {
+      // Офлайн — показываем сразу (важное состояние).
       chips.add(IgnorePointer(
-        child: _chip(icon, text, const Color(0xFF2E2A2C)),
-      ));
-    }
-
-    // Плашка «ядовитых» операций — кликабельная: повторить отправку.
-    if (poison > 0) {
-      chips.add(GestureDetector(
-        onTap: () => OutboxService.instance.retryPoison(),
         child: _chip(
-          Icons.error_outline_rounded,
-          ru
-              ? '$poison не отправлено · повторить'
-              : "$poison didn't sync · retry",
-          const Color(0xFFB3261E),
+          context,
+          icon: Icons.cloud_off_rounded,
+          text: ru ? 'Нет сети' : 'Offline',
+          bg: scheme.surfaceContainerHighest,
+          fg: scheme.onSurfaceVariant,
+        ),
+      ));
+    } else if (_showSyncing && pending > 0) {
+      // Идёт синхронизация — мягкая плашка со спиннером, без сырого счётчика,
+      // и только после дебаунса (длительная отправка).
+      chips.add(IgnorePointer(
+        child: _chip(
+          context,
+          spinner: true,
+          text: ru ? 'Синхронизация…' : 'Syncing…',
+          bg: scheme.surfaceContainerHighest,
+          fg: scheme.onSurfaceVariant,
         ),
       ));
     }
 
-    if (chips.isEmpty) return const SizedBox.shrink();
+    // «Ядовитые» операции — кликабельно: повторить отправку. Показываем сразу.
+    if (poison > 0) {
+      chips.add(GestureDetector(
+        onTap: () => OutboxService.instance.retryPoison(),
+        child: _chip(
+          context,
+          icon: Icons.refresh_rounded,
+          text: ru ? 'Не сохранилось — повторить' : "Didn't sync — retry",
+          bg: scheme.errorContainer,
+          fg: scheme.onErrorContainer,
+        ),
+      ));
+    }
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final c in chips)
-            Padding(padding: const EdgeInsets.only(bottom: 4), child: c),
-        ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) => FadeTransition(
+        opacity: anim,
+        child: SizeTransition(
+            sizeFactor: anim, axisAlignment: -1, child: child),
       ),
+      child: chips.isEmpty
+          ? const SizedBox.shrink()
+          : Padding(
+              key: ValueKey('${!online}-$_showSyncing-${poison > 0}'),
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final c in chips)
+                    Padding(
+                        padding: const EdgeInsets.only(bottom: 4), child: c),
+                ],
+              ),
+            ),
     );
   }
 
-  Widget _chip(IconData icon, String text, Color bg) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  Widget _chip(
+    BuildContext context, {
+    IconData? icon,
+    bool spinner = false,
+    required String text,
+    required Color bg,
+    required Color fg,
+  }) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: bg.withValues(alpha: 0.92),
+          color: bg.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-                color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2)),
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: Colors.white),
-            const SizedBox(width: 6),
+            if (spinner)
+              SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+              )
+            else if (icon != null)
+              Icon(icon, size: 15, color: fg),
+            const SizedBox(width: 7),
             Text(
               text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: TextStyle(
+                color: fg,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],

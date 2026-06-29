@@ -44,6 +44,16 @@ class OutboxService {
   /// Число «ядовитых» операций (сервер упорно отвергает) — для UI повтора.
   final ValueNotifier<int> poisonCount = ValueNotifier<int>(0);
 
+  /// Ключи записей (collection:id) с НЕотправленными правками. Кэш-слой
+  /// ([PbRealtimeService]) не перезатирает их серверными данными до подтверждения
+  /// отправки — иначе оптимистичная правка «откатывается» серверным стейлом
+  /// (маскот телепортируется назад, настроение/статус возвращается).
+  final Set<String> _pendingKeys = <String>{};
+
+  /// Есть ли в очереди неотправленная правка записи [id] коллекции [collection].
+  bool isPending(String collection, String id) =>
+      id.isNotEmpty && _pendingKeys.contains('$collection:$id');
+
   /// Ключ операции, которую прямо сейчас обрабатывает flush — коалесинг в неё НЕ
   /// мёржит (иначе гонка: применилось бы старое, а новое потерялось при delete).
   int? _inflightKey;
@@ -70,38 +80,67 @@ class OutboxService {
     if (ConnectivityService.instance.isOnline) unawaited(flush());
   }
 
-  /// Слить очередь (строгий FIFO). Защищён от параллельного запуска.
+  /// Слить очередь. Защищён от параллельного запуска.
+  ///
+  /// Обрабатываем ВСЕ операции по FIFO-порядку за один проход. Важное отличие от
+  /// строгого FIFO: упавшая операция НЕ блокирует всю очередь — мы лишь
+  /// «придерживаем» операции, относящиеся к ТОЙ ЖЕ записи (чтобы не применить
+  /// позднюю правку раньше ранней), а независимые операции продолжают сливаться.
+  /// Это лечит залипание плашки «Синхронизация…», когда одна медленная/упёршаяся
+  /// в backpressure операция (напр. группа через patch-map под нагрузкой) держала
+  /// за собой настроение/чат/воспоминания.
   Future<void> flush() async {
     if (_flushing || !ConnectivityService.instance.isOnline) return;
     final db = await LocalStore.instance.database();
     if (db == null) return;
     _flushing = true;
+    var anyFailed = false;
+    // record-key (collection:id) операций, упавших в этом проходе: последующие
+    // операции той же записи откладываем до следующего flush (сохраняем порядок).
+    final blockedKeys = <String>{};
     try {
-      while (true) {
-        final snaps = await _store.find(
-          db,
-          finder: Finder(sortOrders: [SortOrder(Field.key)], limit: 1),
-        );
-        if (snaps.isEmpty) {
-          _retryAttempt = 0;
-          break;
+      final all = await _store.find(
+        db,
+        finder: Finder(sortOrders: [SortOrder(Field.key)]),
+      );
+      for (final snap in all) {
+        if (!ConnectivityService.instance.isOnline) {
+          anyFailed = true;
+          break; // сеть пропала — остановимся, остальное дошлём при возврате сети
         }
-        final snap = snaps.first;
-        _inflightKey = snap.key; // коалесинг не должен мёржить в обрабатываемую
         final type = snap.value['type'] as String? ?? '';
         final payload =
             Map<String, dynamic>.from((snap.value['payload'] as Map?) ?? const {});
         final attempts = (snap.value['attempts'] as num?)?.toInt() ?? 0;
+        final rkey = _recordKeyOf(type, payload);
+        // та же запись уже упала в этом проходе → не применяем позднюю правку
+        // раньше ранней; отложим до следующего flush.
+        if (rkey != null && blockedKeys.contains(rkey)) {
+          anyFailed = true;
+          continue;
+        }
 
-        final ok = await _apply(type, payload);
+        _inflightKey = snap.key; // коалесинг не должен мёржить в обрабатываемую
+        bool ok;
+        try {
+          // Жёсткий потолок на операцию: ни один зависший сетевой вызов не должен
+          // заморозить очередь (был баг «Синхронизация…(N)» не уходила, пока flush
+          // вечно ждал повисший без таймаута запрос). По таймауту/исключению →
+          // как провал → ретрай; операции идемпотентны по id.
+          ok = await _apply(type, payload)
+              .timeout(const Duration(seconds: 20), onTimeout: () => false);
+        } catch (_) {
+          ok = false;
+        } finally {
+          _inflightKey = null;
+        }
         if (ok) {
           await _store.record(snap.key).delete(db);
-          _inflightKey = null;
           continue;
         }
         // Провал: считаем попытки. Сервис-методы PB глотают ошибку и возвращают
         // false (не отличить транзиент от перманента) → отправляем в «отравленные»
-        // по лимиту попыток, чтобы одна битая операция не блокировала очередь.
+        // по лимиту попыток, чтобы одна битая операция не висела вечно.
         final next = attempts + 1;
         if (next >= _maxAttempts) {
           await _poison.add(db, {
@@ -110,14 +149,18 @@ class OutboxService {
             'failedAt': DateTime.now().toIso8601String(),
           });
           await _store.record(snap.key).delete(db);
-          _inflightKey = null;
           debugPrint('Outbox: операция «$type» отравлена после $next попыток');
-          continue;
+          continue; // запись разблокирована — даём ход следующим её правкам
         }
         await _store.record(snap.key).update(db, {'attempts': next});
-        _inflightKey = null;
+        if (rkey != null) blockedKeys.add(rkey);
+        anyFailed = true;
+        // НЕ break — продолжаем сливать независимые операции.
+      }
+      if (anyFailed) {
         _scheduleRetry();
-        break; // не долбим дальше — ждём ретрая/сети
+      } else {
+        _retryAttempt = 0;
       }
     } catch (e) {
       debugPrint('Outbox.flush error: $e');
@@ -126,6 +169,49 @@ class OutboxService {
       _inflightKey = null;
       _flushing = false;
       await _updatePending();
+    }
+  }
+
+  /// Запись (collection:id), которую затрагивает операция — для сохранения
+  /// порядка правок одной записи при не-блокирующем сливе. null → операция ни с
+  /// чем не конфликтует по порядку (можно слать независимо).
+  String? _recordKeyOf(String type, Map<String, dynamic> p) {
+    String? k(String col, Object? id) {
+      final s = id?.toString() ?? '';
+      return s.isEmpty ? null : '$col:$s';
+    }
+    switch (type) {
+      case 'memoryUpsert':
+      case 'memoryDelete':
+        return k('memories', p['id']);
+      case 'memorySetSaved':
+      case 'memoryBumpComments':
+        return k('memories', p['memoryId']);
+      case 'commentUpsert':
+      case 'commentDelete':
+        return k('memory_comments', p['id']);
+      case 'moodUpsert':
+        return k('mood_entries', (p['entry'] as Map?)?['id']);
+      case 'moodDelete':
+        return k('mood_entries', p['id']);
+      case 'chatUpsert':
+      case 'chatUpdate':
+      case 'chatSetReaction':
+        return k('chat_messages', p['id']);
+      case 'mascotUpsert':
+        return k('mascots', (p['mascot'] as Map?)?['id']);
+      case 'mascotDelete':
+      case 'mascotUpdateFields':
+        return k('mascots', p['mascotId']);
+      // все правки полей самой группы делят один ключ — их порядок важен.
+      case 'counterInc':
+      case 'groupUpdateFields':
+      case 'groupSetMemberMood':
+      case 'groupSetMemberAilment':
+      case 'groupSetStatus':
+        return k('groups', p['groupId']);
+      default:
+        return null;
     }
   }
 
@@ -140,8 +226,28 @@ class OutboxService {
 
   Future<void> _updatePending() async {
     final db = await LocalStore.instance.database();
-    pendingCount.value = db == null ? 0 : await _store.count(db);
-    poisonCount.value = db == null ? 0 : await _poison.count(db);
+    if (db == null) {
+      pendingCount.value = 0;
+      poisonCount.value = 0;
+      _pendingKeys.clear();
+      return;
+    }
+    final snaps = await _store.find(db);
+    pendingCount.value = snaps.length;
+    poisonCount.value = await _poison.count(db);
+    // Пересчитываем «грязные» ключи: записи с неотправленными правками, которые
+    // кэш-слой не должен перезатирать серверным стейлом.
+    final keys = <String>{};
+    for (final s in snaps) {
+      final type = s.value['type'] as String? ?? '';
+      final payload =
+          Map<String, dynamic>.from((s.value['payload'] as Map?) ?? const {});
+      final k = _recordKeyOf(type, payload);
+      if (k != null) keys.add(k);
+    }
+    _pendingKeys
+      ..clear()
+      ..addAll(keys);
   }
 
   /// Полная очистка очереди (logout/смена пользователя).

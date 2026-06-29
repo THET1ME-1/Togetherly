@@ -37,11 +37,16 @@ class ChatService {
   /// из мёртвого оркестратора firebase_service; уйдёт с §7.
   Future<int> backfillToSupabase(String groupId) async => 0;
 
-  /// Поток последних сообщений, отсортированных по времени. [limit] игнорируется
-  /// (директива: на PB чтения бесплатны → вся история live, без пагинации).
+  /// Поток последних сообщений, отсортированных по времени. Ленивый режим:
+  /// начальная выборка лишь новейших [limit] сообщений (а не всей истории —
+  /// для активных пар история в тысячи сообщений вешала первый синк); догрузку
+  /// старых делает экран чата прокруткой вверх (повторная подписка с бо́льшим
+  /// [limit]). Кэш хранит просмотренное; новые сообщения приходят live-дельтой.
   Stream<List<ChatMsg>> watchMessages(String groupId, {int limit = 100}) {
     if (groupId.isEmpty) return const Stream.empty();
-    return _rt.watchMessages(groupId).map((recs) => recs.map(ChatMsg.fromPb).toList());
+    return _rt
+        .watchMessages(groupId, limit: limit)
+        .map((recs) => recs.map(ChatMsg.fromPb).toList());
   }
 
   /// Отправить сообщение. [pinId]/[pinTitle] — опционально прикреплённый пин.
@@ -323,9 +328,11 @@ class ChatService {
   }
 
   /// Поток: есть ли непрочитанные сообщения от партнёра (для красной точки).
+  /// Достаточно новейшего сообщения → ленивый limit:1 (не тянем всю историю
+  /// ради одной точки); из общего кэша чата `recs.last` всё равно = последнее.
   Stream<bool> watchHasUnread(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
-    return _rt.watchMessages(groupId).asyncMap((recs) async {
+    return _rt.watchMessages(groupId, limit: 1).asyncMap((recs) async {
       if (recs.isEmpty) return false;
       final last = ChatMsg.fromPb(recs.last); // watchMessages сортирует по ts ASC
       if (last.uid == _uid) return false; // своё сообщение
