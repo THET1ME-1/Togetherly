@@ -33,7 +33,13 @@ class OfflineSyncBanner extends StatelessWidget {
             bottom: false,
             child: Align(
               alignment: Alignment.topCenter,
-              child: _SyncChips(),
+              // Material (прозрачный) даёт корректный DefaultTextStyle/Directionality
+              // оверлею поверх MaterialApp.builder — иначе Flutter рисует текст с
+              // «жёлтым подчёркиванием» (нет Material-предка).
+              child: Material(
+                type: MaterialType.transparency,
+                child: _SyncChips(),
+              ),
             ),
           ),
         ),
@@ -222,6 +228,7 @@ class _SyncChipsState extends State<_SyncChips> {
                 color: fg,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
+                decoration: TextDecoration.none,
               ),
             ),
           ],
