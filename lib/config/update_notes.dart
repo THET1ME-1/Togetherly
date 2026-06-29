@@ -4,19 +4,13 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Исправили синхронизацию — стало стабильнее.\n'
+    'Ускорили и разгрузили — особенно совместное рисование.\n'
     '\n'
-    '— Убрали «вечную синхронизацию»: изменения больше не зависают в очереди.\n'
-    '— Ваши правки (настроение, статус, маскот) больше не откатываются назад.\n'
-    '— Чат открывается мгновенно: старые сообщения подгружаются при прокрутке.\n'
-    '— Надёжнее при слабой связи — ничего не теряется.\n'
+    '— Живое рисование идёт по быстрому прямому каналу, а не через базу: штрихи партнёра плавнее, сервер разгружен, приложение быстрее.\n'
     '— Мелкие исправления.';
 
 const String enWhatsNew =
-    'Sync fixes — more stable and faster.\n'
+    'Faster and lighter — especially shared drawing.\n'
     '\n'
-    '— No more "endless syncing": changes no longer get stuck in the queue.\n'
-    '— Your edits (mood, status, mascot) no longer revert.\n'
-    '— Chat opens instantly: older messages load as you scroll.\n'
-    '— More reliable on weak connections — nothing gets lost.\n'
+    '— Live drawing now goes over a fast direct channel instead of the database: partner strokes are smoother, the server is lighter, the app is faster.\n'
     '— Minor fixes.';
