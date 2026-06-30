@@ -297,12 +297,19 @@ class PbRealtimeService {
       // (chat_screen `_loadMore` → `_limit += _kPageSize`). Живые новые приходят
       // дельтой Centrifugo (подписка ниже). Кэш накапливает просмотренное.
       if (windowLimit != null) {
-        final res = await _pb.collection(collection).getList(
+        // Per-request таймаут: если writer сервера придушен (столл до 30с — см.
+        // p99-инцидент), getList не должен висеть на ПЕРВОЙ загрузке (пустой кэш).
+        // По таймауту бросаем → ловит catch в startNetwork → backoff-ретрай; стрим
+        // жив, а cache-first эмиссия уже показала кэш.
+        final res = await _pb
+            .collection(collection)
+            .getList(
               page: 1,
               perPage: windowLimit,
               filter: networkFilter ?? '',
               sort: windowSort ?? '-updated',
-            );
+            )
+            .timeout(const Duration(seconds: 12));
         if (cancelled) return;
         final toApply = res.items
             .where((r) => !OutboxService.instance.isPending(collection, r.id))
@@ -323,12 +330,17 @@ class PbRealtimeService {
       }
       var page = 1;
       while (!cancelled) {
-        final res = await _pb.collection(collection).getList(
+        // Per-request таймаут (как выше): застрявший getList → таймаут → ретрай,
+        // а не вечный hang страницы под серверным столлом.
+        final res = await _pb
+            .collection(collection)
+            .getList(
               page: page,
               perPage: 200,
               filter: pageFilter,
               sort: 'updated',
-            );
+            )
+            .timeout(const Duration(seconds: 12));
         if (res.items.isEmpty) break;
         // Не перезатираем записи с неотправленными локальными правками
         // (водяной знак двигаем по ВСЕМ, т.к. их серверный `updated` всё равно
@@ -441,7 +453,10 @@ class PbRealtimeService {
       if (cancelled || !conn.isOnline) return;
       try {
         try {
-          final rec = await _pb.collection(collection).getOne(id);
+          final rec = await _pb
+              .collection(collection)
+              .getOne(id)
+              .timeout(const Duration(seconds: 12));
           if (cancelled) return;
           // Не перезатираем локальную запись серверным стейлом, пока её правка
           // ещё не отправлена из очереди — иначе оптимистичное изменение
