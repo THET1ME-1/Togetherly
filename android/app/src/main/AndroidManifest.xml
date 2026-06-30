@@ -30,6 +30,12 @@
          WAKE_LOCK нужен для allowWakeLock (соединение не засыпает в Doze). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Мгновенная фоновая доставка БЕЗ FCM держится на живом WS-сокете в
+         foreground-сервисе. Doze/«оптимизация батареи» рвут сетевой сокет даже
+         у foreground-сервиса → пуши и виджеты обновляются только при открытии
+         приложения. Это разрешение позволяет показать системный диалог
+         «не оптимизировать» и держать соединение живым при свёрнутом приложении. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Переопределяем неявные требования GPS, чтобы не блокировать планшеты и Chromebook -->
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />

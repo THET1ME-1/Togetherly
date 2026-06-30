@@ -96,6 +96,130 @@ class HomeWidgetService {
     _myDataCache.clear();
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  //  ФОНОВОЕ ОБНОВЛЕНИЕ ВИДЖЕТОВ (изолят foreground-сервиса, БЕЗ FCM)
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Серверо-управляемое обновление виджетов из ФОНОВОГО изолята
+  /// (foreground-сервис PushBackgroundService), когда приложение свёрнуто/
+  /// выгружено. Здесь НЕТ in-memory состояния главного изолята (TimerService/
+  /// MoodService/PairData), поэтому всё читается напрямую из PocketBase. Делает
+  /// мгновенным обновление парного Love-виджета (статус/настроение/сообщение/
+  /// музыка я+партнёр), фото-виджетов и крупного mood-виджета при изменении
+  /// партнёром данных — без открытия приложения.
+  ///
+  /// Идемпотентно и устойчиво к сбоям: каждая часть в своём try, чтобы падение
+  /// одного виджета не срывало остальные. Android-only.
+  /// [refreshPhotos] — перекачивать ли фото-виджеты. Фото в `_cachePhotoFromUrl`
+  /// скачиваются заново на КАЖДЫЙ вызов, поэтому периодический watchdog зовёт с
+  /// false (дёшево: только парный/mood-виджет из PB), а событие об изменении
+  /// widget_data и стартовая синхронизация — с true.
+  Future<void> backgroundRefreshAll({
+    required String groupId,
+    required String myUid,
+    required String partnerUid,
+    bool refreshPhotos = true,
+  }) async {
+    if (!Platform.isAndroid) return;
+    if (groupId.isEmpty || myUid.isEmpty) return;
+    // В фоне нужны СВЕЖИЕ данные на каждое событие — сбрасываем TTL-кэш.
+    invalidateWidgetDataCache();
+    try {
+      await refreshLoveWidgetFromServer(groupId, myUid, partnerUid);
+    } catch (e) {
+      debugPrint('HomeWidgetService.backgroundRefreshAll love failed: $e');
+    }
+    if (refreshPhotos) {
+      try {
+        await refreshPhotoOfDay(groupId);
+      } catch (e) {
+        debugPrint('HomeWidgetService.backgroundRefreshAll photo failed: $e');
+      }
+    }
+    try {
+      await _refreshMoodWidgetFromServer(groupId, myUid, partnerUid);
+    } catch (e) {
+      debugPrint('HomeWidgetService.backgroundRefreshAll mood failed: $e');
+    }
+  }
+
+  /// Парный Love-виджет (LoveWidgetProvider): мои и партнёрские статус/
+  /// настроение/сообщение/музыка из коллекции `widget_data`. Та же логика, что
+  /// в нативном фоновом колбэке [_homeWidgetBackgroundCallback] (main.dart) —
+  /// вынесена сюда, чтобы переиспользоваться и из изолята foreground-сервиса.
+  Future<void> refreshLoveWidgetFromServer(
+    String groupId,
+    String myUid,
+    String partnerUid,
+  ) async {
+    final myRec = await PbDataService().loadWidget(groupId, myUid);
+    if (myRec != null) {
+      final d = WidgetData.fromPb(myRec);
+      await Future.wait([
+        HomeWidget.saveWidgetData<String>('my_status', d.status),
+        HomeWidget.saveWidgetData<String>('my_mood', d.moodLabel),
+        HomeWidget.saveWidgetData<String>('my_message', d.message),
+        HomeWidget.saveWidgetData<String>('my_music_title', d.musicTitle ?? ''),
+        HomeWidget.saveWidgetData<String>(
+            'my_music_artist', d.musicArtist ?? ''),
+      ]);
+    }
+    if (partnerUid.isNotEmpty) {
+      final partnerRec = await PbDataService().loadWidget(groupId, partnerUid);
+      if (partnerRec != null) {
+        final d = WidgetData.fromPb(partnerRec);
+        await Future.wait([
+          HomeWidget.saveWidgetData<String>('partner_status', d.status),
+          HomeWidget.saveWidgetData<String>('partner_mood', d.moodLabel),
+          HomeWidget.saveWidgetData<String>('partner_message', d.message),
+          HomeWidget.saveWidgetData<String>(
+              'partner_music_title', d.musicTitle ?? ''),
+          HomeWidget.saveWidgetData<String>(
+              'partner_music_artist', d.musicArtist ?? ''),
+        ]);
+      }
+    }
+    await HomeWidget.updateWidget(
+      name: 'LoveWidgetProvider',
+      androidName: 'LoveWidgetProvider',
+    );
+  }
+
+  /// Крупный mood-виджет (MoodWidgetProvider) из фона: эмодзи/метку/тир/цвет
+  /// настроения восстанавливаем по `widget_data.mood_emoji` через MoodOption —
+  /// без MoodService главного изолята. syncMood сам no-op, если настроений нет.
+  Future<void> _refreshMoodWidgetFromServer(
+    String groupId,
+    String myUid,
+    String partnerUid,
+  ) async {
+    final myWd = await _readWidgetData(groupId, myUid);
+    final partnerWd =
+        partnerUid.isEmpty ? null : await _readWidgetData(groupId, partnerUid);
+    MoodOption? optOf(WidgetData? wd) =>
+        (wd != null && wd.moodEmoji.isNotEmpty)
+            ? MoodOption.byImagePath(wd.moodEmoji)
+            : null;
+    final myOpt = optOf(myWd);
+    final pOpt = optOf(partnerWd);
+    String hexOf(MoodOption? o) => o == null
+        ? ''
+        : '#${o.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
+    await syncMood(
+      groupId: groupId,
+      moodEmojiAssetPath: myOpt?.imagePath ?? (myWd?.moodEmoji ?? ''),
+      moodLabel: myOpt?.localizedLabel ?? (myWd?.moodLabel ?? ''),
+      moodScore: myOpt?.score ?? 0,
+      moodColor: hexOf(myOpt),
+      userName: myWd?.displayName ?? '',
+      partnerMoodEmojiAssetPath: pOpt?.imagePath ?? (partnerWd?.moodEmoji ?? ''),
+      partnerMoodLabel: pOpt?.localizedLabel ?? (partnerWd?.moodLabel ?? ''),
+      partnerMoodScore: pOpt?.score ?? 0,
+      partnerMoodColor: hexOf(pOpt),
+      partnerUserName: partnerWd?.displayName ?? '',
+    );
+  }
+
   Future<void> _updateAllPhotoWidgetProviders() async {
     await HomeWidget.updateWidget(
       name: 'PhotoDayWidgetProvider',

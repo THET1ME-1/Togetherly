@@ -24,6 +24,7 @@ import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_push_service.dart';
 import '../services/push_background_service.dart';
+import '../services/background_reliability_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
 import '../services/locale_service.dart';
@@ -191,6 +192,16 @@ class _HomeScreenState extends State<HomeScreen> {
     // и небольшой задержки (даём навбару отрисоваться и паре загрузиться).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 1600), _maybeShowSideHint);
+      // Просьба исключить из оптимизации батареи — без неё Android рвёт фоновый
+      // сокет и виджеты/уведомления приходят только при открытии приложения.
+      // Показываем с задержкой, чтобы не перекрыть подсказку и дать паре
+      // загрузиться. Сервис сам решает, показывать ли (Android, не слишком часто).
+      Future.delayed(const Duration(milliseconds: 4000), () {
+        if (!mounted || !_pairData.isPaired) return;
+        unawaited(
+          BackgroundReliabilityService.instance.maybePrompt(context),
+        );
+      });
     });
 
     // Пересчёт расписания уведомлений о праздниках при каждом старте.

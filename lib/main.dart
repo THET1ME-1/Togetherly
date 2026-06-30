@@ -25,11 +25,11 @@ import 'services/mood_pack_service.dart';
 import 'services/pocketbase_service.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
+import 'services/home_widget_service.dart';
 import 'services/offline/local_store.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/outbox_service.dart';
 import 'services/offline/media_cache.dart';
-import 'models/widget_data.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -126,47 +126,10 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
         await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
     if (groupId.isEmpty) return;
 
-    // Fetch my data
-    final myRec = await PbDataService().loadWidget(groupId, myUid);
-    if (myRec != null) {
-      final d = WidgetData.fromPb(myRec);
-      await Future.wait([
-        HomeWidget.saveWidgetData<String>('my_status', d.status),
-        HomeWidget.saveWidgetData<String>('my_mood', d.moodLabel),
-        HomeWidget.saveWidgetData<String>('my_message', d.message),
-        HomeWidget.saveWidgetData<String>('my_music_title', d.musicTitle ?? ''),
-        HomeWidget.saveWidgetData<String>(
-          'my_music_artist',
-          d.musicArtist ?? '',
-        ),
-      ]);
-    }
-
-    // Fetch partner data
-    if (partnerUid.isNotEmpty) {
-      final partnerRec = await PbDataService().loadWidget(groupId, partnerUid);
-      if (partnerRec != null) {
-        final d = WidgetData.fromPb(partnerRec);
-        await Future.wait([
-          HomeWidget.saveWidgetData<String>('partner_status', d.status),
-          HomeWidget.saveWidgetData<String>('partner_mood', d.moodLabel),
-          HomeWidget.saveWidgetData<String>('partner_message', d.message),
-          HomeWidget.saveWidgetData<String>(
-            'partner_music_title',
-            d.musicTitle ?? '',
-          ),
-          HomeWidget.saveWidgetData<String>(
-            'partner_music_artist',
-            d.musicArtist ?? '',
-          ),
-        ]);
-      }
-    }
-
-    await HomeWidget.updateWidget(
-      name: 'LoveWidgetProvider',
-      androidName: 'LoveWidgetProvider',
-    );
+    // Единый источник логики обновления парного виджета из PB (та же, что в
+    // изоляте foreground-сервиса PushBackgroundService).
+    await HomeWidgetService.instance
+        .refreshLoveWidgetFromServer(groupId, myUid, partnerUid);
   } catch (e) {
     debugPrint('_homeWidgetBackgroundCallback failed: $e');
   }

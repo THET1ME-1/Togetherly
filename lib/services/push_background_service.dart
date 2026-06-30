@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'centrifugo_service.dart';
+import 'home_widget_service.dart';
 import 'pb_push_service.dart';
 import 'pocketbase_service.dart';
 
@@ -55,9 +57,13 @@ class PushBackgroundService {
       foregroundTaskOptions: ForegroundTaskOptions(
         // SSE — событийный, поллинг не нужен. Раз в минуту будим обработчик как
         // watchdog: если подписки не поднялись (сервис стартовал раньше, чем
-        // восстановилась PB-сессия), пробуем снова.
+        // восстановилась PB-сессия), пробуем снова + освежаем виджеты.
         eventAction: ForegroundTaskEventAction.repeat(60000),
-        autoRunOnBoot: false,
+        // Перезапуск доставки после ребута устройства (RebootReceiver пакета уже
+        // объявлен в манифесте). Контекст пары persist'ится через saveData, а
+        // PB-сессия восстанавливается из SharedPreferences в onStart → доставка
+        // и обновление виджетов оживают без открытия приложения.
+        autoRunOnBoot: true,
         autoRunOnMyPackageReplaced: true,
         allowWakeLock: true,
         allowWifiLock: true,
@@ -151,6 +157,12 @@ void pushServiceCallback() {
 
 class _PushTaskHandler extends TaskHandler {
   bool _started = false;
+  String _groupId = '';
+  String _myUid = '';
+  String _partnerUid = '';
+  // Подписка на изменения партнёром widget_data → мгновенное обновление виджетов.
+  RtUnsub? _widgetSub;
+  Timer? _widgetDebounce;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -182,6 +194,10 @@ class _PushTaskHandler extends TaskHandler {
         return; // сессии ещё нет — повтор на watchdog (onRepeatEvent)
       }
 
+      _groupId = groupId;
+      _myUid = myUid;
+      _partnerUid = partnerUid;
+
       await PbPushService().init();
       await PbPushService().start(
         groupId: groupId,
@@ -189,6 +205,12 @@ class _PushTaskHandler extends TaskHandler {
         partnerUid: partnerUid,
         partnerName: partnerName,
       );
+      // Виджеты рабочего стола: пока приложение свёрнуто/выгружено, главный
+      // изолят (где живёт WidgetService) спит и виджеты застывают. Здесь, в
+      // живом изоляте сервиса, слушаем изменения партнёром widget_data и
+      // мгновенно обновляем парный/фото/mood-виджеты прямо из PB — без FCM и
+      // без открытия приложения.
+      await _startWidgetRefresh();
       _started = true;
       debugPrint('PushBackgroundService: SSE-подписки подняты (group=$groupId)');
     } catch (e) {
@@ -196,14 +218,66 @@ class _PushTaskHandler extends TaskHandler {
     }
   }
 
+  Future<void> _startWidgetRefresh() async {
+    try {
+      _widgetSub = await CentrifugoService.instance.subscribeDelta(
+        'pair:$_groupId',
+        'widget_data',
+        (_) => _scheduleWidgetRefresh(),
+        match: (rec) => rec.data['user_uid'] == _partnerUid,
+      );
+      // Первичная синхронизация: данные могли измениться, пока сокет был мёртв.
+      unawaited(_refreshWidgets());
+    } catch (e) {
+      debugPrint('PushBackgroundService: старт обновления виджетов не удался: $e');
+    }
+  }
+
+  /// Дебаунс: партнёр за раз меняет несколько полей (статус+настроение+музыка) —
+  /// несколько дельт подряд схлопываем в один рефреш виджетов.
+  void _scheduleWidgetRefresh() {
+    _widgetDebounce?.cancel();
+    _widgetDebounce =
+        Timer(const Duration(milliseconds: 600), () => unawaited(_refreshWidgets()));
+  }
+
+  Future<void> _refreshWidgets({bool refreshPhotos = true}) async {
+    if (_groupId.isEmpty || _myUid.isEmpty) return;
+    try {
+      await HomeWidgetService.instance.backgroundRefreshAll(
+        groupId: _groupId,
+        myUid: _myUid,
+        partnerUid: _partnerUid,
+        refreshPhotos: refreshPhotos,
+      );
+    } catch (e) {
+      debugPrint('PushBackgroundService: фоновый рефреш виджетов упал: $e');
+    }
+  }
+
   @override
   void onRepeatEvent(DateTime timestamp) {
-    // watchdog: если не поднялись (старт раньше входа) — пробуем снова.
-    if (!_started) unawaited(_bootstrap());
+    // watchdog: если не поднялись (старт раньше входа) — пробуем снова;
+    // иначе раз в минуту дёшево освежаем парный/mood-виджет как страховку от
+    // пропущенной дельты (без перекачивания фото — оно тянется на каждом вызове).
+    if (!_started) {
+      unawaited(_bootstrap());
+    } else {
+      unawaited(_refreshWidgets(refreshPhotos: false));
+    }
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
+    _widgetDebounce?.cancel();
+    _widgetDebounce = null;
+    final ws = _widgetSub;
+    _widgetSub = null;
+    if (ws != null) {
+      try {
+        await ws();
+      } catch (_) {}
+    }
     await PbPushService().stop();
     _started = false;
   }
