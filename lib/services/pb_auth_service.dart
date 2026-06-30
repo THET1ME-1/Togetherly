@@ -41,6 +41,10 @@ class PbAuthService {
     required String password,
     required String displayName,
   }) async {
+    // Таймаут на сетевые вызовы: на iOS наблюдалась «бесконечная загрузка» —
+    // если запрос повисал без таймаута, спиннер регистрации крутился вечно.
+    // По таймауту бросаем → экран входа покажет ошибку (а не вечный спиннер).
+    const netTimeout = Duration(seconds: 20);
     try {
       await _pb.collection(_usersCol).create(body: {
         'email': email,
@@ -49,9 +53,12 @@ class PbAuthService {
         'name': displayName,
         'display_name': displayName,
         'emailVisibility': true,
-      });
+      }).timeout(netTimeout);
       // Сразу входим (create не авторизует).
-      await _pb.collection(_usersCol).authWithPassword(email, password);
+      await _pb
+          .collection(_usersCol)
+          .authWithPassword(email, password)
+          .timeout(netTimeout);
       await _ensureProfile(displayName: displayName);
       return _svc.currentUser;
     } on ClientException catch (e) {
@@ -77,8 +84,13 @@ class PbAuthService {
     required String email,
     required String password,
   }) async {
+    // Таймаут: на iOS «бесконечная загрузка» при повисшем без таймаута запросе.
+    const netTimeout = Duration(seconds: 20);
     try {
-      await _pb.collection(_usersCol).authWithPassword(email, password);
+      await _pb
+          .collection(_usersCol)
+          .authWithPassword(email, password)
+          .timeout(netTimeout);
       await _ensureProfile();
       return _svc.currentUser;
     } catch (e, st) {
@@ -89,7 +101,10 @@ class PbAuthService {
       // пароль в Firebase Auth и, если верный, перенести его в PB → повторяем
       // вход. Ноль писем/сброса для основной массы юзеров (см. migrate_bridge).
       if (cred && await _tryFirebaseBridge(email, password)) {
-        await _pb.collection(_usersCol).authWithPassword(email, password);
+        await _pb
+            .collection(_usersCol)
+            .authWithPassword(email, password)
+            .timeout(netTimeout);
         await _ensureProfile();
         return _svc.currentUser;
       }
@@ -116,7 +131,7 @@ class PbAuthService {
         '/api/migrate/verify-password',
         method: 'POST',
         body: {'email': email, 'password': password},
-      );
+      ).timeout(const Duration(seconds: 15));
       return res is Map && res['ok'] == true;
     } catch (e) {
       debugPrint('PbAuth._tryFirebaseBridge failed: $e');

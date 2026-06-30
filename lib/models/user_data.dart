@@ -709,9 +709,38 @@ class UserData extends ChangeNotifier {
     _uid = PocketBaseService().userId ?? '';
 
     await _saveLocal();
+    notifyListeners();
 
+    // Сетевое обогащение профиля (запись имени/пола, синк коинов/тем из облака,
+    // dev-коины) — БЕСТ-ЭФФОРТ и НЕ должно блокировать завершение входа. Раньше
+    // эти три вызова await'ились ЗДЕСЬ и БЕЗ ТАЙМАУТА → если любой повисал
+    // (наблюдалось на iOS: «бесконечная загрузка после кнопки Вход/Регистрация»),
+    // register() не возвращался, экран входа не навигировал на главный, спиннер
+    // крутился вечно. Локальное состояние «вошёл» уже сохранено выше, поэтому
+    // уводим обогащение в фон с таймаутами; оно обновит UI через notifyListeners.
     final uid = PocketBaseService().userId ?? '';
     if (PocketBaseService().isLoggedIn && uid.isNotEmpty) {
+      unawaited(_enrichAfterLogin(
+        uid: uid,
+        displayName: displayName,
+        gender: gender,
+        avatarUrl: avatarUrl,
+        isNewUser: isNewUser,
+      ));
+    }
+  }
+
+  /// Фоновое обогащение профиля после входа: запись профиля + синк облака +
+  /// dev-коины. Best-effort, каждый шаг с таймаутом — НЕ блокирует вход.
+  Future<void> _enrichAfterLogin({
+    required String uid,
+    required String displayName,
+    required Gender gender,
+    required String avatarUrl,
+    required bool isNewUser,
+  }) async {
+    const t = Duration(seconds: 12);
+    try {
       await PbDataService().updateUserProfile(uid, {
         'displayName': displayName,
         'gender': gender == Gender.male ? 'male' : 'female',
@@ -719,11 +748,21 @@ class UserData extends ChangeNotifier {
         // Сброс пары для нового юзера (email/пароль — поля auth, не трогаем тут).
         if (isNewUser) 'pairId': '',
         if (isNewUser) 'pairIds': <String>[],
-      });
-      // Синхронизируем монеты/темы с сервера — важно после переустановки,
-      // когда SharedPreferences очищены, но облако хранит реальный баланс.
-      await _syncFromFirestore();
-      await _maybeGrantDevCoins();
+      }).timeout(t);
+    } catch (e) {
+      debugPrint('UserData._enrichAfterLogin updateProfile failed: $e');
+    }
+    // Синхронизируем монеты/темы с сервера — важно после переустановки, когда
+    // SharedPreferences очищены, но облако хранит реальный баланс.
+    try {
+      await _syncFromFirestore().timeout(t);
+    } catch (e) {
+      debugPrint('UserData._enrichAfterLogin sync failed: $e');
+    }
+    try {
+      await _maybeGrantDevCoins().timeout(t);
+    } catch (e) {
+      debugPrint('UserData._enrichAfterLogin devCoins failed: $e');
     }
     notifyListeners();
   }
