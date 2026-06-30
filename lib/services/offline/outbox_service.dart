@@ -108,11 +108,23 @@ class OutboxService {
           anyFailed = true;
           break; // сеть пропала — остановимся, остальное дошлём при возврате сети
         }
-        final type = snap.value['type'] as String? ?? '';
-        final payload =
-            Map<String, dynamic>.from((snap.value['payload'] as Map?) ?? const {});
-        final attempts = (snap.value['attempts'] as num?)?.toInt() ?? 0;
-        final rkey = _recordKeyOf(type, payload);
+        // Разбор записи ЗАЩИЩЁН: одна повреждённая запись (например, payload
+        // иной формы из старой версии приложения) не должна абортить весь flush.
+        // Раньше брошенное здесь исключение (`as Map` на не-Map в payload или в
+        // _recordKeyOf) вылетало во внешний catch → НИ ОДНА операция не
+        // обрабатывалась, очередь замораживалась навсегда: плашка «Синхронизация…»
+        // висела вечно, данные не уходили, а в логах сервера пусто (до сети не
+        // доходило). Битую запись просто выбрасываем — она невосстановима.
+        final parsed = _parseOp(snap.value);
+        if (parsed == null) {
+          debugPrint('Outbox: повреждённая запись ${snap.key} удалена из очереди');
+          await _store.record(snap.key).delete(db);
+          continue;
+        }
+        final type = parsed.type;
+        final payload = parsed.payload;
+        final attempts = parsed.attempts;
+        final rkey = parsed.rkey;
         // та же запись уже упала в этом проходе → не применяем позднюю правку
         // раньше ранней; отложим до следующего flush.
         if (rkey != null && blockedKeys.contains(rkey)) {
@@ -215,6 +227,21 @@ class OutboxService {
     }
   }
 
+  /// Безопасный разбор записи очереди. Возвращает null, если запись повреждена
+  /// (payload не Map / неожиданная форма у moodUpsert/mascotUpsert и т.п.) —
+  /// тогда вызывающий её выбрасывает, а не роняет весь проход очереди.
+  _ParsedOp? _parseOp(Map<String, Object?> value) {
+    try {
+      final type = value['type'] as String? ?? '';
+      final payload =
+          Map<String, dynamic>.from((value['payload'] as Map?) ?? const {});
+      final attempts = (value['attempts'] as num?)?.toInt() ?? 0;
+      return _ParsedOp(type, payload, attempts, _recordKeyOf(type, payload));
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _scheduleRetry() {
     _retryTimer?.cancel();
     final ms = backoffMs(_retryAttempt);
@@ -236,13 +263,11 @@ class OutboxService {
     pendingCount.value = snaps.length;
     poisonCount.value = await _poison.count(db);
     // Пересчитываем «грязные» ключи: записи с неотправленными правками, которые
-    // кэш-слой не должен перезатирать серверным стейлом.
+    // кэш-слой не должен перезатирать серверным стейлом. Разбор защищён
+    // (_parseOp) — битая запись не должна ронять пересчёт счётчика.
     final keys = <String>{};
     for (final s in snaps) {
-      final type = s.value['type'] as String? ?? '';
-      final payload =
-          Map<String, dynamic>.from((s.value['payload'] as Map?) ?? const {});
-      final k = _recordKeyOf(type, payload);
+      final k = _parseOp(s.value)?.rkey;
       if (k != null) keys.add(k);
     }
     _pendingKeys
@@ -349,9 +374,10 @@ class OutboxService {
         for (final s in pend) {
           if (s.key == _inflightKey) continue;
           if (s.value['type'] == 'memoryUpsert') {
-            final pp = Map<String, dynamic>.from(
-                (s.value['payload'] as Map?) ?? const {});
-            if (pp['id'] == p['id']) await _store.record(s.key).delete(db);
+            final pp = _parseOp(s.value)?.payload;
+            if (pp != null && pp['id'] == p['id']) {
+              await _store.record(s.key).delete(db);
+            }
           }
         }
         return false;
@@ -374,8 +400,9 @@ class OutboxService {
         finder: Finder(sortOrders: [SortOrder(Field.key)]));
     for (final s in pend) {
       if (s.key == _inflightKey || s.value['type'] != type) continue;
-      final existing =
-          Map<String, dynamic>.from((s.value['payload'] as Map?) ?? const {});
+      final parsed = _parseOp(s.value);
+      if (parsed == null) continue; // битую запись пропускаем (flush её удалит)
+      final existing = parsed.payload;
       if (sameKey(existing, payload)) {
         final next = merge != null ? merge(existing, payload) : payload;
         await _store.record(s.key).update(db, {'payload': next});
@@ -543,4 +570,13 @@ class OutboxService {
     return data.upsertMemory(
         rec.data['group_id'] as String? ?? '', memoryId, map);
   }
+}
+
+/// Разобранная запись очереди (см. [OutboxService._parseOp]).
+class _ParsedOp {
+  final String type;
+  final Map<String, dynamic> payload;
+  final int attempts;
+  final String? rkey;
+  const _ParsedOp(this.type, this.payload, this.attempts, this.rkey);
 }
