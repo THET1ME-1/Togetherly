@@ -690,6 +690,7 @@ class PbDataService {
   }) async {
     if (ownerUid.isEmpty) return '';
     if (oldCode != null && oldCode.isNotEmpty) await deleteInviteCode(oldCode);
+    var refreshedSession = false;
     for (var attempt = 0; attempt < 8; attempt++) {
       final code = _newCode();
       // listRule invite_codes = owner-only (анти-enumeration) → этот pre-check
@@ -705,6 +706,21 @@ class PbDataService {
         return code;
       } catch (e) {
         debugPrint('PbData.generateInviteCode attempt ${attempt + 1} failed: $e');
+        // ЧАСТАЯ ПРИЧИНА (подтверждено логами: auth='' на сервере): токен протух/
+        // не приложен → createRule `owner_uid = @request.auth.id` не проходит →
+        // 400 «create rule failure». Освежаем сессию ОДИН раз и продолжаем — тогда
+        // следующий create уйдёт с валидным токеном. Если токен мёртв (401 на
+        // refresh) — refresh молча упадёт, код не создастся, вызывающий покажет
+        // ошибку (а не фейковый локальный код).
+        if (!refreshedSession) {
+          refreshedSession = true;
+          try {
+            await _pb
+                .collection('users')
+                .authRefresh()
+                .timeout(const Duration(seconds: 8));
+          } catch (_) {}
+        }
         continue;
       }
     }

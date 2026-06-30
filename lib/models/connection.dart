@@ -565,7 +565,10 @@ class Connection {
       ownerUid: _uid,
       oldCode: inviteCode.isNotEmpty ? inviteCode : null,
     );
-    inviteCode = code.isNotEmpty ? code : generateLocalCode();
+    // НЕ подставляем фейковый локальный код при провале серверного создания
+    // (его нет в invite_codes → партнёру «код не найден»). Пусто → UI даст
+    // перевыпустить; серверный create само-лечит протухший токен (authRefresh).
+    inviteCode = code;
 
     onChanged?.call();
   }
@@ -590,7 +593,10 @@ class Connection {
       groupId: isPaired && pairId.isNotEmpty ? pairId : null,
       oldCode: inviteCode.isNotEmpty ? inviteCode : null,
     );
-    inviteCode = code.isNotEmpty ? code : generateLocalCode();
+    // НЕ подставляем фейковый локальный код при провале серверного создания
+    // (его нет в invite_codes → партнёру «код не найден»). Пусто → UI даст
+    // перевыпустить; серверный create само-лечит протухший токен (authRefresh).
+    inviteCode = code;
     onChanged?.call();
   }
 
