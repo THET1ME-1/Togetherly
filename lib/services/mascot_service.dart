@@ -33,6 +33,9 @@ class MascotService extends ChangeNotifier {
   int _bindGeneration = 0;
   StreamSubscription? _mascotsSub;
   StreamSubscription? _groupStateSub;
+  // Откладывает «галерея пуста → засеять дефолты», чтобы не сработать на холодной
+  // пустой эмиссии кэша до сетевой загрузки (иначе затирали бы активного маскота).
+  Timer? _emptySeedTimer;
 
   List<Mascot> _mascots = [];
   GroupMascotState _state = const GroupMascotState();
@@ -98,6 +101,8 @@ class MascotService extends ChangeNotifier {
     _bindGeneration++;
     _mascotsSub?.cancel();
     _groupStateSub?.cancel();
+    _emptySeedTimer?.cancel();
+    _emptySeedTimer = null;
     LevelService.instance.unbind();
     _groupId = '';
     _mascots = [];
@@ -119,11 +124,26 @@ class MascotService extends ChangeNotifier {
   void _onMascotsUpdate(List<Mascot> mascots) {
     _mascots = mascots;
 
-    // Seed defaults if gallery is empty (first time).
+    // Засеваем дефолты ТОЛЬКО если галерея РЕАЛЬНО пуста — но НЕ по первой
+    // пустой эмиссии. `_watchCached` на onListen сразу отдаёт локальный кэш
+    // (часто пустой []) ДО сетевой загрузки галереи. Если среагировать сразу —
+    // `_seedDefaults` → `setActive(defaults.first)` ЗАТИРАЕТ выбранного
+    // пользователем маскота дефолтным (баг «активный маскот сбрасывается на
+    // default_boy на каждом старте»). Поэтому откладываем: если за паузу
+    // подгрузится непустая галерея — отложенный seed отменяется.
     if (_mascots.isEmpty && _groupId.isNotEmpty) {
-      _seedDefaults();
+      final boundGroupId = _groupId;
+      final gen = _bindGeneration;
+      _emptySeedTimer?.cancel();
+      _emptySeedTimer = Timer(const Duration(seconds: 5), () {
+        if (_groupId != boundGroupId || gen != _bindGeneration) return;
+        if (_mascots.isEmpty) _seedDefaults(); // всё ещё пусто после загрузки
+      });
       return;
     }
+    // Галерея непуста — отменяем отложенный seed (данные подгрузились).
+    _emptySeedTimer?.cancel();
+    _emptySeedTimer = null;
 
     // One-time migration: replace the old 6 SVG defaults with the new 2.
     final oldOnes = _mascots
@@ -190,8 +210,10 @@ class MascotService extends ChangeNotifier {
     final bindGeneration = _bindGeneration;
     final defaults = DefaultMascots.asMascots();
     await _repo.saveBatch(boundGroupId, defaults);
-    // Auto-activate the first default mascot so it is visible immediately.
-    if (defaults.isNotEmpty) {
+    // Активируем первого дефолтного ТОЛЬКО если активного ещё нет — иначе затёрли
+    // бы выбор пользователя (доп. защита к отложенному seed выше).
+    final hasActive = (_state.activeMascotId ?? '').isNotEmpty;
+    if (defaults.isNotEmpty && !hasActive) {
       if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
       await setActive(defaults.first.id);
     }
