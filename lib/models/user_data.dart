@@ -6,6 +6,7 @@ import '../services/pb_coins_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
+import '../services/widget_background_refresh_service.dart';
 import '../services/offline/offline_reset.dart';
 import '../theme/app_theme.dart';
 import '../utils/safe_text.dart';
@@ -829,6 +830,7 @@ class UserData extends ChangeNotifier {
     // Гасим фоновый пуш-сервис (§5): иначе его постоянное уведомление и
     // SSE-подписка с уже невалидной сессией остались бы висеть после выхода.
     await PushBackgroundService().stop();
+    await WidgetBackgroundRefreshService.instance.cancel();
     _isRegistered = false;
     _displayName = '';
     _email = '';

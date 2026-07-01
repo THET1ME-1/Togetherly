@@ -69,6 +69,11 @@ dependencies:
   # приватные каналы pair/user/loc с JWT от PB. См. services/centrifugo_service.dart.
   centrifuge: ^0.20.0
   flutter_foreground_task: ^9.2.2
+  # Живучий фолбэк обновления виджетов: периодическая фоновая задача (мин. 15 мин),
+  # переживает убийство процесса и Doze на агрессивных OEM (Xiaomi/Samsung), где
+  # foreground-сервис с realtime-сокетом усыпляют. См.
+  # services/widget_background_refresh_service.dart.
+  workmanager: ^0.9.0+3
   # Офлайн-кэш (offline-first): чистый Dart NoSQL-стор документов — кладём
   # JSON-записи PB как есть, без нативного кода (сборки iOS/RuStore не трогаем).
   sembast: ^3.7.0

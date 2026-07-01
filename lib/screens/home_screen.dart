@@ -24,6 +24,7 @@ import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_push_service.dart';
 import '../services/push_background_service.dart';
+import '../services/widget_background_refresh_service.dart';
 import '../services/background_reliability_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
@@ -703,10 +704,15 @@ class _HomeScreenState extends State<HomeScreen> {
           partnerUid: partnerUid,
           partnerName: _pairData.partnerDisplayName,
         ));
+        // (3) Android: живучий фолбэк — периодический WorkManager-рефреш
+        // виджетов на случай, когда OEM-киллер (Xiaomi/Samsung) убил
+        // foreground-сервис и realtime-сокет мёртв.
+        unawaited(WidgetBackgroundRefreshService.instance.ensureScheduled());
       }
     } else {
       PbPushService().stop();
       unawaited(PushBackgroundService().stop());
+      unawaited(WidgetBackgroundRefreshService.instance.cancel());
     }
   }
 

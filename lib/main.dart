@@ -26,6 +26,7 @@ import 'services/pocketbase_service.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
 import 'services/home_widget_service.dart';
+import 'services/widget_background_refresh_service.dart';
 import 'services/offline/local_store.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/outbox_service.dart';
@@ -323,6 +324,14 @@ void main() async {
   // background interactivity callback и не провоцируем enqueueWork crash.
   if (!Platform.isAndroid) {
     HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+  } else {
+    // Android: живучий фолбэк обновления виджетов через WorkManager. Foreground-
+    // сервис (PushBackgroundService) даёт мгновенность, но его душат OEM-киллеры
+    // (Xiaomi/MIUI, Samsung) даже с whitelist батареи. Периодическая задача
+    // переживает убийство процесса и Doze → виджет не застревает навсегда.
+    // Инициализируем диспетчер здесь; само расписание ставит home_screen при
+    // активной паре (там известен контекст). Не блокируем старт.
+    unawaited(WidgetBackgroundRefreshService.instance.init());
   }
 
   // Аналитика отключена (firebase_analytics убран при уходе с Firebase) —
