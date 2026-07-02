@@ -80,9 +80,29 @@ Supabase, который доверяет Firebase ID-токену; см. `lib/m
 ### 6. Codemagic
 - [ ] Подключить репозиторий, добавить App Store Connect API key с именем
       `TogetherlyASC` (как в `codemagic.yaml` → `integrations.app_store_connect`).
+      **Роль ключа — Admin или App Manager** (роль Developer НЕ может создавать
+      сертификаты/профили → fetch-signing-files отдаст 401 и подпись упадёт).
+- [x] **Постоянный ключ подписи (главный фикс подписи) — уже в репо.**
+      Ошибка «No Accounts» / «No profiles for com.togetherly.love» была из-за того,
+      что ключ генерился заново каждую сборку → под него плодились новые
+      distribution-сертификаты, лимит Apple исчерпывался, профили не создавались.
+      Фикс: постоянный ключ `ios/certs/dist_cert_key.pem` **закоммичен** (репо
+      приватный), `codemagic.yaml` берёт его через `--certificate-key @file:...`.
+      Ручной ввод переменных в Codemagic UI НЕ нужен.
+- [ ] **Если билд упадёт с «Maximum number of certificates generated»** — значит за
+      прошлые провальные прогоны distribution-сертификаты Apple исчерпаны (лимит
+      2–3). Тогда отозвать лишние **Apple Distribution** в Apple Developer →
+      Certificates (приложение на iOS ещё не выпущено — все они мусорные), и
+      перезапустить сборку. Ключ уже постоянный, так что это разово.
 - [ ] Запустить сборку: тег `ios-1.14.0` (push) либо «Start build» вручную.
 - [ ] Первый прогон публикует в **TestFlight**. После проверки — переключить
       `submit_to_app_store: true` в `codemagic.yaml`.
+
+> Диагностика: после фикса шаг подписи идёт с `set -euxo pipefail`, поэтому при
+> сбое билд падает **на шаге «Set up code signing»** с реальной причиной
+> (401 = права/интеграция ASC-ключа; «Maximum number of certificates» = отозвать
+> старые сертификаты; «not found» переменной = не задан CERTIFICATE_PRIVATE_KEY),
+> а не глубже в «Build IPA» с маскирующим «No Accounts».
 
 ---
 
