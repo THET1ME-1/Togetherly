@@ -72,3 +72,6 @@ play-publisher*.json
 .claude/settings.local.json
 # iOS Xcode build artifacts (do not commit)
 ios/build/
+
+# Локальные билд-артефакты (APK/AAB) — не коммитим
+dist/
