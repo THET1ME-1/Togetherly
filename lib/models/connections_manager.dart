@@ -265,10 +265,33 @@ class ConnectionsManager extends ChangeNotifier {
       toRemove.add(conn);
     }
 
+    // 3) Пустые «ожидающие партнёра» дубли — непарные non-solo без pairId.
+    //    Ровно один такой нужен (показать инвайт-код и QR), остальные — мусор
+    //    от повторных тапов «создать подключение» (баг «создало 5 подключений»).
+    //    Оставляем первый, лишние убираем из локального списка.
+    Connection? firstEmpty;
+    for (final conn in List<Connection>.from(_connections)) {
+      if (conn.isSolo || toRemove.contains(conn)) continue;
+      if (conn.isPaired || conn.pairId.isNotEmpty) continue;
+      if (firstEmpty == null) {
+        firstEmpty = conn;
+        continue;
+      }
+      debugPrint(
+        '_cleanupStaleConnections: collapsing empty unpaired duplicate',
+      );
+      conn.dispose();
+      toRemove.add(conn);
+    }
+
     for (final conn in toRemove) {
       conn.dispose();
       _connections.remove(conn);
     }
+
+    // Если активным осталось пустое/непарное подключение, а спаренное есть —
+    // переключаемся на него (иначе «дни вместе 0» и пустой парный виджет).
+    _preferPairedActive();
 
     if (toRemove.isNotEmpty) {
       // Ensure at least one non-solo connection exists
@@ -282,6 +305,24 @@ class ConnectionsManager extends ChangeNotifier {
       }
       await _saveLocal();
       notifyListeners();
+    }
+  }
+
+  /// Если активное подключение пустое/непарное (solo или «ожидает партнёра»),
+  /// а спаренное существует — делаем активным первое спаренное. Чинит симптом
+  /// «дни вместе 0 / парный виджет пустой», когда пара уже есть на сервере, но
+  /// активный индекс указывает на пустышку (после багов с дублями/пассивным
+  /// приёмом инвайта).
+  void _preferPairedActive() {
+    final act = activeConnection;
+    final actIsEmpty =
+        act == null || act.isSolo || (!act.isPaired && act.pairId.isEmpty);
+    if (!actIsEmpty) return;
+    final pairedIdx = _connections.indexWhere(
+      (c) => !c.isSolo && c.isPaired && c.partners.isNotEmpty,
+    );
+    if (pairedIdx >= 0) {
+      _activeConnectionIndex = pairedIdx;
     }
   }
 
@@ -381,6 +422,11 @@ class ConnectionsManager extends ChangeNotifier {
         }
         continue;
       }
+
+      // Партнёр принял НАШ код — пара «приземлилась» на это подключение, но
+      // активным мог оставаться пустой дубль → на главном «дни вместе 0» и
+      // пустой парный виджет. Делаем спаренное подключение активным.
+      _preferPairedActive();
 
       await _saveLocal();
       notifyListeners();
@@ -514,6 +560,29 @@ class ConnectionsManager extends ChangeNotifier {
     String customLabel = '',
     String customEmoji = '',
   }) async {
+    // Идемпотентность: если уже есть пустое (непарное, без партнёра, без
+    // pairId) подключение — переиспользуем его вместо создания нового. Иначе
+    // повторные вызовы (ретрай/двойной тап) плодили по несколько пустых
+    // «ожидающих партнёра» подключений → «создало 5 подключений».
+    final existing = _connections.cast<Connection?>().firstWhere(
+          (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
+          orElse: () => null,
+        );
+    if (existing != null) {
+      existing.relationshipType = type;
+      if (type == RelationshipType.custom) {
+        existing.customRelationshipLabel = customLabel;
+        existing.customRelationshipEmoji = customEmoji;
+      }
+      if (_loggedIn && existing.inviteCode.isEmpty) {
+        await _ensureServerCode(existing);
+      }
+      _activeConnectionIndex = _connections.indexOf(existing);
+      await _saveLocal();
+      notifyListeners();
+      return existing;
+    }
+
     final connection = await _createNewConnection();
     connection.relationshipType = type;
     if (type == RelationshipType.custom) {

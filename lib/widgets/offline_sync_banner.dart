@@ -67,7 +67,9 @@ class _SyncChipsState extends State<_SyncChips> {
   @override
   void initState() {
     super.initState();
-    OutboxService.instance.pendingCount.addListener(_onChange);
+    // Спиннер реагирует на activeCount (свежие записи), а не на pendingCount —
+    // запись в backoff после провала больше не крутит «вечную синхронизацию».
+    OutboxService.instance.activeCount.addListener(_onChange);
     OutboxService.instance.poisonCount.addListener(_onChange);
     _connSub =
         ConnectivityService.instance.onOnlineChanged.listen((_) => _onChange());
@@ -82,9 +84,9 @@ class _SyncChipsState extends State<_SyncChips> {
 
   /// Управляет дебаунс-таймером показа «Синхронизация…».
   void _reconcile() {
-    final pending = OutboxService.instance.pendingCount.value;
+    final active = OutboxService.instance.activeCount.value;
     final online = ConnectivityService.instance.isOnline;
-    final syncing = online && pending > 0;
+    final syncing = online && active > 0;
     if (syncing) {
       // запустить таймер, если ещё не показываем и не запущен
       if (!_showSyncing && _debounce == null) {
@@ -93,7 +95,7 @@ class _SyncChipsState extends State<_SyncChips> {
           if (!mounted) return;
           // показываем, только если к моменту срабатывания всё ещё синкаем
           if (ConnectivityService.instance.isOnline &&
-              OutboxService.instance.pendingCount.value > 0) {
+              OutboxService.instance.activeCount.value > 0) {
             setState(() => _showSyncing = true);
           }
         });
@@ -107,7 +109,7 @@ class _SyncChipsState extends State<_SyncChips> {
 
   @override
   void dispose() {
-    OutboxService.instance.pendingCount.removeListener(_onChange);
+    OutboxService.instance.activeCount.removeListener(_onChange);
     OutboxService.instance.poisonCount.removeListener(_onChange);
     _connSub?.cancel();
     _debounce?.cancel();
@@ -116,7 +118,7 @@ class _SyncChipsState extends State<_SyncChips> {
 
   @override
   Widget build(BuildContext context) {
-    final pending = OutboxService.instance.pendingCount.value;
+    final active = OutboxService.instance.activeCount.value;
     final poison = OutboxService.instance.poisonCount.value;
     final online = ConnectivityService.instance.isOnline;
     final ru = LocaleService.instance.isRussian;
@@ -135,7 +137,7 @@ class _SyncChipsState extends State<_SyncChips> {
           fg: scheme.onSurfaceVariant,
         ),
       ));
-    } else if (_showSyncing && pending > 0) {
+    } else if (_showSyncing && active > 0) {
       // Идёт синхронизация — мягкая плашка со спиннером, без сырого счётчика,
       // и только после дебаунса (длительная отправка).
       chips.add(IgnorePointer(

@@ -199,7 +199,9 @@
           "maxSize": 2000000
         }
       ],
-      "indexes": [],
+      "indexes": [
+        "CREATE INDEX `idx_groups_updated` ON `groups` (`updated`)"
+      ],
       "listRule": "@request.auth.id != \"\" && members ?~ @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && members ?~ @request.auth.id",
       "createRule": "@request.auth.id != \"\" && members ?~ @request.auth.id",
@@ -274,10 +276,11 @@
         }
       ],
       "indexes": [
-        "CREATE INDEX `idx_memories_group_id_created_at` ON `memories` (`group_id`, `created_at`)"
+        "CREATE INDEX `idx_memories_group_id_created_at` ON `memories` (`group_id`, `created_at`)",
+        "CREATE INDEX `idx_memories_group_id_updated` ON `memories` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && author_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -329,10 +332,11 @@
         }
       ],
       "indexes": [
-        "CREATE INDEX `idx_mood_entries_group_id_user_uid_timestamp` ON `mood_entries` (`group_id`, `user_uid`, `timestamp`)"
+        "CREATE INDEX `idx_mood_entries_group_id_user_uid_timestamp` ON `mood_entries` (`group_id`, `user_uid`, `timestamp`)",
+        "CREATE INDEX `idx_mood_entries_group_id_user_uid_updated` ON `mood_entries` (`group_id`, `user_uid`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -445,10 +449,11 @@
         }
       ],
       "indexes": [
-        "CREATE INDEX `idx_chat_messages_group_id_ts` ON `chat_messages` (`group_id`, `ts`)"
+        "CREATE INDEX `idx_chat_messages_group_id_ts` ON `chat_messages` (`group_id`, `ts`)",
+        "CREATE INDEX `idx_chat_messages_group_id_updated` ON `chat_messages` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -498,8 +503,8 @@
       "indexes": [
         "CREATE INDEX `idx_canvas_strokes_group_id_canvas_id_order_index` ON `canvas_strokes` (`group_id`, `canvas_id`, `order_index`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -561,10 +566,11 @@
         }
       ],
       "indexes": [
-        "CREATE INDEX `idx_memory_comments_group_id_memory_id_created_at` ON `memory_comments` (`group_id`, `memory_id`, `created_at`)"
+        "CREATE INDEX `idx_memory_comments_group_id_memory_id_created_at` ON `memory_comments` (`group_id`, `memory_id`, `created_at`)",
+        "CREATE INDEX `idx_memory_comments_memory_id_updated` ON `memory_comments` (`memory_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && author_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -921,10 +927,11 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_widget_data_group_id_user_uid` ON `widget_data` (`group_id`, `user_uid`)"
+        "CREATE UNIQUE INDEX `idx_widget_data_group_id_user_uid` ON `widget_data` (`group_id`, `user_uid`)",
+        "CREATE INDEX `idx_widget_data_group_id_updated` ON `widget_data` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -966,10 +973,11 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_miss_you_group_id_user_uid` ON `miss_you` (`group_id`, `user_uid`)",
-        "CREATE INDEX `idx_miss_you_group_id` ON `miss_you` (`group_id`)"
+        "CREATE INDEX `idx_miss_you_group_id` ON `miss_you` (`group_id`)",
+        "CREATE INDEX `idx_miss_you_group_id_updated` ON `miss_you` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1012,8 +1020,8 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_meta_group_id_canvas_id` ON `canvas_meta` (`group_id`, `canvas_id`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1056,8 +1064,8 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_catalogue_group_id_canvas_id` ON `canvas_catalogue` (`group_id`, `canvas_id`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1114,10 +1122,11 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_mascots_group_id_mascot_id` ON `mascots` (`group_id`, `mascot_id`)",
-        "CREATE INDEX `idx_mascots_group_id` ON `mascots` (`group_id`)"
+        "CREATE INDEX `idx_mascots_group_id` ON `mascots` (`group_id`)",
+        "CREATE INDEX `idx_mascots_group_id_updated` ON `mascots` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1148,10 +1157,11 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_chat_reads_group_id_user_uid` ON `chat_reads` (`group_id`, `user_uid`)"
+        "CREATE UNIQUE INDEX `idx_chat_reads_group_id_user_uid` ON `chat_reads` (`group_id`, `user_uid`)",
+        "CREATE INDEX `idx_chat_reads_group_id_updated` ON `chat_reads` (`group_id`, `updated`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1185,8 +1195,8 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_canvas_live_group_id_canvas_id_user_uid` ON `canvas_live` (`group_id`, `canvas_id`, `user_uid`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"
@@ -1214,8 +1224,8 @@
       "indexes": [
         "CREATE UNIQUE INDEX `idx_chat_typing_group_id_user_uid` ON `chat_typing` (`group_id`, `user_uid`)"
       ],
-      "listRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
-      "viewRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
+      "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+      "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "createRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id && user_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id",
       "deleteRule": "@request.auth.id != \"\" && @collection.groups.id ?= group_id && @collection.groups.members ?~ @request.auth.id"

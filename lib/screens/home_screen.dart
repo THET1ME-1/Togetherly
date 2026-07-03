@@ -172,9 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // Listen to deep link invites
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
       if (mounted && !_pairData.isPaired) {
-        // Switch to Connect Partner tab
-        setState(() => _selectedNavIndex = 1);
-        // The connect_partner_screen will handle the code
+        // Открываем вкладку подключения (индекс 2 — ConnectPartnerScreen в
+        // _buildBody). Раньше стоял 1 = вкладка виджетов, экран пейринга не
+        // монтировался и код инвайта в никуда. Сам экран заберёт код из буфера
+        // DeepLinkService и/или из стрима.
+        setState(() => _selectedNavIndex = 2);
       }
     });
 

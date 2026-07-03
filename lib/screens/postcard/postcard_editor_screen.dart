@@ -193,29 +193,55 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   }
 
   Future<void> _export() async {
+    // Геометрию экрана для sharePositionOrigin (iPad-поповер) берём ДО await'ов,
+    // пока не пересекли async-gap с BuildContext.
+    final shareOrigin = () {
+      final box = context.findRenderObject() as RenderBox?;
+      return box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+    }();
     // Скрываем UI-оверлеи (баджик «потяни» и рамки редактирования)
     setState(() { _exporting = true; _capturing = true; });
-    await Future.delayed(const Duration(milliseconds: 60));
+    // Ждём РЕАЛЬНО отрисованный кадр без оверлеев. Future.delayed(60ms) не
+    // гарантировал готовность кадра → boundary.toImage падал ассертом
+    // '!debugNeedsPaint' (debug) или захватывал старый кадр с видимыми рамками
+    // (release). endOfFrame форсит кадр и дожидается его завершения.
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
 
+    ui.Image? image;
     try {
       final captureKey = _templateId == PostcardTemplateId.polaroid
           ? _polaroidKey
           : _cardKey;
       final boundary =
           captureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
+      // Раньше здесь был молчаливый `return`: спиннер гас, шэра нет, ошибки нет
+      // — тестер видел «ничего не происходит». Теперь бросаем → SnackBar.
+      if (boundary == null) {
+        throw StateError('postcard render boundary not ready');
+      }
 
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      // pixelRatio 2.5 — качество остаётся высоким, но вдвое меньше пикселей,
+      // чем 3.0: полароид с полноразмерным фото больше не ловит OutOfMemory на
+      // слабых устройствах (фото декодится с cacheWidth в postcard_card.dart).
+      image = await boundary.toImage(pixelRatio: 2.5);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
+      if (byteData == null) {
+        throw StateError('postcard png encode returned null');
+      }
 
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/togetherly_postcard.png');
-      await file.writeAsBytes(byteData.buffer.asUint8List());
+      // Имя завязано на контент (дни + шаблон) → системный share-кэш не подхватит
+      // устаревший файл от прошлого шэра. flush:true — файл дописан до share.
+      final file = File(
+          '${dir.path}/togetherly_postcard_${_days}_${_templateId.name}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List(), flush: true);
 
+      // sharePositionOrigin обязателен для share-поповера на iPad (иначе краш).
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
         text: '$_days ${LocaleService.current.pcDaysTogether} ❤️',
+        sharePositionOrigin: shareOrigin,
       );
     } catch (e) {
       if (mounted) {
@@ -224,6 +250,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
         );
       }
     } finally {
+      image?.dispose();
       if (mounted) setState(() { _exporting = false; _capturing = false; });
     }
   }

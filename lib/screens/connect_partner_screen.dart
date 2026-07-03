@@ -44,6 +44,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   final _codeController = TextEditingController();
   bool _showCodeInput = false;
   bool _codeError = false;
+  // Re-entrancy guard: без него быстрый повторный тап по варианту в диалоге
+  // «создать подключение» плодил по несколько пустых подключений (сетевой
+  // await генерации кода держал диалог открытым).
+  bool _creatingConnection = false;
   late AnimationController _pulseController;
   StreamSubscription? _deepLinkSub;
 
@@ -66,6 +70,19 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       if (mounted) {
         // acceptCode handles creating/joining group automatically
         _codeController.text = code;
+        _showCodeInput = true;
+        setState(() {});
+        _submitCode();
+      }
+    });
+
+    // Экран смонтировался on-demand — на холодном старте deep-link уже мог
+    // отдать код в broadcast-стрим до нашей подписки. Забираем буфер.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final buffered = DeepLinkService().consumePendingInviteCode();
+      if (buffered != null && buffered.isNotEmpty) {
+        _codeController.text = buffered;
         _showCodeInput = true;
         setState(() {});
         _submitCode();
@@ -1817,7 +1834,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final isRickroll = random.nextInt(100) < 10;
     final qrData = isRickroll
         ? 'https://youtu.be/dQw4w9WgXcQ?si=owAivsztmdCvvm6v'
-        : pair.inviteLink;
+        // QR кодирует прямой deep link (loveapp://invite/CODE): скан камерой
+        // открывает приложение сразу, без зависимости от веб-хоста Firebase.
+        // Внутренний сканнер тоже парсит его (ищет '/invite/'), поэтому оба пути
+        // работают. Текст кода показан ниже для ручного ввода.
+        : pair.inviteDeepLink;
 
     showDialog(
       context: context,
@@ -2328,16 +2349,25 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }) {
     return GestureDetector(
       onTap: () async {
-        await pair.manager.addNewConnection(
-          type: type,
-          customLabel: customLabel,
-          customEmoji: customEmoji,
-        );
-        if (!mounted) return;
+        // Гвард от двойного тапа + закрываем диалог СРАЗУ, ещё до сетевой
+        // генерации инвайт-кода: раньше pop стоял после await, диалог висел
+        // всё время сетевого вызова и каждый повторный тап создавал дубль.
+        if (_creatingConnection) return;
+        _creatingConnection = true;
         Navigator.of(context).pop();
         _resetCodeInput();
-        setState(() {});
-        _showSnack(LocaleService.current.newConnectionAdded);
+        try {
+          await pair.manager.addNewConnection(
+            type: type,
+            customLabel: customLabel,
+            customEmoji: customEmoji,
+          );
+          if (!mounted) return;
+          setState(() {});
+          _showSnack(LocaleService.current.newConnectionAdded);
+        } finally {
+          _creatingConnection = false;
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(16),

@@ -235,9 +235,6 @@ class HomeWidgetService {
     );
   }
 
-  /// Последний известный статус группы — для обратной совместимости.
-  String _lastRelationshipStatusId = '';
-
   /// Последний известный флаг романтической темы — fallback в syncTimer.
   bool _lastIsRomantic = true;
 

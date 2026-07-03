@@ -72,11 +72,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _iapLoading = false;
 
 
+  // Политика живёт на PocketBase-VPS (Firebase Hosting гасится вместе с
+  // проектом). Раздаётся из pb_public, исходник — PRIVACY_POLICY.md в репо
+  // (регенерация: tool/gen_privacy_html.py).
   static final Uri _privacyPolicyUri = Uri.parse(
-    'https://togetherly-d4856.web.app/privacy-policy',
+    'https://togetherly.duckdns.org/privacy-policy',
   );
+  // Лендинг тоже переехал с Firebase Hosting на VPS (pb_public).
   static final Uri _aboutAppUri = Uri.parse(
-    'https://togetherly-d4856.web.app/#download',
+    'https://togetherly.duckdns.org/#download',
   );
   static final Uri _boostyUri = Uri.parse('https://boosty.to/sntcompany');
 

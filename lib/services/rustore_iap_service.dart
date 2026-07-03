@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rustore_billing/flutter_rustore_billing.dart';
-import 'package:flutter_rustore_billing/pigeons/rustore.dart';
 
 import '../config/rustore_config.dart';
 import 'coin_store.dart';

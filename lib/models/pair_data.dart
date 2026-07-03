@@ -54,7 +54,13 @@ class PairData extends ChangeNotifier {
   RelationshipType get relationshipType =>
       _active?.relationshipType ?? RelationshipType.couple;
 
-  String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
+  // Firebase Hosting выключается вместе с проектом → инвайт-ссылку теперь
+  // обслуживает PocketBase-VPS (pb_hooks/invite_web.pb.js: лендинг + assetlinks).
+  String get inviteLink => 'https://togetherly.duckdns.org/invite/$inviteCode';
+
+  /// Прямой deep link без веб-хоста: партнёр сканирует QR камерой → сразу в
+  /// приложение (App Links-верификация не нужна, работает офлайн от Firebase).
+  String get inviteDeepLink => 'loveapp://invite/$inviteCode';
 
   // ── Multi-member getters ──
   List<GroupMember> get members => _active?.members ?? [];

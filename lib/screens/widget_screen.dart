@@ -598,21 +598,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     return widgetPreviewPath;
   }
 
-  /// Загружает МОИ настройки сетки (count) из Firestore, чтобы чипы отражали
-  /// что я ранее сохранил. Виджет рабочего стола показывает фото ПАРТНЁРА.
-  Future<void> _loadPhotoGridPrefs() async {
-    final myCount = _ws.myData?.photoGridCount ?? 1;
-    if (mounted) setState(() => _photoGridCount = myCount);
-  }
-
-  Future<void> _loadLockScreenMoodPref() async {
-    final enabled = await HomeWidgetService.instance.getLockScreenMoodEnabled();
-    if (mounted) setState(() => _lockScreenMoodEnabled = enabled);
-    // Инициализируем сервис уведомлений заранее
-    await MoodNotificationService.instance.init();
-    // Если был включён — восстанавливаем уведомление после перезапуска приложения
-    if (enabled) await _syncLockScreenMoodWidget(true);
-  }
 
   Future<void> _toggleLockScreenMood(bool value) async {
     final hws = HomeWidgetService.instance;
@@ -903,20 +888,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     await prefs.setString(_widgetTimerKey, timer.id);
     if (mounted) setState(() => _widgetTimerId = timer.id);
     await HomeWidgetService.instance.syncTimer(timer, groupId: _pair.pairId);
-  }
-
-  Future<void> _checkPinSupport() async {
-    if (!Platform.isAndroid) return;
-    // requestPinWidget supported on Android 8.0+ (API 26+) on most launchers.
-    // Some launchers return false even though pinning works — show button anyway.
-    try {
-      final supported = await HomeWidget.isRequestPinWidgetSupported();
-      if (mounted)
-        setState(() => _canPinWidgets = (supported ?? false) || true);
-    } catch (e) {
-      // Fallback: show button on Android regardless
-      if (mounted) setState(() => _canPinWidgets = true);
-    }
   }
 
   Future<void> _pinWidget(String qualifiedName, {String? widgetType}) async {

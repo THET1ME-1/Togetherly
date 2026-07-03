@@ -109,7 +109,19 @@
                 <data android:scheme="loveapp" android:host="invite" />
             </intent-filter>
             
-            <!-- Web link: Firebase Hosting (рабочий домен) -->
+            <!-- Web link: PocketBase-VPS (новый рабочий домен, обслуживает
+                 assetlinks + /invite лендинг через pb_hooks/invite_web.pb.js) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="togetherly.duckdns.org"
+                      android:pathPrefix="/invite" />
+            </intent-filter>
+
+            <!-- Web link: Firebase Hosting (легаси-домен, для уже разосланных
+                 ссылок; удалить после полного гашения Firebase) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

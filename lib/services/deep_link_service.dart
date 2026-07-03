@@ -15,6 +15,18 @@ class DeepLinkService {
   final _inviteCodeController = StreamController<String>.broadcast();
   Stream<String> get inviteCodeStream => _inviteCodeController.stream;
 
+  // Буфер последнего инвайт-кода. На холодном старте ссылка/QR приходят ДО
+  // того, как смонтируется экран подключения (он строится on-demand, не в
+  // IndexedStack), а broadcast-стрим не отдаёт прошлые события новым
+  // подписчикам → код терялся, приглашение по ссылке не принималось. Экран
+  // при монтировании забирает буфер через consumePendingInviteCode().
+  String? _pendingInviteCode;
+  String? consumePendingInviteCode() {
+    final c = _pendingInviteCode;
+    _pendingInviteCode = null;
+    return c;
+  }
+
   final _emailLinkController =
       StreamController<Map<String, String>>.broadcast();
   Stream<Map<String, String>> get emailLinkStream =>
@@ -54,6 +66,7 @@ class DeepLinkService {
       // loveapp://invite/ABC123
       final code = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
       if (code != null && code.length == 6) {
+        _pendingInviteCode = code.toUpperCase();
         _inviteCodeController.add(code.toUpperCase());
       }
       return;
@@ -61,7 +74,10 @@ class DeepLinkService {
 
     if (uri.scheme == 'https') {
       final isFirebaseHost = uri.host == 'togetherly-d4856.web.app';
-      final isMainHost = uri.host == 'togetherly.app';
+      // togetherly.duckdns.org — живой PocketBase-VPS (обслуживает инвайт-лендинг
+      // после гашения Firebase Hosting). togetherly.app — будущий домен.
+      final isMainHost = uri.host == 'togetherly.app' ||
+          uri.host == 'togetherly.duckdns.org';
       final isInvitePath = uri.pathSegments.isNotEmpty &&
           uri.pathSegments.first == 'invite';
 
@@ -71,6 +87,7 @@ class DeepLinkService {
             uri.pathSegments.length > 1 ? uri.pathSegments[1] : null;
         if (code != null && code.length == 6) {
           debugPrint('DeepLinkService: invite code from web link: $code');
+          _pendingInviteCode = code.toUpperCase();
           _inviteCodeController.add(code.toUpperCase());
         }
         return;

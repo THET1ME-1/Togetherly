@@ -174,7 +174,11 @@ class Connection {
     this.onChanged,
   }) : members = members ?? [];
 
-  String get inviteLink => 'https://togetherly-d4856.web.app/invite/$inviteCode';
+  // Firebase Hosting гасится → инвайт-ссылку обслуживает PocketBase-VPS.
+  String get inviteLink => 'https://togetherly.duckdns.org/invite/$inviteCode';
+
+  /// Прямой deep link без веб-хоста (для QR).
+  String get inviteDeepLink => 'loveapp://invite/$inviteCode';
 
   /// Max members allowed — always 2 (couples only)
   int get maxMembers => 2;

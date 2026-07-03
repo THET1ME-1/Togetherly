@@ -1,6 +1,6 @@
 # Privacy Policy / Политика конфиденциальности
 
-Last updated / Дата обновления: 17 June 2026 / 17 июня 2026 г.
+Last updated / Дата обновления: 2 July 2026 / 2 июля 2026 г.
 
 This document contains the privacy policy for the Togetherly mobile application in English and Russian.
 Этот документ содержит политику конфиденциальности мобильного приложения Togetherly на английском и русском языках.
@@ -29,9 +29,10 @@ Togetherly представляет собой приложение для ли�
    - способ входа в аккаунт.
 
 2. Данные аутентификации и авторизации:
-   - данные входа через Google Sign-In;
    - данные входа по email и паролю;
-   - данные для passwordless sign-in по email-ссылке.
+   - данные входа через Google Sign-In;
+   - данные входа через Apple (на устройствах Apple);
+   - служебные токены сессии.
 
 3. Данные профиля и настроек:
    - пол;
@@ -55,21 +56,20 @@ Togetherly представляет собой приложение для ли�
    - текстовые адреса, полученные на основе координат.
 
 6. Технические данные и данные устройства:
-   - push-токен уведомлений Firebase Cloud Messaging;
+   - служебные идентификаторы для доставки push-уведомлений через сервер разработчика (сторонние push-сервисы, такие как Firebase Cloud Messaging, не используются);
    - данные, необходимые для работы deep links и invite links;
    - временные файлы, кэш, локально сохраненные изображения и служебные данные приложения.
 
-7. Данные аналитики и статистики использования:
-   - обезличенные данные о действиях в приложении (открытия экранов, события, частота использования функций);
-   - технические характеристики устройства и операционной системы, примерный регион;
-   - агрегированные демографические данные (пол, возраст) и данные об интересах, если включена функция Google Signals. Эти данные предоставляются Google в обобщённом виде только по тем пользователям, которые вошли в аккаунт Google и включили персонализацию рекламы, и не позволяют идентифицировать конкретного человека.
+7. Данные о стабильности и статистика использования:
+   - отчеты об ошибках и сбоях (crash reports): техническое описание ошибки, модель устройства, версия операционной системы и приложения. Отчеты отправляются на собственный сервер разработчика и не передаются сторонним аналитическим сервисам;
+   - обезличенная статистика активности (например, количество активных пользователей), формируемая на основе служебных запросов к серверу разработчика. Сторонние системы аналитики (Google Analytics и аналогичные) не используются.
 
 ### 3. Откуда поступают данные
 
 Мы получаем данные из следующих источников:
 
 1. Непосредственно от вас, когда вы регистрируетесь, редактируете профиль, создаете воспоминания, комментарии, рисунки, статусы, таймеры или экспортируете данные.
-2. От сервисов аутентификации, если вы входите через Google или используете вход по email-ссылке.
+2. От сервисов аутентификации Google или Apple, если вы выбираете соответствующий способ входа.
 3. От вашего устройства, если вы предоставляете доступ к камере, галерее, файлам, геолокации или уведомлениям.
 4. От других участников вашей группы или пары, если они создают общий контент, комментарии, статусы, сообщения или данные виджетов, доступные внутри общего пространства.
 
@@ -109,11 +109,12 @@ Togetherly представляет собой приложение для ли�
    - в данных домашних виджетов;
    - в экспортируемых архивах, если вы сами запускаете экспорт.
 
-2. В облачной инфраструктуре:
-   - в Firebase Authentication;
-   - в Cloud Firestore;
-   - в Firebase Storage;
-   - в Firebase Cloud Messaging.
+2. На собственном сервере разработчика (self-hosted, расположен в России):
+   - PocketBase — учетные записи, база данных приложения и файлы пользователей (фото, видео, музыка, рисунки);
+   - Centrifugo — доставка обновлений и уведомлений в реальном времени;
+   - Bugsink — отчеты об ошибках (crash reports).
+
+Соединение между приложением и сервером защищено протоколом HTTPS (TLS). Основные данные приложения не размещаются в сторонних облачных сервисах (Google Firebase и аналогичных).
 
 Локальные данные используются для ускорения работы приложения, офлайн-кэша и восстановления пользовательского состояния.
 
@@ -123,10 +124,10 @@ Togetherly представляет собой приложение для ли�
 
 Данные могут обрабатываться следующими категориями поставщиков инфраструктуры, рекламы и платформ:
 
-1. Google Firebase, который используется для аутентификации, облачной базы данных, хранения файлов и push-уведомлений.
-2. Google Sign-In, если вы выбираете вход через аккаунт Google.
+1. Собственная серверная инфраструктура разработчика: аутентификация, база данных, хранение файлов, синхронизация в реальном времени и push-уведомления работают на сервере под управлением разработчика и не передаются сторонним облачным провайдерам. Сервисные письма (например, для восстановления пароля) отправляются через почтовый сервис Google (Gmail).
+2. Google Sign-In — если вы выбираете вход через аккаунт Google; Apple — если вы входите через Apple ID.
 3. Рекламные сети — Google AdMob и Рекламная сеть Яндекса (Yandex Mobile Ads) — для показа рекламы, включая баннеры и видеорекламу за вознаграждение. Эти сети могут обрабатывать рекламный идентификатор устройства, IP-адрес, данные об устройстве, действия в приложении и приблизительное местоположение. Подробнее: [Политика Google](https://policies.google.com/privacy) и [Политика Яндекса](https://yandex.ru/legal/confidential/).
-4. Google Analytics (Google Analytics для Firebase) — для сбора обезличенной статистики использования приложения и улучшения его работы. Если включена функция **Google Signals**, в Google Analytics активируются расширенные рекламные функции (Google Advertising Features): сервис дополняет статистику агрегированными демографическими данными (пол, возраст) и данными об интересах, а также может формировать аудитории для ремаркетинга и передавать их в связанные рекламные аккаунты Google. Все такие данные используются только в обобщённом (агрегированном) виде. Для пользователей ЕЭЗ/Великобритании сбор регулируется запросом согласия при первом запуске приложения; отключить персонализированную аналитику можно также в настройках аккаунта Google. Подробнее: [Политика Google](https://policies.google.com/privacy), [отказ от Google Analytics](https://tools.google.com/dlpage/gaoptout).
+4. Магазины приложений (Google Play, RuStore, App Store) — при покупках внутри приложения платеж обрабатывается соответствующим магазином; приложение не получает данные банковских карт.
 5. Платформы Apple и Google, если это необходимо для доставки, сетевого взаимодействия, системных разрешений и работы приложения на соответствующей ОС.
 6. Сервисы, на которые вы сами переходите по внешним ссылкам, например музыкальные или видеоплатформы. В таком случае их обработка данных регулируется уже их собственными политиками конфиденциальности.
 
@@ -178,7 +179,7 @@ Togetherly по своей природе является приложение�
 
 ### 13. Международная передача данных
 
-Поскольку приложение использует облачную инфраструктуру и глобальные сервисы поставщиков технологий, данные могут обрабатываться и храниться на серверах, расположенных за пределами вашей страны проживания. Используя приложение, вы соглашаетесь с такой обработкой в объеме, необходимом для работы сервиса.
+Основные данные приложения хранятся на сервере разработчика, расположенном в России. Отдельные сервисы, используемые приложением (вход через Google/Apple, рекламные сети, магазины приложений), могут обрабатывать данные на серверах, расположенных за пределами вашей страны проживания. Используя приложение, вы соглашаетесь с такой обработкой в объеме, необходимом для работы сервиса.
 
 ### 14. Ваши права
 
@@ -233,9 +234,10 @@ Depending on the features you use, the application may process the following cat
    - selected sign-in method.
 
 2. Authentication and access data:
-   - Google Sign-In data;
    - email and password login data;
-   - passwordless email-link sign-in data.
+   - Google Sign-In data;
+   - Apple sign-in data (on Apple devices);
+   - service session tokens.
 
 3. Profile and settings data:
    - gender;
@@ -259,21 +261,20 @@ Depending on the features you use, the application may process the following cat
    - textual addresses derived from those coordinates.
 
 6. Technical and device data:
-   - Firebase Cloud Messaging push notification token;
+   - service identifiers used to deliver push notifications through the developer's own server (no third-party push services such as Firebase Cloud Messaging are used);
    - data required for invite links and deep links;
    - temporary files, cache files, locally saved media, and service data required for app functionality.
 
-7. Analytics and usage data:
-   - de-identified data about in-app activity (screen views, events, feature usage frequency);
-   - device and operating system characteristics, approximate region;
-   - aggregated demographic data (gender, age) and interest data, if the Google Signals feature is enabled. This data is provided by Google in aggregated form only, only for users who are signed in to a Google account and have enabled Ads Personalization, and does not allow identification of an individual.
+7. Stability and usage data:
+   - error and crash reports: a technical description of the error, device model, operating system and app version. Reports are sent to the developer's own server and are not shared with third-party analytics services;
+   - de-identified activity statistics (for example, the number of active users) derived from service requests to the developer's server. No third-party analytics systems (such as Google Analytics) are used.
 
 ### 3. Sources of Data
 
 We may receive data from the following sources:
 
 1. Directly from you when you register, edit your profile, create memories, comments, drawings, statuses, timers, or export your data.
-2. From authentication services when you sign in with Google or use email-link sign-in.
+2. From Google or Apple authentication services when you choose the corresponding sign-in method.
 3. From your device when you grant access to camera, gallery, files, location, or notifications.
 4. From other members of your pair or group when they create shared content, comments, statuses, messages, or widget data visible in the shared space.
 
@@ -313,11 +314,12 @@ Data may be stored:
    - in home widget data;
    - in exported archives if you choose to export your data.
 
-2. In cloud infrastructure:
-   - Firebase Authentication;
-   - Cloud Firestore;
-   - Firebase Storage;
-   - Firebase Cloud Messaging.
+2. On the developer's own server (self-hosted, located in Russia):
+   - PocketBase — user accounts, the app database, and user files (photos, videos, music, drawings);
+   - Centrifugo — real-time updates and notification delivery;
+   - Bugsink — error reports (crash reports).
+
+The connection between the app and the server is protected with HTTPS (TLS). Core app data is not stored in third-party cloud services (such as Google Firebase).
 
 Local storage is used to improve app performance, support offline cache, and restore user state.
 
@@ -327,10 +329,10 @@ We do not sell personal data. To display ads, advertising networks may process a
 
 Data may be processed by the following categories of infrastructure, advertising, and platform providers:
 
-1. Google Firebase, used for authentication, cloud database, file storage, and push notifications.
-2. Google Sign-In, if you choose to sign in with a Google account.
+1. The developer's own server infrastructure: authentication, the database, file storage, real-time synchronization, and push notifications run on a server operated by the developer and are not shared with third-party cloud providers. Service emails (for example, password recovery) are sent via Google's email service (Gmail).
+2. Google Sign-In — if you choose to sign in with a Google account; Apple — if you sign in with an Apple ID.
 3. Advertising networks — Google AdMob and the Yandex Advertising Network (Yandex Mobile Ads) — to display ads, including banners and rewarded video. These networks may process your device's advertising ID, IP address, device data, in-app activity, and approximate location. Learn more: [Google Policy](https://policies.google.com/privacy) and [Yandex Policy](https://yandex.com/legal/confidential/).
-4. Google Analytics (Google Analytics for Firebase) — to collect de-identified usage statistics and improve the app. If the **Google Signals** feature is enabled, Google Advertising Features are activated in Google Analytics: the service augments statistics with aggregated demographic data (gender, age) and interest data, and may build remarketing audiences and share them with linked Google advertising accounts. All such data is used in aggregated form only. For users in the EEA/UK, collection is governed by the consent request shown on first app launch; you can also opt out of personalized analytics in your Google account settings. Learn more: [Google Policy](https://policies.google.com/privacy), [Google Analytics opt-out](https://tools.google.com/dlpage/gaoptout).
+4. App stores (Google Play, RuStore, App Store) — in-app purchases are processed by the relevant store; the app never receives your payment card details.
 5. Apple and Google platform services when required for delivery, networking, system permissions, and app operation on the relevant operating system.
 6. External services that you choose to open through links, such as music or video platforms. In those cases, data processing is governed by the privacy policies of those third-party services.
 
@@ -382,7 +384,7 @@ The app is not intended for children below the age at which they may lawfully co
 
 ### 13. International Data Transfers
 
-Because the app relies on cloud infrastructure and global technology providers, data may be processed and stored on servers located outside your country of residence. By using the app, you acknowledge and accept such processing to the extent necessary to provide the service.
+Core app data is stored on the developer's server located in Russia. Certain services used by the app (Google/Apple sign-in, advertising networks, app stores) may process data on servers located outside your country of residence. By using the app, you acknowledge and accept such processing to the extent necessary to provide the service.
 
 ### 14. Your Rights
 

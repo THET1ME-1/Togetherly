@@ -285,7 +285,14 @@ class _PolaroidCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.file(File(imagePath!), fit: BoxFit.cover, alignment: imageAlignment),
+              // cacheWidth ограничивает декод исходного фото ~1080px. Без него
+              // фото из галереи декодилось в натуральном разрешении (12 Мп ≈
+              // 48 МБ битмап) → при рендере открытки в PNG ловили OutOfMemory
+              // на слабых устройствах («не удалось сохранить»).
+              Image.file(File(imagePath!),
+                  fit: BoxFit.cover,
+                  alignment: imageAlignment,
+                  cacheWidth: 1080),
               Positioned(
                 bottom: 0, left: 0, right: 0,
                 child: Container(

@@ -23,10 +23,8 @@ class RateLimiterService {
   factory RateLimiterService() => _instance;
   RateLimiterService._();
 
-  static const _keyMemory = 'rl_memory_ts';
   static const _keyComment = 'rl_comment_ts';
   static const _keyVibe = 'rl_vibe_ts';
-  static const _maxMemoriesPerHour = 10;
   static const _maxCommentsPerHour = 30;
   static const _maxVibesPerWindow = 20;
   static const _hourWindow = Duration(hours: 1);

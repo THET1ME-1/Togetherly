@@ -20,6 +20,13 @@ private struct LoveSide {
         guard !musicTitle.isEmpty else { return "" }
         return musicArtist.isEmpty ? "♪ \(musicTitle)" : "♪ \(musicTitle) — \(musicArtist)"
     }
+
+    /// Сторона совсем без данных (нет ни настроения, ни статуса/сообщения/музыки,
+    /// ни аватара/фото). Обе пустые → виджет ещё не привязан к паре.
+    var isEmpty: Bool {
+        moodEmoji == nil && moodText.isEmpty && status.isEmpty && message.isEmpty
+            && musicTitle.isEmpty && avatar == nil && photo == nil
+    }
 }
 
 private func loadLove() -> (me: LoveSide, partner: LoveSide) {
@@ -133,13 +140,44 @@ private struct LoveDivider: View {
 struct LoveWidgetView: View {
     var body: some View {
         let data = loadLove()
-        HStack(spacing: 0) {
-            LovePanel(side: data.me, isLeft: true)
-            LoveDivider()
-            LovePanel(side: data.partner, isLeft: false)
+        // Обе стороны пусты → данные ещё не пришли (нет активной пары/синка).
+        // Показываем дружелюбную подсказку вместо голых цветных панелей, чтобы
+        // виджет не выглядел «сломанным» до подключения партнёра.
+        if data.me.isEmpty && data.partner.isEmpty {
+            LoveEmptyState().loveContainerBackground()
+        } else {
+            HStack(spacing: 0) {
+                LovePanel(side: data.me, isLeft: true)
+                LoveDivider()
+                LovePanel(side: data.partner, isLeft: false)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .loveContainerBackground()
+        }
+    }
+}
+
+/// Пустое состояние парного виджета: мягкий градиент + подсказка подключиться.
+private struct LoveEmptyState: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: 0xFFCDD9), Color(hex: 0xE8DAFF)],
+                startPoint: .leading, endPoint: .trailing
+            )
+            VStack(spacing: 6) {
+                Text("💞").font(.system(size: 34))
+                Text("Подключите партнёра")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.black.opacity(0.65))
+                    .multilineTextAlignment(.center)
+                Text("Откройте приложение")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color.black.opacity(0.45))
+            }
+            .padding(8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .loveContainerBackground()
     }
 }
 
