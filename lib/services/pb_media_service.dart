@@ -40,12 +40,19 @@ class PbMediaService {
       if (uid != null) body['uid'] = uid;
       if (groupId != null) body['group_id'] = groupId;
       if (kind != null) body['kind'] = kind;
-      final rec = await _pb.collection(_col).create(
-        body: body,
-        files: [
-          http.MultipartFile.fromBytes('file', bytes, filename: filename),
-        ],
-      );
+      // Жёсткий таймаут: без него зависшая заливка с iOS (медленная сеть/LTE,
+      // повисший multipart) крутила «бесконечную загрузку» в лоадере виджет-фото
+      // — await никогда не возвращался. По таймауту → исключение → возвращаем
+      // null → UI закрывает лоадер и даёт повторить. 60с хватает на фото ~1-2 МБ.
+      final rec = await _pb
+          .collection(_col)
+          .create(
+            body: body,
+            files: [
+              http.MultipartFile.fromBytes('file', bytes, filename: filename),
+            ],
+          )
+          .timeout(const Duration(seconds: 60));
       // PB мог переименовать файл (суффикс против коллизий) → берём фактическое.
       final stored = (rec.data['file'] ?? filename).toString();
       return '$scheme$_col/${rec.id}/$stored';

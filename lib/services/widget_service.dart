@@ -893,6 +893,12 @@ class WidgetService extends ChangeNotifier {
   Future<void> _downloadPhoto(String? url, String key) async {
     if (url == null || url.isEmpty) {
       await HomeWidget.saveWidgetData<String>(key, '');
+      // Фото убрали → чистим старые файлы этого ключа в контейнере, иначе iOS
+      // держал бы закэшированную картинку по прежнему пути.
+      await HomeWidgetService.instance.clearAppGroupMedia(key);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${key}_cached_url');
+      await prefs.remove('${key}_cached_wpath');
       return;
     }
     try {
@@ -911,39 +917,69 @@ class WidgetService extends ChangeNotifier {
 
       final prefs = await SharedPreferences.getInstance();
       final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
-      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+      final cachedWPath = prefs.getString('${key}_cached_wpath') ?? '';
 
-      // Если URL не изменился и файл существует — не скачиваем повторно
-      if (cachedUrl == url &&
-          cachedPath.isNotEmpty &&
-          File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(
-            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
+      // URL не изменился и путь в контейнере уже записан — повторно не качаем.
+      if (cachedUrl == url && cachedWPath.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>(key, cachedWPath);
         return;
       }
 
-      final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/$key.jpg');
+      // Уникальное имя = ключ + хэш ссылки. iOS WidgetKit кэширует картинку по
+      // ПУТИ файла: при записи каждого нового фото в ОДИН и тот же файл виджет
+      // держит старое изображение и не перерисовывается (баг «фото не
+      // обновляется, пока стоит другое; уберёшь одно — второе оживает»). Меняя
+      // путь при каждой смене фото, заставляем WidgetKit грузить свежее.
+      final sig = url.hashCode.toUnsigned(32).toRadixString(16);
+      final uniqueName = '${key}_$sig';
 
       final response = await http
           .get(Uri.parse(httpUrl))
           .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
-        await HomeWidget.saveWidgetData<String>(
-            key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
-        await prefs.setString('${key}_cached_url', url);
-        await prefs.setString('${key}_cached_path', file.path);
-        debugPrint('_downloadPhoto: $key cached at ${file.path}');
-      } else {
+      if (response.statusCode != 200) {
         debugPrint('_downloadPhoto($key): HTTP ${response.statusCode} for $url');
         await HomeWidget.saveWidgetData<String>(key, '');
+        return;
       }
+
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/$uniqueName.jpg');
+      await file.writeAsBytes(response.bodyBytes);
+
+      // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
+      // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
+      await HomeWidgetService.instance.clearAppGroupMedia(key);
+      _cleanupOldLocalPhotos(dir, key, '$uniqueName.jpg');
+
+      final widgetPath = await HomeWidgetService.instance
+          .appGroupReadablePath(file.path, uniqueName);
+      await HomeWidget.saveWidgetData<String>(key, widgetPath);
+      await prefs.setString('${key}_cached_url', url);
+      await prefs.setString('${key}_cached_wpath', widgetPath);
+      debugPrint('_downloadPhoto: $key → $widgetPath');
     } catch (e) {
       debugPrint('_downloadPhoto($key) failed: $e');
       await HomeWidget.saveWidgetData<String>(key, '');
     }
+  }
+
+  /// Удаляет старые локальные файлы `<key>_*.jpg` (кроме [keepName]) из [dir] —
+  /// чтобы уникальные имена фото не копились на диске.
+  void _cleanupOldLocalPhotos(Directory dir, String key, String keepName) {
+    try {
+      for (final f in dir.listSync()) {
+        if (f is! File) continue;
+        final name = f.path.split(Platform.pathSeparator).last;
+        if (name.startsWith('${key}_') &&
+            name.endsWith('.jpg') &&
+            name != keepName) {
+          try {
+            f.deleteSync();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   // ══════════════════════════════════════════════════════════════════════════

@@ -144,10 +144,12 @@ private struct LoveDivider: View {
 struct LoveWidgetView: View {
     var body: some View {
         let data = loadLove()
-        // Обе стороны пусты → данные ещё не пришли (нет активной пары/синка).
-        // Показываем дружелюбную подсказку вместо голых цветных панелей, чтобы
-        // виджет не выглядел «сломанным» до подключения партнёра.
-        if data.me.isEmpty && data.partner.isEmpty {
+        // «Подключите партнёра» показываем ТОЛЬКО когда пары реально нет
+        // (love_widget_group_id пуст = не привязаны к группе). Раньше подсказка
+        // висела при любых пустых данных → удалил своё фото / нет настроения, и
+        // виджет ложно писал «Подключите партнёра», хотя пара на месте.
+        let paired = !Store().string("love_widget_group_id").isEmpty
+        if !paired && data.me.isEmpty && data.partner.isEmpty {
             LoveEmptyState().loveContainerBackground()
         } else {
             HStack(spacing: 0) {
@@ -178,16 +180,6 @@ private struct LoveEmptyState: View {
                 Text("Откройте приложение")
                     .font(.system(size: 10))
                     .foregroundColor(Color.black.opacity(0.45))
-                // ДИАГНОСТИКА (тестовый билд): если расширение НЕ имеет доступа к
-                // контейнеру App Group — данные из приложения физически не дойдут
-                // (нужно включить App Groups для App ID виджет-расширения в
-                // Apple Developer). Маркер виден прямо на виджете.
-                if FileManager.default.containerURL(
-                    forSecurityApplicationGroupIdentifier: AppGroup.id) == nil {
-                    Text("⚠︎ нет доступа к App Group")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundColor(.red)
-                }
             }
             .padding(8)
         }

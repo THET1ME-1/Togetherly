@@ -269,6 +269,19 @@ class HomeWidgetService {
   Future<String> appGroupReadablePath(String localPath, String name) =>
       _toWidgetReadablePath(localPath, name);
 
+  /// Удаляет из контейнера App Group файлы виджет-медиа с именем на [prefix]
+  /// (iOS). Нужно, чтобы старые фото не копились и WidgetKit не держал картинку
+  /// по устаревшему пути при смене фото.
+  Future<void> clearAppGroupMedia(String prefix) async {
+    if (!Platform.isIOS || prefix.isEmpty) return;
+    try {
+      await _iosMediaChannel
+          .invokeMethod('clearAppGroupMedia', {'prefix': prefix});
+    } catch (e) {
+      debugPrint('HomeWidgetService.clearAppGroupMedia failed: $e');
+    }
+  }
+
   Future<String> _toWidgetReadablePath(String localPath, String name) async {
     if (localPath.isEmpty || !Platform.isIOS) return localPath;
     try {
