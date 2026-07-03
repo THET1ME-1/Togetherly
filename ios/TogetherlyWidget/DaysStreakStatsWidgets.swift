@@ -26,8 +26,11 @@ struct DaysCounterWidgetView: View {
         let myGender = s.string("days_\(g)_my_gender", "male")
         let partnerGender = s.string("days_\(g)_partner_gender", "female")
         let usePhotos = s.bool01("days_\(g)_use_photos")
-        let myAvatar = s.uiImage("ios_days_\(g)_my_avatar")
-        let partnerAvatar = s.uiImage("ios_days_\(g)_partner_avatar")
+        // Ключи = те, что пишет Flutter (home_widget_service.dart:817
+        // days_${g}_my_avatar_path через appGroupReadablePath). Были
+        // несуществующие ios_days_* → аватары на iOS не показывались.
+        let myAvatar = s.uiImage("days_\(g)_my_avatar_path")
+        let partnerAvatar = s.uiImage("days_\(g)_partner_avatar_path")
         let showAvatars = usePhotos && myAvatar != nil && partnerAvatar != nil
 
         let coupleName: String = {

@@ -26,7 +26,7 @@ private func loadMoodHalf(_ s: Store, _ g: String, _ i: Int) -> MoodHalf {
         label: label,
         color: Color(css: s.string("mood_\(g)_user_\(i)_color"), fallback: Color(hex: 0xD1D5DB)),
         fillLevel: CGFloat(eased),
-        avatar: s.uiImage("ios_mood_user_\(i)_avatar")
+        avatar: s.uiImage("user_\(i)_avatar_path") // Flutter пишет этот ключ (был ios_mood_*)
     )
 }
 

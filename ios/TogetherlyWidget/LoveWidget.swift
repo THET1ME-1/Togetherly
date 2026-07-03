@@ -31,25 +31,29 @@ private struct LoveSide {
 
 private func loadLove() -> (me: LoveSide, partner: LoveSide) {
     let s = Store()
+    // ВАЖНО: ключи картинок = те, что реально пишет Flutter
+    // (widget_service.dart: my_mood_emoji_path/my_avatar_path/my_photo_path
+    // через appGroupReadablePath → путь ВНУТРИ контейнера App Group). Раньше
+    // читались несуществующие ios_love_* → эмодзи/аватар на iOS не появлялись.
     let me = LoveSide(
-        moodEmoji: s.uiImage("ios_love_my_emoji"),
+        moodEmoji: s.uiImage("my_mood_emoji_path"),
         moodText: s.string("my_mood"),
         status: s.string("my_status"),
         message: s.string("my_message"),
         musicTitle: s.string("my_music_title"),
         musicArtist: s.string("my_music_artist"),
-        avatar: s.uiImage("ios_love_my_avatar"),
-        photo: s.uiImage("ios_love_my_photo")
+        avatar: s.uiImage("my_avatar_path"),
+        photo: s.uiImage("my_photo_path")
     )
     let partner = LoveSide(
-        moodEmoji: s.uiImage("ios_love_partner_emoji"),
+        moodEmoji: s.uiImage("partner_mood_emoji_path"),
         moodText: s.string("partner_mood"),
         status: s.string("partner_status"),
         message: s.string("partner_message"),
         musicTitle: s.string("partner_music_title"),
         musicArtist: s.string("partner_music_artist"),
-        avatar: s.uiImage("ios_love_partner_avatar"),
-        photo: s.uiImage("ios_love_partner_photo")
+        avatar: s.uiImage("partner_avatar_path"),
+        photo: s.uiImage("partner_photo_path")
     )
     return (me, partner)
 }
@@ -174,6 +178,16 @@ private struct LoveEmptyState: View {
                 Text("Откройте приложение")
                     .font(.system(size: 10))
                     .foregroundColor(Color.black.opacity(0.45))
+                // ДИАГНОСТИКА (тестовый билд): если расширение НЕ имеет доступа к
+                // контейнеру App Group — данные из приложения физически не дойдут
+                // (нужно включить App Groups для App ID виджет-расширения в
+                // Apple Developer). Маркер виден прямо на виджете.
+                if FileManager.default.containerURL(
+                    forSecurityApplicationGroupIdentifier: AppGroup.id) == nil {
+                    Text("⚠︎ нет доступа к App Group")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.red)
+                }
             }
             .padding(8)
         }
