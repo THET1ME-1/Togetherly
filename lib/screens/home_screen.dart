@@ -2534,6 +2534,12 @@ class _HomeScreenState extends State<HomeScreen> {
   /// бы на каждом запуске. Сам запрос остаётся в контекстных экранах (добавление
   /// воспоминания с локацией, выбор точки на карте), где он уместен.
   Future<void> _fetchUserLocation() async {
+    // Не трогаем GPS, если «Показывать мою геопозицию» выключено. Раньше
+    // расстояние до мест на карточках воспоминаний читало GPS при КАЖДОМ
+    // открытии главного экрана независимо от тумблера → iOS зажигал индикатор
+    // геолокации, хотя трансляция выключена (жалоба тестера). Теперь уважаем
+    // тумблер: нет трансляции — нет обращения к GPS.
+    if (!LiveLocationService.instance.sharingEnabled.value) return;
     try {
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.always ||

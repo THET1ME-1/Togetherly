@@ -237,12 +237,17 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await PbAuthService().sendPasswordReset(email);
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      // Чистим очередь: при повторных тапах «Забыли пароль» SnackBar'ы копились
+      // и показывались один за другим по 5с каждый → баннер «залипал» и уходил
+      // только после перезапуска. Теперь всегда виден только последний, ~4с.
+      messenger?.clearSnackBars();
+      messenger?.showSnackBar(
         SnackBar(
           content: Text(LocaleService.current.passwordResetSent(email)),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFF4CAF50),
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
