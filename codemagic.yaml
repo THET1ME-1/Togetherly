@@ -88,8 +88,18 @@ workflows:
           xcode-project use-profiles
       - name: Build IPA
         script: |
-          # build-name/number берём из pubspec.yaml (как и Android-пайплайн).
+          set -e
+          # build-NAME (marketing, 1.15.x) берём из pubspec.yaml.
+          # build-NUMBER (CFBundleVersion) НЕ из pubspec — иначе забываешь его
+          # поднять и публикация падает с 409 "bundle version 99 already used".
+          # Спрашиваем у App Store Connect последний залитый build и делаем +1 —
+          # номер всегда монотонно растёт сам, руками трогать не нужно.
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo 0)
+          [ -z "$LATEST_BUILD_NUMBER" ] && LATEST_BUILD_NUMBER=0
+          NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          echo "ASC latest build = $LATEST_BUILD_NUMBER → building with $NEW_BUILD_NUMBER"
           flutter build ipa --release \
+            --build-number="$NEW_BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
