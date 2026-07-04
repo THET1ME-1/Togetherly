@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 
 /// Интерактивный выбор оценки 1–10 (как на карточке отзыва Кинопоиска).
 ///
@@ -22,6 +23,7 @@ class RatingPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final v = value;
     final color = v == null ? accent : _colorFor(v);
 
@@ -46,7 +48,7 @@ class RatingPicker extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: t.textPrimary,
                 ),
               ),
             ),
@@ -61,7 +63,7 @@ class RatingPicker extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade400,
+                        color: t.textMuted,
                       ),
                     )
                   : Row(
@@ -84,7 +86,7 @@ class RatingPicker extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade400,
+                            color: t.textMuted,
                           ),
                         ),
                       ],
@@ -124,7 +126,7 @@ class RatingPicker extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: v == null ? Colors.grey.shade400 : color,
+              color: v == null ? t.textMuted : color,
             ),
           ),
         ),
@@ -178,6 +180,7 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -187,10 +190,10 @@ class _Segment extends StatelessWidget {
         height: 38,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: filled ? fillColor : Colors.grey.shade100,
+          color: filled ? fillColor : t.surfaceMuted,
           borderRadius: BorderRadius.circular(9),
           border: Border.all(
-            color: filled ? fillColor : Colors.grey.shade200,
+            color: filled ? fillColor : t.divider,
             width: 1,
           ),
         ),
@@ -199,7 +202,7 @@ class _Segment extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: filled ? Colors.white : Colors.grey.shade400,
+            color: filled ? Colors.white : t.textMuted,
           ),
         ),
       ),

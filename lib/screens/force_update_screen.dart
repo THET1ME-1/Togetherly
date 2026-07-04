@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/locale_service.dart';
 import '../services/update_service.dart';
+import '../theme/theme_scope.dart';
 
 /// Блокирующий экран принудительного обновления.
 ///
@@ -50,6 +51,7 @@ class ForceUpdateScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final accent = Theme.of(context).colorScheme.primary;
+    final t = context.appTheme;
 
     return PopScope(
       canPop: false,
@@ -78,20 +80,20 @@ class ForceUpdateScreen extends StatelessWidget {
                   Text(
                     s.forceUpdateTitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2A2A2A),
+                      color: t.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     s.forceUpdateBody,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       height: 1.45,
-                      color: Color(0xFF666666),
+                      color: t.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 36),

@@ -82,6 +82,31 @@ class AppTheme {
   /// Стоимость в Коинах (актуально только если [isPremium])
   final int price;
 
+  // ── Тёмная тема (яркость + семантические токены) ─────────────────────────
+  // Позволяют одной теме быть по-настоящему тёмной (тёмные карточки + светлый
+  // текст). Все дефолты = прежние СВЕТЛЫЕ значения, поэтому 20 существующих тем
+  // не меняются: они просто не передают эти параметры.
+
+  /// Яркость темы. Управляет ColorScheme/scaffold/меню в `main._buildTheme`.
+  final Brightness brightness;
+
+  /// Основной текст на карточках и фоне (заголовки, значения). Заменяет
+  /// хардкоженные `Colors.grey.shade900` / `Color(0xFF2A2A2A)` в виджетах.
+  final Color textPrimary;
+
+  /// Вторичный текст (подзаголовки, описания). Заменяет `grey.shade700/600`.
+  final Color textSecondary;
+
+  /// Приглушённый текст (подписи, плейсхолдеры, метки). Заменяет `grey.shade500/400`.
+  final Color textMuted;
+
+  /// Вторичная поверхность (чипы, поля ввода, приподнятые блоки внутри карточки).
+  /// Заменяет `grey.shade100/200`.
+  final Color surfaceMuted;
+
+  /// Разделители и тонкие границы. Заменяет `grey.shade200/300`.
+  final Color divider;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -107,7 +132,16 @@ class AppTheme {
     required this.timerDialBackground,
     this.isPremium = false,
     this.price = 0,
+    this.brightness = Brightness.light,
+    this.textPrimary = const Color(0xFF212121),
+    this.textSecondary = const Color(0xFF616161),
+    this.textMuted = const Color(0xFF9E9E9E),
+    this.surfaceMuted = const Color(0xFFF2F2F4),
+    this.divider = const Color(0xFFE0E0E0),
   });
+
+  /// Тема тёмная? Удобный флаг для виджетов (например выбрать оттенок тени).
+  bool get isDark => brightness == Brightness.dark;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -664,6 +698,47 @@ abstract final class AppThemes {
     price: 30,
   );
 
+  // ── 20: Монохром Тёмный (Monochrome Dark) ────────────────────────────────
+  // Реверс «Монохрома» (10): графитовые поверхности + светлый текст. Первая
+  // НАСТОЯЩАЯ тёмная тема — задаёт brightness.dark, тёмные cardSurface/bgGradient
+  // и светлые текстовые токены, которые виджеты читают вместо хардкоженных
+  // светлых цветов. heroGradiENT/nav специально приподняты над фоном, текст на
+  // hero и так белый (хардкод) — читаемость сохраняется.
+  static const monochromeDark = AppTheme(
+    index: 20,
+    name: 'Монохром Тёмный',
+    primary: Color(0xFFD4D4D4), // светло-серый акцент (иконки на тёмном)
+    primaryLight: Color(0xFF2A2A2E), // тёмный «light»-фон чипов/контейнеров
+    bgGradient: [Color(0xFF17181A), Color(0xFF0F1012)], // графит → почти чёрный
+    heroGradient: [Color(0xFF4A4A4E), Color(0xFF242427)], // приподнятый графит
+    heroShadowBase: Color(0x40000000),
+    heroShadowExpanded: Color(0x59000000),
+    heroGlassOpacity: 0.14,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFECECEC),
+    cardSurface: Color(0xFF1E1F22), // поверхность карточки (elevation 1)
+    cardBorder: Color(0xFF2E2F33),
+    iconDraw: Color(0xFFD4D4D4),
+    iconMood: Color(0xFFD4D4D4),
+    iconCalendar: Color(0xFFD4D4D4),
+    iconPost: Color(0xFFD4D4D4),
+    navActiveBg: Color(0xFF2E2F33),
+    navActiveIcon: Color(0xFFECECEC),
+    promptButtonColor: Color(0xFF3A3B3F), // тёмная кнопка → белый текст читаем
+    timerDialBackground: Color(0xFF34353A),
+    isPremium: true,
+    price: 30,
+    // ── тёмные токены ──
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFECECEC),
+    textSecondary: Color(0xFFB4B4B8),
+    textMuted: Color(0xFF7E7F84),
+    // Темнее cardSurface (#1E1F22): фон-scaffold экранов оказывается темнее
+    // карточек (правильная иерархия dark), а поля/чипы на карточке — «утоплены».
+    surfaceMuted: Color(0xFF17181A),
+    divider: Color(0xFF34353A),
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -686,6 +761,7 @@ abstract final class AppThemes {
     bordeaux,
     teal,
     nord,
+    monochromeDark, // 20 — первая тёмная тема
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]

@@ -14,6 +14,8 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'models/user_data.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_scope.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/pb_push_service.dart';
@@ -401,37 +403,51 @@ class _LoveAppState extends State<LoveApp> {
   // Тема пересобирается при смене темы приложения (акцент берётся из активной
   // AppTheme). Кэшируем по акценту, чтобы не пересоздавать на каждый
   // notifyListeners() UserData (монеты, присутствие и т.п.).
-  Color? _lastAccent;
+  int? _lastThemeIndex;
   ThemeData? _lastTheme;
 
-  ThemeData _themeFor(Color accent) {
-    if (_lastTheme == null || _lastAccent != accent) {
-      _lastAccent = accent;
-      _lastTheme = _buildTheme(accent);
+  ThemeData _themeFor(AppTheme appTheme) {
+    if (_lastTheme == null || _lastThemeIndex != appTheme.index) {
+      _lastThemeIndex = appTheme.index;
+      _lastTheme = _buildTheme(appTheme);
     }
     return _lastTheme!;
   }
 
   /// Единый стиль для всех меню (диалоги, bottom-sheet, snackbar, popup-меню).
   /// Цвета — от акцента активной темы, форма/скругления — из общих токенов.
-  static ThemeData _buildTheme(Color accent) {
+  static ThemeData _buildTheme(AppTheme appTheme) {
+    final accent = appTheme.primary;
+    final brightness = appTheme.brightness;
+    final isDark = brightness == Brightness.dark;
+
     final scheme = ColorScheme.fromSeed(
       seedColor: accent,
-      brightness: Brightness.light,
+      brightness: brightness,
     ).copyWith(primary: accent);
 
-    const titleColor = Color(0xFF2A2A2A);
-    const bodyColor = Color(0xFF555555);
+    // Поверхности меню (диалоги/шиты/попапы) и цвета текста — из токенов активной
+    // темы. На светлых темах: cardSurface=#FFFFFF, textPrimary/Secondary ≈ прежним
+    // тёмным — визуально идентично. На тёмной: тёмная поверхность + светлый текст.
+    final menuSurface = appTheme.cardSurface;
+    final titleColor = appTheme.textPrimary;
+    final bodyColor = appTheme.textSecondary;
+    final scaffoldBg =
+        isDark ? appTheme.bgGradient.last : const Color(0xFFF7F3F0);
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      textTheme: GoogleFonts.rubikTextTheme(),
-      scaffoldBackgroundColor: const Color(0xFFF7F3F0),
+      // Базовый textTheme нужной яркости → дефолтный цвет текста Material-виджетов
+      // (не переопределённый явно) читаем на тёмном фоне.
+      textTheme: GoogleFonts.rubikTextTheme(
+        isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
+      ),
+      scaffoldBackgroundColor: scaffoldBg,
 
       // ── Диалоги ────────────────────────────────────────────────────────
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: menuSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -448,9 +464,9 @@ class _LoveAppState extends State<LoveApp> {
       ),
 
       // ── Bottom-sheet ───────────────────────────────────────────────────
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
-        modalBackgroundColor: Colors.white,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: menuSurface,
+        modalBackgroundColor: menuSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 12,
         modalElevation: 12,
@@ -476,7 +492,7 @@ class _LoveAppState extends State<LoveApp> {
 
       // ── Popup-меню ─────────────────────────────────────────────────────
       popupMenuTheme: PopupMenuThemeData(
-        color: Colors.white,
+        color: menuSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 8,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -613,11 +629,13 @@ class _LoveAppState extends State<LoveApp> {
       builder: (context, _) => MaterialApp(
         title: 'Togetherly',
         debugShowCheckedModeBanner: false,
-        theme: _themeFor(_userData.themeAccent),
+        theme: _themeFor(_userData.theme),
         navigatorObservers: [AnalyticsService.instance.observer],
         // Глобальная плашка «офлайн / ожидает синхронизации» поверх любого экрана.
-        builder: (context, child) =>
-            OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
+        builder: (context, child) => ThemeScope(
+          theme: _userData.theme,
+          child: OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
+        ),
         home: _loading
             ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))
             : _buildInitialScreen(),

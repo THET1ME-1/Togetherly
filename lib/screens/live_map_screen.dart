@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import '../services/live_location_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/storage_image.dart';
 
 /// Цвет аватарки партнёра на карте (контраст к теме пользователя).
@@ -175,7 +176,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         const LatLng(47.0105, 28.8638);
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: widget.theme.bgGradient[0],
       body: Stack(
         children: [
           FlutterMap(
@@ -301,7 +302,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: widget.theme.cardSurface,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -326,7 +327,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
                         LocaleService.current.liveMapWaitingPartner,
                         style: GoogleFonts.rubik(
                           fontSize: 13,
-                          color: Colors.grey.shade700,
+                          color: widget.theme.textSecondary,
                         ),
                       ),
                     ],
@@ -453,12 +454,13 @@ class _DistancePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (me == null || partner == null) return const SizedBox.shrink();
+    final t = context.appTheme;
     final meters = LiveLocationService.distanceMeters(me!, partner!);
     final text = LiveLocationService.formatDistance(meters);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.cardSurface,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
@@ -478,7 +480,7 @@ class _DistancePill extends StatelessWidget {
             style: GoogleFonts.rubik(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: t.textPrimary,
             ),
           ),
         ],
@@ -502,13 +504,14 @@ class _RoundIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     final btn = GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: t.cardSurface,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -517,7 +520,7 @@ class _RoundIconButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(icon, color: color ?? Colors.black87, size: 22),
+        child: Icon(icon, color: color ?? t.textPrimary, size: 22),
       ),
     );
     return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);

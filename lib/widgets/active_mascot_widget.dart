@@ -252,7 +252,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   void _onTap() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -265,7 +265,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -282,9 +282,9 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.visibility_off_outlined,
-                color: Colors.grey,
+                color: widget.theme.textMuted,
               ),
               title: Text(LocaleService.current.hide),
               onTap: () async {

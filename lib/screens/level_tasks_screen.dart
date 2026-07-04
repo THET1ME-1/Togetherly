@@ -6,6 +6,7 @@ import '../models/mascot.dart';
 import '../services/catalog_service.dart';
 import '../services/level_service.dart';
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 
 /// Экран «Уровень и задания»: прогресс пары, что даёт XP и какие маскоты
 /// открываются на каких уровнях. Данные — целиком из [LevelService] и
@@ -98,10 +99,11 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: t.surfaceMuted,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: t.cardSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
@@ -135,12 +137,13 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
   // ── Header: уровень, ранг, полоса XP ───────────────────────────────────────
 
   Widget _buildHeader(LevelProgress p) {
+    final t = context.appTheme;
     final color = p.rank.color;
     final toNext = p.xpForNext - p.xpIntoLevel;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.cardSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.2)),
         boxShadow: [
@@ -214,24 +217,27 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
             _ru
                 ? 'До уровня ${p.level + 1}: ещё $toNext XP'
                 : '$toNext XP to level ${p.level + 1}',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: t.textSecondary),
           ),
         ],
       ),
     );
   }
 
-  Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey.shade700,
-          ),
+  Widget _sectionTitle(String text) {
+    final t = context.appTheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: t.textSecondary,
         ),
-      );
+      ),
+    );
+  }
 
   // ── Задание ────────────────────────────────────────────────────────────────
 
@@ -241,13 +247,14 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
     final done = _progress[a] ?? 0;
     final cap = svc.isOnceEver(a) ? 1 : svc.dailyCapFor(a);
     final complete = cap > 0 && done >= cap;
+    final t = context.appTheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.cardSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: t.divider),
       ),
       child: Row(
         children: [
@@ -276,7 +283,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
                 const SizedBox(height: 2),
                 Text(
                   _limitLabel(a),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 12, color: t.textMuted),
                 ),
               ],
             ),
@@ -289,7 +296,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade500,
+                color: t.textMuted,
               ),
             ),
         ],
@@ -307,18 +314,19 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
           a.unlock.requiredLevel.compareTo(b.unlock.requiredLevel));
 
     if (mascots.isEmpty) {
+      final t = context.appTheme;
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: t.cardSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: t.divider),
         ),
         child: Text(
           _ru
               ? 'Награды загружаются…'
               : 'Rewards are loading…',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 13, color: t.textMuted),
         ),
       );
     }
@@ -329,15 +337,16 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
   }
 
   Widget _buildRewardTile(Mascot m, int level) {
+    final t = context.appTheme;
     final req = m.unlock.requiredLevel;
     final unlocked = level >= req;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.cardSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: t.divider),
       ),
       child: Row(
         children: [
@@ -351,9 +360,9 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
                       imageUrl: m.catalogUrl!,
                       fit: BoxFit.contain,
                       errorWidget: (_, __, ___) =>
-                          const Icon(Icons.face, color: Colors.grey),
+                          Icon(Icons.face, color: t.textMuted),
                     )
-                  : const Icon(Icons.face, color: Colors.grey),
+                  : Icon(Icons.face, color: t.textMuted),
             ),
           ),
           const SizedBox(width: 12),
@@ -372,20 +381,20 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: t.surfaceMuted,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_rounded, size: 13, color: Colors.grey.shade500),
+                  Icon(Icons.lock_rounded, size: 13, color: t.textMuted),
                   const SizedBox(width: 4),
                   Text(
                     _ru ? 'Ур. $req' : 'Lv $req',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade600,
+                      color: t.textSecondary,
                     ),
                   ),
                 ],

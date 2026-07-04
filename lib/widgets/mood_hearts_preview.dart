@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 
 /// Max moods per day that count as "full heart".
 const int _kMaxMoodsPerDay = 5;
@@ -82,6 +83,7 @@ class _MoodHeartsPreviewState extends State<MoodHeartsPreview>
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
@@ -117,9 +119,9 @@ class _MoodHeartsPreviewState extends State<MoodHeartsPreview>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  const Color(0xFFD1D5DB).withValues(alpha: 0),
-                  const Color(0xFFD1D5DB).withValues(alpha: 0.25),
-                  const Color(0xFFD1D5DB).withValues(alpha: 0),
+                  t.divider.withValues(alpha: 0),
+                  t.divider.withValues(alpha: 0.25),
+                  t.divider.withValues(alpha: 0),
                 ],
               ),
             ),
@@ -158,6 +160,7 @@ class _HeartColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     final lastEntry = entries.isNotEmpty ? entries.first : null;
     final alignment = isLeft
         ? CrossAxisAlignment.start
@@ -178,7 +181,7 @@ class _HeartColumn extends StatelessWidget {
           style: GoogleFonts.rubik(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF737373),
+            color: t.textSecondary,
             letterSpacing: 0.3,
           ),
           maxLines: 1,
@@ -213,7 +216,7 @@ class _HeartColumn extends StatelessWidget {
           style: GoogleFonts.rubik(
             fontSize: 11.5,
             fontWeight: lastEntry != null ? FontWeight.w600 : FontWeight.w400,
-            color: lastEntry != null ? lastEntry.color : const Color(0xFF9CA3AF),
+            color: lastEntry != null ? lastEntry.color : t.textMuted,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

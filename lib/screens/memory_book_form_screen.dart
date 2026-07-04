@@ -311,7 +311,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       appBar: _buildAppBar(s),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -365,20 +365,20 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
 
   PreferredSizeWidget _buildAppBar(AppStrings s) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
+        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         s.books,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: widget.theme.textPrimary,
         ),
       ),
       centerTitle: true,
@@ -423,7 +423,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
           colors: [
             accent.withValues(alpha: 0.12),
             accent.withValues(alpha: 0.02),
-            Colors.white,
+            widget.theme.cardSurface,
           ],
         ),
       ),
@@ -453,7 +453,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
                 height: 1.15,
-                color: hasBook ? Colors.grey.shade900 : Colors.grey.shade300,
+                color: hasBook ? widget.theme.textPrimary : widget.theme.textMuted,
               ),
             ),
           ),
@@ -474,7 +474,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             Text(
               s.searchBooksPrompt,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
             ),
           if (hasBook && (_year != null || _publisher != null)) ...[
             const SizedBox(height: 10),
@@ -537,9 +537,9 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,7 +561,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
               ),
@@ -593,7 +593,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             onSubmitted: (v) => _search(v.trim()),
             decoration: InputDecoration(
               hintText: s.bookSearchHint,
-              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              hintStyle: TextStyle(color: widget.theme.textMuted, fontSize: 13),
               prefixIcon: Icon(Icons.search_rounded, color: _primary, size: 20),
               suffixIcon: _isSearching
                   ? const Padding(
@@ -608,7 +608,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   : (_searchCtrl.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(Icons.clear_rounded,
-                              color: Colors.grey.shade400, size: 18),
+                              color: widget.theme.textMuted, size: 18),
                           onPressed: () {
                             _searchCtrl.clear();
                             _onQueryChanged('');
@@ -616,7 +616,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                         )
                       : null),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: widget.theme.cardSurface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
@@ -656,12 +656,12 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
         decoration: BoxDecoration(
           color: failed
               ? Colors.orange.shade50
-              : Colors.grey.shade50,
+              : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: failed
                 ? Colors.orange.shade200
-                : Colors.grey.shade200,
+                : widget.theme.divider,
           ),
         ),
         child: Column(
@@ -672,7 +672,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   : Icons.search_off_rounded,
               color: failed
                   ? Colors.orange.shade400
-                  : Colors.grey.shade300,
+                  : widget.theme.textMuted,
               size: 32,
             ),
             const SizedBox(height: 8),
@@ -682,7 +682,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
               style: TextStyle(
                 color: failed
                     ? Colors.orange.shade700
-                    : Colors.grey.shade500,
+                    : widget.theme.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -693,7 +693,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 s.bookSearchFailedHint,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: widget.theme.textMuted,
                   fontSize: 11.5,
                 ),
               ),
@@ -725,9 +725,9 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -737,7 +737,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _results.length,
             separatorBuilder: (_, __) =>
-                Divider(height: 1, color: Colors.grey.shade100),
+                Divider(height: 1, color: widget.theme.divider),
             itemBuilder: (_, i) => _resultTile(_results[i]),
           ),
           // Внизу списка — запасной вариант «ввести вручную»,
@@ -791,7 +791,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
               ),
@@ -850,7 +850,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade900,
+                            color: widget.theme.textPrimary,
                             height: 1.2,
                           ),
                         ),
@@ -867,7 +867,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
+                            fontSize: 12, color: widget.theme.textMuted),
                       ),
                     ),
                   if (book.year != null)
@@ -876,7 +876,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                       child: Text(
                         book.year!,
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade400),
+                            fontSize: 11, color: widget.theme.textMuted),
                       ),
                     ),
                 ],
@@ -981,7 +981,7 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                 ),
               ),
             ],
@@ -1049,10 +1049,10 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         prefixIcon: Icon(icon, color: _primary, size: 20),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: widget.theme.cardSurface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -1071,9 +1071,9 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       child: RatingPicker(
         value: _rating,
@@ -1094,17 +1094,17 @@ class _MemoryBookFormScreenState extends State<MemoryBookFormScreen> {
         labelStyle: TextStyle(color: _primary, fontWeight: FontWeight.w600),
         alignLabelWithHint: true,
         hintText: s.reviewHint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

@@ -230,7 +230,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     final s = LocaleService.current;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       appBar: _buildAppBar(primary, s),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -271,20 +271,20 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   PreferredSizeWidget _buildAppBar(Color primary, AppStrings s) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
+        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         LocaleService.current.newEntry,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: widget.theme.textPrimary,
         ),
       ),
       centerTitle: true,
@@ -331,7 +331,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         height: 180,
         margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(18),
         ),
         child: CustomPaint(
@@ -360,7 +360,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 const SizedBox(height: 3),
                 Text(
                   LocaleService.current.optionalTapToSelect,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
                 ),
               ],
             ),
@@ -443,7 +443,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: widget.theme.surfaceMuted,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                           color: primary.withValues(alpha: 0.3), width: 1.5),
@@ -536,18 +536,18 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       decoration: InputDecoration(
         hintText: s.titleOptional,
         hintStyle: TextStyle(
-            fontWeight: FontWeight.w400, color: Colors.grey.shade400),
+            fontWeight: FontWeight.w400, color: widget.theme.textMuted),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -567,17 +567,17 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
         hintText: s.descriptionOptional,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -630,7 +630,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 ),
               ),
               Icon(Icons.close_rounded,
-                  size: 16, color: Colors.grey.shade400),
+                  size: 16, color: widget.theme.textMuted),
             ],
           ),
         ),
@@ -713,12 +713,12 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: _isAdult ? Colors.red.shade50 : Colors.grey.shade50,
+          color: _isAdult ? Colors.red.shade50 : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
               color: _isAdult
                   ? Colors.red.shade200
-                  : Colors.grey.shade200),
+                  : widget.theme.divider),
         ),
         child: Row(
           children: [
@@ -727,7 +727,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
               decoration: BoxDecoration(
                 color: _isAdult
                     ? Colors.red.withValues(alpha: 0.12)
-                    : Colors.grey.shade200,
+                    : widget.theme.surfaceMuted,
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -735,7 +735,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 size: 16,
                 color: _isAdult
                     ? Colors.red.shade400
-                    : Colors.grey.shade400,
+                    : widget.theme.textMuted,
               ),
             ),
             const SizedBox(width: 12),
@@ -750,7 +750,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                         fontWeight: FontWeight.w700,
                         color: _isAdult
                             ? Colors.red.shade600
-                            : Colors.grey.shade700),
+                            : widget.theme.textSecondary),
                   ),
                   Text(
                     s.photoBlurred,
@@ -758,7 +758,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                         fontSize: 11,
                         color: _isAdult
                             ? Colors.red.shade400
-                            : Colors.grey.shade400),
+                            : widget.theme.textMuted),
                   ),
                 ],
               ),

@@ -51,7 +51,7 @@ class HomeBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final activeColor = theme.navActiveIcon;
-    final activeBg = theme.navActiveIcon.withOpacity(0.12);
+    final activeBg = theme.navActiveIcon.withValues(alpha:0.12);
     final inactiveColor = theme.timerDialBackground;
     final primary = theme.primary;
 
@@ -63,7 +63,7 @@ class HomeBottomNav extends StatelessWidget {
           Expanded(
             child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardSurface,
           borderRadius: BorderRadius.circular(100),
           boxShadow: [
             BoxShadow(

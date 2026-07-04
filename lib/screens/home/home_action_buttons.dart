@@ -93,7 +93,7 @@ class HomeActionButtons extends StatelessWidget {
             width: 74,
             height: 118,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.cardSurface,
               borderRadius: BorderRadius.circular(100),
             ),
             child: Center(

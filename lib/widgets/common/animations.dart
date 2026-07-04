@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../theme/theme_scope.dart';
+
 /// Animated slide-in wrapper for entrance animations
 class AnimatedSlideIn extends StatefulWidget {
   final Widget child;
@@ -588,6 +590,7 @@ class _HeartAnimationState extends State<HeartAnimation>
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: _handleTap,
       child: AnimatedBuilder(
@@ -598,7 +601,7 @@ class _HeartAnimationState extends State<HeartAnimation>
             child: Icon(
               widget.isLiked ? Icons.favorite : Icons.favorite_border,
               size: widget.size,
-              color: widget.isLiked ? Colors.red : Colors.grey.shade400,
+              color: widget.isLiked ? Colors.red : t.textMuted,
             ),
           );
         },
@@ -626,6 +629,7 @@ class DrawModeOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
@@ -670,7 +674,7 @@ class DrawModeOption extends StatelessWidget {
                       subtitle,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: t.textSecondary,
                       ),
                     ),
                   ],
@@ -679,7 +683,7 @@ class DrawModeOption extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color: Colors.grey.shade400,
+                color: t.textMuted,
               ),
             ],
           ),

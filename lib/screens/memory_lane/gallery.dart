@@ -366,14 +366,14 @@ class _MapAppTile extends StatelessWidget {
             const SizedBox(width: 14),
             Text(
               name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: context.appTheme.textPrimary,
               ),
             ),
             const Spacer(),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+            Icon(Icons.chevron_right_rounded, color: context.appTheme.textMuted, size: 20),
           ],
         ),
       ),

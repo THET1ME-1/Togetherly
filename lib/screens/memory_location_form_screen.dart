@@ -155,7 +155,7 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       appBar: _buildAppBar(s),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -189,20 +189,20 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
 
   PreferredSizeWidget _buildAppBar(AppStrings s) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
+        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         s.location,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: widget.theme.textPrimary,
         ),
       ),
       centerTitle: true,
@@ -379,7 +379,7 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: widget.theme.textSecondary,
               ),
             ),
           ],
@@ -461,27 +461,27 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
       decoration: InputDecoration(
         hintText: s.locationNameHint,
         hintStyle:
-            TextStyle(fontWeight: FontWeight.w400, color: Colors.grey.shade400),
+            TextStyle(fontWeight: FontWeight.w400, color: widget.theme.textMuted),
         prefixIcon: const Icon(Icons.location_on_rounded, color: _accent),
         suffixIcon: _hasLocation
             ? IconButton(
                 icon: Icon(Icons.close_rounded,
-                    size: 18, color: Colors.grey.shade400),
+                    size: 18, color: widget.theme.textMuted),
                 tooltip: s.pickOnMap,
                 onPressed: _clearLocation,
               )
             : null,
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -573,17 +573,17 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
         hintText: s.descriptionOptional,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

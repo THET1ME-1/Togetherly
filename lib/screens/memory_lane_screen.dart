@@ -44,6 +44,7 @@ import '../services/home_widget_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/common/m3_loading.dart';
 import 'home/home_bottom_nav.dart';
@@ -697,12 +698,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         icon: Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.8),
+            color: widget.theme.cardSurface.withOpacity(0.8),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.arrow_back_rounded,
-            color: Colors.black87,
+            color: widget.theme.textPrimary,
             size: 20,
           ),
         ),
@@ -715,7 +716,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             style: GoogleFonts.rubik(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: widget.theme.textPrimary,
             ),
           ),
           if (widget.filterMode != MemoryFilterMode.none)
@@ -737,7 +738,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           icon: Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
+              color: widget.theme.cardSurface.withOpacity(0.8),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.photo_library_rounded, color: primary, size: 18),
@@ -759,7 +760,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           icon: Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
+              color: widget.theme.cardSurface.withOpacity(0.8),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.map_rounded, color: primary, size: 18),
@@ -808,7 +809,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             Icon(
               Icons.photo_library_outlined,
               size: 56,
-              color: Colors.grey.shade300,
+              color: widget.theme.textMuted,
             ),
             const SizedBox(height: 16),
             Text(
@@ -816,14 +817,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
+                color: widget.theme.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noMemoriesYetDesc,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 14, color: widget.theme.textMuted),
             ),
           ],
         ),
@@ -888,13 +889,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         height: 36,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? primary : Colors.white,
+          color: selected ? primary : widget.theme.cardSurface,
           shape: BoxShape.circle,
         ),
         child: Icon(
           selected ? Icons.favorite_rounded : Icons.favorite_border_rounded,
           size: 18,
-          color: selected ? Colors.white : Colors.grey.shade600,
+          color: selected ? Colors.white : widget.theme.textSecondary,
         ),
       ),
     );
@@ -908,7 +909,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     required VoidCallback onTap,
     IconData? icon,
   }) {
-    final fg = selected ? Colors.white : Colors.grey.shade700;
+    final fg = selected ? Colors.white : widget.theme.textSecondary;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -917,7 +918,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: selected ? primary : Colors.white,
+          color: selected ? primary : widget.theme.cardSurface,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -967,7 +968,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                color: widget.theme.textSecondary,
               ),
             ),
             if (favEmpty) ...[
@@ -977,7 +978,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ? 'Отмечайте воспоминания закладкой — они появятся здесь'
                     : 'Bookmark memories to find them here',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
               ),
             ],
           ],
@@ -998,7 +999,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           style: GoogleFonts.rubik(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: Colors.grey.shade500,
+            color: widget.theme.textMuted,
             letterSpacing: 0.3,
           ),
         ),
@@ -1116,7 +1117,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
+                          color: widget.theme.textPrimary,
                         ),
                       ),
                     ),
@@ -1124,7 +1125,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       '  ·  ${_formatTimeAgo(memory.createdAt)}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade400,
+                        color: widget.theme.textMuted,
                       ),
                     ),
                   ],
@@ -1135,7 +1136,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
                   ),
                 ],
               ],
@@ -1242,9 +1243,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               // лишь шириной пропорции сохраняются, и cover честно обрезает.
               memCacheWidth: 700,
               errorWidget: (_, __, ___) => Container(
-                color: Colors.grey.shade200,
+                color: widget.theme.surfaceMuted,
                 child: Icon(Icons.broken_image_rounded,
-                    color: Colors.grey.shade400, size: 26),
+                    color: widget.theme.textMuted, size: 26),
               ),
             ),
           ),
@@ -1348,14 +1349,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.chat_bubble_outline_rounded,
-                    size: 19, color: Colors.grey.shade500),
+                    size: 19, color: widget.theme.textMuted),
                 if (memory.commentsCount > 0) ...[
                   const SizedBox(width: 5),
                   Text('${memory.commentsCount}',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600)),
+                          color: widget.theme.textSecondary)),
                 ],
               ],
             ),
@@ -1368,7 +1369,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             child: Icon(
               saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
               size: 21,
-              color: saved ? primary : Colors.grey.shade500,
+              color: saved ? primary : widget.theme.textMuted,
             ),
           ),
         ],
@@ -1424,7 +1425,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 caption,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                   height: 1.35,
                 ),
               ),
@@ -1494,7 +1495,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 caption,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                   height: 1.35,
                 ),
               ),
@@ -1587,7 +1588,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: floating
             ? [
@@ -1598,7 +1599,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ),
               ]
             : null,
-        border: floating ? null : Border.all(color: Colors.grey.shade200),
+        border: floating ? null : Border.all(color: widget.theme.divider),
       ),
       child: Row(
         children: [
@@ -1626,7 +1627,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
+                color: widget.theme.textPrimary,
                 height: 1.2,
               ),
             ),
@@ -1714,7 +1715,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 caption,
                 style: TextStyle(
                   fontSize: 15,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                   height: 1.35,
                 ),
               ),
@@ -1865,9 +1866,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: widget.theme.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
+                border: Border.all(color: widget.theme.divider, width: 1),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1894,7 +1895,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade900,
+                                  color: widget.theme.textPrimary,
                                   height: 1.25,
                                 ),
                                 maxLines: 2,
@@ -1914,7 +1915,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               author,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade500,
+                                color: widget.theme.textMuted,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1954,7 +1955,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 text: memory.caption!,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade700,
+                  color: widget.theme.textSecondary,
                   height: 1.45,
                 ),
                 maxLines: 3,
@@ -2025,9 +2026,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: widget.theme.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200, width: 1),
+                border: Border.all(color: widget.theme.divider, width: 1),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2051,7 +2052,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade900,
+                                  color: widget.theme.textPrimary,
                                   height: 1.25,
                                 ),
                                 maxLines: 2,
@@ -2071,7 +2072,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               original,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade500,
+                                color: widget.theme.textMuted,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2113,7 +2114,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 text: memory.caption!,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade700,
+                  color: widget.theme.textSecondary,
                   height: 1.45,
                 ),
                 maxLines: 3,
@@ -2185,9 +2186,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     Widget buildSubCard() => Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        border: Border.all(color: widget.theme.divider, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2279,7 +2280,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                        color: widget.theme.textPrimary,
                         height: 1.3,
                       ),
                       maxLines: 2,
@@ -2329,7 +2330,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           memory.musicArtist!,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade500,
+                            color: widget.theme.textMuted,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -2347,7 +2348,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               memory.caption!,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: widget.theme.textSecondary,
                 height: 1.4,
               ),
               maxLines: 2,
@@ -2656,7 +2657,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (_) => _MemoryDetailSheet(
         memory: memory,
         groupId: _groupId,
@@ -2685,7 +2686,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setState) {
@@ -2708,7 +2709,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: widget.theme.divider,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -2767,11 +2768,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               height: double.infinity,
                               fit: BoxFit.cover,
                               errorWidget: (context, url, error) => Container(
-                                color: Colors.grey.shade200,
+                                color: widget.theme.surfaceMuted,
                                 child: Center(
                                   child: Icon(
                                     Icons.broken_image_rounded,
-                                    color: Colors.grey.shade400,
+                                    color: widget.theme.textMuted,
                                     size: 48,
                                   ),
                                 ),
@@ -2783,7 +2784,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         Container(
                           height: 200,
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: widget.theme.surfaceMuted,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Center(
@@ -2792,13 +2793,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               children: [
                                 Icon(
                                   Icons.image_not_supported_rounded,
-                                  color: Colors.grey.shade400,
+                                  color: widget.theme.textMuted,
                                   size: 48,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   LocaleService.current.photoNotUploaded,
-                                  style: TextStyle(color: Colors.grey.shade500),
+                                  style: TextStyle(color: widget.theme.textMuted),
                                 ),
                               ],
                             ),
@@ -2997,7 +2998,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         memory.caption!,
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey.shade800,
+                          color: widget.theme.textPrimary,
                           height: 1.5,
                         ),
                       ),
@@ -3021,7 +3022,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
+                            color: widget.theme.textSecondary,
                           ),
                         ),
                         const Spacer(),
@@ -3029,7 +3030,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           _formatFullDate(memory.createdAt),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: widget.theme.textMuted,
                           ),
                         ),
                       ],
@@ -3118,9 +3119,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   ),
                                   label: Text(LocaleService.current.editMemory),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.grey.shade700,
+                                    foregroundColor: widget.theme.textSecondary,
                                     side: BorderSide(
-                                      color: Colors.grey.shade300,
+                                      color: widget.theme.divider,
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -3215,7 +3216,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3225,7 +3226,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -3278,7 +3279,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             if (memory.authorUid == _myUid) ...[
               ListTile(
-                leading: Icon(Icons.edit_rounded, color: Colors.grey.shade700),
+                leading: Icon(Icons.edit_rounded, color: widget.theme.textSecondary),
                 title: Text(LocaleService.current.editMemory),
                 onTap: () {
                   Navigator.pop(context);
@@ -3523,7 +3524,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return SingleChildScrollView(
@@ -3547,7 +3548,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: widget.theme.divider,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -3558,7 +3559,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade900,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -3569,14 +3570,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     hintText: LocaleService.current.titleOptional,
                     prefixIcon: const Icon(Icons.title_rounded, size: 20),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: widget.theme.surfaceMuted,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: widget.theme.divider),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: widget.theme.divider),
                     ),
                   ),
                 ),
@@ -3589,14 +3590,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ? LocaleService.current.reviewHint
                         : LocaleService.current.description,
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: widget.theme.surfaceMuted,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: widget.theme.divider),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: widget.theme.divider),
                     ),
                   ),
                 ),
@@ -3606,9 +3607,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: widget.theme.surfaceMuted,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: widget.theme.divider),
                     ),
                     child: RatingPicker(
                       value: editRating,
@@ -3687,7 +3688,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         LocaleService.current.selectTextAndPress,
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey.shade400,
+                          color: widget.theme.textMuted,
                         ),
                       ),
                     ],
@@ -3702,14 +3703,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       hintText: LocaleService.current.locationNameHint,
                       prefixIcon: const Icon(Icons.location_on_rounded),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: widget.theme.surfaceMuted,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
+                        borderSide: BorderSide(color: widget.theme.divider),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
+                        borderSide: BorderSide(color: widget.theme.divider),
                       ),
                     ),
                   ),
@@ -3763,12 +3764,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       decoration: BoxDecoration(
                         color: isAdultEdit
                             ? Colors.red.shade50
-                            : Colors.grey.shade50,
+                            : widget.theme.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isAdultEdit
                               ? Colors.red.shade200
-                              : Colors.grey.shade200,
+                              : widget.theme.divider,
                         ),
                       ),
                       child: Row(
@@ -3780,7 +3781,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             size: 18,
                             color: isAdultEdit
                                 ? Colors.red.shade400
-                                : Colors.grey.shade400,
+                                : widget.theme.textMuted,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -3794,7 +3795,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     fontWeight: FontWeight.w700,
                                     color: isAdultEdit
                                         ? Colors.red.shade600
-                                        : Colors.grey.shade700,
+                                        : widget.theme.textSecondary,
                                   ),
                                 ),
                                 Text(
@@ -3803,7 +3804,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     fontSize: 11,
                                     color: isAdultEdit
                                         ? Colors.red.shade400
-                                        : Colors.grey.shade400,
+                                        : widget.theme.textMuted,
                                   ),
                                 ),
                               ],
@@ -3889,7 +3890,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (_) => SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -3901,7 +3902,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: widget.theme.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -3911,13 +3912,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 LocaleService.current.chooseWhatToShare,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
               ),
               const SizedBox(height: 24),
               _addMemoryOption(
@@ -3983,10 +3984,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         label,
         style: TextStyle(
           fontWeight: FontWeight.w600,
-          color: Colors.grey.shade800,
+          color: widget.theme.textPrimary,
         ),
       ),
-      trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+      trailing: Icon(Icons.chevron_right_rounded, color: widget.theme.textMuted),
       onTap: () {
         Navigator.pop(context);
         if (type == MemoryType.photo) {
@@ -4306,7 +4307,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           constraints: const BoxConstraints(maxWidth: 340),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: widget.theme.cardSurface,
             borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
@@ -4335,14 +4336,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
                 LocaleService.current.pasteLinkSupported,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
@@ -4380,7 +4381,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade800,
+                                    color: widget.theme.textPrimary,
                                   ),
                                 ),
                               ),
@@ -4432,7 +4433,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           constraints: const BoxConstraints(maxWidth: 340),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: widget.theme.cardSurface,
             borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
@@ -4457,13 +4458,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 LocaleService.current.pasteLinkFromService,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
               ),
               const SizedBox(height: 18),
               ..._supportedMusicServices.map(
@@ -4495,7 +4496,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
+                              color: widget.theme.textPrimary,
                             ),
                           ),
                         ),
@@ -4980,7 +4981,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return SingleChildScrollView(
@@ -4999,7 +5000,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: widget.theme.divider,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -5013,7 +5014,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade900,
+                          color: widget.theme.textPrimary,
                         ),
                       ),
                     ),
@@ -5108,7 +5109,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 width: 88,
                                 height: 88,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
+                                  color: widget.theme.surfaceMuted,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: primary.withOpacity(0.35),
@@ -5218,9 +5219,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         width: double.infinity,
                         height: 100,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
+                          color: widget.theme.surfaceMuted,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: widget.theme.divider),
                         ),
                         child: Center(
                           child: Column(
@@ -5229,14 +5230,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               Icon(
                                 Icons.add_photo_alternate_rounded,
                                 size: 28,
-                                color: Colors.grey.shade400,
+                                color: widget.theme.textMuted,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 LocaleService.current.tapToSelectPhotos,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade400,
+                                  color: widget.theme.textMuted,
                                 ),
                               ),
                             ],
@@ -5256,12 +5257,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       decoration: BoxDecoration(
                         color: isAdultPhoto
                             ? Colors.red.shade50
-                            : Colors.grey.shade50,
+                            : widget.theme.surfaceMuted,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isAdultPhoto
                               ? Colors.red.shade200
-                              : Colors.grey.shade200,
+                              : widget.theme.divider,
                         ),
                       ),
                       child: Row(
@@ -5273,7 +5274,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             size: 18,
                             color: isAdultPhoto
                                 ? Colors.red.shade400
-                                : Colors.grey.shade400,
+                                : widget.theme.textMuted,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -5287,7 +5288,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     fontWeight: FontWeight.w700,
                                     color: isAdultPhoto
                                         ? Colors.red.shade600
-                                        : Colors.grey.shade700,
+                                        : widget.theme.textSecondary,
                                   ),
                                 ),
                                 Text(
@@ -5296,7 +5297,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     fontSize: 11,
                                     color: isAdultPhoto
                                         ? Colors.red.shade400
-                                        : Colors.grey.shade400,
+                                        : widget.theme.textMuted,
                                   ),
                                 ),
                               ],
@@ -5351,7 +5352,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            Icon(Icons.close_rounded, size: 14, color: Colors.grey.shade400),
+                            Icon(Icons.close_rounded, size: 14, color: widget.theme.textMuted),
                           ],
                         ),
                       ),
@@ -5492,12 +5493,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             decoration: BoxDecoration(
                               color: !useVideoUrl
                                   ? primary.withOpacity(0.10)
-                                  : Colors.grey.shade50,
+                                  : widget.theme.surfaceMuted,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: !useVideoUrl
                                     ? primary.withOpacity(0.30)
-                                    : Colors.grey.shade200,
+                                    : widget.theme.divider,
                               ),
                             ),
                             child: Row(
@@ -5508,7 +5509,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   size: 16,
                                   color: !useVideoUrl
                                       ? primary
-                                      : Colors.grey.shade400,
+                                      : widget.theme.textMuted,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -5520,7 +5521,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         : FontWeight.w500,
                                     color: !useVideoUrl
                                         ? primary
-                                        : Colors.grey.shade500,
+                                        : widget.theme.textMuted,
                                   ),
                                 ),
                               ],
@@ -5540,12 +5541,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             decoration: BoxDecoration(
                               color: useVideoUrl
                                   ? const Color(0xFFEC4899).withOpacity(0.10)
-                                  : Colors.grey.shade50,
+                                  : widget.theme.surfaceMuted,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: useVideoUrl
                                     ? const Color(0xFFEC4899).withOpacity(0.30)
-                                    : Colors.grey.shade200,
+                                    : widget.theme.divider,
                               ),
                             ),
                             child: Row(
@@ -5556,7 +5557,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   size: 16,
                                   color: useVideoUrl
                                       ? const Color(0xFFEC4899)
-                                      : Colors.grey.shade400,
+                                      : widget.theme.textMuted,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -5568,7 +5569,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         : FontWeight.w500,
                                     color: useVideoUrl
                                         ? const Color(0xFFEC4899)
-                                        : Colors.grey.shade500,
+                                        : widget.theme.textMuted,
                                   ),
                                 ),
                               ],
@@ -5635,9 +5636,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         decoration: BoxDecoration(
                           color: selectedMedia != null
                               ? Colors.grey.shade900
-                              : Colors.grey.shade50,
+                              : widget.theme.surfaceMuted,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: widget.theme.divider),
                           image: videoThumbnailBytes != null
                               ? DecorationImage(
                                   image: MemoryImage(videoThumbnailBytes!),
@@ -5653,14 +5654,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     Icon(
                                       Icons.videocam_rounded,
                                       size: 28,
-                                      color: Colors.grey.shade400,
+                                      color: widget.theme.textMuted,
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       LocaleService.current.tapToSelectVideo,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.grey.shade400,
+                                        color: widget.theme.textMuted,
                                       ),
                                     ),
                                   ],
@@ -5741,7 +5742,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade800,
+                                  color: widget.theme.textPrimary,
                                 ),
                               ),
                             ],
@@ -5796,17 +5797,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       },
                                     ),
                               filled: true,
-                              fillColor: Colors.grey.shade50,
+                              fillColor: widget.theme.surfaceMuted,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
+                                  color: widget.theme.divider,
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
+                                  color: widget.theme.divider,
                                 ),
                               ),
                             ),
@@ -5839,7 +5840,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.grey.shade800,
+                                            color: widget.theme.textPrimary,
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
@@ -5849,7 +5850,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           fetchedVideoAuthor!,
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey.shade500,
+                                            color: widget.theme.textMuted,
                                           ),
                                           maxLines: 1,
                                         ),
@@ -5876,7 +5877,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             LocaleService.current.supportedPlatformsHint,
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade400,
+                              color: widget.theme.textMuted,
                               height: 1.4,
                             ),
                           ),
@@ -5926,7 +5927,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade800,
+                              color: widget.theme.textPrimary,
                             ),
                           ),
                         ],
@@ -5938,14 +5939,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         style: const TextStyle(fontSize: 15),
                         decoration: InputDecoration(
                           hintText: LocaleService.current.titleOptional,
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          hintStyle: TextStyle(color: widget.theme.textMuted),
                           prefixIcon: Icon(
                             Icons.title_rounded,
                             color: primary,
                             size: 20,
                           ),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: widget.theme.cardSurface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
@@ -5969,7 +5970,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           hintText: type == MemoryType.text
                               ? LocaleService.current.writeYourNote
                               : LocaleService.current.descriptionOptional,
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          hintStyle: TextStyle(color: widget.theme.textMuted),
                           prefixIcon: Padding(
                             padding: const EdgeInsets.only(bottom: 40),
                             child: Icon(
@@ -5979,7 +5980,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             ),
                           ),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: widget.theme.cardSurface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
@@ -6068,7 +6069,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               LocaleService.current.selectTextAndPress,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.grey.shade400,
+                                color: widget.theme.textMuted,
                               ),
                             ),
                           ],
@@ -6087,14 +6088,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       hintText: LocaleService.current.locationNameHint,
                       prefixIcon: const Icon(Icons.location_on_rounded),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: widget.theme.surfaceMuted,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
+                        borderSide: BorderSide(color: widget.theme.divider),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
+                        borderSide: BorderSide(color: widget.theme.divider),
                       ),
                     ),
                   ),
@@ -6301,7 +6302,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade800,
+                                color: widget.theme.textPrimary,
                               ),
                             ),
                           ],
@@ -6312,14 +6313,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           style: const TextStyle(fontSize: 15),
                           decoration: InputDecoration(
                             hintText: LocaleService.current.songName,
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            hintStyle: TextStyle(color: widget.theme.textMuted),
                             prefixIcon: Icon(
                               Icons.audiotrack_rounded,
                               color: primary,
                               size: 20,
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: widget.theme.cardSurface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide.none,
@@ -6347,16 +6348,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             helperText: LocaleService.current.egArtists,
                             helperStyle: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade400,
+                              color: widget.theme.textMuted,
                             ),
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            hintStyle: TextStyle(color: widget.theme.textMuted),
                             prefixIcon: Icon(
                               Icons.person_rounded,
                               color: primary,
                               size: 20,
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: widget.theme.cardSurface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide.none,
@@ -6385,7 +6386,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       children: [
                         Expanded(
                           child: Divider(
-                            color: Colors.grey.shade200,
+                            color: widget.theme.divider,
                             height: 1,
                           ),
                         ),
@@ -6423,7 +6424,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         ),
                         Expanded(
                           child: Divider(
-                            color: Colors.grey.shade200,
+                            color: widget.theme.divider,
                             height: 1,
                           ),
                         ),
@@ -6435,9 +6436,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: widget.theme.surfaceMuted,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: widget.theme.divider),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6463,7 +6464,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.grey.shade800,
+                                  color: widget.theme.textPrimary,
                                 ),
                               ),
                             ),
@@ -6530,7 +6531,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             hintText:
                                 LocaleService.current.pasteLinkFromService,
                             hintStyle: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: widget.theme.textMuted,
                               fontSize: 13,
                             ),
                             prefixIcon: Icon(
@@ -6539,14 +6540,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               size: 20,
                             ),
                             suffixIcon: isFetchingMeta
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
+                                ? Padding(
+                                    padding: const EdgeInsets.all(12),
                                     child: SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.grey,
+                                        color: widget.theme.textMuted,
                                       ),
                                     ),
                                   )
@@ -6584,7 +6585,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     },
                                   ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: widget.theme.cardSurface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide.none,
@@ -6608,7 +6609,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           children: [
                             Expanded(
                               child: Divider(
-                                color: Colors.grey.shade300,
+                                color: widget.theme.divider,
                                 height: 1,
                               ),
                             ),
@@ -6620,14 +6621,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 LocaleService.current.orDivider,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey.shade400,
+                                  color: widget.theme.textMuted,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
                             Expanded(
                               child: Divider(
-                                color: Colors.grey.shade300,
+                                color: widget.theme.divider,
                                 height: 1,
                               ),
                             ),
@@ -7137,7 +7138,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Color for distance pill based on proximity
   Color _distanceColor(double lat, double lng) {
-    if (_userLat == null || _userLng == null) return Colors.grey;
+    if (_userLat == null || _userLng == null) return widget.theme.textMuted;
     final km = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng) / 1000;
     if (km < 1) return const Color(0xFF22C55E);
     if (km < 10) return const Color(0xFF16A34A);
@@ -7187,11 +7188,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         pill = Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: widget.theme.surfaceMuted,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade300, width: 1),
+            border: Border.all(color: widget.theme.divider, width: 1),
           ),
-          child: Icon(Icons.location_on_rounded, size: 12, color: Colors.grey.shade500),
+          child: Icon(Icons.location_on_rounded, size: 12, color: widget.theme.textMuted),
         );
       }
     } else {
@@ -7199,11 +7200,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       pill = Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade300, width: 1),
+          border: Border.all(color: widget.theme.divider, width: 1),
         ),
-        child: Icon(Icons.location_on_rounded, size: 12, color: Colors.grey.shade500),
+        child: Icon(Icons.location_on_rounded, size: 12, color: widget.theme.textMuted),
       );
     }
 

@@ -312,9 +312,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            decoration: BoxDecoration(
+              color: _t.cardSurface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             ),
             padding: EdgeInsets.fromLTRB(
               24,
@@ -334,7 +334,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: _t.divider,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -492,7 +492,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                               decoration: BoxDecoration(
                                 color: sel
                                     ? _t.primary.withOpacity(0.15)
-                                    : Colors.grey.shade100,
+                                    : _t.surfaceMuted,
                                 borderRadius: BorderRadius.circular(14),
                                 border: sel
                                     ? Border.all(color: _t.primary, width: 2)
@@ -567,7 +567,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: _t.cardSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         title: Text(
           LocaleService.current.deleteTimerQuestion,
@@ -580,7 +580,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
             child: Text(
               LocaleService.current.cancel,
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: _t.textSecondary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -626,7 +626,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w900,
-        color: Colors.grey.shade500,
+        color: _t.textMuted,
         letterSpacing: 1.5,
       ),
     ),
@@ -634,7 +634,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   InputDecoration _dialogInputDeco(String hint) => InputDecoration(
     hintText: hint,
     filled: true,
-    fillColor: Colors.grey.shade100,
+    fillColor: _t.surfaceMuted,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
       borderSide: BorderSide.none,
@@ -655,7 +655,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                   shape: BoxShape.circle,
                   color: val ? _t.primary : Colors.transparent,
                   border: Border.all(
-                    color: val ? _t.primary : Colors.grey.shade400,
+                    color: val ? _t.primary : _t.textMuted,
                     width: 2,
                   ),
                 ),
@@ -669,7 +669,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: _t.textPrimary,
                 ),
               ),
             ],

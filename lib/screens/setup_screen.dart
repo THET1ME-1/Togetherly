@@ -15,6 +15,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
 
 
@@ -327,6 +328,7 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   void _showEmailExistsDialog() {
+    final t = context.appTheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -341,7 +343,7 @@ class _SetupScreenState extends State<SetupScreen>
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               LocaleService.current.cancel,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: t.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -686,6 +688,7 @@ class _SetupScreenState extends State<SetupScreen>
   // ═══════════════════════════════════════════════════
   Widget _buildRegistrationStep() {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Column(
@@ -715,9 +718,9 @@ class _SetupScreenState extends State<SetupScreen>
         Expanded(
           child: Container(
             width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
+            decoration: BoxDecoration(
+              color: t.cardSurface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
             ),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -731,7 +734,7 @@ class _SetupScreenState extends State<SetupScreen>
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: t.textPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -791,7 +794,7 @@ class _SetupScreenState extends State<SetupScreen>
                       Text(
                         '${s.alreadyHaveAccountLogin} ',
                         style: TextStyle(
-                            fontSize: 14, color: Colors.grey.shade600),
+                            fontSize: 14, color: t.textSecondary),
                       ),
                       GestureDetector(
                         onTap: _isLoading ? null : _goToLogin,
@@ -888,6 +891,7 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   Widget _termsCheckbox(AppStrings s) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
       behavior: HitTestBehavior.opaque,
@@ -901,7 +905,7 @@ class _SetupScreenState extends State<SetupScreen>
               color: _agreeToTerms ? _accent : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: _agreeToTerms ? _accent : Colors.grey.shade400,
+                color: _agreeToTerms ? _accent : t.textMuted,
                 width: 2,
               ),
             ),
@@ -916,7 +920,7 @@ class _SetupScreenState extends State<SetupScreen>
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey.shade700,
+                color: t.textSecondary,
               ),
             ),
           ),
@@ -981,7 +985,8 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   Widget _passwordCheckRow(String label, bool passed) {
-    final color = passed ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+    final t = context.appTheme;
+    final color = passed ? const Color(0xFF4CAF50) : t.textMuted;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

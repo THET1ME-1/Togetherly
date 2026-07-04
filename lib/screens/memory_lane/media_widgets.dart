@@ -409,9 +409,9 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: context.appTheme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        border: Border.all(color: context.appTheme.divider, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,7 +550,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade900,
+              color: context.appTheme.textPrimary,
               height: 1.3,
             ),
             maxLines: 2,
@@ -561,7 +561,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
               padding: const EdgeInsets.only(top: 3),
               child: Text(
                 memory.musicArtist!,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: context.appTheme.textMuted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -572,7 +572,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
               memory.caption!,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: context.appTheme.textSecondary,
                 height: 1.4,
               ),
               maxLines: 2,

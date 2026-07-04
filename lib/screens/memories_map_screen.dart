@@ -237,7 +237,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: t.cardSurface,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
@@ -246,9 +246,9 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back_rounded,
-                          color: Colors.black87,
+                          color: t.textPrimary,
                           size: 20,
                         ),
                       ),
@@ -261,7 +261,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: t.cardSurface,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
@@ -279,7 +279,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                               style: GoogleFonts.rubik(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade900,
+                                color: t.textPrimary,
                               ),
                             ),
                             const Spacer(),
@@ -318,7 +318,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                 margin: const EdgeInsets.all(32),
                 padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: t.cardSurface,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -331,7 +331,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.location_off_rounded,
-                        size: 48, color: Colors.grey.shade300),
+                        size: 48, color: t.textMuted),
                     const SizedBox(height: 16),
                     Text(
                       LocaleService.current.noGeoMemories,
@@ -339,7 +339,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                       style: GoogleFonts.rubik(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade700,
+                        color: t.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -348,7 +348,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.rubik(
                         fontSize: 13,
-                        color: Colors.grey.shade400,
+                        color: t.textMuted,
                       ),
                     ),
                   ],
@@ -390,7 +390,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: t.cardSurface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -425,7 +425,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
+                          color: t.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -434,7 +434,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         '${cluster.count} ${LocaleService.current.memoriesUnit(cluster.count)}',
                         style: GoogleFonts.rubik(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: t.textMuted,
                         ),
                       ),
                     ],
@@ -464,9 +464,9 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         errorWidget: (context, _, __) => Container(
                           width: 72,
                           height: 72,
-                          color: Colors.grey.shade100,
+                          color: t.surfaceMuted,
                           child: Icon(Icons.broken_image_rounded,
-                              color: Colors.grey.shade300),
+                              color: t.textMuted),
                         ),
                       ),
                     );

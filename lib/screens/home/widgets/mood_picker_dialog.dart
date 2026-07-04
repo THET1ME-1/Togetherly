@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/theme_scope.dart';
 import '../../../widgets/mood_image.dart';
 import 'package:flutter/services.dart';
 import '../../../models/ailment.dart';
@@ -204,11 +205,12 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final onAilment = widget.showAilmentTab && _tab == 1;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Column(
@@ -218,7 +220,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: t.divider,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -228,7 +230,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
             const SizedBox(height: 10),
             Text(
               onAilment ? s.ailmentPickerSubtitle : widget.subtitle,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 13, color: t.textMuted),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -239,13 +241,13 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: t.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               widget.subtitle,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 13, color: t.textMuted),
             ),
             const SizedBox(height: 14),
           ],
@@ -259,10 +261,11 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
   }
 
   Widget _segmented(AppStrings s) {
+    final t = context.appTheme;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: t.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -276,6 +279,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
 
   Widget _segBtn(String label, int idx) {
     final active = _tab == idx;
+    final t = context.appTheme;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _tab = idx),
@@ -284,7 +288,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
-            color: active ? Colors.white : Colors.transparent,
+            color: active ? t.cardSurface : Colors.transparent,
             borderRadius: BorderRadius.circular(11),
             boxShadow: active
                 ? [
@@ -301,7 +305,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: active ? widget.primary : Colors.grey.shade500,
+              color: active ? widget.primary : t.textMuted,
             ),
           ),
         ),
@@ -385,6 +389,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
   Widget _clearButton(AppStrings s, bool onAilment) {
     final onClear = onAilment ? widget.onClearAilment : widget.onClear;
     if (onClear == null) return const SizedBox(height: 16);
+    final t = context.appTheme;
     final label = onAilment ? s.clearAilment : s.clearMood;
     return SafeArea(
       top: false,
@@ -397,7 +402,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade400,
+              color: t.textMuted,
             ),
           ),
         ),
@@ -433,6 +438,7 @@ class _MoodTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gradient = tileGradient;
+    final t = context.appTheme;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -488,7 +494,7 @@ class _MoodTile extends StatelessWidget {
               fontSize: 10,
               fontWeight:
                   isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primary : Colors.grey.shade600,
+              color: isSelected ? primary : t.textSecondary,
               height: 1.2,
             ),
             textAlign: TextAlign.center,
@@ -520,6 +526,7 @@ class _AilmentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -532,7 +539,7 @@ class _AilmentTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSelected
                     ? primary.withValues(alpha: 0.14)
-                    : Colors.grey.shade100,
+                    : t.surfaceMuted,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected ? primary : Colors.transparent,
@@ -553,7 +560,7 @@ class _AilmentTile extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primary : Colors.grey.shade600,
+              color: isSelected ? primary : t.textSecondary,
               height: 1.2,
             ),
             textAlign: TextAlign.center,
