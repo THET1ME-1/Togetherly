@@ -375,13 +375,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _accent.withOpacity(0.2),
-                      blurRadius: 32,
-                      spreadRadius: 4,
-                    ),
-                  ],
+                  boxShadow: _t.accentGlow(
+                    _accent,
+                    opacity: 0.2,
+                    blurRadius: 32,
+                    spreadRadius: 4,
+                    offset: Offset.zero,
+                  ),
                 ),
                 child: LevelAvatar(
                   size: 100,
@@ -906,12 +906,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: _accent,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _accent.withOpacity(0.3),
-                          blurRadius: 6,
-                        ),
-                      ],
+                      boxShadow: _t.accentGlow(
+                        _accent,
+                        opacity: 0.3,
+                        blurRadius: 6,
+                        offset: Offset.zero,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -970,7 +970,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: o.background,
         borderRadius: BorderRadius.circular(size * 0.22),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        border: Border.all(
+            color: _t.isDark ? _t.cardBorder : Colors.black.withOpacity(0.06)),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -1431,13 +1432,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             decoration: BoxDecoration(
               color: _t.cardSurface,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              boxShadow: _t.accentGlow(
+                color,
+                opacity: 0.2,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
@@ -2209,13 +2209,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: _accent.withAlpha(25),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _accent.withAlpha(50)),
-        boxShadow: [
-          BoxShadow(
-            color: _accent.withAlpha(20),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: _t.accentGlow(
+          _accent,
+          opacity: 20 / 255,
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -2965,13 +2964,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: _t.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withOpacity(0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: _t.accentGlow(
+            _accent,
+            opacity: 0.08,
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
         ),
         child: Row(
           children: [
@@ -3051,13 +3049,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: _t.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withOpacity(0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: _t.accentGlow(
+            _accent,
+            opacity: 0.08,
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
         ),
         child: Row(
           children: [
@@ -3542,13 +3539,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: disabled ? _t.surfaceMuted : _t.cardSurface,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: disabled ? null : [
-                        BoxShadow(
-                          color: _accent.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
+                      boxShadow: disabled
+                          ? null
+                          : _t.accentGlow(
+                              _accent,
+                              opacity: 0.15,
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -3587,13 +3585,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: counterExhausted
                           ? null
-                          : [
-                              BoxShadow(
-                                color: _accent.withValues(alpha: 0.15),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
+                          : _t.accentGlow(
+                              _accent,
+                              opacity: 0.15,
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
                     ),
                     child: Text(
                       counterText,
@@ -3664,13 +3661,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             color: _t.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: t.primary.withOpacity(0.18),
-                blurRadius: 40,
-                offset: const Offset(0, 16),
-              ),
-            ],
+            boxShadow: _t.accentGlow(
+              t.primary,
+              opacity: 0.18,
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3822,13 +3818,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : null,
                           color: canAfford ? null : _t.surfaceMuted,
                           boxShadow: canAfford
-                              ? [
-                                  BoxShadow(
-                                    color: t.primary.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
+                              ? _t.accentGlow(
+                                  t.primary,
+                                  opacity: 0.35,
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                )
                               : null,
                         ),
                         child: Material(
@@ -4010,13 +4005,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 2.5,
                                 ),
                                 boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: accent.withOpacity(0.25),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
+                                    ? _t.accentGlow(
+                                        accent,
+                                        opacity: 0.25,
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      )
                                     : [],
                               ),
                               child: Column(
@@ -4423,13 +4417,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: 2.5,
           ),
           boxShadow: isEquipped
-              ? [
-                  BoxShadow(
-                    color: _accent.withValues(alpha: 0.22),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
+              ? _t.accentGlow(
+                  _accent,
+                  opacity: 0.22,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                )
               : [],
         ),
         child: Column(
@@ -4562,13 +4555,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             color: _t.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withOpacity(0.18),
-                blurRadius: 40,
-                offset: const Offset(0, 16),
-              ),
-            ],
+            boxShadow: _t.accentGlow(
+              _accent,
+              opacity: 0.18,
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -4708,13 +4700,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : null,
                           color: canAfford ? null : _t.surfaceMuted,
                           boxShadow: canAfford
-                              ? [
-                                  BoxShadow(
-                                    color: _accent.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
+                              ? _t.accentGlow(
+                                  _accent,
+                                  opacity: 0.35,
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                )
                               : null,
                         ),
                         child: Material(
@@ -4858,7 +4849,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 22,
                                   height: 22,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: _t.isDark
+                                        ? _t.cardSurface
+                                        : Colors.white,
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: _accent.withOpacity(0.3),
@@ -5350,8 +5343,8 @@ class _DateInputDialogState extends State<_DateInputDialog> {
                     colorScheme: ColorScheme.light(
                       primary: p,
                       onPrimary: Colors.white,
-                      surface: Colors.white,
-                      onSurface: Colors.grey.shade900,
+                      surface: _t.isDark ? _t.cardSurface : Colors.white,
+                      onSurface: _t.textPrimary,
                     ),
                     textButtonTheme: TextButtonThemeData(
                       style: TextButton.styleFrom(foregroundColor: p),

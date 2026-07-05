@@ -538,7 +538,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _t.primary,
+                        backgroundColor: _t.fillColor,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
@@ -653,9 +653,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                 height: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: val ? _t.primary : Colors.transparent,
+                  color: val ? _t.fillColor : Colors.transparent,
                   border: Border.all(
-                    color: val ? _t.primary : _t.textMuted,
+                    color: val ? _t.fillColor : _t.textMuted,
                     width: 2,
                   ),
                 ),
@@ -742,7 +742,7 @@ class _RadialButtonState extends State<_RadialButton> {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: widget.theme.primary,
+            color: widget.theme.fillColor,
             shape: BoxShape.circle,
           ),
           child: Icon(widget.icon, color: Colors.white, size: 18),

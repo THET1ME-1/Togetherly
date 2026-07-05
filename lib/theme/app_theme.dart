@@ -107,6 +107,12 @@ class AppTheme {
   /// Разделители и тонкие границы. Заменяет `grey.shade200/300`.
   final Color divider;
 
+  /// Рисовать ли акцентные свечения-ореолы (мягкие цветные тени вокруг кнопок,
+  /// карточек, активных элементов). Нуар-тёмные темы ставят `false` — глубина
+  /// создаётся границами и слоями, а не сиянием. По умолчанию `true`, поэтому
+  /// светлые темы не меняются.
+  final bool useGlow;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -138,10 +144,46 @@ class AppTheme {
     this.textMuted = const Color(0xFF9E9E9E),
     this.surfaceMuted = const Color(0xFFF2F2F4),
     this.divider = const Color(0xFFE0E0E0),
+    this.useGlow = true,
   });
 
   /// Тема тёмная? Удобный флаг для виджетов (например выбрать оттенок тени).
   bool get isDark => brightness == Brightness.dark;
+
+  /// Цвет ЗАЛИВКИ акцентного/активного элемента, ПОВЕРХ которого лежит текст или
+  /// иконка: FAB и круглые кнопки, заполненные лепестки таймера, ячейка «сегодня».
+  ///
+  /// Светлые темы и тёмные со СРЕДНИМ акцентом — заливка = сам [primary]
+  /// (у 20 светлых тем `primary == navActiveIcon`, вид не меняется; у «Угольной
+  /// розы» это даёт розовые заливки таймера/«сегодня»/FAB). И только когда акцент
+  /// тёмной темы почти-белый (яркость > 0.6, как серебро нуара) — заливка падает
+  /// на графит [AppThemes.darkFill], иначе она стала бы белым пятном с «белым
+  /// текстом на белом». Цвет иконки/текста поверх бери через [AppThemes.onColor].
+  Color get fillColor =>
+      (isDark && primary.computeLuminance() > 0.6) ? AppThemes.darkFill : primary;
+
+  /// Свечение-ореол вокруг элемента цветом [color] — то, что раньше писалось
+  /// inline как `boxShadow: [BoxShadow(color: accent.withOpacity(0.3), …)]`.
+  ///
+  /// На темах без свечения ([useGlow] == false, нуар) возвращает пустой список,
+  /// поэтому один и тот же виджет получается матовым на нуаре и с ореолом на
+  /// светлых темах — без `if (isDark)` в каждом виджете.
+  List<BoxShadow> accentGlow(
+    Color color, {
+    double blurRadius = 8,
+    double opacity = 0.3,
+    double spreadRadius = 0,
+    Offset offset = const Offset(0, 2),
+  }) => useGlow
+      ? [
+          BoxShadow(
+            color: color.withValues(alpha: opacity),
+            blurRadius: blurRadius,
+            spreadRadius: spreadRadius,
+            offset: offset,
+          ),
+        ]
+      : const <BoxShadow>[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,6 +191,13 @@ class AppTheme {
 // Чтобы добавить новую — создай AppTheme ниже и добавь в [all].
 // ─────────────────────────────────────────────────────────────────────────────
 abstract final class AppThemes {
+  /// Графитовый фолбэк-тон заливки для тёмных тем с ПОЧТИ-БЕЛЫМ акцентом
+  /// (яркость > 0.6, напр. серебро нуара): там `primary` нельзя лить как фон —
+  /// получилось бы белое пятно с «белым текстом на белом», поэтому [AppTheme.fillColor]
+  /// подставляет этот графит. Тёмные темы со средним акцентом (напр. «Угольная
+  /// роза») заливаются самим `primary` и сюда не попадают.
+  static const Color darkFill = Color(0xFF333438);
+
   // ── 0: Розовая ────────────────────────────────────────────────────────────
   static const pink = AppTheme(
     index: 0,
@@ -698,45 +747,55 @@ abstract final class AppThemes {
     price: 30,
   );
 
-  // ── 20: Монохром Тёмный (Monochrome Dark) ────────────────────────────────
-  // Реверс «Монохрома» (10): графитовые поверхности + светлый текст. Первая
-  // НАСТОЯЩАЯ тёмная тема — задаёт brightness.dark, тёмные cardSurface/bgGradient
-  // и светлые текстовые токены, которые виджеты читают вместо хардкоженных
-  // светлых цветов. heroGradiENT/nav специально приподняты над фоном, текст на
-  // hero и так белый (хардкод) — читаемость сохраняется.
-  static const monochromeDark = AppTheme(
+  // ── 20: Угольная роза (тёплый уголь + пыльная роза) ──────────────────────
+  // Тёмная тема, доведённая «под пару»: тёплые угольные слои с ВИДИМОЙ лестницей
+  // элевации (ΔL*≈8 фон→карточка, а не прежние ~3 — слои больше не сливаются),
+  // пыльно-розовый акцент вместо почти-белого серебра, кремово-белый текст,
+  // чёткие рёбра вместо свечений (useGlow: false). Задаёт brightness.dark и
+  // полный набор тёмных токенов (textPrimary/…/surfaceMuted/divider), которые
+  // виджеты читают вместо хардкоженных светлых цветов. Роза — обычный СРЕДНИЙ
+  // акцент, поэтому (в отличие от серебра нуара) спокойно работает и как ЗАЛИВКА:
+  // fillColor == primary, белый текст поверх читается (паритет с розовой темой).
+  // Будущие тёмные темы (янтарь, лёд) — такие же AppTheme со своим акцентом; для
+  // тем с почти-белым акцентом заливка автоматически падает на графит darkFill.
+  static const warmRoseDark = AppTheme(
     index: 20,
-    name: 'Монохром Тёмный',
-    primary: Color(0xFFD4D4D4), // светло-серый акцент (иконки на тёмном)
-    primaryLight: Color(0xFF2A2A2E), // тёмный «light»-фон чипов/контейнеров
-    bgGradient: [Color(0xFF17181A), Color(0xFF0F1012)], // графит → почти чёрный
-    heroGradient: [Color(0xFF4A4A4E), Color(0xFF242427)], // приподнятый графит
-    heroShadowBase: Color(0x40000000),
-    heroShadowExpanded: Color(0x59000000),
-    heroGlassOpacity: 0.14,
+    name: 'Угольная роза',
+    // Акцент — пыльная роза: активная навигация, «сегодня», заливки, иконки,
+    // кнопка «Я скучаю». Достаточно средняя, чтобы белый текст поверх читался,
+    // и контрастная как иконка на тёмном (≈6.7 на карточке).
+    primary: Color(0xFFDB939F),
+    primaryLight: Color(0xFF2A2423), // тёплый тёмный «light»-фон чипов/контейнеров
+    bgGradient: [Color(0xFF17130F), Color(0xFF0D0B0A)], // тёплый почти-чёрный
+    // Приподнятый тёплый графит, матовый — объём даёт слой+ребро, без свечения.
+    heroGradient: [Color(0xFF2E2826), Color(0xFF1B1615)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
     heroToggleBorder: true,
-    heroToggleSelectedColor: Color(0xFFECECEC),
-    cardSurface: Color(0xFF1E1F22), // поверхность карточки (elevation 1)
-    cardBorder: Color(0xFF2E2F33),
-    iconDraw: Color(0xFFD4D4D4),
-    iconMood: Color(0xFFD4D4D4),
-    iconCalendar: Color(0xFFD4D4D4),
-    iconPost: Color(0xFFD4D4D4),
-    navActiveBg: Color(0xFF2E2F33),
-    navActiveIcon: Color(0xFFECECEC),
-    promptButtonColor: Color(0xFF3A3B3F), // тёмная кнопка → белый текст читаем
-    timerDialBackground: Color(0xFF34353A),
+    heroToggleSelectedColor: Color(0xFFDB939F),
+    cardSurface: Color(0xFF232020), // поверхность карточки, ΔL*≈8 над фоном — видно
+    cardBorder: Color(0xFF3B3534), // чёткое тёплое ребро вместо ореола
+    iconDraw: Color(0xFFDB939F),
+    iconMood: Color(0xFFDB939F),
+    iconCalendar: Color(0xFFDB939F),
+    iconPost: Color(0xFFDB939F),
+    navActiveBg: Color(0xFF302B2A),
+    navActiveIcon: Color(0xFFE6A6AF), // роза чуть светлее для активного состояния
+    promptButtonColor: Color(0xFFDB939F), // «Я скучаю» — роза, белый текст поверх
+    timerDialBackground: Color(0xFF302B2A), // дорожка таймера / фон ячейки «сегодня»
     isPremium: true,
     price: 30,
-    // ── тёмные токены ──
+    // ── тёмные токены (кремово-белый текст, тёплый подтон, muted до нормы AA) ──
     brightness: Brightness.dark,
-    textPrimary: Color(0xFFECECEC),
-    textSecondary: Color(0xFFB4B4B8),
-    textMuted: Color(0xFF7E7F84),
-    // Темнее cardSurface (#1E1F22): фон-scaffold экранов оказывается темнее
-    // карточек (правильная иерархия dark), а поля/чипы на карточке — «утоплены».
-    surfaceMuted: Color(0xFF17181A),
-    divider: Color(0xFF34353A),
+    textPrimary: Color(0xFFF3EFEE),
+    textSecondary: Color(0xFFB2AAA9),
+    textMuted: Color(0xFF958B88), // поднят до AA (≈4.6 на карточке)
+    // Темнее cardSurface (#232020): scaffold-фон экранов темнее карточек
+    // (правильная иерархия dark), а поля/чипы на карточке — «утоплены».
+    surfaceMuted: Color(0xFF100E0D),
+    divider: Color(0xFF3B3534),
+    useGlow: false, // матовый нуар: никаких свечений-ореолов
   );
 
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
@@ -761,7 +820,7 @@ abstract final class AppThemes {
     bordeaux,
     teal,
     nord,
-    monochromeDark, // 20 — первая тёмная тема
+    warmRoseDark, // 20 — тёмная тема (тёплый уголь + пыльная роза)
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
@@ -769,4 +828,18 @@ abstract final class AppThemes {
     if (index >= 0 && index < all.length) return all[index];
     return pink;
   }
+
+  /// Читаемый цвет переднего плана (текст/иконка) ПОВЕРХ акцентного фона
+  /// [background]. Тёмный на светлых поверхностях, белый на тёмных/насыщенных.
+  ///
+  /// Нужен, чтобы паттерн «белый текст на акценте» не исчезал, когда сам акцент
+  /// светлый — это характерно для тёмных тем, где `navActiveIcon`/`primary`
+  /// намеренно почти белые (светлое-на-тёмном). Порог 0.6 подобран так, что все
+  /// средне-тональные акценты 20 светлых тем (макс. яркость ≈0.45) остаются с
+  /// белым текстом — прежний вид не меняется, — а почти-белые акценты тёмных тем
+  /// получают тёмный текст. Работает для любых будущих тем без правок виджетов.
+  static Color onColor(Color background) =>
+      background.computeLuminance() > 0.6
+          ? const Color(0xFF1B1B1D)
+          : Colors.white;
 }

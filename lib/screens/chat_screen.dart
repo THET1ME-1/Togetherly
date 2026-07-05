@@ -1146,7 +1146,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final accent = isMine ? Colors.white : _t.primary;
     final nameColor = isMine ? Colors.white : _t.primary;
     final textColor =
-        isMine ? Colors.white.withOpacity(0.85) : Colors.grey.shade700;
+        isMine ? Colors.white.withOpacity(0.85) : _t.textSecondary;
     // Тап по цитате — переход к оригинальному сообщению (если оно в ленте).
     return GestureDetector(
       onTap: () => _scrollToMessage(msg.replyToId),
@@ -1659,17 +1659,19 @@ class _ChatScreenState extends State<ChatScreen> {
     // контраст по яркости фона (белый на тёмном, тёмный на светлом).
     final Color bg;
     if (msg.deleted) {
-      bg = Colors.grey.shade300;
+      bg = _t.isDark ? _t.surfaceMuted : Colors.grey.shade300;
     } else if (msg.color != null) {
       bg = Color(msg.color!);
     } else if (isMine) {
       bg = _t.primary;
     } else {
-      bg = Color.lerp(_t.primary, Colors.white, 0.62)!;
+      bg = _t.isDark
+          ? _t.cardSurface
+          : Color.lerp(_t.primary, Colors.white, 0.62)!;
     }
     final fg = msg.deleted
-        ? Colors.grey.shade600
-        : (bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white);
+        ? _t.textSecondary
+        : (bg.computeLuminance() > 0.55 ? _t.textPrimary : Colors.white);
     final metaColor = fg.withOpacity(0.65);
 
     // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
@@ -2112,7 +2114,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               color: (_selectedColor ?? _t.primary)
                                           .computeLuminance() >
                                       0.55
-                                  ? Colors.grey.shade900
+                                  ? _t.textPrimary
                                   : Colors.white,
                               expr: _selectedFace!,
                             ),
@@ -2646,15 +2648,18 @@ class _StyleSheetState extends State<_StyleSheet> {
   Color get _color => _hsv.toColor();
   Color get _bg => _useTheme ? widget.theme.primary : _color;
   Color get _fg =>
-      _bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white;
+      _bg.computeLuminance() > 0.55 ? widget.theme.textPrimary : Colors.white;
 
   Widget _thumb() => Container(
         width: 14,
         height: 14,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.black26),
+          border: Border.all(
+              color: widget.theme.isDark
+                  ? widget.theme.cardBorder
+                  : Colors.black26),
           boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3)],
         ),
       );

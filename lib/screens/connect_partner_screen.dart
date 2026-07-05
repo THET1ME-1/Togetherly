@@ -228,13 +228,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             width: isActive ? 2 : 1,
           ),
           boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: primary.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
+              ? widget.theme.accentGlow(
+                  primary,
+                  opacity: 0.2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
               : null,
         ),
         child: Center(
@@ -277,13 +276,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             width: isActive ? 2 : 1,
           ),
           boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: primary.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
+              ? widget.theme.accentGlow(
+                  primary,
+                  opacity: 0.1,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
               : null,
         ),
         child: Row(
@@ -380,13 +378,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.25),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: widget.theme.accentGlow(
+                primary,
+                opacity: 0.25,
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ),
             child: Column(
               children: [
@@ -439,7 +436,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: widget.theme.isDark
+                        ? widget.theme.cardSurface
+                        : Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -495,7 +494,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -692,13 +691,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.25),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: widget.theme.accentGlow(
+                primary,
+                opacity: 0.25,
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ),
             child: Column(
               children: [
@@ -713,7 +711,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
+                          color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -754,7 +752,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -1044,7 +1042,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(
+          color: widget.theme.isDark ? widget.theme.cardBorder : Colors.white,
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4),
         ],
@@ -1399,9 +1400,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xC7FFFFFF),
+        color: widget.theme.isDark
+            ? widget.theme.cardSurface
+            : const Color(0xC7FFFFFF),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x99FFFFFF)),
+        border: Border.all(
+          color: widget.theme.isDark
+              ? widget.theme.cardBorder
+              : const Color(0x99FFFFFF),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -1620,13 +1627,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.25),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          boxShadow: widget.theme.accentGlow(
+            primary,
+            opacity: 0.25,
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
         ),
         child: Row(
           children: [

@@ -138,6 +138,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   // ── HEADER ───────────────────────────────────────────────────────────────────
   Widget _buildHeader(Memory memory, Color p) {
+    final theme = context.appTheme;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -155,7 +156,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
+                color: theme.isDark
+                    ? theme.cardSurface
+                    : Colors.white.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -170,7 +173,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.7),
+                    color: theme.isDark
+                        ? theme.cardBorder
+                        : Colors.white.withOpacity(0.7),
                     width: 2,
                   ),
                   boxShadow: [
@@ -220,10 +225,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+                  color: theme.isDark
+                      ? theme.cardSurface
+                      : Colors.white.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.35),
+                    color: theme.isDark
+                        ? theme.cardBorder
+                        : Colors.white.withOpacity(0.35),
                     width: 1,
                   ),
                 ),
@@ -256,10 +265,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.22),
+                    color: theme.isDark
+                        ? theme.cardSurface
+                        : Colors.white.withOpacity(0.22),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.35),
+                      color: theme.isDark
+                          ? theme.cardBorder
+                          : Colors.white.withOpacity(0.35),
                       width: 1,
                     ),
                   ),
@@ -525,7 +538,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               fit: BoxFit.cover,
             )
           else
-            Container(height: 220, color: Colors.grey.shade900),
+            Container(
+                height: 220,
+                color: context.appTheme.isDark
+                    ? context.appTheme.surfaceMuted
+                    : Colors.grey.shade900),
           Container(
             height: 220,
             decoration: BoxDecoration(
@@ -859,13 +876,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     colors: [p, p.withOpacity(0.75)],
                   ),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: p.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  boxShadow: context.appTheme.accentGlow(
+                    p,
+                    opacity: 0.3,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ),
                 child: const Icon(
                   Icons.location_on_rounded,

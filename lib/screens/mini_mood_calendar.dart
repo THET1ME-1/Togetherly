@@ -209,29 +209,30 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: widget.theme.navActiveIcon,
+                        color: widget.theme.fillColor,
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.theme.navActiveIcon.withOpacity(0.30),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
+                        boxShadow: widget.theme.accentGlow(
+                          widget.theme.navActiveIcon,
+                          opacity: 0.30,
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.today_rounded,
-                            color: Colors.white,
+                            color: AppThemes.onColor(widget.theme.fillColor),
                             size: 14,
                           ),
                           const SizedBox(width: 5),
                           Text(
                             LocaleService.current.todayLabel,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppThemes.onColor(
+                                widget.theme.fillColor,
+                              ),
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -484,12 +485,22 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
     final MoodEntry? current = entries.isNotEmpty ? entries[safeIndex] : null;
     final dayName = MiniMoodCalendar._dayNames[widget.date.weekday - 1];
 
+    // Фон невыбранной пилюли: на светлых темах — прежнее полупрозрачное «стекло»
+    // (белый овал), на тёмной — приподнятая графитовая поверхность, чтобы
+    // пилюля не была светлым пятном на тёмном фоне.
     final Color cardBg = isToday
         ? widget.theme.timerDialBackground
-        : Colors.white.withOpacity(0.75);
+        : (widget.theme.isDark
+            ? widget.theme.cardSurface
+            : Colors.white.withOpacity(0.75));
 
     final Color baseTextColor = widget.theme.navActiveIcon.withOpacity(0.8);
     final Color baseNumColor = widget.theme.navActiveIcon;
+
+    // Текст поверх заливки «сегодня» (слой 2). Фон этого слоя = navActiveIcon,
+    // поэтому цвет берём контрастным именно к нему: на тёмной теме заливка
+    // светлая → текст тёмный, на светлых темах → белый (как было).
+    final Color fillTextColor = AppThemes.onColor(widget.theme.fillColor);
 
     return GestureDetector(
       onTap: isFuture || widget.onTap == null ? null : () => widget.onTap!(widget.date),
@@ -503,14 +514,13 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
             color: cardBg,
             borderRadius: BorderRadius.circular(100),
             boxShadow: isToday
-                ? [
-                    BoxShadow(
-                      color: widget.theme.navActiveIcon.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
+                ? widget.theme.accentGlow(
+                    widget.theme.navActiveIcon,
+                    opacity: 0.3,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                : const [],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -524,7 +534,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: widget.theme.navActiveIcon,
+                      color: widget.theme.fillColor,
                       borderRadius: BorderRadius.circular(100),
                     ),
                   ),
@@ -600,7 +610,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w900,
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: fillTextColor.withOpacity(0.9),
                                   letterSpacing: 0.6,
                                 ),
                               ),
@@ -612,7 +622,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
-                                  color: Colors.white,
+                                  color: fillTextColor,
                                   height: 1.1,
                                 ),
                               ),

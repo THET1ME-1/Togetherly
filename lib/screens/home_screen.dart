@@ -1337,13 +1337,12 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: _t.cardSurface,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: t.primary.withOpacity(0.25),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: t.accentGlow(
+              t.primary,
+              opacity: 0.25,
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
             border: Border.all(color: t.primary.withOpacity(0.15), width: 1),
           ),
           child: Row(
@@ -2690,13 +2689,12 @@ class _MascotButtonState extends State<_MascotButton>
               width: hasStreak ? 1.5 : 1.0,
             ),
             boxShadow: hasStreak
-                ? [
-                    BoxShadow(
-                      color: t.primary.withValues(alpha: 0.1),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
+                ? t.accentGlow(
+                    t.primary,
+                    opacity: 0.1,
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  )
                 : [],
           ),
           child: Row(

@@ -649,13 +649,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       decoration: BoxDecoration(
                         color: primary,
                         borderRadius: BorderRadius.circular(50),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primary.withOpacity(0.35),
-                            blurRadius: 20,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                        boxShadow: widget.theme.accentGlow(
+                          primary,
+                          opacity: 0.35,
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1449,7 +1448,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Медиа-ячейка для видео без обложки (тёмный фон + play), в стиле коллажа.
   Widget _videoOnlyCell(Memory memory) {
     Widget cell = Container(
-      color: Colors.grey.shade900,
+      color: widget.theme.isDark
+          ? widget.theme.surfaceMuted
+          : Colors.grey.shade900,
       child: const Center(
         child: Icon(Icons.play_circle_fill_rounded,
             color: Colors.white, size: 48),
@@ -2826,13 +2827,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 fit: BoxFit.cover,
                                 errorWidget: (context, url, error) => Container(
                                   height: 220,
-                                  color: Colors.grey.shade900,
+                                  color: widget.theme.isDark
+                                      ? widget.theme.surfaceMuted
+                                      : Colors.grey.shade900,
                                 ),
                               )
                             else
                               Container(
                                 height: 220,
-                                color: Colors.grey.shade900,
+                                color: widget.theme.isDark
+                                    ? widget.theme.surfaceMuted
+                                    : Colors.grey.shade900,
                               ),
                             Container(
                               height: 220,
@@ -2877,9 +2882,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0FAF4),
+                          color: widget.theme.isDark
+                              ? widget.theme.surfaceMuted
+                              : const Color(0xFFF0FAF4),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFD1F0DE)),
+                          border: Border.all(
+                              color: widget.theme.isDark
+                                  ? widget.theme.cardBorder
+                                  : const Color(0xFFD1F0DE)),
                         ),
                         child: Column(
                           children: [
@@ -2913,7 +2923,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         style: TextStyle(
                                           fontSize: 17,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.grey.shade900,
+                                          color: widget.theme.textPrimary,
                                         ),
                                       ),
                                       if (memory.latitude != null)
@@ -2921,7 +2931,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                           '${memory.latitude!.toStringAsFixed(5)}, ${memory.longitude?.toStringAsFixed(5) ?? ""}',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: Colors.grey.shade500,
+                                            color: widget.theme.textMuted,
                                           ),
                                         ),
                                     ],
@@ -2974,15 +2984,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBEB),
+                          color: widget.theme.isDark
+                              ? widget.theme.surfaceMuted
+                              : const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFFEF3C7)),
+                          border: Border.all(
+                              color: widget.theme.isDark
+                                  ? widget.theme.cardBorder
+                                  : const Color(0xFFFEF3C7)),
                         ),
                         child: Text(
                           memory.caption ?? '',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Colors.grey.shade800,
+                            color: widget.theme.textPrimary,
                             height: 1.6,
                           ),
                         ),
@@ -5635,7 +5650,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         clipBehavior: Clip.hardEdge,
                         decoration: BoxDecoration(
                           color: selectedMedia != null
-                              ? Colors.grey.shade900
+                              ? (widget.theme.isDark
+                                  ? widget.theme.surfaceMuted
+                                  : Colors.grey.shade900)
                               : widget.theme.surfaceMuted,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: widget.theme.divider),

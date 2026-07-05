@@ -144,7 +144,7 @@ class HomeBottomNav extends StatelessWidget {
               tag: 'home_side_action_button',
               child: _CreatePinButton(
                 buttonKey: sideButtonKey,
-                color: primary,
+                color: theme.fillColor,
                 isArrow: sideIsArrow,
                 onTap: onCreatePin!,
                 onLongPress: onSideLongPress,
