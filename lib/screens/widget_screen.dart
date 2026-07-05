@@ -1262,7 +1262,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             style: GoogleFonts.rubik(
               fontSize: 24,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: _t.textPrimary,
             ),
           ),
           const Spacer(),
@@ -1331,7 +1331,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               Icon(
                 Icons.phone_android_rounded,
                 size: 14,
-                color: Colors.grey.shade500,
+                color: _t.textMuted,
               ),
               const SizedBox(width: 6),
               Text(
@@ -1339,7 +1339,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 style: GoogleFonts.rubik(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
+                  color: _t.textMuted,
                 ),
               ),
             ],
@@ -1535,7 +1535,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               Icon(
                 Icons.dashboard_customize_rounded,
                 size: 16,
-                color: Colors.grey.shade500,
+                color: _t.textMuted,
               ),
               const SizedBox(width: 6),
               Text(
@@ -1543,7 +1543,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade600,
+                  color: _t.textSecondary,
                 ),
               ),
             ],
@@ -1776,14 +1776,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                         style: GoogleFonts.rubik(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
+                          color: _t.textPrimary,
                         ),
                       ),
                       Text(
                         subtitle,
                         style: GoogleFonts.rubik(
                           fontSize: 11,
-                          color: Colors.grey.shade500,
+                          color: _t.textMuted,
                         ),
                       ),
                     ],
@@ -1795,7 +1795,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     duration: const Duration(milliseconds: 250),
                     child: Icon(
                       Icons.keyboard_arrow_down_rounded,
-                      color: Colors.grey.shade400,
+                      color: _t.textMuted,
                       size: 24,
                     ),
                   ),
@@ -1840,7 +1840,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 20),
-                      Divider(color: Colors.grey.shade200, height: 1),
+                      Divider(color: _t.divider, height: 1),
                       const SizedBox(height: 16),
                       expandedContent,
                     ],
@@ -2110,7 +2110,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
+                    color: _t.textPrimary,
                   ),
                 ),
               ),
@@ -2121,7 +2121,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             LocaleService.current.daysPhotosDescription,
             style: GoogleFonts.rubik(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: _t.textSecondary,
             ),
           ),
           const SizedBox(height: 14),
@@ -2153,7 +2153,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
+                  color: _t.textPrimary,
                 ),
               ),
             ),
@@ -2236,16 +2236,16 @@ class _WidgetScreenState extends State<WidgetScreen>
         ),
         child: Column(
           children: [
-            Icon(Icons.timer_off_rounded, size: 36, color: Colors.grey.shade400),
+            Icon(Icons.timer_off_rounded, size: 36, color: _t.textMuted),
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
-              style: GoogleFonts.rubik(fontSize: 13, color: Colors.grey.shade500),
+              style: GoogleFonts.rubik(fontSize: 13, color: _t.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
               LocaleService.current.addTimerHint,
-              style: GoogleFonts.rubik(fontSize: 11, color: Colors.grey.shade400),
+              style: GoogleFonts.rubik(fontSize: 11, color: _t.textMuted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -2402,14 +2402,14 @@ class _WidgetScreenState extends State<WidgetScreen>
             Icon(
               Icons.timer_off_rounded,
               size: 36,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
             ),
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
               style: GoogleFonts.rubik(
                 fontSize: 13,
-                color: Colors.grey.shade500,
+                color: _t.textMuted,
               ),
             ),
           ],
@@ -2444,7 +2444,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           LocaleService.current.noTimersAddHint,
-          style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade500),
+          style: GoogleFonts.rubik(fontSize: 12, color: _t.textMuted),
         ),
       );
     }
@@ -2459,7 +2459,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           style: GoogleFonts.rubik(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Colors.grey.shade600,
+            color: _t.textSecondary,
           ),
         ),
         const SizedBox(height: 10),
@@ -2474,11 +2474,11 @@ class _WidgetScreenState extends State<WidgetScreen>
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF8B5CF6).withOpacity(0.1)
-                    : Colors.grey.shade50,
+                    : _t.surfaceMuted,
                 border: Border.all(
                   color: isSelected
                       ? const Color(0xFF8B5CF6)
-                      : Colors.grey.shade200,
+                      : _t.divider,
                   width: isSelected ? 1.5 : 1,
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -2508,7 +2508,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                           '${timer.isCountdown ? LocaleService.current.daysShortLeft : LocaleService.current.daysShortElapsed} • ${timer.formattedStartDate}',
                           style: GoogleFonts.rubik(
                             fontSize: 11,
-                            color: Colors.grey.shade500,
+                            color: _t.textMuted,
                           ),
                         ),
                       ],
@@ -2563,7 +2563,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       : LocaleService.current.personalPhotosHelpShort,
                   style: GoogleFonts.rubik(
                     fontSize: 11,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                     height: 1.35,
                   ),
                 ),
@@ -2599,7 +2599,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         s.saveToMemoryLane,
                         style: GoogleFonts.rubik(
                           fontSize: 12,
-                          color: Colors.grey.shade800,
+                          color: _t.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -2608,7 +2608,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         LocaleService.current.uploadedPhotosToMemoryLane,
                         style: GoogleFonts.rubik(
                           fontSize: 11,
-                          color: Colors.grey.shade500,
+                          color: _t.textMuted,
                         ),
                       ),
                     ],
@@ -2660,7 +2660,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                           .partnerNotSharedHelp(partnerName),
                   style: GoogleFonts.rubik(
                     fontSize: 11,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                     height: 1.35,
                   ),
                 ),
@@ -2746,7 +2746,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               style: GoogleFonts.rubik(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
+                color: _t.textSecondary,
               ),
             ),
             const SizedBox(height: 6),
@@ -2754,7 +2754,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               s.addedWidgetsWillAppearHere,
               style: GoogleFonts.rubik(
                 fontSize: 12,
-                color: Colors.grey.shade500,
+                color: _t.textMuted,
               ),
             ),
           ],
@@ -2806,10 +2806,10 @@ class _WidgetScreenState extends State<WidgetScreen>
             decoration: BoxDecoration(
               color: isSelected
                   ? _t.primary.withOpacity(0.08)
-                  : Colors.grey.shade50,
+                  : _t.surfaceMuted,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isSelected ? _t.primary : Colors.grey.shade200,
+                color: isSelected ? _t.primary : _t.divider,
                 width: isSelected ? 1.5 : 1,
               ),
             ),
@@ -2823,12 +2823,12 @@ class _WidgetScreenState extends State<WidgetScreen>
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: _t.surfaceMuted,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: isSelected
                                 ? _t.primary.withOpacity(0.35)
-                                : Colors.grey.shade200,
+                                : _t.divider,
                             width: isSelected ? 1.5 : 1,
                           ),
                         ),
@@ -2842,7 +2842,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                                       memCacheHeight: 160,
                                       errorWidget: (_, __, ___) => Icon(
                                         Icons.photo_camera_back_rounded,
-                                        color: Colors.grey.shade400,
+                                        color: _t.textMuted,
                                         size: 20,
                                       ),
                                     )
@@ -2854,7 +2854,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                                 isPartner
                                     ? Icons.favorite_rounded
                                     : Icons.photo_camera_back_rounded,
-                                color: Colors.grey.shade400,
+                                color: _t.textMuted,
                                 size: 20,
                               ),
                       ),
@@ -2921,7 +2921,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                                 fontWeight: FontWeight.w700,
                                 color: isSelected
                                     ? _t.primary
-                                    : Colors.grey.shade800,
+                                    : _t.textPrimary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2936,7 +2936,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                               size: 16,
                               color: isSelected
                                   ? _t.primary
-                                  : Colors.grey.shade500,
+                                  : _t.textMuted,
                             ),
                           ),
                         ],
@@ -2946,7 +2946,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         summary,
                         style: GoogleFonts.rubik(
                           fontSize: 11,
-                          color: Colors.grey.shade500,
+                          color: _t.textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -3010,7 +3010,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: _t.divider,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -3034,7 +3034,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         : LocaleService.current.partnerNotSharedYet,
                     style: GoogleFonts.rubik(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: _t.textSecondary,
                     ),
                   ),
                   if (canRotate) ...[
@@ -3076,7 +3076,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: _t.surfaceMuted,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: DropdownButtonHideUnderline(
@@ -3175,7 +3175,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         decoration: BoxDecoration(
           color: isSelected ? _t.primary.withOpacity(0.1) : Colors.transparent,
           border: Border.all(
-            color: isSelected ? _t.primary : Colors.grey.shade300,
+            color: isSelected ? _t.primary : _t.divider,
             width: isSelected ? 1.5 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -3185,7 +3185,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? _t.primary : Colors.grey.shade400,
+              color: isSelected ? _t.primary : _t.textMuted,
               size: 18,
             ),
             const SizedBox(width: 8),
@@ -3195,7 +3195,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 style: GoogleFonts.rubik(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? _t.primary : Colors.grey.shade700,
+                  color: isSelected ? _t.primary : _t.textSecondary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -3261,14 +3261,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                       style: GoogleFonts.rubik(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                        color: _t.textPrimary,
                       ),
                     ),
                     Text(
                       s.lockScreenMoodSubtitle,
                       style: GoogleFonts.rubik(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: _t.textMuted,
                       ),
                     ),
                   ],
@@ -3322,9 +3322,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.grey.shade200.withOpacity(0),
-                          Colors.grey.shade300,
-                          Colors.grey.shade200.withOpacity(0),
+                          _t.divider.withOpacity(0),
+                          _t.divider,
+                          _t.divider.withOpacity(0),
                         ],
                       ),
                     ),
@@ -3349,7 +3349,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               s.lockScreenMoodToggleSub,
               style: GoogleFonts.rubik(
                 fontSize: 11,
-                color: Colors.grey.shade400,
+                color: _t.textMuted,
               ),
               textAlign: TextAlign.center,
             ),
@@ -3359,7 +3359,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               s.lockScreenMoodSetHint,
               style: GoogleFonts.rubik(
                 fontSize: 11,
-                color: Colors.grey.shade400,
+                color: _t.textMuted,
               ),
               textAlign: TextAlign.center,
             ),
@@ -3385,7 +3385,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           style: GoogleFonts.rubik(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: Colors.grey.shade500,
+            color: _t.textMuted,
             letterSpacing: 0.3,
           ),
           maxLines: 1,
@@ -3417,7 +3417,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 4),
           Text(
             noMoodLabel,
-            style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade400),
+            style: GoogleFonts.rubik(fontSize: 12, color: _t.textMuted),
           ),
         ],
       ],
@@ -3546,8 +3546,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: _t.cardSurface,
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 16),
@@ -3558,7 +3558,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: _t.textPrimary,
             ),
           ),
           Text(
@@ -3566,7 +3566,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             style: GoogleFonts.rubik(
               fontSize: 9,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade500,
+              color: _t.textMuted,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -3631,14 +3631,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                     style: GoogleFonts.rubik(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   Text(
                     _s.tapToEdit,
                     style: GoogleFonts.rubik(
                       fontSize: 11,
-                      color: Colors.grey.shade500,
+                      color: _t.textMuted,
                     ),
                   ),
                 ],
@@ -3717,7 +3717,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
+                                color: _t.surfaceMuted,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Center(
@@ -3737,13 +3737,13 @@ class _WidgetScreenState extends State<WidgetScreen>
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
+                          color: _t.surfaceMuted,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.broken_image_rounded,
                           size: 18,
-                          color: Colors.grey,
+                          color: _t.textMuted,
                         ),
                       ),
                     ),
@@ -3789,7 +3789,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: _t.surfaceMuted,
                   shape: BoxShape.circle,
                 ),
                 // pb://-аватар partner'а теперь protected → только через
@@ -3804,14 +3804,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Icon(
                             Icons.person_rounded,
-                            color: Colors.grey.shade500,
+                            color: _t.textMuted,
                             size: 22,
                           ),
                         ),
                       )
                     : Icon(
                         Icons.person_rounded,
-                        color: Colors.grey.shade500,
+                        color: _t.textMuted,
                         size: 22,
                       ),
               ),
@@ -3824,14 +3824,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                     style: GoogleFonts.rubik(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   Text(
                     partner.isEmpty ? _s.emptyYet : _s.updated,
                     style: GoogleFonts.rubik(
                       fontSize: 11,
-                      color: Colors.grey.shade500,
+                      color: _t.textMuted,
                     ),
                   ),
                 ],
@@ -3919,7 +3919,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
+                                color: _t.surfaceMuted,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Center(
@@ -3939,13 +3939,13 @@ class _WidgetScreenState extends State<WidgetScreen>
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
+                          color: _t.surfaceMuted,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.broken_image_rounded,
                           size: 18,
-                          color: Colors.grey,
+                          color: _t.textMuted,
                         ),
                       ),
                     ),
@@ -3978,14 +3978,14 @@ class _WidgetScreenState extends State<WidgetScreen>
           padding: const EdgeInsets.only(left: 4, bottom: 10),
           child: Row(
             children: [
-              Icon(Icons.tune_rounded, size: 16, color: Colors.grey.shade500),
+              Icon(Icons.tune_rounded, size: 16, color: _t.textMuted),
               const SizedBox(width: 6),
               Text(
                 _s.widgetSettings,
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade600,
+                  color: _t.textSecondary,
                 ),
               ),
             ],
@@ -4079,7 +4079,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     style: GoogleFonts.rubik(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
+                      color: _t.textMuted,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -4090,7 +4090,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       style: GoogleFonts.rubik(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: valueColor ?? Colors.grey.shade800,
+                        color: valueColor ?? _t.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -4103,7 +4103,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       style: GoogleFonts.rubik(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade400,
+                        color: _t.textMuted,
                         height: 1.25,
                       ),
                     ),
@@ -4119,13 +4119,13 @@ class _WidgetScreenState extends State<WidgetScreen>
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: _t.surfaceMuted,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.close_rounded,
                     size: 14,
-                    color: Colors.grey.shade400,
+                    color: _t.textMuted,
                   ),
                 ),
               ),
@@ -4197,7 +4197,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   style: GoogleFonts.rubik(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -4208,7 +4208,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     style: GoogleFonts.rubik(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: valueColor ?? Colors.grey.shade800,
+                      color: valueColor ?? _t.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -4221,7 +4221,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           if (!hasValue)
             Text(
               '—',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade300),
+              style: TextStyle(fontSize: 14, color: _t.textMuted),
             ),
         ],
       ),
@@ -4259,14 +4259,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                   style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: _t.textPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: GoogleFonts.rubik(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                   ),
                 ),
               ],
@@ -4425,7 +4425,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     style: GoogleFonts.rubik(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: selected ? _t.primary : Colors.grey.shade500,
+                      color: selected ? _t.primary : _t.textMuted,
                     ),
                   ),
                 ),
@@ -4769,10 +4769,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   Widget _slotDivider() =>
-      Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
+      Divider(color: _t.divider, height: 1, thickness: 1);
 
   Widget _settingDivider() =>
-      Divider(color: Colors.grey.shade100, height: 8, thickness: 1);
+      Divider(color: _t.divider, height: 8, thickness: 1);
 
   // ════════════════════════════════════════════════════════════════════════════
   // NOT PAIRED PLACEHOLDER
@@ -4783,7 +4783,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.82),
+        color: _t.cardSurface.withOpacity(0.82),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _t.primary.withOpacity(0.12)),
       ),
@@ -4809,7 +4809,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             style: GoogleFonts.rubik(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
+              color: _t.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -4818,7 +4818,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             textAlign: TextAlign.center,
             style: GoogleFonts.rubik(
               fontSize: 13,
-              color: Colors.grey.shade500,
+              color: _t.textMuted,
               height: 1.5,
             ),
           ),
@@ -4978,7 +4978,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           child: Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _t.cardSurface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -5039,7 +5039,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               _s.cancel,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: _t.textSecondary),
             ),
           ),
           TextButton(
@@ -5193,8 +5193,8 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: widget.theme.cardSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -5205,7 +5205,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -5215,7 +5215,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               style: GoogleFonts.rubik(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: widget.theme.textPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -5227,9 +5227,9 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               style: GoogleFonts.rubik(fontSize: 16),
               decoration: InputDecoration(
                 hintText: widget.hint,
-                hintStyle: GoogleFonts.rubik(color: Colors.grey.shade400),
+                hintStyle: GoogleFonts.rubik(color: widget.theme.textMuted),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: widget.theme.surfaceMuted,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -5289,8 +5289,8 @@ class _PhotoSourceSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: theme.cardSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
@@ -5301,7 +5301,7 @@ class _PhotoSourceSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: theme.divider,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -5311,7 +5311,7 @@ class _PhotoSourceSheet extends StatelessWidget {
             style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: theme.textPrimary,
             ),
           ),
           const SizedBox(height: 20),
@@ -5426,8 +5426,8 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
         !_toPairWidget && !_toPartnerWidget && !_toMemories;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: _t.cardSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
@@ -5440,7 +5440,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: _t.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -5451,7 +5451,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
             style: GoogleFonts.rubik(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: _t.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -5493,7 +5493,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _t.primary,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade300,
+                disabledBackgroundColor: _t.surfaceMuted,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -5543,7 +5543,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
                   style: GoogleFonts.rubik(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade900,
+                    color: _t.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -5551,7 +5551,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
                   subtitle,
                   style: GoogleFonts.rubik(
                     fontSize: 11.5,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                     height: 1.25,
                   ),
                 ),
@@ -5737,8 +5737,8 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: widget.theme.cardSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -5749,7 +5749,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -5763,7 +5763,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                     style: GoogleFonts.rubik(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: widget.theme.textPrimary,
                     ),
                   ),
                 ),
@@ -5790,9 +5790,9 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: widget.theme.surfaceMuted,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: widget.theme.divider),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -5817,7 +5817,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                         style: GoogleFonts.rubik(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade800,
+                          color: widget.theme.textPrimary,
                         ),
                       ),
                     ],
@@ -5833,7 +5833,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                     decoration: InputDecoration(
                       hintText: LocaleService.current.pasteLinkFromService,
                       hintStyle: GoogleFonts.rubik(
-                        color: Colors.grey.shade400,
+                        color: widget.theme.textMuted,
                       ),
                       prefixIcon: Icon(
                         Icons.link_rounded,
@@ -5861,7 +5861,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                               onPressed: _triggerFetch,
                             ),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: widget.theme.cardSurface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: BorderSide.none,
@@ -5953,7 +5953,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                         style: GoogleFonts.rubik(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade800,
+                          color: widget.theme.textPrimary,
                         ),
                       ),
                     ],
@@ -6292,7 +6292,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
           constraints: const BoxConstraints(maxWidth: 340),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: widget.theme.cardSurface,
             borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
@@ -6317,7 +6317,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                 style: GoogleFonts.rubik(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -6325,7 +6325,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                 'Paste a link from any supported service',
                 style: GoogleFonts.rubik(
                   fontSize: 12,
-                  color: Colors.grey.shade500,
+                  color: widget.theme.textMuted,
                 ),
               ),
               const SizedBox(height: 18),
@@ -6358,7 +6358,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                             style: GoogleFonts.rubik(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
+                              color: widget.theme.textPrimary,
                             ),
                           ),
                         ),
@@ -6406,10 +6406,10 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
       style: GoogleFonts.rubik(fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.rubik(color: Colors.grey.shade400),
+        hintStyle: GoogleFonts.rubik(color: widget.theme.textMuted),
         prefixIcon: Icon(icon, color: widget.theme.primary, size: 20),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,

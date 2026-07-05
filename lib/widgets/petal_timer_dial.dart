@@ -454,7 +454,7 @@ class _PetalDialPainter extends CustomPainter {
     if (totalPresence < 5.9) {
       final restoreAlpha = (6.0 - totalPresence).clamp(0.0, 1.0);
       final restorePaint = Paint()
-        ..color = theme.navActiveIcon.withValues(alpha: 0.3 * restoreAlpha)
+        ..color = theme.fillColor.withValues(alpha: 0.3 * restoreAlpha)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset.zero, innerR * 0.8, restorePaint);
 
@@ -530,7 +530,7 @@ class _PetalDialPainter extends CustomPainter {
         );
 
         // Цвет заполнения с учетом прозрачности при анимации
-        final fgColor = theme.navActiveIcon.withValues(alpha: petalAlpha);
+        final fgColor = theme.fillColor.withValues(alpha: petalAlpha);
 
         final fgPaintFill = Paint()
           ..color = fgColor

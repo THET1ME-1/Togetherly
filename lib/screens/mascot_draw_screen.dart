@@ -13,6 +13,7 @@ import '../utils/safe_pick.dart';
 import '../models/draw_stroke.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 
 // ── Palette (32 colours) ─────────────────────────────────────────────────────
 
@@ -929,9 +930,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F0F5),
+      backgroundColor: _t.surfaceMuted,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _t.cardSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -958,7 +959,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               child: Text(
                 LocaleService.current.save,
                 style: TextStyle(
-                  color: widget.isGalleryFull ? Colors.grey : _t.primary,
+                  color: widget.isGalleryFull ? _t.textMuted : _t.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1148,11 +1149,11 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
   Widget _buildToolbar() {
     final bottom = MediaQuery.of(context).padding.bottom;
     return Container(
-      color: Colors.white,
+      color: _t.cardSurface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(height: 1, color: Colors.grey.shade100),
+          Container(height: 1, color: _t.divider),
 
           // ── Row 1: Tools ────────────────────────────────────────────────
           SingleChildScrollView(
@@ -1185,7 +1186,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                   icon: Icons.auto_fix_normal,
                   label: LocaleService.current.toolEraser,
                   active: _tool == _Tool.eraser,
-                  color: Colors.grey.shade600,
+                  color: _t.textSecondary,
                   onTap: () => _selectTool(_Tool.eraser),
                 ),
                 _ToolBtn(
@@ -1199,7 +1200,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                 Container(
                   height: 32,
                   width: 1,
-                  color: Colors.grey.shade200,
+                  color: _t.divider,
                   margin: const EdgeInsets.symmetric(horizontal: 6),
                 ),
 
@@ -1236,7 +1237,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                   Container(
                     height: 32,
                     width: 1,
-                    color: Colors.grey.shade200,
+                    color: _t.divider,
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                   ),
                   _ToolBtn(
@@ -1288,7 +1289,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                                     (_opacity * 255).round().clamp(0, 255),
                                   ),
                             border: Border.all(
-                              color: Colors.grey.shade300,
+                              color: _t.divider,
                               width: 1,
                             ),
                           ),
@@ -1310,7 +1311,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                   width: 30,
                   child: Text(
                     '${_strokeWidth.round()}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11, color: _t.textMuted),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1320,9 +1321,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     width: 1,
                     height: 20,
                     margin: const EdgeInsets.symmetric(horizontal: 4),
-                    color: Colors.grey.shade200,
+                    color: _t.divider,
                   ),
-                  Icon(Icons.opacity, size: 16, color: Colors.grey.shade400),
+                  Icon(Icons.opacity, size: 16, color: _t.textMuted),
                   Expanded(
                     child: _thinSlider(
                       value: _opacity,
@@ -1335,7 +1336,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     width: 34,
                     child: Text(
                       '${(_opacity * 100).round()}%',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 11, color: _t.textMuted),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -1362,7 +1363,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     width: 1,
                     height: 28,
                     margin: const EdgeInsets.symmetric(horizontal: 4),
-                    color: Colors.grey.shade200,
+                    color: _t.divider,
                   ),
                 ],
 
@@ -1383,7 +1384,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.grey.shade300,
+                        color: _t.divider,
                         width: 1.5,
                       ),
                       gradient: const SweepGradient(
@@ -1479,7 +1480,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               _isTransformed
                   ? LocaleService.current.drawHintEdit
                   : LocaleService.current.drawHintDraw,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade300),
+              style: TextStyle(fontSize: 10, color: _t.textMuted),
             ),
           ),
         ],
@@ -1497,7 +1498,7 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     return SliderTheme(
       data: SliderTheme.of(context).copyWith(
         activeTrackColor: _t.primary.withAlpha(160),
-        inactiveTrackColor: Colors.grey.shade200,
+        inactiveTrackColor: _t.divider,
         thumbColor: _t.primary,
         overlayColor: _t.primary.withAlpha(25),
         trackHeight: 3,
@@ -1528,6 +1529,7 @@ class _ToolBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    final t = context.appTheme;
     return GestureDetector(
       onTap: enabled
           ? () {
@@ -1543,7 +1545,7 @@ class _ToolBtn extends StatelessWidget {
           color: active ? color.withAlpha(28) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: active ? color : Colors.grey.shade200,
+            color: active ? color : t.divider,
             width: active ? 1.5 : 1,
           ),
         ),
@@ -1551,10 +1553,10 @@ class _ToolBtn extends StatelessWidget {
           icon,
           size: 22,
           color: !enabled
-              ? Colors.grey.shade300
+              ? t.textMuted
               : active
               ? color
-              : Colors.grey.shade600,
+              : t.textSecondary,
         ),
       ),
     );
@@ -1582,15 +1584,16 @@ class _ActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     final Color ic;
     if (!enabled)
-      ic = Colors.grey.shade300;
+      ic = t.textMuted;
     else if (danger)
       ic = Colors.red.shade400;
     else if (highlight)
       ic = Colors.blue.shade400;
     else
-      ic = Colors.grey.shade600;
+      ic = t.textSecondary;
 
     return GestureDetector(
       onTap: enabled ? onTap : null,
@@ -1978,6 +1981,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final color = _hsv.toColor();
+    final t = context.appTheme;
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
@@ -1994,7 +1998,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: t.divider),
             ),
           ),
           const SizedBox(height: 16),
@@ -2078,13 +2082,14 @@ class _HsvSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Row(
       children: [
         SizedBox(
           width: 64,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: t.textMuted),
           ),
         ),
         Expanded(

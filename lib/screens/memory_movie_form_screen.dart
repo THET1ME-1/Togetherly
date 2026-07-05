@@ -218,7 +218,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       appBar: _buildAppBar(s),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -270,20 +270,20 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
 
   PreferredSizeWidget _buildAppBar(AppStrings s) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
+        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         s.movies,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: widget.theme.textPrimary,
         ),
       ),
       centerTitle: true,
@@ -328,7 +328,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
           colors: [
             accent.withValues(alpha: 0.12),
             accent.withValues(alpha: 0.02),
-            Colors.white,
+            widget.theme.cardSurface,
           ],
         ),
       ),
@@ -360,7 +360,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
                 height: 1.15,
-                color: hasMovie ? Colors.grey.shade900 : Colors.grey.shade300,
+                color: hasMovie ? widget.theme.textPrimary : widget.theme.textMuted,
               ),
             ),
           ),
@@ -381,7 +381,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
             Text(
               s.searchMoviesPrompt,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
             ),
           if (hasMovie && (_year != null || _genres != null)) ...[
             const SizedBox(height: 10),
@@ -447,9 +447,9 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,7 +471,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
               ),
@@ -503,7 +503,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
             onSubmitted: (v) => _search(v.trim()),
             decoration: InputDecoration(
               hintText: s.movieSearchHint,
-              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              hintStyle: TextStyle(color: widget.theme.textMuted, fontSize: 13),
               prefixIcon: Icon(Icons.search_rounded, color: _primary, size: 20),
               suffixIcon: _isSearching
                   ? const Padding(
@@ -518,7 +518,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                   : (_searchCtrl.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(Icons.clear_rounded,
-                              color: Colors.grey.shade400, size: 18),
+                              color: widget.theme.textMuted, size: 18),
                           onPressed: () {
                             _searchCtrl.clear();
                             _onQueryChanged('');
@@ -526,7 +526,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                         )
                       : null),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: widget.theme.cardSurface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
@@ -563,10 +563,10 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
       return Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         decoration: BoxDecoration(
-          color: failed ? Colors.orange.shade50 : Colors.grey.shade50,
+          color: failed ? Colors.orange.shade50 : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: failed ? Colors.orange.shade200 : Colors.grey.shade200,
+            color: failed ? Colors.orange.shade200 : widget.theme.divider,
           ),
         ),
         child: Column(
@@ -575,7 +575,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
               _noToken
                   ? Icons.vpn_key_off_rounded
                   : (failed ? Icons.cloud_off_rounded : Icons.search_off_rounded),
-              color: failed ? Colors.orange.shade400 : Colors.grey.shade300,
+              color: failed ? Colors.orange.shade400 : widget.theme.textMuted,
               size: 32,
             ),
             const SizedBox(height: 8),
@@ -585,7 +585,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                   : (failed ? s.movieSearchFailed : s.noMoviesFound),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: failed ? Colors.orange.shade700 : Colors.grey.shade500,
+                color: failed ? Colors.orange.shade700 : widget.theme.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -595,7 +595,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
               Text(
                 s.movieSearchFailedHint,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11.5),
+                style: TextStyle(color: widget.theme.textMuted, fontSize: 11.5),
               ),
             ],
             const SizedBox(height: 12),
@@ -621,9 +621,9 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -633,7 +633,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _results.length,
             separatorBuilder: (_, __) =>
-                Divider(height: 1, color: Colors.grey.shade100),
+                Divider(height: 1, color: widget.theme.divider),
             itemBuilder: (_, i) => _resultTile(_results[i]),
           ),
           Padding(
@@ -681,7 +681,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade800,
+                color: widget.theme.textPrimary,
               ),
             ),
           ),
@@ -729,7 +729,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade900,
+                            color: widget.theme.textPrimary,
                             height: 1.2,
                           ),
                         ),
@@ -746,7 +746,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style:
-                            TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            TextStyle(fontSize: 12, color: widget.theme.textMuted),
                       ),
                     ),
                   const SizedBox(height: 4),
@@ -758,7 +758,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                         Text(
                           m.year!,
                           style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade400),
+                              fontSize: 11, color: widget.theme.textMuted),
                         ),
                       ],
                       if (m.ratingKp != null) ...[
@@ -900,7 +900,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                 ),
               ),
             ],
@@ -933,10 +933,10 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         prefixIcon: Icon(icon, color: _primary, size: 20),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: widget.theme.cardSurface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -955,9 +955,9 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       child: RatingPicker(
         value: _rating,
@@ -977,18 +977,18 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
         labelText: s.yourReview,
         labelStyle: TextStyle(color: _primary, fontWeight: FontWeight.w600),
         hintText: s.reviewHint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         alignLabelWithHint: true,
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

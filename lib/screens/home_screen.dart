@@ -33,6 +33,7 @@ import '../services/rate_limiter_service.dart';
 import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/common/animations.dart';
 import '../widgets/common/m3_loading.dart';
@@ -1334,15 +1335,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _t.cardSurface,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: t.primary.withOpacity(0.25),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: t.accentGlow(
+              t.primary,
+              opacity: 0.25,
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
             border: Border.all(color: t.primary.withOpacity(0.15), width: 1),
           ),
           child: Row(
@@ -1369,7 +1369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       LocaleService.current.previewLabel,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: _t.textMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1378,7 +1378,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                        color: _t.textPrimary,
                       ),
                     ),
                   ],
@@ -1401,7 +1401,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             end: Alignment.bottomRight,
                           )
                         : null,
-                    color: canAfford ? null : Colors.grey.shade200,
+                    color: canAfford ? null : _t.surfaceMuted,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -1420,7 +1420,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontWeight: FontWeight.w700,
                           color: canAfford
                               ? Colors.white
-                              : Colors.grey.shade500,
+                              : _t.textMuted,
                         ),
                       ),
                     ],
@@ -1438,13 +1438,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: _t.surfaceMuted,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.close_rounded,
                     size: 18,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                   ),
                 ),
               ),
@@ -1493,7 +1493,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final t = _t;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -1509,7 +1509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: t.divider,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1819,7 +1819,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _t.cardSurface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -1832,7 +1832,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                     decoration: TextDecoration.none,
                   ),
                 ),
@@ -2035,7 +2035,7 @@ class _HomeScreenState extends State<HomeScreen> {
             final nothingSelected =
                 !toMemories && !toPairWidget && !toPartnerWidget;
             return Dialog(
-              backgroundColor: Colors.white,
+              backgroundColor: _t.cardSurface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -2052,7 +2052,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 22,
                           height: 22,
                           colorFilter: ColorFilter.mode(
-                            Colors.grey.shade900,
+                            _t.textPrimary,
                             BlendMode.srcIn,
                           ),
                         ),
@@ -2062,7 +2062,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade900,
+                            color: _t.textPrimary,
                           ),
                         ),
                       ],
@@ -2075,9 +2075,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLength: 60,
                       decoration: InputDecoration(
                         hintText: LocaleService.current.titleHint,
-                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        hintStyle: TextStyle(color: _t.textMuted),
                         filled: true,
-                        fillColor: Colors.grey.shade50,
+                        fillColor: _t.surfaceMuted,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
@@ -2102,9 +2102,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
                         hintText: LocaleService.current.descriptionOptionalHint,
-                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        hintStyle: TextStyle(color: _t.textMuted),
                         filled: true,
-                        fillColor: Colors.grey.shade50,
+                        fillColor: _t.surfaceMuted,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
@@ -2147,7 +2147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Text(
                               LocaleService.current.skip,
                               style: TextStyle(
-                                color: Colors.grey.shade500,
+                                color: _t.textMuted,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -2175,7 +2175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primary,
                               foregroundColor: Colors.white,
-                              disabledBackgroundColor: Colors.grey.shade300,
+                              disabledBackgroundColor: _t.surfaceMuted,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -2219,13 +2219,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: _t.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 1),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: _t.textMuted),
                 ),
               ],
             ),
@@ -2281,13 +2281,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
+                      color: _t.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     LocaleService.current.shareLinkCodeQr,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 13, color: _t.textMuted),
                   ),
                 ],
               ),
@@ -2405,9 +2405,9 @@ class _HomeScreenState extends State<HomeScreen> {
       isDismissible: true,
       enableDrag: true,
       builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: EdgeInsets.fromLTRB(
           24,
@@ -2422,7 +2422,7 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: _t.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2445,10 +2445,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         LocaleService.current.updateAvailableTitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A2E),
+                          color: _t.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -2458,7 +2458,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             : LocaleService.current.updateAvailableSubtitle,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: _t.textSecondary,
                         ),
                       ),
                     ],
@@ -2501,7 +2501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   LocaleService.current.updateLaterButton,
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: _t.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -2689,13 +2689,12 @@ class _MascotButtonState extends State<_MascotButton>
               width: hasStreak ? 1.5 : 1.0,
             ),
             boxShadow: hasStreak
-                ? [
-                    BoxShadow(
-                      color: t.primary.withValues(alpha: 0.1),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
+                ? t.accentGlow(
+                    t.primary,
+                    opacity: 0.1,
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  )
                 : [],
           ),
           child: Row(
@@ -2744,7 +2743,7 @@ class _MascotButtonState extends State<_MascotButton>
                             : LocaleService.current.selectMascot,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: t.textMuted,
                         ),
                       ),
                   ],
@@ -2795,14 +2794,14 @@ class _MascotButtonState extends State<_MascotButton>
                       : Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 14,
-                          color: Colors.grey.shade400,
+                          color: t.textMuted,
                         ),
                 )
               else
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14,
-                  color: Colors.grey.shade400,
+                  color: t.textMuted,
                 ),
             ],
           ),
@@ -2942,10 +2941,11 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final p = widget.primaryColor;
+    final t = context.appTheme;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       // Отступ снизу учитывает системную навигационную панель (жесты/кнопки),
       // иначе кнопка «перезапустить» налезает на неё и плохо нажимается.
@@ -2959,7 +2959,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: t.divider,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -2984,10 +2984,10 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                   children: [
                     Text(
                       LocaleService.current.updateAvailableTitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A2E),
+                        color: t.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -2995,7 +2995,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                       LocaleService.current.updateAvailableSubtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade600,
+                        color: t.textSecondary,
                       ),
                     ),
                   ],
@@ -3012,9 +3012,9 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
             constraints: const BoxConstraints(maxHeight: 300),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: t.surfaceMuted,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: t.divider),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3027,7 +3027,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                       LocaleService.current.updateWhatsNew,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade700,
+                        color: t.textSecondary,
                         fontWeight: FontWeight.w500,
                         height: 1.6,
                       ),
@@ -3102,7 +3102,7 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 child: Text(
                   LocaleService.current.updateLaterButton,
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: t.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),

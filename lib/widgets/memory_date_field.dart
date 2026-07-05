@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 
 /// Поле выбора даты/времени воспоминания.
 ///
@@ -70,6 +71,7 @@ class MemoryDateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final hasValue = value != null;
     final formatted = hasValue ? _format(value!) : s.memoryDateNow;
     final isBackdated = hasValue &&
@@ -79,12 +81,12 @@ class MemoryDateField extends StatelessWidget {
       decoration: BoxDecoration(
         color: hasValue
             ? accent.withValues(alpha: 0.05)
-            : Colors.white,
+            : t.cardSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: hasValue
               ? accent.withValues(alpha: 0.35)
-              : Colors.grey.shade200,
+              : t.divider,
           width: hasValue ? 1.4 : 1.0,
         ),
       ),
@@ -100,13 +102,13 @@ class MemoryDateField extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: hasValue
                         ? accent.withValues(alpha: 0.12)
-                        : Colors.grey.shade100,
+                        : t.surfaceMuted,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.event_rounded,
                     size: 16,
-                    color: hasValue ? accent : Colors.grey.shade600,
+                    color: hasValue ? accent : t.textSecondary,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -120,8 +122,8 @@ class MemoryDateField extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: hasValue
-                              ? Colors.grey.shade800
-                              : Colors.grey.shade700,
+                              ? t.textPrimary
+                              : t.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 1),
@@ -133,8 +135,8 @@ class MemoryDateField extends StatelessWidget {
                           color: isBackdated
                               ? accent
                               : (hasValue
-                                  ? Colors.grey.shade600
-                                  : Colors.grey.shade500),
+                                  ? t.textSecondary
+                                  : t.textMuted),
                         ),
                       ),
                     ],
@@ -146,7 +148,7 @@ class MemoryDateField extends StatelessWidget {
                     icon: Icon(
                       Icons.close_rounded,
                       size: 18,
-                      color: Colors.grey.shade500,
+                      color: t.textMuted,
                     ),
                     tooltip: s.memoryDateClear,
                     padding: EdgeInsets.zero,

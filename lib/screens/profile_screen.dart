@@ -26,6 +26,7 @@ import '../models/profile_icon.dart';
 import '../services/locale_service.dart';
 import '../services/ui_prefs.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
@@ -87,6 +88,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
   AppStrings get _s => LocaleService.current;
+
+  /// Активная тема из контекста (семантические токены для тёмной темы).
+  AppTheme get _t => context.appTheme;
 
   /// UID of the partner selected in the profile (null = first from active group)
   String? _selectedPartnerUid;
@@ -371,13 +375,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _accent.withOpacity(0.2),
-                      blurRadius: 32,
-                      spreadRadius: 4,
-                    ),
-                  ],
+                  boxShadow: _t.accentGlow(
+                    _accent,
+                    opacity: 0.2,
+                    blurRadius: 32,
+                    spreadRadius: 4,
+                    offset: Offset.zero,
+                  ),
                 ),
                 child: LevelAvatar(
                   size: 100,
@@ -430,7 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: _t.textPrimary,
               ),
             ),
             // Закреплённая иконка-бейдж. Тап открывает магазин иконок,
@@ -472,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Email
         Text(
           widget.userData.email.isNotEmpty ? widget.userData.email : _s.noEmail,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 14, color: _t.textMuted),
         ),
         const SizedBox(height: 12),
         // Gender badge
@@ -540,7 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _t.cardSurface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.all(24),
@@ -556,7 +560,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   IconButton(
@@ -731,7 +735,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _t.cardSurface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -744,7 +748,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                     decoration: TextDecoration.none,
                   ),
                 ),
@@ -847,7 +851,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
               letterSpacing: 3,
             ),
           ),
@@ -880,7 +884,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               trailing: Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: Colors.grey.shade400,
+                color: _t.textMuted,
               ),
             ),
           ),
@@ -902,19 +906,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: _accent,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _accent.withOpacity(0.3),
-                          blurRadius: 6,
-                        ),
-                      ],
+                      boxShadow: _t.accentGlow(
+                        _accent,
+                        opacity: 0.3,
+                        blurRadius: 6,
+                        offset: Offset.zero,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
-                    color: Colors.grey.shade400,
+                    color: _t.textMuted,
                   ),
                 ],
               ),
@@ -937,7 +941,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Icon(
                       Icons.chevron_right_rounded,
                       size: 18,
-                      color: Colors.grey.shade400,
+                      color: _t.textMuted,
                     ),
                   ],
                 ),
@@ -966,7 +970,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: o.background,
         borderRadius: BorderRadius.circular(size * 0.22),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        border: Border.all(
+            color: _t.isDark ? _t.cardBorder : Colors.black.withOpacity(0.06)),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -986,7 +991,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isRu = LocaleService.instance.isRussian;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       // Иконок больше, чем влезает в дефолтную высоту листа — без этого нижние
       // ряды обрезались и были недоступны. isScrollControlled + Flexible-скролл.
       isScrollControlled: true,
@@ -1009,7 +1014,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: _t.divider,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1023,7 +1028,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 4),
                 Text(
                   LocaleService.current.appIconUpdateHint,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: _t.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 Flexible(
@@ -1075,7 +1080,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _accent : Colors.grey.shade700,
+                color: selected ? _accent : _t.textSecondary,
               ),
             ),
           ],
@@ -1135,7 +1140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade400,
+                    color: _t.textMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1145,7 +1150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: _t.textPrimary,
                   ),
                 ),
                 if (hint != null) ...[
@@ -1159,7 +1164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: TextStyle(
                             fontSize: 11,
                             height: 1.3,
-                            color: Colors.grey.shade400,
+                            color: _t.textMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1173,7 +1178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Icon(
                               Icons.close_rounded,
                               size: 14,
-                              color: Colors.grey.shade400,
+                              color: _t.textMuted,
                             ),
                           ),
                         ),
@@ -1196,7 +1201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _t.cardSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -1213,7 +1218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   IconButton(
@@ -1227,7 +1232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ListTile(
               leading: Icon(
                 Icons.male_rounded,
-                color: currentGender == Gender.male ? _accent : Colors.grey,
+                color: currentGender == Gender.male ? _accent : _t.textMuted,
               ),
               title: Text(
                 _s.male,
@@ -1245,7 +1250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ListTile(
               leading: Icon(
                 Icons.female_rounded,
-                color: currentGender == Gender.female ? _accent : Colors.grey,
+                color: currentGender == Gender.female ? _accent : _t.textMuted,
               ),
               title: Text(
                 _s.female,
@@ -1331,7 +1336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade400,
+                    color: _t.textMuted,
                     letterSpacing: 3,
                   ),
                 ),
@@ -1339,7 +1344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _showStats
                       ? Icons.keyboard_arrow_up_rounded
                       : Icons.keyboard_arrow_down_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                 ),
               ],
             ),
@@ -1425,15 +1430,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _t.cardSurface,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              boxShadow: _t.accentGlow(
+                color,
+                opacity: 0.2,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
@@ -1443,7 +1447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: _t.textPrimary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1454,7 +1458,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: _t.textSecondary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1527,7 +1531,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
               letterSpacing: 3,
             ),
           ),
@@ -1558,7 +1562,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _s.statusLabel,
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey.shade400,
+                          color: _t.textMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1576,7 +1580,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ],
@@ -1595,7 +1599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : _s.notSelected,
               trailing: Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.grey.shade400,
+                color: _t.textMuted,
                 size: 20,
               ),
             ),
@@ -1624,7 +1628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onHintDismiss: _dismissAnniversaryHint,
                 trailing: Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ),
@@ -1642,7 +1646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     selectedPartner?.connection.firstKissDate),
                 trailing: Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ),
@@ -1658,7 +1662,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: _formatBirthdayDate(widget.userData.birthDate),
                 trailing: Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ),
@@ -1682,7 +1686,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _s.invitePartnerToCount,
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade500,
+                color: _t.textMuted,
                 height: 1.5,
               ),
             ),
@@ -1899,8 +1903,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: _t.cardSurface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -1913,7 +1917,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: _t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1927,7 +1931,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   IconButton(
@@ -1961,7 +1965,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: isSelected
                           ? color.withOpacity(0.08)
-                          : Colors.grey.shade50,
+                          : _t.surfaceMuted,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSelected ? color : Colors.transparent,
@@ -1972,7 +1976,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Icon(
                           icon,
-                          color: isSelected ? color : Colors.grey.shade500,
+                          color: isSelected ? color : _t.textMuted,
                           size: 22,
                         ),
                         const SizedBox(width: 14),
@@ -1984,7 +1988,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: isSelected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
-                              color: isSelected ? color : Colors.grey.shade800,
+                              color: isSelected ? color : _t.textPrimary,
                             ),
                           ),
                         ),
@@ -2032,8 +2036,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: _t.cardSurface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -2046,7 +2050,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: _t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -2060,7 +2064,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   IconButton(
@@ -2103,7 +2107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: isSelected
                           ? _accent.withOpacity(0.08)
-                          : Colors.grey.shade50,
+                          : _t.surfaceMuted,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSelected ? _accent : Colors.transparent,
@@ -2159,7 +2163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
+                                  color: _t.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -2205,13 +2209,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: _accent.withAlpha(25),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _accent.withAlpha(50)),
-        boxShadow: [
-          BoxShadow(
-            color: _accent.withAlpha(20),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: _t.accentGlow(
+          _accent,
+          opacity: 20 / 255,
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -2293,7 +2296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
               letterSpacing: 3,
             ),
           ),
@@ -2339,13 +2342,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                   ),
                 ),
                 const SizedBox(width: 4),
                 Icon(
                   Icons.swap_horiz_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ],
@@ -2372,13 +2375,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
+                    color: _t.textMuted,
                   ),
                 ),
                 const SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
               ],
@@ -2420,7 +2423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            Icon(icon, color: Colors.grey.shade600, size: 20),
+            Icon(icon, color: _t.textSecondary, size: 20),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -2428,14 +2431,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade800,
+                  color: _t.textPrimary,
                 ),
               ),
             ),
             trailing ??
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                   size: 20,
                 ),
           ],
@@ -2457,8 +2460,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModal) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: _t.cardSurface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -2471,7 +2474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: _t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -2611,8 +2614,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
                   label: Text(s.openSystemSettings),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey.shade600,
-                    side: BorderSide(color: Colors.grey.shade300),
+                    foregroundColor: _t.textSecondary,
+                    side: BorderSide(color: _t.divider),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -2623,7 +2626,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 6),
               Text(
                 s.notifSystemSettingsHint,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 11, color: _t.textMuted),
               ),
             ],
           ),
@@ -2667,7 +2670,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 12, color: _t.textMuted),
                 ),
               ],
             ),
@@ -2686,8 +2689,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -2699,7 +2702,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: _t.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2710,7 +2713,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: _t.textPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -2743,7 +2746,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? _accent.withOpacity(0.08) : Colors.grey.shade50,
+          color: isSelected ? _accent.withOpacity(0.08) : _t.surfaceMuted,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? _accent : Colors.transparent,
@@ -2760,7 +2763,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? _accent : Colors.grey.shade800,
+                  color: isSelected ? _accent : _t.textPrimary,
                 ),
               ),
             ),
@@ -2819,7 +2822,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 40),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _t.cardSurface,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -2833,7 +2836,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                     decoration: TextDecoration.none,
                   ),
                 ),
@@ -2885,7 +2888,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final version = snapshot.data ?? 'unknown';
               return Text(
                 'Love App v$version',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 12, color: _t.textMuted),
               );
             },
           ),
@@ -2924,9 +2927,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xC7FFFFFF),
+        color: _t.cardSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x99FFFFFF)),
+        border: Border.all(color: _t.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -2940,7 +2943,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _divider() {
-    return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
+    return Divider(color: _t.divider, height: 1, thickness: 1);
   }
 
   Widget _buildLevelTasksCard(BuildContext context) {
@@ -2958,16 +2961,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _t.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withOpacity(0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: _t.accentGlow(
+            _accent,
+            opacity: 0.08,
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
         ),
         child: Row(
           children: [
@@ -2991,7 +2993,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -2999,7 +3001,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ru
                         ? 'Растите уровень и открывайте маскотов'
                         : 'Level up and unlock mascots',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: _t.textMuted),
                   ),
                 ],
               ),
@@ -3029,7 +3031,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               Icons.chevron_right_rounded,
               size: 22,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
             ),
           ],
         ),
@@ -3044,16 +3046,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _t.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withOpacity(0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: _t.accentGlow(
+            _accent,
+            opacity: 0.08,
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
         ),
         child: Row(
           children: [
@@ -3072,7 +3073,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade900,
+                      color: _t.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -3080,7 +3081,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _s.coinShopSubtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: _t.textMuted,
                     ),
                   ),
                 ],
@@ -3106,7 +3107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               Icons.chevron_right_rounded,
               size: 22,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
             ),
           ],
         ),
@@ -3133,8 +3134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           maxChildSize: 0.95,
           expand: false,
           builder: (_, scrollController) => Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: _t.cardSurface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: Column(
@@ -3147,7 +3148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
+                          color: _t.divider,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -3176,7 +3177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _s.coinShopSubtitle,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade500,
+                          color: _t.textMuted,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -3217,7 +3218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade500,
+                            color: _t.textMuted,
                           ),
                         ),
                       ),
@@ -3305,7 +3306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade500,
+                              color: _t.textMuted,
                             ),
                           ),
                         ),
@@ -3480,7 +3481,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: disabled
-            ? Colors.grey.shade100
+            ? _t.surfaceMuted
             : _accentLight.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
@@ -3494,12 +3495,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _t.cardSurface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     icon,
-                    color: disabled ? Colors.grey.shade400 : _accent,
+                    color: disabled ? _t.textMuted : _accent,
                     size: 22,
                   ),
                 ),
@@ -3514,8 +3515,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: disabled
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade900,
+                              ? _t.textMuted
+                              : _t.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -3523,7 +3524,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: _t.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -3536,15 +3537,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: disabled ? Colors.grey.shade200 : Colors.white,
+                      color: disabled ? _t.surfaceMuted : _t.cardSurface,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: disabled ? null : [
-                        BoxShadow(
-                          color: _accent.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
+                      boxShadow: disabled
+                          ? null
+                          : _t.accentGlow(
+                              _accent,
+                              opacity: 0.15,
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -3561,7 +3563,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             height: 1.0,
-                            color: disabled ? Colors.grey.shade500 : _accent,
+                            color: disabled ? _t.textMuted : _accent,
                           ),
                         ),
                       ],
@@ -3578,18 +3580,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: counterExhausted
-                          ? Colors.grey.shade300
-                          : Colors.white,
+                          ? _t.surfaceMuted
+                          : _t.cardSurface,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: counterExhausted
                           ? null
-                          : [
-                              BoxShadow(
-                                color: _accent.withValues(alpha: 0.15),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
+                          : _t.accentGlow(
+                              _accent,
+                              opacity: 0.15,
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
                     ),
                     child: Text(
                       counterText,
@@ -3598,7 +3599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.w800,
                         height: 1.0,
                         color: counterExhausted
-                            ? Colors.grey.shade600
+                            ? _t.textSecondary
                             : _accent,
                       ),
                     ),
@@ -3607,7 +3608,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                 ),
               ],
             ),
@@ -3639,6 +3640,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _s.themeNameBordeaux,
       _s.themeNameTeal,
       _s.themeNameNord,
+      _s.themeNameCharcoalTeal,
+      _s.themeNameCoffee,
+      _s.themeNameForestDark,
+      _s.themeNameGarnet,
+      _s.themeNameDarkHoney,
     ];
     if (index < 0 || index >= names.length) return names[0];
     return names[index];
@@ -3658,15 +3664,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 32),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _t.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: t.primary.withOpacity(0.18),
-                blurRadius: 40,
-                offset: const Offset(0, 16),
-              ),
-            ],
+            boxShadow: _t.accentGlow(
+              t.primary,
+              opacity: 0.18,
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3744,7 +3749,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _s.coinBalance,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey.shade500,
+                            color: _t.textMuted,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -3760,7 +3765,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: canAfford
-                                ? Colors.grey.shade800
+                                ? _t.textPrimary
                                 : Colors.red.shade400,
                           ),
                         ),
@@ -3816,15 +3821,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   end: Alignment.bottomRight,
                                 )
                               : null,
-                          color: canAfford ? null : Colors.grey.shade200,
+                          color: canAfford ? null : _t.surfaceMuted,
                           boxShadow: canAfford
-                              ? [
-                                  BoxShadow(
-                                    color: t.primary.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
+                              ? _t.accentGlow(
+                                  t.primary,
+                                  opacity: 0.35,
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                )
                               : null,
                         ),
                         child: Material(
@@ -3844,7 +3848,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fontWeight: FontWeight.w700,
                                   color: canAfford
                                       ? Colors.white
-                                      : Colors.grey.shade500,
+                                      : _t.textMuted,
                                 ),
                               ),
                             ),
@@ -3859,7 +3863,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey.shade500,
+                          foregroundColor: _t.textMuted,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -3911,8 +3915,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             maxChildSize: 0.95,
             expand: false,
             builder: (_, scrollController) => Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: _t.cardSurface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
@@ -3926,7 +3930,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
+                            color: _t.divider,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -3936,7 +3940,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade900,
+                            color: _t.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -3944,7 +3948,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _s.changesApplyImmediately,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey.shade500,
+                            color: _t.textMuted,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -4006,13 +4010,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 2.5,
                                 ),
                                 boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: accent.withOpacity(0.25),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
+                                    ? _t.accentGlow(
+                                        accent,
+                                        opacity: 0.25,
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      )
                                     : [],
                               ),
                               child: Column(
@@ -4104,7 +4107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   : FontWeight.w500,
                                               color: isSelected
                                                   ? accent
-                                                  : Colors.grey.shade600,
+                                                  : _t.textSecondary,
                                             ),
                                           ),
                                         ),
@@ -4130,7 +4133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         vertical: 5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
+                                        color: _t.cardSurface,
                                         borderRadius: BorderRadius.circular(22),
                                         boxShadow: [
                                           BoxShadow(
@@ -4159,7 +4162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               fontSize: 16,
                                               height: 1.0,
                                               fontWeight: FontWeight.w800,
-                                              color: Colors.grey.shade900,
+                                              color: _t.textPrimary,
                                             ),
                                           ),
                                         ],
@@ -4214,8 +4217,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             maxChildSize: 0.95,
             expand: false,
             builder: (_, scrollController) => Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: _t.cardSurface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
@@ -4229,7 +4232,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
+                            color: _t.divider,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -4239,7 +4242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
-                            color: Colors.grey.shade900,
+                            color: _t.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -4250,7 +4253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _s.iconShopSubtitle,
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey.shade500,
+                                color: _t.textMuted,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -4265,7 +4268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.grey.shade800,
+                                color: _t.textPrimary,
                               ),
                             ),
                           ],
@@ -4347,7 +4350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _noIconTile({required bool selected, required VoidCallback? onTap}) {
     return Material(
-      color: selected ? _accentLight.withValues(alpha: 0.55) : Colors.grey.shade100,
+      color: selected ? _accentLight.withValues(alpha: 0.55) : _t.surfaceMuted,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -4367,13 +4370,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: _t.cardSurface,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.block_rounded,
                   size: 18,
-                  color: Colors.grey.shade400,
+                  color: _t.textMuted,
                 ),
               ),
               const SizedBox(width: 12),
@@ -4383,7 +4386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: _t.textSecondary,
                   ),
                 ),
               ),
@@ -4412,20 +4415,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: isEquipped
               ? _accentLight.withValues(alpha: 0.55)
-              : Colors.grey.shade100,
+              : _t.surfaceMuted,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isEquipped ? _accent : Colors.transparent,
             width: 2.5,
           ),
           boxShadow: isEquipped
-              ? [
-                  BoxShadow(
-                    color: _accent.withValues(alpha: 0.22),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
+              ? _t.accentGlow(
+                  _accent,
+                  opacity: 0.22,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                )
               : [],
         ),
         child: Column(
@@ -4439,7 +4441,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 56,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _t.cardSurface,
                 borderRadius: BorderRadius.circular(15),
                 boxShadow: [
                   BoxShadow(
@@ -4463,7 +4465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isEquipped ? FontWeight.w700 : FontWeight.w500,
-                color: isEquipped ? _accent : Colors.grey.shade700,
+                color: isEquipped ? _accent : _t.textSecondary,
               ),
             ),
             const SizedBox(height: 5),
@@ -4471,14 +4473,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (isEquipped)
               Icon(Icons.check_circle_rounded, size: 18, color: _accent)
             else if (owned)
-              Icon(Icons.check_rounded, size: 16, color: Colors.grey.shade400)
+              Icon(Icons.check_rounded, size: 16, color: _t.textMuted)
             else if (icon.grantOnly)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.lock_rounded,
-                      size: 11, color: Colors.grey.shade400),
+                      size: 11, color: _t.textMuted),
                   const SizedBox(width: 3),
                   Flexible(
                     child: Text(
@@ -4488,7 +4490,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade400,
+                        color: _t.textMuted,
                       ),
                     ),
                   ),
@@ -4507,7 +4509,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade800,
+                      color: _t.textPrimary,
                     ),
                   ),
                 ],
@@ -4556,15 +4558,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 32),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _t.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withOpacity(0.18),
-                blurRadius: 40,
-                offset: const Offset(0, 16),
-              ),
-            ],
+            boxShadow: _t.accentGlow(
+              _accent,
+              opacity: 0.18,
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -4613,7 +4614,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: _t.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -4622,7 +4623,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade500,
+                        color: _t.textMuted,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -4659,7 +4660,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text(
                           _s.coinBalance,
                           style: TextStyle(
-                              fontSize: 13, color: Colors.grey.shade500),
+                              fontSize: 13, color: _t.textMuted),
                         ),
                         const SizedBox(width: 6),
                         Image.asset('assets/images/icons/coin.webp',
@@ -4671,7 +4672,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: canAfford
-                                ? Colors.grey.shade800
+                                ? _t.textPrimary
                                 : Colors.red.shade400,
                           ),
                         ),
@@ -4702,15 +4703,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   end: Alignment.bottomRight,
                                 )
                               : null,
-                          color: canAfford ? null : Colors.grey.shade200,
+                          color: canAfford ? null : _t.surfaceMuted,
                           boxShadow: canAfford
-                              ? [
-                                  BoxShadow(
-                                    color: _accent.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
+                              ? _t.accentGlow(
+                                  _accent,
+                                  opacity: 0.35,
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                )
                               : null,
                         ),
                         child: Material(
@@ -4729,7 +4729,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fontWeight: FontWeight.w700,
                                   color: canAfford
                                       ? Colors.white
-                                      : Colors.grey.shade500,
+                                      : _t.textMuted,
                                 ),
                               ),
                             ),
@@ -4744,7 +4744,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey.shade500,
+                          foregroundColor: _t.textMuted,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -4794,8 +4794,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               bottom: mq.viewInsets.bottom + mq.viewPadding.bottom,
             ),
             child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: _t.cardSurface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
@@ -4854,7 +4854,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 22,
                                   height: 22,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: _t.isDark
+                                        ? _t.cardSurface
+                                        : Colors.white,
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: _accent.withOpacity(0.3),
@@ -4920,7 +4922,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           textCapitalization: TextCapitalization.words,
                           decoration: InputDecoration(
                             labelText: _s.name,
-                            labelStyle: TextStyle(color: Colors.grey.shade500),
+                            labelStyle: TextStyle(color: _t.textMuted),
                             prefixIcon: Icon(
                               Icons.person_outline_rounded,
                               color: _accent,
@@ -4931,13 +4933,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: _t.divider,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide(
-                                color: Colors.grey.shade200,
+                                color: _t.divider,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -4957,15 +4959,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             vertical: 14,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: _t.surfaceMuted,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: _t.divider),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 Icons.email_outlined,
-                                color: Colors.grey.shade400,
+                                color: _t.textMuted,
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
@@ -4977,7 +4979,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       'Email',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.grey.shade400,
+                                        color: _t.textMuted,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -4988,7 +4990,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           : '—',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: Colors.grey.shade600,
+                                        color: _t.textSecondary,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -4997,7 +4999,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               Icon(
                                 Icons.lock_outline_rounded,
-                                color: Colors.grey.shade300,
+                                color: _t.textMuted,
                                 size: 16,
                               ),
                             ],
@@ -5016,8 +5018,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(ctx),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.grey.shade600,
-                              side: BorderSide(color: Colors.grey.shade300),
+                              foregroundColor: _t.textSecondary,
+                              side: BorderSide(color: _t.divider),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -5194,6 +5196,9 @@ class _DateInputDialog extends StatefulWidget {
 class _DateInputDialogState extends State<_DateInputDialog> {
   String? _error;
 
+  /// Активная тема из контекста (семантические токены для тёмной темы).
+  AppTheme get _t => context.appTheme;
+
   @override
   void dispose() {
     widget.ctrl.dispose();
@@ -5239,13 +5244,13 @@ class _DateInputDialogState extends State<_DateInputDialog> {
         hintText: hint,
         hintStyle: TextStyle(
           fontSize: 20,
-          color: Colors.grey.shade400,
+          color: _t.textMuted,
           letterSpacing: 2,
           fontWeight: FontWeight.w400,
         ),
         errorText: showError ? _error : null,
         enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+          borderSide: BorderSide(color: _t.divider, width: 2),
         ),
         focusedBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: p, width: 2),
@@ -5268,7 +5273,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: _t.textPrimary,
         ),
       ),
       scrollable: true,
@@ -5343,8 +5348,8 @@ class _DateInputDialogState extends State<_DateInputDialog> {
                     colorScheme: ColorScheme.light(
                       primary: p,
                       onPrimary: Colors.white,
-                      surface: Colors.white,
-                      onSurface: Colors.grey.shade900,
+                      surface: _t.isDark ? _t.cardSurface : Colors.white,
+                      onSurface: _t.textPrimary,
                     ),
                     textButtonTheme: TextButtonThemeData(
                       style: TextButton.styleFrom(foregroundColor: p),
@@ -5374,7 +5379,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(foregroundColor: Colors.grey.shade500),
+          style: TextButton.styleFrom(foregroundColor: _t.textMuted),
           child: Text(LocaleService.current.cancel),
         ),
         FilledButton(

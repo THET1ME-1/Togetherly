@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
+import '../../../theme/theme_scope.dart';
 
 /// Shows relationship type selection dialog
 void showRelationshipTypeDialog({
@@ -14,8 +15,9 @@ void showRelationshipTypeDialog({
     builder: (_) => StatefulBuilder(
       builder: (ctx, setDialogState) {
         final customTypes = pairData.customRelationshipTypes;
+        final t = ctx.appTheme;
         return Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: t.cardSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -34,7 +36,7 @@ void showRelationshipTypeDialog({
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: t.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -42,7 +44,7 @@ void showRelationshipTypeDialog({
                       LocaleService.current.chooseHowToConnect,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade500,
+                        color: t.textMuted,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -167,7 +169,7 @@ void showRelationshipTypeDialog({
                           horizontal: 20,
                         ),
                         side: BorderSide(
-                          color: Colors.grey.shade300,
+                          color: t.divider,
                           width: 1.5,
                         ),
                         shape: RoundedRectangleBorder(
@@ -207,15 +209,16 @@ class _RelationshipOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
+          color: isSelected ? primary.withOpacity(0.08) : t.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? primary : Colors.grey.shade200,
+            color: isSelected ? primary : t.divider,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -232,13 +235,13 @@ class _RelationshipOption extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: isSelected ? primary : Colors.grey.shade800,
+                      color: isSelected ? primary : t.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: t.textMuted),
                   ),
                 ],
               ),
@@ -271,15 +274,16 @@ class _CustomRelTypeOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: onSelect,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
+          color: isSelected ? primary.withOpacity(0.08) : t.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? primary : Colors.grey.shade200,
+            color: isSelected ? primary : t.divider,
             width: isSelected ? 2 : 1,
           ),
         ),

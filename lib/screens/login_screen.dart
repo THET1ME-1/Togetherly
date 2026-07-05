@@ -6,6 +6,7 @@ import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
 import '../widgets/auth_widgets.dart';
+import '../theme/theme_scope.dart';
 
 import 'home_screen.dart';
 import 'setup_screen.dart';
@@ -308,6 +309,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
@@ -339,10 +341,10 @@ class _LoginScreenState extends State<LoginScreen> {
               Expanded(
                 child: Container(
                   width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: t.cardSurface,
                     borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(34)),
+                        const BorderRadius.vertical(top: Radius.circular(34)),
                   ),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -356,7 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: GoogleFonts.rubik(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF2B2230),
+                              color: t.textPrimary,
                               letterSpacing: -0.5,
                             ),
                           ),
@@ -429,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Text(
                               '${s.noAccount} ',
                               style: TextStyle(
-                                  fontSize: 14, color: Colors.grey.shade600),
+                                  fontSize: 14, color: t.textSecondary),
                             ),
                             GestureDetector(
                               onTap: _isLoading ? null : _goToSetup,
@@ -473,6 +475,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _rememberMeToggle(AppStrings s) {
+    final t = context.appTheme;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _rememberMe = !_rememberMe),
@@ -487,7 +490,7 @@ class _LoginScreenState extends State<LoginScreen> {
               color: _rememberMe ? _accent : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: _rememberMe ? _accent : Colors.grey.shade400,
+                color: _rememberMe ? _accent : t.divider,
                 width: 2,
               ),
             ),
@@ -501,7 +504,7 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+              color: t.textSecondary,
             ),
           ),
         ],

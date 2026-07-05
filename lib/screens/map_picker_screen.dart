@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 
 
 // ─── Data class ─────────────────────────────────────────────────────────────
@@ -281,11 +282,12 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).primaryColor;
+    final t = context.appTheme;
     final bottom = MediaQuery.of(context).padding.bottom;
     final hasCoordInput = _parseCoords(_searchCtrl.text.trim()) != null;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: t.bgGradient[0],
       body: Stack(
         children: [
           // ─ Map ─────────────────────────────────────────────────────────
@@ -362,7 +364,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: t.cardSurface,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -371,9 +373,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.arrow_back_rounded,
-                            color: Colors.black87,
+                            color: t.textPrimary,
                             size: 20,
                           ),
                         ),
@@ -384,7 +386,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         child: Container(
                           height: 44,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: t.cardSurface,
                             borderRadius: BorderRadius.circular(22),
                             boxShadow: [
                               BoxShadow(
@@ -405,7 +407,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                               hintText: LocaleService.current.placeOrCoordsHint,
                               hintStyle: GoogleFonts.rubik(
                                 fontSize: 13,
-                                color: Colors.grey.shade400,
+                                color: t.textMuted,
                               ),
                               prefixIcon: _searching
                                   ? Padding(
@@ -422,7 +424,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                   : Icon(
                                       Icons.search_rounded,
                                       size: 20,
-                                      color: Colors.grey.shade400,
+                                      color: t.textMuted,
                                     ),
                               suffixIcon: _searchCtrl.text.isNotEmpty
                                   ? GestureDetector(
@@ -437,7 +439,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                       child: Icon(
                                         Icons.close_rounded,
                                         size: 18,
-                                        color: Colors.grey.shade400,
+                                        color: t.textMuted,
                                       ),
                                     )
                                   : null,
@@ -463,7 +465,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       },
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: t.cardSurface,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
@@ -511,7 +513,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 320),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: t.cardSurface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -528,7 +530,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                           itemCount: _suggestions.length,
                           separatorBuilder: (_, __) => Divider(
                             height: 1,
-                            color: Colors.grey.shade100,
+                            color: t.divider,
                           ),
                           itemBuilder: (_, i) {
                             final p = _suggestions[i];
@@ -557,7 +559,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                             style: GoogleFonts.rubik(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w600,
-                                              color: Colors.black87,
+                                              color: t.textPrimary,
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -566,7 +568,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                             p.displayName,
                                             style: GoogleFonts.rubik(
                                               fontSize: 11,
-                                              color: Colors.grey.shade500,
+                                              color: t.textMuted,
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -597,7 +599,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: t.cardSurface,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
@@ -622,7 +624,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             bottom: 0,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: t.cardSurface,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
@@ -643,7 +645,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: t.divider,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -677,7 +679,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                     LocaleService.current.gettingAddress,
                                     style: GoogleFonts.rubik(
                                       fontSize: 13,
-                                      color: Colors.grey.shade500,
+                                      color: t.textMuted,
                                     ),
                                   ),
                                 ],
@@ -692,8 +694,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                       ? FontWeight.w600
                                       : FontWeight.w400,
                                   color: _address.isNotEmpty
-                                      ? Colors.grey.shade900
-                                      : Colors.grey.shade400,
+                                      ? t.textPrimary
+                                      : t.textMuted,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,

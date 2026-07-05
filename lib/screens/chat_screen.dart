@@ -705,7 +705,7 @@ class _ChatScreenState extends State<ChatScreen> {
     showModalBottomSheet<_MsgStyle>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -819,7 +819,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final action = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -832,7 +832,7 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: _t.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -973,7 +973,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final s = LocaleService.current;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -986,7 +986,7 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: _t.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1035,7 +1035,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final mine = msg.reactions[_myUid];
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -1049,7 +1049,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: _t.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1125,7 +1125,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   preview,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+                  style: TextStyle(color: _t.textSecondary, fontSize: 12.5),
                 ),
               ],
             ),
@@ -1133,7 +1133,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             visualDensity: VisualDensity.compact,
             icon: Icon(Icons.close_rounded,
-                color: Colors.grey.shade500, size: 20),
+                color: _t.textMuted, size: 20),
             onPressed: () => setState(() => _replyingTo = null),
           ),
         ],
@@ -1146,7 +1146,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final accent = isMine ? Colors.white : _t.primary;
     final nameColor = isMine ? Colors.white : _t.primary;
     final textColor =
-        isMine ? Colors.white.withOpacity(0.85) : Colors.grey.shade700;
+        isMine ? Colors.white.withOpacity(0.85) : _t.textSecondary;
     // Тап по цитате — переход к оригинальному сообщению (если оно в ленте).
     return GestureDetector(
       onTap: () => _scrollToMessage(msg.replyToId),
@@ -1225,11 +1225,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: BoxDecoration(
                   color: mine == entry.key
                       ? _t.primary.withOpacity(0.14)
-                      : Colors.white,
+                      : _t.cardSurface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color:
-                        mine == entry.key ? _t.primary : Colors.grey.shade300,
+                        mine == entry.key ? _t.primary : _t.divider,
                     width: mine == entry.key ? 1.5 : 1,
                   ),
                   boxShadow: [
@@ -1253,7 +1253,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           fontWeight: FontWeight.w700,
                           color: mine == entry.key
                               ? _t.primary
-                              : Colors.grey.shade700,
+                              : _t.textSecondary,
                         ),
                       ),
                     ],
@@ -1332,7 +1332,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
-                          color: online ? _t.primary : Colors.grey.shade500,
+                          color: online ? _t.primary : _t.textMuted,
                         ),
                       );
                     },
@@ -1410,9 +1410,9 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: _t.bgGradient.last,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _t.cardSurface,
         elevation: 0.5,
-        foregroundColor: Colors.grey.shade900,
+        foregroundColor: _t.textPrimary,
         titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.chevron_left_rounded, size: 30),
@@ -1422,7 +1422,7 @@ class _ChatScreenState extends State<ChatScreen> {
         title: _buildHeaderTitle(s),
         actions: [
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_horiz_rounded, color: Colors.grey.shade700),
+            icon: Icon(Icons.more_horiz_rounded, color: _t.textSecondary),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -1490,7 +1490,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Text(
                       s.chatEmpty,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade500),
+                      style: TextStyle(color: _t.textMuted),
                     ),
                   );
                 }
@@ -1531,7 +1531,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _t.cardSurface,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -1659,17 +1659,19 @@ class _ChatScreenState extends State<ChatScreen> {
     // контраст по яркости фона (белый на тёмном, тёмный на светлом).
     final Color bg;
     if (msg.deleted) {
-      bg = Colors.grey.shade300;
+      bg = _t.isDark ? _t.surfaceMuted : Colors.grey.shade300;
     } else if (msg.color != null) {
       bg = Color(msg.color!);
     } else if (isMine) {
       bg = _t.primary;
     } else {
-      bg = Color.lerp(_t.primary, Colors.white, 0.62)!;
+      bg = _t.isDark
+          ? _t.cardSurface
+          : Color.lerp(_t.primary, Colors.white, 0.62)!;
     }
     final fg = msg.deleted
-        ? Colors.grey.shade600
-        : (bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white);
+        ? _t.textSecondary
+        : (bg.computeLuminance() > 0.55 ? _t.textPrimary : Colors.white);
     final metaColor = fg.withOpacity(0.65);
 
     // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
@@ -1701,7 +1703,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     } else if (bigEmoji != null) {
       // Крупные эмодзи + мета снизу. Цвета меты — серые (фон-то не пузырь).
-      final meta = Colors.grey.shade500;
+      final meta = _t.textMuted;
       content = Column(
         crossAxisAlignment:
             isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1989,7 +1991,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMentionList() {
     return Container(
       constraints: const BoxConstraints(maxHeight: 220),
-      color: Colors.white,
+      color: _t.cardSurface,
       child: ListView(
         shrinkWrap: true,
         padding: EdgeInsets.zero,
@@ -2007,7 +2009,7 @@ class _ChatScreenState extends State<ChatScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(m.typeLabel,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 11, color: _t.textMuted)),
             onTap: () => _selectMention(m),
           );
         }).toList(),
@@ -2018,7 +2020,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildComposer(AppStrings s) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _t.cardSurface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -2112,7 +2114,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               color: (_selectedColor ?? _t.primary)
                                           .computeLuminance() >
                                       0.55
-                                  ? Colors.grey.shade900
+                                  ? _t.textPrimary
                                   : Colors.white,
                               expr: _selectedFace!,
                             ),
@@ -2131,7 +2133,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     hintText: s.chatHint,
                     hintMaxLines: 1,
                     filled: true,
-                    fillColor: Colors.grey.shade100,
+                    fillColor: _t.surfaceMuted,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 11),
@@ -2190,12 +2192,12 @@ class _ChatScreenState extends State<ChatScreen> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 13, color: _t.textSecondary),
             ),
           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 18),
-            color: Colors.grey.shade500,
+            color: _t.textMuted,
             onPressed: onClose,
           ),
         ],
@@ -2646,15 +2648,18 @@ class _StyleSheetState extends State<_StyleSheet> {
   Color get _color => _hsv.toColor();
   Color get _bg => _useTheme ? widget.theme.primary : _color;
   Color get _fg =>
-      _bg.computeLuminance() > 0.55 ? Colors.grey.shade900 : Colors.white;
+      _bg.computeLuminance() > 0.55 ? widget.theme.textPrimary : Colors.white;
 
   Widget _thumb() => Container(
         width: 14,
         height: 14,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.black26),
+          border: Border.all(
+              color: widget.theme.isDark
+                  ? widget.theme.cardBorder
+                  : Colors.black26),
           boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3)],
         ),
       );
@@ -2672,10 +2677,10 @@ class _StyleSheetState extends State<_StyleSheet> {
         height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? accent.withOpacity(0.12) : Colors.grey.shade100,
+          color: selected ? accent.withOpacity(0.12) : widget.theme.surfaceMuted,
           shape: BoxShape.circle,
           border: Border.all(
-            color: selected ? accent : Colors.grey.shade300,
+            color: selected ? accent : widget.theme.divider,
             width: selected ? 2 : 1,
           ),
         ),
@@ -2688,7 +2693,7 @@ class _StyleSheetState extends State<_StyleSheet> {
         alignment: Alignment.centerLeft,
         child: Text(t,
             style: TextStyle(
-                fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+                fontWeight: FontWeight.w700, color: widget.theme.textPrimary)),
       );
 
   Widget _preview() {
@@ -2943,7 +2948,7 @@ class _StyleSheetState extends State<_StyleSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: widget.theme.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2963,14 +2968,14 @@ class _StyleSheetState extends State<_StyleSheet> {
                       child: CustomPaint(
                         size: const Size(30, 18),
                         painter:
-                            _FacePainter(color: Colors.grey.shade800, expr: e),
+                            _FacePainter(color: widget.theme.textPrimary, expr: e),
                       ),
                     ),
                   _circleBtn(
                     selected: _face == null,
                     onTap: () => setState(() => _face = null),
                     child: Icon(Icons.block_rounded,
-                        color: Colors.grey.shade500, size: 20),
+                        color: widget.theme.textMuted, size: 20),
                   ),
                 ],
               ),
@@ -3003,7 +3008,7 @@ class _StyleSheetState extends State<_StyleSheet> {
                             color: !_useTheme &&
                                     col.toARGB32() == _color.toARGB32()
                                 ? accent
-                                : Colors.grey.shade300,
+                                : widget.theme.divider,
                             width: !_useTheme &&
                                     col.toARGB32() == _color.toARGB32()
                                 ? 3

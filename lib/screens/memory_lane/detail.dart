@@ -87,7 +87,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       initialChildSize: isLarge ? 0.88 : 0.75,
       maxChildSize: 0.95,
       builder: (_, sc) => Container(
-        color: Colors.white,
+        color: context.appTheme.cardSurface,
         child: Column(
             children: [
               _buildHeader(memory, p),
@@ -138,6 +138,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   // ── HEADER ───────────────────────────────────────────────────────────────────
   Widget _buildHeader(Memory memory, Color p) {
+    final theme = context.appTheme;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -155,7 +156,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
+                color: theme.isDark
+                    ? theme.cardSurface
+                    : Colors.white.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -170,7 +173,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.7),
+                    color: theme.isDark
+                        ? theme.cardBorder
+                        : Colors.white.withOpacity(0.7),
                     width: 2,
                   ),
                   boxShadow: [
@@ -220,10 +225,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
+                  color: theme.isDark
+                      ? theme.cardSurface
+                      : Colors.white.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.35),
+                    color: theme.isDark
+                        ? theme.cardBorder
+                        : Colors.white.withOpacity(0.35),
                     width: 1,
                   ),
                 ),
@@ -256,10 +265,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.22),
+                    color: theme.isDark
+                        ? theme.cardSurface
+                        : Colors.white.withOpacity(0.22),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.35),
+                      color: theme.isDark
+                          ? theme.cardBorder
+                          : Colors.white.withOpacity(0.35),
                       width: 1,
                     ),
                   ),
@@ -404,9 +417,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   memCacheHeight: 600,
                   fadeInDuration: const Duration(milliseconds: 180),
                   errorWidget: (_, __, ___) => Container(
-                    color: Colors.grey.shade100,
+                    color: context.appTheme.surfaceMuted,
                     child: Icon(Icons.image_not_supported_rounded,
-                        color: Colors.grey.shade400, size: 28),
+                        color: context.appTheme.textMuted, size: 28),
                   ),
                 ),
                 if (extraCount != null && extraCount > 0)
@@ -525,7 +538,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               fit: BoxFit.cover,
             )
           else
-            Container(height: 220, color: Colors.grey.shade900),
+            Container(
+                height: 220,
+                color: context.appTheme.isDark
+                    ? context.appTheme.surfaceMuted
+                    : Colors.grey.shade900),
           Container(
             height: 220,
             decoration: BoxDecoration(
@@ -743,7 +760,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       memory.musicArtist!,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade600,
+                        color: context.appTheme.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
@@ -859,13 +876,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     colors: [p, p.withOpacity(0.75)],
                   ),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: p.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  boxShadow: context.appTheme.accentGlow(
+                    p,
+                    opacity: 0.3,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ),
                 child: const Icon(
                   Icons.location_on_rounded,
@@ -884,7 +900,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                        color: context.appTheme.textPrimary,
                       ),
                     ),
                     if (memory.latitude != null) ...[
@@ -894,7 +910,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         '${memory.longitude?.toStringAsFixed(5) ?? ""}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: context.appTheme.textMuted,
                         ),
                       ),
                     ],
@@ -978,7 +994,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             text: text,
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey.shade800,
+              color: context.appTheme.textPrimary,
               height: 1.65,
             ),
           ),
@@ -1056,7 +1072,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: context.appTheme.textPrimary,
                         height: 1.25,
                       ),
                     ),
@@ -1109,7 +1125,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.55),
+                color: context.appTheme.cardSurface.withOpacity(0.55),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: p.withOpacity(0.10)),
               ),
@@ -1117,7 +1133,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 text: memory.caption!,
                 style: TextStyle(
                   fontSize: 14.5,
-                  color: Colors.grey.shade800,
+                  color: context.appTheme.textPrimary,
                   height: 1.55,
                 ),
               ),
@@ -1171,7 +1187,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: Colors.grey.shade700,
+            color: context.appTheme.textSecondary,
           ),
         ),
         const SizedBox(width: 10),
@@ -1282,7 +1298,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: context.appTheme.textPrimary,
                         height: 1.25,
                       ),
                     ),
@@ -1341,7 +1357,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.55),
+                color: context.appTheme.cardSurface.withOpacity(0.55),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: p.withOpacity(0.10)),
               ),
@@ -1349,7 +1365,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 text: memory.caption!,
                 style: TextStyle(
                   fontSize: 14.5,
-                  color: Colors.grey.shade800,
+                  color: context.appTheme.textPrimary,
                   height: 1.55,
                 ),
               ),
@@ -1434,7 +1450,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     if (memory.type == MemoryType.location) return const SizedBox.shrink();
 
     String? distLabel;
-    Color pillColor = Colors.grey.shade500;
+    Color pillColor = context.appTheme.textMuted;
     if (hasCoords && widget.userLat != null && widget.userLng != null) {
       final m = Geolocator.distanceBetween(
         widget.userLat!, widget.userLng!,
@@ -1463,10 +1479,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: hasCoords ? pillColor.withOpacity(0.06) : Colors.grey.shade50,
+            color: hasCoords ? pillColor.withOpacity(0.06) : context.appTheme.surfaceMuted,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: hasCoords ? pillColor.withOpacity(0.25) : Colors.grey.shade200,
+              color: hasCoords ? pillColor.withOpacity(0.25) : context.appTheme.divider,
               width: 1,
             ),
           ),
@@ -1476,13 +1492,13 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: hasCoords ? pillColor.withOpacity(0.12) : Colors.grey.shade100,
+                  color: hasCoords ? pillColor.withOpacity(0.12) : context.appTheme.surfaceMuted,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.location_on_rounded,
                   size: 18,
-                  color: hasCoords ? pillColor : Colors.grey.shade400,
+                  color: hasCoords ? pillColor : context.appTheme.textMuted,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1496,7 +1512,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade900,
+                          color: context.appTheme.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1513,7 +1529,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     else if (!hasName)
                       Text(
                         '${memory.latitude!.toStringAsFixed(5)}, ${memory.longitude!.toStringAsFixed(5)}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 12, color: context.appTheme.textMuted),
                       ),
                   ],
                 ),
@@ -1536,6 +1552,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     double lng,
     String? label,
   ) async {
+    final t = context.appTheme;
     final encodedLabel = label != null ? Uri.encodeComponent(label) : '';
 
     final apps = [
@@ -1576,7 +1593,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: t.cardSurface,
       builder: (_) => SafeArea(
         top: false,
         child: Padding(
@@ -1589,7 +1606,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: t.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1599,7 +1616,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   child: Row(
                     children: [
                       Icon(Icons.location_on_rounded,
-                          size: 16, color: Colors.grey.shade500),
+                          size: 16, color: t.textMuted),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -1607,7 +1624,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
+                            color: t.textSecondary,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1640,7 +1657,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         caption,
         style: TextStyle(
           fontSize: 15.5,
-          color: Colors.grey.shade800,
+          color: context.appTheme.textPrimary,
           height: 1.55,
         ),
       ),
@@ -1651,7 +1668,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _buildActions(Memory memory, Color p) {
     return Column(
       children: [
-        Container(height: 1, color: Colors.grey.shade100),
+        Container(height: 1, color: context.appTheme.divider),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -1784,13 +1801,13 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _noImgBox(double h) => Container(
     height: h,
     decoration: BoxDecoration(
-      color: Colors.grey.shade100,
+      color: context.appTheme.surfaceMuted,
       borderRadius: BorderRadius.circular(16),
     ),
     child: Center(
       child: Icon(
         Icons.image_not_supported_rounded,
-        color: Colors.grey.shade400,
+        color: context.appTheme.textMuted,
         size: 48,
       ),
     ),
@@ -1878,6 +1895,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1887,7 +1905,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
             Icon(
               Icons.chat_bubble_outline_rounded,
               size: 18,
-              color: Colors.grey.shade600,
+              color: t.textSecondary,
             ),
             const SizedBox(width: 6),
             Text(
@@ -1895,7 +1913,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade800,
+                color: t.textPrimary,
               ),
             ),
           ],
@@ -1914,7 +1932,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                   LocaleService.current.noCommentsYet,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade400,
+                    color: t.textMuted,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -1948,20 +1966,20 @@ class _CommentsSectionState extends State<_CommentsSection> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: LocaleService.current.writeAComment,
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  hintStyle: TextStyle(color: t.textMuted),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: t.surfaceMuted,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 10,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide: BorderSide(color: t.divider),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide: BorderSide(color: t.divider),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
@@ -2003,6 +2021,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
 
   Widget _commentBubble(MemoryComment comment) {
     final isMe = comment.authorUid == PocketBaseService().userId;
+    final t = context.appTheme;
     return GestureDetector(
       onLongPress: isMe ? () => _confirmDeleteComment(comment) : null,
       child: Row(
@@ -2022,12 +2041,12 @@ class _CommentsSectionState extends State<_CommentsSection> {
               decoration: BoxDecoration(
                 color: isMe
                     ? widget.primary.withOpacity(0.06)
-                    : Colors.grey.shade50,
+                    : t.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isMe
                       ? widget.primary.withOpacity(0.15)
-                      : Colors.grey.shade200,
+                      : t.divider,
                 ),
               ),
               child: Column(
@@ -2040,7 +2059,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: isMe ? widget.primary : Colors.grey.shade700,
+                          color: isMe ? widget.primary : t.textSecondary,
                         ),
                       ),
                       const Spacer(),
@@ -2048,7 +2067,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                         _timeAgo(comment.createdAt),
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.grey.shade400,
+                          color: t.textMuted,
                         ),
                       ),
                     ],
@@ -2058,7 +2077,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                     comment.text,
                     style: TextStyle(
                       fontSize: 13.5,
-                      color: Colors.grey.shade800,
+                      color: t.textPrimary,
                       height: 1.35,
                     ),
                   ),

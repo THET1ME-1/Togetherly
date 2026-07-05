@@ -201,7 +201,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     final s = LocaleService.current;
     showModalBottomSheet(
       context: ctx,
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -214,7 +214,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -256,9 +256,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     final t = widget.theme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F3F0),
+      backgroundColor: t.surfaceMuted,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: t.cardSurface,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
@@ -308,10 +308,10 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           const SizedBox(height: 20),
           Text(
             s.noDrawingsYet,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF6B7280),
+              color: t.textSecondary,
             ),
           ),
           const SizedBox(height: 24),
@@ -354,7 +354,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       onLongPress: () => _showContextMenu(ctx, meta),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: t.cardSurface,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -394,7 +394,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                   const SizedBox(height: 3),
                   Text(
                     _formatDate(meta.updatedAt),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: t.textMuted),
                   ),
                 ],
               ),
@@ -419,7 +419,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     // Placeholder when no preview exists yet.
     return Container(
       width: double.infinity,
-      color: const Color(0xFFF0EDE9),
+      color: t.surfaceMuted,
       child: Center(
         child: Icon(
           Icons.brush_rounded,

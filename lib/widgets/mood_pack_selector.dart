@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/mood_pack.dart';
 import '../services/catalog_service.dart';
 import '../services/mood_pack_service.dart';
+import '../theme/theme_scope.dart';
 import 'mood_image.dart';
 
 /// Горизонтальный селектор паков настроений для пикера.
@@ -73,6 +74,7 @@ class _PackChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     final gradient = pack.tileGradient;
     return GestureDetector(
       onTap: onTap,
@@ -80,7 +82,7 @@ class _PackChip extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.fromLTRB(8, 6, 14, 6),
         decoration: BoxDecoration(
-          color: selected ? primary.withValues(alpha: 0.10) : Colors.grey.shade100,
+          color: selected ? primary.withValues(alpha: 0.10) : t.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected ? primary : Colors.transparent,
@@ -124,7 +126,7 @@ class _PackChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                color: selected ? primary : Colors.grey.shade700,
+                color: selected ? primary : t.textSecondary,
               ),
             ),
           ],

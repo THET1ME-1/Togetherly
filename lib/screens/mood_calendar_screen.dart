@@ -73,7 +73,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     final primary = widget.theme.primary;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -89,7 +89,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: widget.theme.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -100,7 +100,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 style: GoogleFonts.rubik(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -118,7 +118,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             style: GoogleFonts.rubik(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
+                              color: widget.theme.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -126,7 +126,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             s.moodMultiplePerDaySubtitle,
                             style: GoogleFonts.rubik(
                               fontSize: 12,
-                              color: Colors.grey.shade500,
+                              color: widget.theme.textMuted,
                             ),
                           ),
                         ],
@@ -185,14 +185,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
+      backgroundColor: widget.theme.surfaceMuted,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           // ── AppBar ──
           SliverAppBar(
             pinned: true,
-            backgroundColor: Colors.white,
+            backgroundColor: widget.theme.cardSurface,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
@@ -204,7 +204,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               style: GoogleFonts.rubik(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: widget.theme.textPrimary,
               ),
             ),
             centerTitle: true,
@@ -335,7 +335,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -349,7 +349,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 margin: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: _selectedPeriod == i
-                      ? Colors.white
+                      ? widget.theme.cardSurface
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: _selectedPeriod == i
@@ -371,7 +371,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                           : FontWeight.w500,
                       color: _selectedPeriod == i
                           ? widget.theme.primary
-                          : Colors.grey.shade500,
+                          : widget.theme.textMuted,
                     ),
                   ),
                 ),
@@ -410,7 +410,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: Colors.grey.shade800,
+            color: widget.theme.textPrimary,
           ),
         ),
         IconButton(
@@ -445,7 +445,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700,
+                  color: widget.theme.textSecondary,
                 ),
               ),
               const SizedBox(width: 4),
@@ -455,7 +455,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 child: Icon(
                   Icons.keyboard_arrow_down_rounded,
                   size: 20,
-                  color: Colors.grey.shade500,
+                  color: widget.theme.textMuted,
                 ),
               ),
             ],
@@ -492,7 +492,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       m.localizedLabel,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: widget.theme.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -534,7 +534,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: Colors.grey.shade800,
+            color: widget.theme.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -598,7 +598,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500,
+                color: widget.theme.textMuted,
               ),
             ),
             const SizedBox(height: 4),
@@ -607,7 +607,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-                color: isToday ? widget.theme.primary : Colors.grey.shade600,
+                color: isToday ? widget.theme.primary : widget.theme.textSecondary,
               ),
             ),
             const SizedBox(height: 4),
@@ -658,7 +658,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade400,
+                        color: widget.theme.textMuted,
                       ),
                     ),
                   ),
@@ -725,7 +725,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade500,
+                  color: widget.theme.textMuted,
                 ),
               ),
               const SizedBox(height: 4),
@@ -761,7 +761,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(size > 20 ? 4 : 2),
         ),
       );
@@ -843,7 +843,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: widget.theme.textSecondary,
                   ),
                 ),
               ],
@@ -909,7 +909,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -930,7 +930,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
+                  color: widget.theme.textSecondary,
                 ),
               ),
               Container(
@@ -964,7 +964,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         horizontalInterval: 1,
                         getDrawingHorizontalLine: (value) {
                           return FlLine(
-                            color: Colors.grey.shade200,
+                            color: widget.theme.divider,
                             strokeWidth: 1,
                             dashArray: [5, 5],
                           );
@@ -988,7 +988,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                 return Text(
                                   value.toInt().toString(),
                                   style: TextStyle(
-                                    color: Colors.grey.shade400,
+                                    color: widget.theme.textMuted,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -1017,7 +1017,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                   child: Text(
                                     '${date.day}/${date.month}',
                                     style: TextStyle(
-                                      color: Colors.grey.shade400,
+                                      color: widget.theme.textMuted,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -1046,7 +1046,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                             getDotPainter: (spot, percent, barData, index) =>
                                 FlDotCirclePainter(
                                   radius: 4,
-                                  color: Colors.white,
+                                  color: widget.theme.cardSurface,
                                   strokeWidth: 2,
                                   strokeColor: widget.theme.primary,
                                 ),
@@ -1064,7 +1064,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       LocaleService.current.notEnoughData,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade400,
+                        color: widget.theme.textMuted,
                       ),
                     ),
                   ),
@@ -1105,8 +1105,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: widget.theme.cardSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
@@ -1119,7 +1119,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1129,14 +1129,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade800,
+                color: widget.theme.textPrimary,
               ),
             ),
             const SizedBox(height: 16),
             if (moods.isEmpty)
               Text(
                 LocaleService.current.noMoodRecorded,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 14, color: widget.theme.textMuted),
               )
             else
               Flexible(
@@ -1171,7 +1171,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.grey.shade800,
+                                      color: widget.theme.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -1179,7 +1179,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                   '${m.timestamp.hour.toString().padLeft(2, '0')}:${m.timestamp.minute.toString().padLeft(2, '0')}',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey.shade500,
+                                    color: widget.theme.textMuted,
                                   ),
                                 ),
                                 if (!isPartner) ...[
@@ -1192,7 +1192,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                                     child: Icon(
                                       Icons.delete_outline_rounded,
                                       size: 18,
-                                      color: Colors.grey.shade400,
+                                      color: widget.theme.textMuted,
                                     ),
                                   ),
                                 ],

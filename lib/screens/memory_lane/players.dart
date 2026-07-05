@@ -231,7 +231,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         height: 1.2,
-                        color: Colors.grey.shade900,
+                        color: context.appTheme.textPrimary,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -307,11 +307,11 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
                 children: [
                   Text(
                     _formatDuration(_position),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: context.appTheme.textMuted),
                   ),
                   Text(
                     _formatDuration(_duration),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: context.appTheme.textMuted),
                   ),
                 ],
               ),
@@ -1057,7 +1057,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                         decoration: BoxDecoration(
                           color: primary, // Music type color is primary
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(color: widget.theme.cardSurface, width: 2),
                         ),
                         child: Center(
                           child: SvgPicture.asset(
@@ -1089,7 +1089,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade900,
+                                color: widget.theme.textPrimary,
                               ),
                             ),
                           ),
@@ -1098,7 +1098,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                               ' via ',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade400,
+                                color: widget.theme.textMuted,
                               ),
                             ),
                             Text(
@@ -1120,7 +1120,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                             '  ·  ${_timeAgo(memory.createdAt)}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade400,
+                              color: widget.theme.textMuted,
                             ),
                           ),
                         ],
@@ -1360,9 +1360,9 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        border: Border.all(color: widget.theme.divider, width: 1),
       ),
       child: Column(
         children: [
@@ -1398,7 +1398,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade900,
+                        color: widget.theme.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

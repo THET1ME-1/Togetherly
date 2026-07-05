@@ -265,7 +265,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 style: GoogleFonts.rubik(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade900,
+                  color: t.textPrimary,
                 ),
               ),
             ),
@@ -282,7 +282,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
               turns: _collapsed ? 0.5 : 0,
               duration: const Duration(milliseconds: 250),
               child: Icon(Icons.keyboard_arrow_up_rounded,
-                  color: Colors.grey.shade500, size: 24),
+                  color: t.textMuted, size: 24),
             ),
           ],
         ),
@@ -371,7 +371,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 Positioned(
                   left: 10,
                   top: 10,
-                  child: _distancePill(me, partner),
+                  child: _distancePill(t, me, partner),
                 ),
 
               // CTA включения шеринга поверх превью.
@@ -382,7 +382,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                 Positioned(
                   right: 10,
                   top: 10,
-                  child: _stopChip(),
+                  child: _stopChip(t),
                 ),
 
               // Ждём партнёра (шеринг включён, но точки партнёра нет).
@@ -391,7 +391,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                   left: 0,
                   right: 0,
                   bottom: 10,
-                  child: Center(child: _hintChip(LocaleService.current.liveMapWaitingPartner)),
+                  child: Center(child: _hintChip(t, LocaleService.current.liveMapWaitingPartner)),
                 ),
             ],
           ),
@@ -400,12 +400,12 @@ class _LiveMapCardState extends State<LiveMapCard> {
     );
   }
 
-  Widget _distancePill(LatLng me, LatLng partner) {
+  Widget _distancePill(AppTheme t, LatLng me, LatLng partner) {
     final meters = LiveLocationService.distanceMeters(me, partner);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.cardSurface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -424,7 +424,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
             style: GoogleFonts.rubik(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: t.textPrimary,
             ),
           ),
         ],
@@ -432,16 +432,16 @@ class _LiveMapCardState extends State<LiveMapCard> {
     );
   }
 
-  Widget _hintChip(String text) {
+  Widget _hintChip(AppTheme t, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: t.cardSurface.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         text,
-        style: GoogleFonts.rubik(fontSize: 12, color: Colors.grey.shade700),
+        style: GoogleFonts.rubik(fontSize: 12, color: t.textSecondary),
       ),
     );
   }
@@ -491,7 +491,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
     );
   }
 
-  Widget _stopChip() {
+  Widget _stopChip(AppTheme t) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -500,7 +500,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: t.cardSurface,
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
@@ -513,14 +513,14 @@ class _LiveMapCardState extends State<LiveMapCard> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.location_off_rounded,
-                  size: 14, color: Colors.grey.shade700),
+                  size: 14, color: t.textSecondary),
               const SizedBox(width: 5),
               Text(
                 LocaleService.current.liveMapStopCta,
                 style: GoogleFonts.rubik(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
+                  color: t.textPrimary,
                 ),
               ),
             ],

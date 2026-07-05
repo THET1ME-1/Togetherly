@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/mood_entry.dart';
+import '../theme/theme_scope.dart';
 
 /// Единый рендер картинки настроения по [imagePath].
 ///
@@ -40,7 +41,7 @@ class MoodImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
-        errorBuilder: (_, __, ___) => _fallback(),
+        errorBuilder: (ctx, __, ___) => _fallback(ctx),
       );
     }
 
@@ -51,12 +52,12 @@ class MoodImage extends StatelessWidget {
       height: height,
       fadeInDuration: const Duration(milliseconds: 150),
       placeholder: (_, __) => SizedBox(width: width, height: height),
-      errorWidget: (_, __, ___) => _fallback(),
+      errorWidget: (ctx, __, ___) => _fallback(ctx),
     );
   }
 
   /// Фолбэк: классический ассет по id настроения, иначе нейтральная иконка.
-  Widget _fallback() {
+  Widget _fallback(BuildContext context) {
     final classic = MoodOption.classicFallbackFor(imagePath);
     if (classic != null) {
       return Image.asset(
@@ -64,15 +65,15 @@ class MoodImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
-        errorBuilder: (_, __, ___) => _icon(),
+        errorBuilder: (ctx, __, ___) => _icon(ctx),
       );
     }
-    return _icon();
+    return _icon(context);
   }
 
-  Widget _icon() => Icon(
+  Widget _icon(BuildContext context) => Icon(
         Icons.sentiment_satisfied_alt_rounded,
         size: (width ?? height ?? 32) * 0.7,
-        color: Colors.grey.shade400,
+        color: context.appTheme.textMuted,
       );
 }

@@ -15,6 +15,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
 
 
@@ -327,6 +328,7 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   void _showEmailExistsDialog() {
+    final t = context.appTheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -341,7 +343,7 @@ class _SetupScreenState extends State<SetupScreen>
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               LocaleService.current.cancel,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: t.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -454,6 +456,7 @@ class _SetupScreenState extends State<SetupScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appTheme;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Stack(
@@ -467,10 +470,14 @@ class _SetupScreenState extends State<SetupScreen>
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
-              placeholder: (_, __) =>
-                  const ColoredBox(color: Color(0xFFFFF0EA)),
-              errorWidget: (_, __, ___) =>
-                  const ColoredBox(color: Color(0xFFFFF0EA)),
+              placeholder: (_, __) => ColoredBox(
+                  color: theme.isDark
+                      ? theme.surfaceMuted
+                      : const Color(0xFFFFF0EA)),
+              errorWidget: (_, __, ___) => ColoredBox(
+                  color: theme.isDark
+                      ? theme.surfaceMuted
+                      : const Color(0xFFFFF0EA)),
             ),
           ),
           SafeArea(
@@ -488,6 +495,7 @@ class _SetupScreenState extends State<SetupScreen>
   //  STEP 1: GENDER SELECTION
   // ═══════════════════════════════════════════════════
   Widget _buildGenderStep() {
+    final theme = context.appTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 36),
       child: Column(
@@ -511,13 +519,18 @@ class _SetupScreenState extends State<SetupScreen>
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.7),
+                  color: theme.isDark
+                      ? theme.cardSurface
+                      : Colors.white.withOpacity(0.7),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(
+                      color: theme.isDark
+                          ? theme.cardBorder
+                          : Colors.grey.shade200),
                 ),
                 child: Icon(
                   Icons.arrow_back_rounded,
-                  color: Colors.grey.shade700,
+                  color: theme.textSecondary,
                   size: 20,
                 ),
               ),
@@ -540,13 +553,13 @@ class _SetupScreenState extends State<SetupScreen>
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: Colors.grey.shade900,
+              color: theme.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             LocaleService.current.selectGenderForTheme,
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 15, color: theme.textMuted),
           ),
           const SizedBox(height: 48),
           // Gender cards
@@ -570,7 +583,8 @@ class _SetupScreenState extends State<SetupScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _accent,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
+                  disabledBackgroundColor:
+                      theme.isDark ? theme.divider : Colors.grey.shade300,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(32),
                   ),
@@ -601,6 +615,7 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   Widget _genderCard(Gender gender) {
+    final theme = context.appTheme;
     final isSelected = _selectedGender == gender;
     final isMale = gender == Gender.male;
     final color = isMale ? const Color(0xFF7898BF) : const Color(0xFFFF7E8B);
@@ -617,20 +632,25 @@ class _SetupScreenState extends State<SetupScreen>
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(vertical: 32),
         decoration: BoxDecoration(
-          color: isSelected ? bgColor : Colors.white.withOpacity(0.7),
+          color: isSelected
+              ? bgColor
+              : (theme.isDark
+                  ? theme.cardSurface
+                  : Colors.white.withOpacity(0.7)),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: isSelected ? color.withOpacity(0.4) : Colors.grey.shade200,
+            color: isSelected
+                ? color.withOpacity(0.4)
+                : (theme.isDark ? theme.cardBorder : Colors.grey.shade200),
             width: isSelected ? 2.5 : 1,
           ),
           boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withOpacity(0.15),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
+              ? theme.accentGlow(
+                  color,
+                  opacity: 0.15,
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                )
               : [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.03),
@@ -647,13 +667,15 @@ class _SetupScreenState extends State<SetupScreen>
               decoration: BoxDecoration(
                 color: isSelected
                     ? color.withOpacity(0.15)
-                    : Colors.grey.shade100,
+                    : (theme.isDark
+                        ? theme.surfaceMuted
+                        : Colors.grey.shade100),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
                 size: 36,
-                color: isSelected ? color : Colors.grey.shade400,
+                color: isSelected ? color : theme.textMuted,
               ),
             ),
             const SizedBox(height: 16),
@@ -662,7 +684,7 @@ class _SetupScreenState extends State<SetupScreen>
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: isSelected ? color : Colors.grey.shade600,
+                color: isSelected ? color : theme.textSecondary,
               ),
             ),
             const SizedBox(height: 4),
@@ -686,6 +708,7 @@ class _SetupScreenState extends State<SetupScreen>
   // ═══════════════════════════════════════════════════
   Widget _buildRegistrationStep() {
     final s = LocaleService.current;
+    final t = context.appTheme;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Column(
@@ -700,12 +723,18 @@ class _SetupScreenState extends State<SetupScreen>
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.75),
+                  color: t.isDark
+                      ? t.cardSurface
+                      : Colors.white.withOpacity(0.75),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.6)),
+                  border: Border.all(
+                      color: t.isDark
+                          ? t.cardBorder
+                          : Colors.white.withOpacity(0.6)),
                 ),
                 child: Icon(Icons.arrow_back_rounded,
-                    color: Colors.grey.shade800, size: 20),
+                    color: t.isDark ? t.textSecondary : Colors.grey.shade800,
+                    size: 20),
               ),
             ),
           ),
@@ -715,9 +744,9 @@ class _SetupScreenState extends State<SetupScreen>
         Expanded(
           child: Container(
             width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
+            decoration: BoxDecoration(
+              color: t.cardSurface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
             ),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -731,7 +760,7 @@ class _SetupScreenState extends State<SetupScreen>
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade900,
+                        color: t.textPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -791,7 +820,7 @@ class _SetupScreenState extends State<SetupScreen>
                       Text(
                         '${s.alreadyHaveAccountLogin} ',
                         style: TextStyle(
-                            fontSize: 14, color: Colors.grey.shade600),
+                            fontSize: 14, color: t.textSecondary),
                       ),
                       GestureDetector(
                         onTap: _isLoading ? null : _goToLogin,
@@ -888,6 +917,7 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   Widget _termsCheckbox(AppStrings s) {
+    final t = context.appTheme;
     return GestureDetector(
       onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
       behavior: HitTestBehavior.opaque,
@@ -901,7 +931,7 @@ class _SetupScreenState extends State<SetupScreen>
               color: _agreeToTerms ? _accent : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: _agreeToTerms ? _accent : Colors.grey.shade400,
+                color: _agreeToTerms ? _accent : t.textMuted,
                 width: 2,
               ),
             ),
@@ -916,7 +946,7 @@ class _SetupScreenState extends State<SetupScreen>
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey.shade700,
+                color: t.textSecondary,
               ),
             ),
           ),
@@ -981,7 +1011,8 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   Widget _passwordCheckRow(String label, bool passed) {
-    final color = passed ? const Color(0xFF4CAF50) : Colors.grey.shade400;
+    final t = context.appTheme;
+    final color = passed ? const Color(0xFF4CAF50) : t.textMuted;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

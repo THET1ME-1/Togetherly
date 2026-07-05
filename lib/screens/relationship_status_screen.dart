@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/pair_data.dart';
 import '../models/relationship_status.dart';
 import '../services/locale_service.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/common/m3_loading.dart';
 
 class RelationshipStatusScreen extends StatefulWidget {
@@ -44,20 +45,21 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     }
 
     final currentStatus = connection.currentStatus;
+    final t = context.appTheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F6),
+      backgroundColor: t.surfaceMuted,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: t.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           LocaleService.current.relationshipStatus,
-          style: const TextStyle(
-            color: Colors.black87,
+          style: TextStyle(
+            color: t.textPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -155,12 +157,13 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
+    final t = context.appTheme;
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w700,
-        color: Colors.black87,
+        color: t.textPrimary,
       ),
     );
   }
@@ -173,13 +176,14 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
     VoidCallback? onEdit,
     VoidCallback? onDelete,
   }) {
+    final t = context.appTheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.pink.shade50 : Colors.white,
+        color: isSelected ? Colors.pink.shade50 : t.cardSurface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected ? Colors.pink.shade300 : Colors.grey.shade200,
+          color: isSelected ? Colors.pink.shade300 : t.divider,
           width: 2,
         ),
       ),
@@ -190,7 +194,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
           status.label,
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: Colors.black87,
+            color: t.textPrimary,
           ),
         ),
         trailing: isCustom
@@ -220,24 +224,26 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
   }
 
   Widget _buildAddCustomButton() {
+    final t = context.appTheme;
     return OutlinedButton.icon(
       onPressed: _addCustomStatus,
       icon: const Icon(Icons.add),
       label: Text(LocaleService.current.addCustomStatus),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        side: BorderSide(color: Colors.grey.shade300, width: 2),
+        side: BorderSide(color: t.divider, width: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   Widget _buildClearStatusButton() {
+    final t = context.appTheme;
     return ElevatedButton(
       onPressed: _clearStatus,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.grey.shade200,
-        foregroundColor: Colors.black87,
+        backgroundColor: t.surfaceMuted,
+        foregroundColor: t.textPrimary,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

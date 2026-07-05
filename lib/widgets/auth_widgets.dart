@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/theme_scope.dart';
 
 /// Общие виджеты экранов входа/регистрации (единый стиль «карточка + поля с
 /// плавающей подписью + ряд соц-иконок»). [accent] берётся из вызывающего
@@ -45,6 +46,7 @@ class _AuthFieldState extends State<AuthField> {
   @override
   Widget build(BuildContext context) {
     final accent = widget.accent;
+    final t = context.appTheme;
     return TextField(
       controller: widget.controller,
       keyboardType: widget.keyboardType,
@@ -57,7 +59,7 @@ class _AuthFieldState extends State<AuthField> {
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w500,
-        color: Colors.grey.shade900,
+        color: t.textPrimary,
       ),
       decoration: InputDecoration(
         labelText: widget.label,
@@ -65,7 +67,7 @@ class _AuthFieldState extends State<AuthField> {
         labelStyle: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Colors.grey.shade600,
+          color: t.textSecondary,
         ),
         floatingLabelStyle: TextStyle(
           fontSize: 13,
@@ -74,12 +76,12 @@ class _AuthFieldState extends State<AuthField> {
         ),
         hintText: widget.hint,
         hintStyle: TextStyle(
-          color: Colors.grey.shade400,
+          color: t.textMuted,
           fontWeight: FontWeight.w400,
           fontSize: 14,
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: t.cardSurface,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
         suffixIcon: widget.isPassword
@@ -89,18 +91,18 @@ class _AuthFieldState extends State<AuthField> {
                   _obscure
                       ? Icons.visibility_off_rounded
                       : Icons.visibility_rounded,
-                  color: Colors.grey.shade500,
+                  color: t.textMuted,
                   size: 20,
                 ),
               )
             : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: t.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: t.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -134,6 +136,7 @@ class AuthSocialRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     final icons = <Widget>[
       if (onGoogle != null)
         AuthSocialIcon(onTap: onGoogle, child: const GoogleLogo(size: 22)),
@@ -148,7 +151,7 @@ class AuthSocialRow extends StatelessWidget {
       if (onApple != null)
         AuthSocialIcon(
           onTap: onApple,
-          child: const Icon(Icons.apple, size: 26, color: Colors.black),
+          child: Icon(Icons.apple, size: 26, color: t.textPrimary),
         ),
     ];
 
@@ -156,19 +159,19 @@ class AuthSocialRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Divider(color: Colors.grey.shade200)),
+            Expanded(child: Divider(color: t.divider)),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Text(
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade400,
+                  color: t.textMuted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            Expanded(child: Divider(color: Colors.grey.shade200)),
+            Expanded(child: Divider(color: t.divider)),
           ],
         ),
         const SizedBox(height: 18),
@@ -191,10 +194,11 @@ class AuthSocialIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Material(
-      color: Colors.white,
+      color: t.cardSurface,
       shape:
-          CircleBorder(side: BorderSide(color: Colors.grey.shade200, width: 1.4)),
+          CircleBorder(side: BorderSide(color: t.divider, width: 1.4)),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,

@@ -140,7 +140,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -172,7 +172,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                                         .selectUpToPhotos(remaining),
                             style: GoogleFonts.rubik(
                               fontSize: 12,
-                              color: Colors.grey.shade600,
+                              color: t.textSecondary,
                             ),
                           ),
                         ],
@@ -214,7 +214,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: t.primary,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade200,
+                        disabledBackgroundColor: t.surfaceMuted,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -249,7 +249,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
       return Center(
         child: Text(
           LocaleService.current.failedToLoadMemories,
-          style: GoogleFonts.rubik(color: Colors.grey.shade500),
+          style: GoogleFonts.rubik(color: t.textMuted),
         ),
       );
     }
@@ -260,11 +260,11 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.photo_library_outlined,
-                size: 48, color: Colors.grey.shade300),
+                size: 48, color: t.textMuted),
             const SizedBox(height: 12),
             Text(
               LocaleService.current.noPhotosInMemoryLane,
-              style: GoogleFonts.rubik(color: Colors.grey.shade500),
+              style: GoogleFonts.rubik(color: t.textMuted),
             ),
           ],
         ),
@@ -299,12 +299,12 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                 memCacheWidth: 300,
                 memCacheHeight: 300,
                 placeholder: (_, __) => Container(
-                  color: Colors.grey.shade100,
+                  color: t.surfaceMuted,
                 ),
                 errorWidget: (_, __, ___) => Container(
-                  color: Colors.grey.shade100,
+                  color: t.surfaceMuted,
                   child: Icon(Icons.broken_image_rounded,
-                      color: Colors.grey.shade400),
+                      color: t.textMuted),
                 ),
               ),
               // Dim if at max and not selected

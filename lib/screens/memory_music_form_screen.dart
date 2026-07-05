@@ -221,7 +221,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       appBar: _buildAppBar(s),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -255,20 +255,20 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
 
   PreferredSizeWidget _buildAppBar(AppStrings s) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: Colors.grey.shade700),
+        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         s.music,
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,
-          color: Colors.grey.shade900,
+          color: widget.theme.textPrimary,
         ),
       ),
       centerTitle: true,
@@ -313,7 +313,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
           colors: [
             accent.withValues(alpha: 0.10),
             accent.withValues(alpha: 0.02),
-            Colors.white,
+            widget.theme.cardSurface,
           ],
         ),
       ),
@@ -370,8 +370,8 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
                 fontWeight: FontWeight.w800,
                 height: 1.15,
                 color: _titleCtrl.text.trim().isNotEmpty
-                    ? Colors.grey.shade900
-                    : Colors.grey.shade300,
+                    ? widget.theme.textPrimary
+                    : widget.theme.textMuted,
               ),
             ),
           ),
@@ -509,9 +509,9 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: widget.theme.surfaceMuted,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: widget.theme.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -534,7 +534,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade800,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
               ),
@@ -576,7 +576,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
             decoration: InputDecoration(
               hintText: s.pasteLinkFromService,
               hintStyle:
-                  TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  TextStyle(color: widget.theme.textMuted, fontSize: 13),
               prefixIcon: Icon(Icons.link_rounded, color: _primary, size: 20),
               suffixIcon: _isFetching
                   ? const Padding(
@@ -594,7 +594,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
                       onPressed: () => _fetchMeta(_urlCtrl.text),
                     ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: widget.theme.cardSurface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
@@ -619,19 +619,19 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
   Widget _orDivider(AppStrings s) {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+        Expanded(child: Divider(color: widget.theme.divider, height: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             s.orDivider,
             style: TextStyle(
               fontSize: 11,
-              color: Colors.grey.shade400,
+              color: widget.theme.textMuted,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.grey.shade300, height: 1)),
+        Expanded(child: Divider(color: widget.theme.divider, height: 1)),
       ],
     );
   }
@@ -703,7 +703,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: widget.theme.textPrimary,
                 ),
               ),
             ],
@@ -739,11 +739,11 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
       decoration: InputDecoration(
         hintText: hint,
         helperText: helper,
-        helperStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        helperStyle: TextStyle(fontSize: 11, color: widget.theme.textMuted),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         prefixIcon: Icon(icon, color: _primary, size: 20),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: widget.theme.cardSurface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -766,17 +766,17 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
         hintText: s.descriptionOptional,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: widget.theme.textMuted),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: widget.theme.surfaceMuted,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: widget.theme.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

@@ -108,9 +108,9 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
         ),
         child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: _t.cardSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Column(
@@ -122,7 +122,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: _t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -133,7 +133,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                 style: GoogleFonts.rubik(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
+                  color: _t.textMuted,
                   letterSpacing: 1,
                 ),
               ),
@@ -142,7 +142,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                 controller: controller,
                 autofocus: true,
                 maxLines: null,
-                style: GoogleFonts.rubik(fontSize: 16, color: Colors.grey.shade900),
+                style: GoogleFonts.rubik(fontSize: 16, color: _t.textPrimary),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: _t.primaryLight,
@@ -311,7 +311,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
               style: GoogleFonts.rubik(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
+                color: _t.textPrimary,
               ),
             ),
           ),
@@ -345,10 +345,10 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? _t.primary : Colors.white.withOpacity(0.85),
+                color: isSelected ? _t.primary : _t.cardSurface.withOpacity(0.85),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isSelected ? _t.primary : Colors.grey.shade200,
+                  color: isSelected ? _t.primary : _t.divider,
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
@@ -371,7 +371,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                     style: GoogleFonts.rubik(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                      color: isSelected ? Colors.white : _t.textSecondary,
                     ),
                   ),
                 ],
@@ -416,7 +416,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.85),
+            color: _t.cardSurface.withOpacity(0.85),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: _t.cardBorder),
           ),
@@ -454,13 +454,13 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.touch_app_rounded, size: 14, color: Colors.grey.shade400),
+          Icon(Icons.touch_app_rounded, size: 14, color: _t.textMuted),
           const SizedBox(width: 6),
           Text(
             LocaleService.current.tapAnyTextToEdit,
             style: GoogleFonts.rubik(
               fontSize: 12,
-              color: Colors.grey.shade400,
+              color: _t.textMuted,
               fontWeight: FontWeight.w400,
             ),
           ),

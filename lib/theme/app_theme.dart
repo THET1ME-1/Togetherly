@@ -82,6 +82,37 @@ class AppTheme {
   /// Стоимость в Коинах (актуально только если [isPremium])
   final int price;
 
+  // ── Тёмная тема (яркость + семантические токены) ─────────────────────────
+  // Позволяют одной теме быть по-настоящему тёмной (тёмные карточки + светлый
+  // текст). Все дефолты = прежние СВЕТЛЫЕ значения, поэтому 20 существующих тем
+  // не меняются: они просто не передают эти параметры.
+
+  /// Яркость темы. Управляет ColorScheme/scaffold/меню в `main._buildTheme`.
+  final Brightness brightness;
+
+  /// Основной текст на карточках и фоне (заголовки, значения). Заменяет
+  /// хардкоженные `Colors.grey.shade900` / `Color(0xFF2A2A2A)` в виджетах.
+  final Color textPrimary;
+
+  /// Вторичный текст (подзаголовки, описания). Заменяет `grey.shade700/600`.
+  final Color textSecondary;
+
+  /// Приглушённый текст (подписи, плейсхолдеры, метки). Заменяет `grey.shade500/400`.
+  final Color textMuted;
+
+  /// Вторичная поверхность (чипы, поля ввода, приподнятые блоки внутри карточки).
+  /// Заменяет `grey.shade100/200`.
+  final Color surfaceMuted;
+
+  /// Разделители и тонкие границы. Заменяет `grey.shade200/300`.
+  final Color divider;
+
+  /// Рисовать ли акцентные свечения-ореолы (мягкие цветные тени вокруг кнопок,
+  /// карточек, активных элементов). Нуар-тёмные темы ставят `false` — глубина
+  /// создаётся границами и слоями, а не сиянием. По умолчанию `true`, поэтому
+  /// светлые темы не меняются.
+  final bool useGlow;
+
   const AppTheme({
     required this.index,
     required this.name,
@@ -107,7 +138,52 @@ class AppTheme {
     required this.timerDialBackground,
     this.isPremium = false,
     this.price = 0,
+    this.brightness = Brightness.light,
+    this.textPrimary = const Color(0xFF212121),
+    this.textSecondary = const Color(0xFF616161),
+    this.textMuted = const Color(0xFF9E9E9E),
+    this.surfaceMuted = const Color(0xFFF2F2F4),
+    this.divider = const Color(0xFFE0E0E0),
+    this.useGlow = true,
   });
+
+  /// Тема тёмная? Удобный флаг для виджетов (например выбрать оттенок тени).
+  bool get isDark => brightness == Brightness.dark;
+
+  /// Цвет ЗАЛИВКИ акцентного/активного элемента, ПОВЕРХ которого лежит текст или
+  /// иконка: FAB и круглые кнопки, заполненные лепестки таймера, ячейка «сегодня».
+  ///
+  /// Светлые темы и тёмные со СРЕДНИМ акцентом — заливка = сам [primary]
+  /// (у 20 светлых тем `primary == navActiveIcon`, вид не меняется; у «Угольной
+  /// розы» это даёт розовые заливки таймера/«сегодня»/FAB). И только когда акцент
+  /// тёмной темы почти-белый (яркость > 0.6, как серебро нуара) — заливка падает
+  /// на графит [AppThemes.darkFill], иначе она стала бы белым пятном с «белым
+  /// текстом на белом». Цвет иконки/текста поверх бери через [AppThemes.onColor].
+  Color get fillColor =>
+      (isDark && primary.computeLuminance() > 0.6) ? AppThemes.darkFill : primary;
+
+  /// Свечение-ореол вокруг элемента цветом [color] — то, что раньше писалось
+  /// inline как `boxShadow: [BoxShadow(color: accent.withOpacity(0.3), …)]`.
+  ///
+  /// На темах без свечения ([useGlow] == false, нуар) возвращает пустой список,
+  /// поэтому один и тот же виджет получается матовым на нуаре и с ореолом на
+  /// светлых темах — без `if (isDark)` в каждом виджете.
+  List<BoxShadow> accentGlow(
+    Color color, {
+    double blurRadius = 8,
+    double opacity = 0.3,
+    double spreadRadius = 0,
+    Offset offset = const Offset(0, 2),
+  }) => useGlow
+      ? [
+          BoxShadow(
+            color: color.withValues(alpha: opacity),
+            blurRadius: blurRadius,
+            spreadRadius: spreadRadius,
+            offset: offset,
+          ),
+        ]
+      : const <BoxShadow>[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,6 +191,13 @@ class AppTheme {
 // Чтобы добавить новую — создай AppTheme ниже и добавь в [all].
 // ─────────────────────────────────────────────────────────────────────────────
 abstract final class AppThemes {
+  /// Графитовый фолбэк-тон заливки для тёмных тем с ПОЧТИ-БЕЛЫМ акцентом
+  /// (яркость > 0.6, напр. серебро нуара): там `primary` нельзя лить как фон —
+  /// получилось бы белое пятно с «белым текстом на белом», поэтому [AppTheme.fillColor]
+  /// подставляет этот графит. Тёмные темы со средним акцентом (напр. «Угольная
+  /// роза») заливаются самим `primary` и сюда не попадают.
+  static const Color darkFill = Color(0xFF333438);
+
   // ── 0: Розовая ────────────────────────────────────────────────────────────
   static const pink = AppTheme(
     index: 0,
@@ -664,6 +747,225 @@ abstract final class AppThemes {
     price: 30,
   );
 
+  // ── 20: Угольная бирюза (нейтральный уголь + спокойный тил) ───────────────
+  // Тёмная тема, доведённая «под пару»: НЕЙТРАЛЬНО-угольные слои (без прежнего
+  // тёплого сепийного подтона, из-за которого фон читался «коричневым») с ВИДИМОЙ
+  // лестницей элевации (ΔL*≈8 фон→карточка — слои не сливаются). Акцент — спокойный
+  // приглушённый тил вместо яркой розы: мягче на тёмном, без «конфетности».
+  // Кремово-нейтральный текст, чёткие рёбра вместо свечений (useGlow: false).
+  // Задаёт brightness.dark и полный набор тёмных токенов (textPrimary/…/
+  // surfaceMuted/divider), которые виджеты читают вместо хардкоженных светлых
+  // цветов. Тил — обычный СРЕДНИЙ акцент, поэтому (в отличие от серебра нуара)
+  // спокойно работает и как ЗАЛИВКА: fillColor == primary, белый текст поверх
+  // читается (та же светлота, что была у розы — паритет сохранён). Будущие тёмные
+  // темы (янтарь, лёд) — такие же AppTheme со своим акцентом; для тем с почти-белым
+  // акцентом заливка автоматически падает на графит darkFill.
+  static const warmRoseDark = AppTheme(
+    index: 20,
+    name: 'Угольная бирюза',
+    // Акцент — приглушённый тил: активная навигация, «сегодня», заливки, иконки,
+    // кнопка «Я скучаю». Средней светлоты (≈как роза), чтобы белый текст поверх
+    // читался, и контрастный как иконка на тёмном (≈6.5 на карточке).
+    primary: Color(0xFF5FB3A9),
+    primaryLight: Color(0xFF1B2221), // нейтральный тёмный «light»-фон чипов/контейнеров
+    bgGradient: [Color(0xFF141718), Color(0xFF0C0E0F)], // нейтральный почти-чёрный уголь
+    // Приподнятый нейтральный графит, матовый — объём даёт слой+ребро, без свечения.
+    heroGradient: [Color(0xFF252B2D), Color(0xFF161A1B)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF5FB3A9),
+    cardSurface: Color(0xFF1F2426), // поверхность карточки, ΔL*≈8 над фоном — видно
+    cardBorder: Color(0xFF343A3C), // чёткое нейтральное ребро вместо ореола
+    iconDraw: Color(0xFF5FB3A9),
+    iconMood: Color(0xFF5FB3A9),
+    iconCalendar: Color(0xFF5FB3A9),
+    iconPost: Color(0xFF5FB3A9),
+    navActiveBg: Color(0xFF28302F),
+    navActiveIcon: Color(0xFF7FC7BC), // тил чуть светлее для активного состояния
+    promptButtonColor: Color(0xFF5FB3A9), // «Я скучаю» — тил, белый текст поверх
+    timerDialBackground: Color(0xFF28302F), // дорожка таймера / фон ячейки «сегодня»
+    isPremium: true,
+    price: 30,
+    // ── тёмные токены (кремово-нейтральный текст, muted до нормы AA) ──────────
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFEEF2F2),
+    textSecondary: Color(0xFFA6ADAE),
+    textMuted: Color(0xFF889092), // поднят до AA (≈4.75 на карточке)
+    // Темнее cardSurface (#1F2426): scaffold-фон экранов темнее карточек
+    // (правильная иерархия dark), а поля/чипы на карточке — «утоплены».
+    surfaceMuted: Color(0xFF0E1112),
+    divider: Color(0xFF343A3C),
+    useGlow: false, // матовый нуар: никаких свечений-ореолов
+  );
+
+  // ── 21: Кофе (эспрессо + карамельный латте) ──────────────────────────────
+  // Вторая тёмная тема, НАМЕРЕННО тёплая: глубокие эспрессо-коричневые слои
+  // (здесь коричневый — это эстетика кофе, а не случайный подтон) с ВИДИМОЙ
+  // лестницей элевации (ΔL*≈8 фон→карточка — слои не сливаются). Акцент —
+  // карамельный латте («кофе с молоком»): тёплый, средней светлоты, поэтому
+  // белый текст поверх заливок читается (паритет с розой/тилом), и контрастен
+  // как иконка на тёмном (≈6.5 на карточке). Кремово-молочный текст, матовые
+  // рёбра без свечений (useGlow: false). Полный набор тёмных токенов — виджеты
+  // читают их вместо хардкоженных светлых цветов.
+  static const coffeeDark = AppTheme(
+    index: 21,
+    name: 'Кофе',
+    // Акцент — карамельный латте: активная навигация, «сегодня», заливки, иконки,
+    // кнопка «Я скучаю». Средней светлоты (белый текст поверх читается).
+    primary: Color(0xFFC79A6B),
+    primaryLight: Color(0xFF2A1F18), // тёплый тёмный «light»-фон чипов/контейнеров
+    bgGradient: [Color(0xFF1E1512), Color(0xFF110B09)], // глубокий эспрессо
+    // Приподнятый мокко, матовый — объём даёт слой+ребро, без свечения.
+    heroGradient: [Color(0xFF33251E), Color(0xFF1F1611)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFC79A6B),
+    cardSurface: Color(0xFF2A1E19), // поверхность карточки (мокко), ΔL*≈8 над фоном
+    cardBorder: Color(0xFF40312A), // чёткое тёплое ребро вместо ореола
+    iconDraw: Color(0xFFC79A6B),
+    iconMood: Color(0xFFC79A6B),
+    iconCalendar: Color(0xFFC79A6B),
+    iconPost: Color(0xFFC79A6B),
+    navActiveBg: Color(0xFF362822),
+    navActiveIcon: Color(0xFFD9B489), // латте чуть светлее для активного состояния
+    promptButtonColor: Color(0xFFC79A6B), // «Я скучаю» — латте, белый текст поверх
+    timerDialBackground: Color(0xFF362822), // дорожка таймера / фон ячейки «сегодня»
+    isPremium: true,
+    price: 30,
+    // ── тёмные токены (кремово-молочный текст, тёплый подтон, muted до нормы AA) ─
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFF3E9E1),
+    textSecondary: Color(0xFFC2B0A4),
+    textMuted: Color(0xFFA08C7E), // поднят до AA (≈5.1 на карточке)
+    // Темнее cardSurface (#2A1E19): scaffold-фон экранов темнее карточек
+    // (правильная иерархия dark), а поля/чипы на карточке — «утоплены».
+    surfaceMuted: Color(0xFF130D0B),
+    divider: Color(0xFF40312A),
+    useGlow: false, // матовый нуар: никаких свечений-ореолов
+  );
+
+  // ── 22: Тёмный лес (хвойный уголь + мшистый шалфей) ──────────────────────
+  // Тёмная тема с зелёным подтоном (G — старший канал в базе, читается «лесной»,
+  // не нейтральной). Слои — глубокий еловый уголь с видимой лестницей элевации
+  // (ΔL*≈8 фон→карточка). Акцент — мшисто-шалфейный зелёный средней светлоты:
+  // белый текст поверх заливок читается (паритет с тилом/кофе), контраст как
+  // иконка ≈6.2 на карточке. Полный набор тёмных токенов, матовые рёбра.
+  static const forestDark = AppTheme(
+    index: 22,
+    name: 'Тёмный лес',
+    primary: Color(0xFF6EAE84),
+    primaryLight: Color(0xFF18201B),
+    bgGradient: [Color(0xFF0F1611), Color(0xFF080C09)], // глубокий хвойный уголь
+    heroGradient: [Color(0xFF232C27), Color(0xFF141A16)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFF6EAE84),
+    cardSurface: Color(0xFF19211C), // мшистая поверхность, ΔL*≈8 над фоном
+    cardBorder: Color(0xFF2F3A34),
+    iconDraw: Color(0xFF6EAE84),
+    iconMood: Color(0xFF6EAE84),
+    iconCalendar: Color(0xFF6EAE84),
+    iconPost: Color(0xFF6EAE84),
+    navActiveBg: Color(0xFF26302A),
+    navActiveIcon: Color(0xFF8FC7A3), // шалфей чуть светлее для активного
+    promptButtonColor: Color(0xFF6EAE84),
+    timerDialBackground: Color(0xFF26302A),
+    isPremium: true,
+    price: 30,
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFEAF1EC),
+    textSecondary: Color(0xFFAEB8B1),
+    textMuted: Color(0xFF8A9A8F), // AA (≈5.5 на карточке)
+    surfaceMuted: Color(0xFF0B0F0C),
+    divider: Color(0xFF2F3A34),
+    useGlow: false,
+  );
+
+  // ── 23: Гранат (винный уголь + мягкий красный) ───────────────────────────
+  // Тёмная тема тёплого винного семейства (тёмная родня светлой «Бордовой»).
+  // Фон — глубокий винный уголь (R — старший канал), лестница элевации ΔL*≈8.
+  // Акцент — МЯГКИЙ приглушённый красно-коралловый (не кричащий алый — спокойнее
+  // на тёмном): средней светлоты, белый текст поверх читается, контраст как
+  // иконка ≈5.6 на карточке. Полный набор тёмных токенов, матовые рёбра.
+  static const garnetDark = AppTheme(
+    index: 23,
+    name: 'Гранат',
+    primary: Color(0xFFD67B80),
+    primaryLight: Color(0xFF221618),
+    bgGradient: [Color(0xFF1A0F10), Color(0xFF0D0708)], // глубокий винный уголь
+    heroGradient: [Color(0xFF2E1F20), Color(0xFF1A1213)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFD67B80),
+    cardSurface: Color(0xFF241819), // винный мокко, ΔL*≈8 над фоном
+    cardBorder: Color(0xFF3A2A2B),
+    iconDraw: Color(0xFFD67B80),
+    iconMood: Color(0xFFD67B80),
+    iconCalendar: Color(0xFFD67B80),
+    iconPost: Color(0xFFD67B80),
+    navActiveBg: Color(0xFF312223),
+    navActiveIcon: Color(0xFFE79EA2), // мягкий красный светлее для активного
+    promptButtonColor: Color(0xFFD67B80),
+    timerDialBackground: Color(0xFF312223),
+    isPremium: true,
+    price: 30,
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFF2E7E7),
+    textSecondary: Color(0xFFC0ABAC),
+    textMuted: Color(0xFFA08A8C), // AA (≈5.4 на карточке)
+    surfaceMuted: Color(0xFF120C0D),
+    divider: Color(0xFF3A2A2B),
+    useGlow: false,
+  );
+
+  // ── 24: Тёмный мёд (янтарный уголь + глубокое золото) ─────────────────────
+  // Тёмная тема тёплого золотого семейства (тёмная родня светлой «Медовой»).
+  // Фон — тёмный янтарно-жёлтый уголь (жёлтый подтон, отличим от красно-коричне-
+  // вого «Кофе»), лестница элевации ΔL*≈8. Акцент — ГЛУБОКОЕ золото-янтарь: мёд
+  // светлый сам по себе, поэтому взят насыщённее/темнее, чтобы белый текст поверх
+  // заливок читался (паритет), контраст как иконка ≈6.1 на карточке. Активная
+  // иконка — яркий медовый блик. Полный набор тёмных токенов, матовые рёбра.
+  static const honeyDark = AppTheme(
+    index: 24,
+    name: 'Тёмный мёд',
+    primary: Color(0xFFC8912E),
+    primaryLight: Color(0xFF221B0E),
+    bgGradient: [Color(0xFF1B1408), Color(0xFF0E0A05)], // тёмный янтарный уголь
+    heroGradient: [Color(0xFF2F2713), Color(0xFF1B160A)],
+    heroShadowBase: Color(0x59000000),
+    heroShadowExpanded: Color(0x73000000),
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFC8912E),
+    cardSurface: Color(0xFF241D10), // медовый мокко, ΔL*≈8 над фоном
+    cardBorder: Color(0xFF3A3018),
+    iconDraw: Color(0xFFC8912E),
+    iconMood: Color(0xFFC8912E),
+    iconCalendar: Color(0xFFC8912E),
+    iconPost: Color(0xFFC8912E),
+    navActiveBg: Color(0xFF302816),
+    navActiveIcon: Color(0xFFE3B457), // яркий медовый блик для активного
+    promptButtonColor: Color(0xFFC8912E),
+    timerDialBackground: Color(0xFF302816),
+    isPremium: true,
+    price: 30,
+    brightness: Brightness.dark,
+    textPrimary: Color(0xFFF3ECDF),
+    textSecondary: Color(0xFFC4B49B),
+    textMuted: Color(0xFF9C8E76), // AA (≈5.3 на карточке)
+    surfaceMuted: Color(0xFF100C05),
+    divider: Color(0xFF3A3018),
+    useGlow: false,
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -686,6 +988,11 @@ abstract final class AppThemes {
     bordeaux,
     teal,
     nord,
+    warmRoseDark, // 20 — тёмная тема (нейтральный уголь + спокойный тил)
+    coffeeDark, // 21 — тёмная тема (эспрессо + карамельный латте)
+    forestDark, // 22 — тёмная тема (хвойный уголь + мшистый шалфей)
+    garnetDark, // 23 — тёмная тема (винный уголь + мягкий красный)
+    honeyDark, // 24 — тёмная тема (янтарный уголь + глубокое золото)
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]
@@ -693,4 +1000,18 @@ abstract final class AppThemes {
     if (index >= 0 && index < all.length) return all[index];
     return pink;
   }
+
+  /// Читаемый цвет переднего плана (текст/иконка) ПОВЕРХ акцентного фона
+  /// [background]. Тёмный на светлых поверхностях, белый на тёмных/насыщенных.
+  ///
+  /// Нужен, чтобы паттерн «белый текст на акценте» не исчезал, когда сам акцент
+  /// светлый — это характерно для тёмных тем, где `navActiveIcon`/`primary`
+  /// намеренно почти белые (светлое-на-тёмном). Порог 0.6 подобран так, что все
+  /// средне-тональные акценты 20 светлых тем (макс. яркость ≈0.45) остаются с
+  /// белым текстом — прежний вид не меняется, — а почти-белые акценты тёмных тем
+  /// получают тёмный текст. Работает для любых будущих тем без правок виджетов.
+  static Color onColor(Color background) =>
+      background.computeLuminance() > 0.6
+          ? const Color(0xFF1B1B1D)
+          : Colors.white;
 }

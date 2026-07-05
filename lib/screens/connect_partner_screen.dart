@@ -222,25 +222,24 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         height: 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isActive ? primary : Colors.white,
+          color: isActive ? primary : widget.theme.cardSurface,
           border: Border.all(
-            color: isActive ? primary : Colors.grey.shade300,
+            color: isActive ? primary : widget.theme.divider,
             width: isActive ? 2 : 1,
           ),
           boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: primary.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
+              ? widget.theme.accentGlow(
+                  primary,
+                  opacity: 0.2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
               : null,
         ),
         child: Center(
           child: Icon(
             Icons.person_outline,
-            color: isActive ? Colors.white : Colors.grey.shade600,
+            color: isActive ? Colors.white : widget.theme.textSecondary,
             size: 22,
           ),
         ),
@@ -270,20 +269,19 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? primary.withOpacity(0.1) : Colors.white,
+          color: isActive ? primary.withOpacity(0.1) : widget.theme.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? primary : Colors.grey.shade200,
+            color: isActive ? primary : widget.theme.divider,
             width: isActive ? 2 : 1,
           ),
           boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: primary.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
+              ? widget.theme.accentGlow(
+                  primary,
+                  opacity: 0.1,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
               : null,
         ),
         child: Row(
@@ -299,7 +297,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: isActive ? primary : Colors.grey.shade700,
+                color: isActive ? primary : widget.theme.textSecondary,
               ),
             ),
             if (connection.isPaired) ...[
@@ -325,21 +323,21 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: widget.theme.divider),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_rounded, size: 18, color: Colors.grey.shade500),
+            Icon(Icons.add_rounded, size: 18, color: widget.theme.textMuted),
             const SizedBox(width: 4),
             Text(
               LocaleService.current.newGroup,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500,
+                color: widget.theme.textMuted,
               ),
             ),
           ],
@@ -380,13 +378,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.25),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: widget.theme.accentGlow(
+                primary,
+                opacity: 0.25,
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ),
             child: Column(
               children: [
@@ -439,7 +436,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: widget.theme.isDark
+                        ? widget.theme.cardSurface
+                        : Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -495,7 +494,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -539,7 +538,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade400,
+                    color: widget.theme.textMuted,
                     letterSpacing: 2,
                   ),
                 ),
@@ -566,7 +565,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.grey.shade800,
+                                      color: widget.theme.textPrimary,
                                     ),
                                   ),
                                   _badgeIcon(m.uid),
@@ -579,7 +578,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                   m.name,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.grey.shade400,
+                                    color: widget.theme.textMuted,
                                   ),
                                 ),
                             ],
@@ -592,7 +591,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             child: Icon(
                               Icons.edit_rounded,
                               size: 16,
-                              color: Colors.grey.shade400,
+                              color: widget.theme.textMuted,
                             ),
                           ),
                         ),
@@ -692,13 +691,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.25),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              boxShadow: widget.theme.accentGlow(
+                primary,
+                opacity: 0.25,
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
             ),
             child: Column(
               children: [
@@ -713,7 +711,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
+                          color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -754,7 +752,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -797,7 +795,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade400,
+                    color: widget.theme.textMuted,
                     letterSpacing: 3,
                   ),
                 ),
@@ -900,7 +898,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade800,
+                            color: widget.theme.textPrimary,
                           ),
                         ),
                       ),
@@ -909,7 +907,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         duration: const Duration(milliseconds: 200),
                         child: Icon(
                           Icons.expand_more_rounded,
-                          color: Colors.grey.shade400,
+                          color: widget.theme.textMuted,
                         ),
                       ),
                     ],
@@ -962,7 +960,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         decoration: BoxDecoration(
           color: isOnline
               ? const Color(0xFF4ADE80).withOpacity(0.12)
-              : Colors.grey.shade100,
+              : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -975,7 +973,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 shape: BoxShape.circle,
                 color: isOnline
                     ? const Color(0xFF16A34A)
-                    : Colors.grey.shade400,
+                    : widget.theme.textMuted,
               ),
             ),
             const SizedBox(width: 4),
@@ -988,7 +986,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 fontWeight: FontWeight.w600,
                 color: isOnline
                     ? const Color(0xFF16A34A)
-                    : Colors.grey.shade500,
+                    : widget.theme.textMuted,
               ),
             ),
           ],
@@ -1044,7 +1042,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(
+          color: widget.theme.isDark ? widget.theme.cardBorder : Colors.white,
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4),
         ],
@@ -1091,7 +1092,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -1101,7 +1102,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: widget.theme.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1111,7 +1112,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.grey.shade900,
+                color: widget.theme.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -1120,7 +1121,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 pair.members.length,
                 pair.maxMembers,
               ),
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
             ),
             const SizedBox(height: 24),
             _buildCodeCells(
@@ -1235,7 +1236,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade800,
+                        color: widget.theme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1243,7 +1244,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       LocaleService.current.enterCodeScanQr,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: widget.theme.textMuted,
                       ),
                     ),
                   ],
@@ -1271,7 +1272,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _showCodeInput ? primary : Colors.grey.shade200,
+                        color: _showCodeInput ? primary : widget.theme.divider,
                       ),
                       color: _showCodeInput ? primary.withOpacity(0.05) : null,
                     ),
@@ -1283,7 +1284,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           size: 16,
                           color: _showCodeInput
                               ? primary
-                              : Colors.grey.shade600,
+                              : widget.theme.textSecondary,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -1293,7 +1294,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             fontWeight: FontWeight.w600,
                             color: _showCodeInput
                                 ? primary
-                                : Colors.grey.shade700,
+                                : widget.theme.textSecondary,
                           ),
                         ),
                       ],
@@ -1323,7 +1324,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 8,
-                  color: Colors.grey.shade300,
+                  color: widget.theme.textMuted,
                 ),
                 filled: true,
                 fillColor: primary.withOpacity(0.04),
@@ -1399,9 +1400,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xC7FFFFFF),
+        color: widget.theme.isDark
+            ? widget.theme.cardSurface
+            : const Color(0xC7FFFFFF),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x99FFFFFF)),
+        border: Border.all(
+          color: widget.theme.isDark
+              ? widget.theme.cardBorder
+              : const Color(0x99FFFFFF),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -1425,19 +1432,19 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         height: 44,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: widget.theme.divider),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: Colors.grey.shade600),
+            Icon(icon, size: 16, color: widget.theme.textSecondary),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: widget.theme.textSecondary,
               ),
             ),
           ],
@@ -1620,13 +1627,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withOpacity(0.25),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          boxShadow: widget.theme.accentGlow(
+            primary,
+            opacity: 0.25,
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
         ),
         child: Row(
           children: [
@@ -1708,7 +1714,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: widget.theme.textSecondary,
               ),
             ),
           ],
@@ -1736,7 +1742,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           fontSize: 22,
           fontWeight: FontWeight.w800,
           letterSpacing: 8,
-          color: Colors.grey.shade300,
+          color: widget.theme.textMuted,
         ),
         filled: true,
         fillColor: primary.withOpacity(0.04),
@@ -1772,7 +1778,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return Container(
       width: size,
       height: size,
-      color: Colors.white,
+      color: widget.theme.cardSurface,
       child: Center(
         child: Text(
           initial,
@@ -1843,7 +1849,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: widget.theme.cardSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -1855,7 +1861,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade900,
+                  color: widget.theme.textPrimary,
                 ),
               ),
               const SizedBox(height: 24),
@@ -1866,7 +1872,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200, width: 2),
+                  border: Border.all(color: widget.theme.divider, width: 2),
                 ),
                 child: QrImageView(
                   data: qrData,
@@ -1966,7 +1972,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         builder: (ctx, setDialogState) {
           final customTypes = pair.customRelationshipTypes;
           return Dialog(
-            backgroundColor: Colors.white,
+            backgroundColor: widget.theme.cardSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),
@@ -1985,7 +1991,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade900,
+                          color: widget.theme.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1993,7 +1999,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         LocaleService.current.chooseHowToConnect,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade500,
+                          color: widget.theme.textMuted,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -2047,12 +2053,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? primary.withOpacity(0.08)
-                                    : Colors.grey.shade50,
+                                    : widget.theme.surfaceMuted,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: isSelected
                                       ? primary
-                                      : Colors.grey.shade200,
+                                      : widget.theme.divider,
                                   width: isSelected ? 2 : 1,
                                 ),
                               ),
@@ -2072,7 +2078,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                         fontWeight: FontWeight.w700,
                                         color: isSelected
                                             ? primary
-                                            : Colors.grey.shade800,
+                                            : widget.theme.textPrimary,
                                       ),
                                     ),
                                   ),
@@ -2118,7 +2124,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             horizontal: 20,
                           ),
                           side: BorderSide(
-                            color: Colors.grey.shade300,
+                            color: widget.theme.divider,
                             width: 1.5,
                           ),
                           shape: RoundedRectangleBorder(
@@ -2153,10 +2159,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? primary.withOpacity(0.08) : Colors.grey.shade50,
+          color: isSelected ? primary.withOpacity(0.08) : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? primary : Colors.grey.shade200,
+            color: isSelected ? primary : widget.theme.divider,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -2173,13 +2179,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: isSelected ? primary : Colors.grey.shade800,
+                      color: isSelected ? primary : widget.theme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
                   ),
                 ],
               ),
@@ -2266,7 +2272,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: widget.theme.cardSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -2279,13 +2285,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Colors.grey.shade900,
+                    color: widget.theme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   LocaleService.current.chooseTypeForConnection,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
                 ),
                 const SizedBox(height: 24),
                 _addGroupOption(
@@ -2372,9 +2378,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: widget.theme.divider),
         ),
         child: Row(
           children: [
@@ -2389,20 +2395,20 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
+                      color: widget.theme.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
                   ),
                 ],
               ),
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: Colors.grey.shade400,
+              color: widget.theme.textMuted,
               size: 20,
             ),
           ],
@@ -2428,7 +2434,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           children: [
             Text(
               LocaleService.current.renamePartnerHint,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -2462,7 +2468,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               },
               child: Text(
                 LocaleService.current.resetNickname,
-                style: TextStyle(color: Colors.grey.shade500),
+                style: TextStyle(color: widget.theme.textMuted),
               ),
             ),
           TextButton(

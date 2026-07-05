@@ -79,7 +79,7 @@ class MemoryLanePreview extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: theme.textPrimary,
                 ),
               ),
               GestureDetector(
@@ -88,7 +88,7 @@ class MemoryLanePreview extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: primary.withOpacity(0.08),
+                    color: primary.withValues(alpha:0.08),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -118,9 +118,9 @@ class MemoryLanePreview extends StatelessWidget {
             child: Container(
               height: 140,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.cardSurface,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
+                border: Border.all(color: theme.divider, width: 0.5),
               ),
               child: Center(
                 child: Column(
@@ -134,13 +134,13 @@ class MemoryLanePreview extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade500,
+                        color: theme.textMuted,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       LocaleService.current.addFirstMemory,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                      style: TextStyle(fontSize: 12, color: theme.textMuted),
                     ),
                   ],
                 ),
@@ -187,7 +187,7 @@ class MemoryLanePreview extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade800,
+                  color: theme.textPrimary,
                 ),
               ),
             ],
@@ -197,9 +197,9 @@ class MemoryLanePreview extends StatelessWidget {
             width: double.infinity,
             height: 160,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.cardSurface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE5E5E5), width: 0.5),
+              border: Border.all(color: theme.divider, width: 0.5),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -212,13 +212,13 @@ class MemoryLanePreview extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade400,
+                    color: theme.textMuted,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   LocaleService.current.connectWithPartnerToStart,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
                 ),
               ],
             ),
@@ -240,9 +240,12 @@ class MemoryLanePreview extends StatelessWidget {
           userData: userData,
           onNavTab: onNavTab == null
               ? null
+              // context мог устареть к моменту тапа по вкладке → Navigator.of
+              // даёт "Null check operator used on a null value". Гардим mounted
+              // и зовём onNavTab через ?.call. См. Bugsink #24.
               : (i) {
-                  Navigator.of(context).pop();
-                  onNavTab!(i);
+                  if (context.mounted) Navigator.of(context).pop();
+                  onNavTab?.call(i);
                 },
         ),
         settings: const RouteSettings(name: '/memory_lane'),
@@ -293,9 +296,9 @@ class _PreviewCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardSurface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE8EEF0)),
+            border: Border.all(color: theme.divider),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -323,7 +326,7 @@ class _PreviewCard extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: primary.withOpacity(0.18), width: 1.5),
+              border: Border.all(color: primary.withValues(alpha:0.18), width: 1.5),
             ),
             child: ClipOval(
               child: authorAvatar.isNotEmpty
@@ -349,13 +352,13 @@ class _PreviewCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade900,
+                      color: theme.textPrimary,
                     ),
                   ),
                 ),
                 Text(
                   '  ·  ${_timeAgo(memory.createdAt)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
                 ),
               ],
             ),
@@ -370,7 +373,7 @@ class _PreviewCard extends StatelessWidget {
     final letter =
         authorName.trim().isNotEmpty ? authorName.trim()[0].toUpperCase() : '♥';
     return Container(
-      color: primary.withOpacity(0.12),
+      color: primary.withValues(alpha:0.12),
       alignment: Alignment.center,
       child: Text(
         letter,
@@ -388,7 +391,7 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: primary.withOpacity(0.10),
+        color: primary.withValues(alpha:0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -515,7 +518,7 @@ class _PreviewCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
+                color: theme.textPrimary,
               ),
             ),
           if (cap.isNotEmpty)
@@ -527,7 +530,7 @@ class _PreviewCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 13.5,
-                  color: Colors.grey.shade600,
+                  color: theme.textSecondary,
                   height: 1.35,
                 ),
               ),
@@ -553,9 +556,9 @@ class _PreviewCard extends StatelessWidget {
               fit: BoxFit.cover,
               memCacheWidth: 500,
               errorWidget: (_, _, _) => Container(
-                color: Colors.grey.shade200,
+                color: theme.surfaceMuted,
                 child: Icon(Icons.broken_image_rounded,
-                    color: Colors.grey.shade400, size: 22),
+                    color: theme.textMuted, size: 22),
               ),
             ),
             if (hasVideo && i == 0)
@@ -565,7 +568,7 @@ class _PreviewCard extends StatelessWidget {
               ),
             if (extra > 0)
               Container(
-                color: Colors.black.withOpacity(0.45),
+                color: Colors.black.withValues(alpha:0.45),
                 alignment: Alignment.center,
                 child: Text(
                   '+$extra',
@@ -638,11 +641,11 @@ class _PreviewCard extends StatelessWidget {
                 imageUrl: memory.imageUrl!,
                 fit: BoxFit.cover,
                 memCacheWidth: 600,
-                errorWidget: (_, _, _) => Container(color: Colors.grey.shade300),
+                errorWidget: (_, _, _) => Container(color: theme.surfaceMuted),
               )
             else
               Container(color: Colors.grey.shade800),
-            Container(color: Colors.black.withOpacity(0.22)),
+            Container(color: Colors.black.withValues(alpha:0.22)),
             Center(
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -725,9 +728,9 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: theme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.divider),
       ),
       child: Row(
         children: [
@@ -735,7 +738,7 @@ class _PreviewCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: primary.withOpacity(0.10),
+              color: primary.withValues(alpha:0.10),
               borderRadius: BorderRadius.circular(11),
             ),
             child: Icon(Icons.location_on_rounded, color: primary, size: 22),
@@ -749,7 +752,7 @@ class _PreviewCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade900,
+                color: theme.textPrimary,
                 height: 1.2,
               ),
             ),
@@ -759,7 +762,7 @@ class _PreviewCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: primary.withOpacity(0.10),
+                color: primary.withValues(alpha:0.10),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -791,9 +794,9 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: theme.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.divider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -825,7 +828,7 @@ class _PreviewCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade900,
+                    color: theme.textPrimary,
                     height: 1.25,
                   ),
                 ),
@@ -837,7 +840,7 @@ class _PreviewCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade500),
+                          fontSize: 12, color: theme.textMuted),
                     ),
                   ),
                 if (memory.caption?.isNotEmpty == true)
@@ -849,7 +852,7 @@ class _PreviewCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: Colors.grey.shade600,
+                        color: theme.textSecondary,
                         height: 1.3,
                       ),
                     ),
@@ -864,7 +867,7 @@ class _PreviewCard extends StatelessWidget {
 
   Widget _coverFallback() {
     return Container(
-      color: primary.withOpacity(0.10),
+      color: primary.withValues(alpha:0.10),
       alignment: Alignment.center,
       child: Icon(
         memory.type == MemoryType.book

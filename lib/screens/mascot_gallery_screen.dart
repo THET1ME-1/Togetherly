@@ -17,6 +17,7 @@ import '../services/level_service.dart';
 import '../services/mascot_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/theme_scope.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import 'mascot_draw_screen.dart';
 
@@ -181,9 +182,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: EdgeInsets.fromLTRB(
           24, 20, 24, 20 + MediaQuery.of(context).padding.bottom,
@@ -209,7 +210,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             Text(
               LocaleService.current.transparentBgBody,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5),
+              style: TextStyle(fontSize: 14, color: _t.textSecondary, height: 1.5),
             ),
             const SizedBox(height: 22),
             SizedBox(
@@ -425,7 +426,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _t.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -438,7 +439,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: _t.divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -465,7 +466,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                                 .recordStreakDays(mascot.recordStreak),
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey.shade600,
+                              color: _t.textSecondary,
                             ),
                           ),
                       ],
@@ -549,9 +550,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final streak = _svc.state.activeStreak;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: _t.surfaceMuted,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _t.cardSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
@@ -583,7 +584,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                 Text(
                   LocaleService.current
                       .mascotsCount(mascots.length, MascotService.maxMascots),
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: _t.textSecondary),
                 ),
                 if (_svc.isGalleryFull)
                   Container(
@@ -616,7 +617,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                     child: Text(
                       LocaleService.current.mascotsLoadFailedMultiline,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade500),
+                      style: TextStyle(color: _t.textMuted),
                     ),
                   )
                 : GridView.builder(
@@ -697,7 +698,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                 FloatingActionButton.small(
                   heroTag: 'import_png',
                   onPressed: _uploading ? null : _importPng,
-                  backgroundColor: Colors.white,
+                  backgroundColor: _t.cardSurface,
                   foregroundColor: _t.primary,
                   tooltip: LocaleService.current.uploadPhotoTooltip,
                   child: const Icon(Icons.add_photo_alternate_outlined),
@@ -728,7 +729,7 @@ class _StreakBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
+      color: theme.cardSurface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -750,7 +751,7 @@ class _StreakBanner extends StatelessWidget {
                 streak > 0
                     ? LocaleService.current.streakKeepHint
                     : LocaleService.current.streakStartHint,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 12, color: theme.textSecondary),
               ),
             ],
           ),
@@ -788,7 +789,7 @@ class _MascotCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardSurface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isActive ? theme.primary : Colors.transparent,
@@ -914,7 +915,7 @@ class _MascotCard extends StatelessWidget {
                       LocaleService.current.recordStreakBadge(mascot.recordStreak),
                       style: TextStyle(
                         fontSize: 10,
-                        color: Colors.grey.shade500,
+                        color: theme.textMuted,
                       ),
                     ),
                 ],
@@ -981,12 +982,13 @@ class _PlaceholderBox extends StatelessWidget {
   const _PlaceholderBox();
   @override
   Widget build(BuildContext context) {
+    final t = context.appTheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: t.surfaceMuted,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Icon(Icons.face, color: Colors.grey),
+      child: Icon(Icons.face, color: t.textMuted),
     );
   }
 }
@@ -1008,7 +1010,7 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? Colors.grey.shade800;
+    final c = color ?? context.appTheme.textPrimary;
     return ListTile(
       leading: Icon(icon, color: c, size: 22),
       title: Text(label, style: TextStyle(color: c, fontSize: 15)),

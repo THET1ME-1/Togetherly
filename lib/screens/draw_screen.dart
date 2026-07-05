@@ -1563,7 +1563,7 @@ class _DrawScreenState extends State<DrawScreen>
     double temp = _strokeWidth;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1580,7 +1580,7 @@ class _DrawScreenState extends State<DrawScreen>
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: widget.theme.divider,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -1596,7 +1596,7 @@ class _DrawScreenState extends State<DrawScreen>
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Icon(Icons.brush, size: 16, color: Colors.grey.shade400),
+                    Icon(Icons.brush, size: 16, color: widget.theme.textMuted),
                     Expanded(
                       child: Slider(
                         value: temp,
@@ -1610,7 +1610,7 @@ class _DrawScreenState extends State<DrawScreen>
                         },
                       ),
                     ),
-                    Icon(Icons.brush, size: 28, color: Colors.grey.shade400),
+                    Icon(Icons.brush, size: 28, color: widget.theme.textMuted),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1630,10 +1630,10 @@ class _DrawScreenState extends State<DrawScreen>
                         decoration: BoxDecoration(
                           color: sel
                               ? _activeColor.withValues(alpha: 0.1)
-                              : Colors.grey.shade100,
+                              : widget.theme.surfaceMuted,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: sel ? _activeColor : Colors.grey.shade300,
+                            color: sel ? _activeColor : widget.theme.divider,
                             width: sel ? 2 : 1,
                           ),
                         ),
@@ -1662,7 +1662,7 @@ class _DrawScreenState extends State<DrawScreen>
   void _showColorPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: widget.theme.cardSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1678,7 +1678,7 @@ class _DrawScreenState extends State<DrawScreen>
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: widget.theme.divider,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1768,7 +1768,7 @@ class _DrawScreenState extends State<DrawScreen>
         _captureThumbnailAndExit();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFECECEC),
+        backgroundColor: t.surfaceMuted,
         body: SafeArea(
           child: Column(
             children: [
@@ -1827,9 +1827,9 @@ class _DrawScreenState extends State<DrawScreen>
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        boxShadow: const [
           BoxShadow(
             color: Color(0x10000000),
             blurRadius: 8,
@@ -1922,7 +1922,9 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null ? Colors.grey.shade300 : Colors.grey.shade700,
+            color: onTap == null
+                ? widget.theme.textMuted
+                : widget.theme.textSecondary,
           ),
         ),
       ),
@@ -1950,7 +1952,7 @@ class _DrawScreenState extends State<DrawScreen>
         return Stack(
           children: [
             // Subtle grid background
-            const Positioned.fill(child: _GridBackground()),
+            Positioned.fill(child: _GridBackground(lineColor: widget.theme.divider)),
             // White canvas with shadow
             Positioned(
               left: _kCanvasPad,
@@ -2246,9 +2248,9 @@ class _DrawScreenState extends State<DrawScreen>
 
   Widget _buildBottomToolbar(AppStrings s, AppTheme t) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        boxShadow: const [
           BoxShadow(
             color: Color(0x10000000),
             blurRadius: 10,
@@ -2278,7 +2280,7 @@ class _DrawScreenState extends State<DrawScreen>
     return Container(
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: const Color(0xFFF9F9F9),
+      color: t.surfaceMuted,
       child: Row(
         children: [
           _toolBtn(
@@ -2310,7 +2312,7 @@ class _DrawScreenState extends State<DrawScreen>
             compact: true,
           ),
           const SizedBox(width: 4),
-          Container(width: 1, height: 24, color: Colors.grey.shade300),
+          Container(width: 1, height: 24, color: t.divider),
           const SizedBox(width: 4),
           _actionBtn(
             _fillShapes
@@ -2318,7 +2320,7 @@ class _DrawScreenState extends State<DrawScreen>
                 : Icons.check_box_outline_blank_rounded,
             () => setState(() => _fillShapes = !_fillShapes),
             tooltip: s.fillShapes,
-            color: _fillShapes ? t.primary : Colors.grey.shade500,
+            color: _fillShapes ? t.primary : t.textMuted,
           ),
           _toolBtn(
             Icons.format_color_fill_rounded,
@@ -2491,7 +2493,7 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             icon,
             size: compact ? 20 : 22,
-            color: active ? t.primary : Colors.grey.shade500,
+            color: active ? t.primary : t.textMuted,
           ),
         ),
       ),
@@ -2514,7 +2516,7 @@ class _DrawScreenState extends State<DrawScreen>
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: widget.theme.surfaceMuted,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Stack(
@@ -2523,7 +2525,7 @@ class _DrawScreenState extends State<DrawScreen>
                 child: Icon(
                   icon,
                   size: 22,
-                  color: color ?? Colors.grey.shade500,
+                  color: color ?? widget.theme.textMuted,
                 ),
               ),
               if (badge != null)
@@ -2574,7 +2576,7 @@ class _DrawScreenState extends State<DrawScreen>
         decoration: BoxDecoration(
           color: _toolbarExpanded
               ? t.primary.withValues(alpha: 0.13)
-              : Colors.grey.shade50,
+              : t.surfaceMuted,
           borderRadius: BorderRadius.circular(12),
           border: _toolbarExpanded
               ? Border.all(color: t.primary.withValues(alpha: 0.4), width: 1.5)
@@ -2586,7 +2588,7 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             Icons.expand_less_rounded,
             size: 22,
-            color: _toolbarExpanded ? t.primary : Colors.grey.shade500,
+            color: _toolbarExpanded ? t.primary : t.textMuted,
           ),
         ),
       ),
@@ -2597,19 +2599,23 @@ class _DrawScreenState extends State<DrawScreen>
 //  Grid background
 
 class _GridBackground extends StatelessWidget {
-  const _GridBackground();
+  final Color lineColor;
+  const _GridBackground({required this.lineColor});
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _GridPainter());
+    return CustomPaint(painter: _GridPainter(lineColor));
   }
 }
 
 class _GridPainter extends CustomPainter {
+  final Color lineColor;
+  _GridPainter(this.lineColor);
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFD4D4D4)
+      ..color = lineColor
       ..strokeWidth = 0.5;
     const step = 24.0;
     for (double x = 0; x <= size.width; x += step) {
@@ -2621,7 +2627,7 @@ class _GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter _) => false;
+  bool shouldRepaint(covariant _GridPainter old) => old.lineColor != lineColor;
 }
 
 //  Pulsing dot widget

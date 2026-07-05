@@ -201,7 +201,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: t.divider,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -233,7 +233,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                                         .photoCountCarousel(_paths.length),
                             style: GoogleFonts.rubik(
                               fontSize: 12,
-                              color: Colors.grey.shade600,
+                              color: t.textSecondary,
                             ),
                           ),
                         ],
@@ -301,7 +301,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                                 LocaleService.current.addMorePhotosCarouselHint,
                                 style: GoogleFonts.rubik(
                                   fontSize: 11,
-                                  color: Colors.grey.shade700,
+                                  color: t.textSecondary,
                                 ),
                               ),
                             ),
@@ -329,7 +329,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _paths.isEmpty ? Colors.red.shade400 : t.primary,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledBackgroundColor: t.surfaceMuted,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -374,7 +374,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             LocaleService.current.dragToReorder,
             style: GoogleFonts.rubik(
               fontSize: 11,
-              color: Colors.grey.shade600,
+              color: t.textSecondary,
             ),
           ),
         ),
@@ -401,9 +401,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: t.surfaceMuted,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: t.divider),
       ),
       child: Row(
         children: [
@@ -417,7 +417,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               child: Icon(
                 Icons.drag_handle_rounded,
                 size: 20,
-                color: Colors.grey.shade400,
+                color: t.textMuted,
               ),
             ),
           ),
@@ -428,7 +428,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               height: 56,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: t.surfaceMuted,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: t.primary.withOpacity(0.25)),
               ),
@@ -441,7 +441,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                       errorWidget: (_, __, ___) => Icon(
                         Icons.broken_image_rounded,
                         size: 18,
-                        color: Colors.grey.shade400,
+                        color: t.textMuted,
                       ),
                     )
                   : Image.file(
@@ -450,7 +450,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                       errorBuilder: (_, __, ___) => Icon(
                         Icons.broken_image_rounded,
                         size: 18,
-                        color: Colors.grey.shade400,
+                        color: t.textMuted,
                       ),
                     ),
             ),
@@ -465,7 +465,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                   style: GoogleFonts.rubik(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: t.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -475,7 +475,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                       : LocaleService.current.positionNumber(index + 1),
                   style: GoogleFonts.rubik(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
+                    color: t.textMuted,
                   ),
                 ),
               ],
@@ -617,7 +617,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: t.surfaceMuted,
               borderRadius: BorderRadius.circular(12),
             ),
             child: DropdownButtonHideUnderline(
@@ -669,7 +669,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         decoration: BoxDecoration(
           color: isSelected ? t.primary.withOpacity(0.1) : Colors.transparent,
           border: Border.all(
-            color: isSelected ? t.primary : Colors.grey.shade300,
+            color: isSelected ? t.primary : t.divider,
             width: isSelected ? 1.5 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -679,7 +679,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? t.primary : Colors.grey.shade400,
+              color: isSelected ? t.primary : t.textMuted,
               size: 18,
             ),
             const SizedBox(width: 8),
@@ -690,7 +690,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                   fontSize: 12,
                   fontWeight:
                       isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? t.primary : Colors.grey.shade700,
+                  color: isSelected ? t.primary : t.textSecondary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),

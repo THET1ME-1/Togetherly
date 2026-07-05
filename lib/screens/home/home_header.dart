@@ -93,13 +93,13 @@ class HomeHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: isPaired
-                      ? primary.withOpacity(0.1)
-                      : Colors.grey.shade200,
+                      ? primary.withValues(alpha:0.1)
+                      : theme.surfaceMuted,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isPaired
-                        ? primary.withOpacity(0.1)
-                        : Colors.grey.shade300,
+                        ? primary.withValues(alpha:0.1)
+                        : theme.divider,
                   ),
                 ),
                 child: Row(
@@ -114,7 +114,7 @@ class HomeHeader extends StatelessWidget {
                     ] else ...[
                       Icon(
                         Icons.favorite_border,
-                        color: Colors.grey.shade400,
+                        color: theme.textMuted,
                         size: 14,
                       ),
                       const SizedBox(width: 4),
@@ -125,7 +125,7 @@ class HomeHeader extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: isPaired ? primary : Colors.grey.shade500,
+                          color: isPaired ? primary : theme.textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -136,7 +136,7 @@ class HomeHeader extends StatelessWidget {
                       Icon(
                         Icons.expand_more_rounded,
                         size: 14,
-                        color: primary.withOpacity(0.6),
+                        color: primary.withValues(alpha:0.6),
                       ),
                     ],
                   ],
@@ -170,7 +170,7 @@ class HomeHeader extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6),
+          BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 6),
         ],
       ),
       child: ClipOval(
@@ -191,7 +191,7 @@ class HomeHeader extends StatelessWidget {
   static Widget _avatarPlaceholder(String? name, {required Color primary}) {
     final initial = (name ?? '').firstGraphemeUpper('?');
     return Container(
-      color: primary.withOpacity(0.15),
+      color: primary.withValues(alpha:0.15),
       child: Center(
         child: Text(
           initial,
@@ -236,7 +236,7 @@ class HomeHeader extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha:0.1),
                       blurRadius: 4,
                     ),
                   ],
