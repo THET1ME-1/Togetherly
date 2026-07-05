@@ -110,17 +110,25 @@ class _LiveMapScreenState extends State<LiveMapScreen>
 
   // ── Плавное перемещение камеры ────────────────────────────────────────────
   void _animatedMapMove(LatLng dest, double destZoom) {
-    // До onMapReady внутреннее состояние карты не создано, и `_mapController
-    // .camera` бросает "Null check operator used on a null value". Кнопки
-    // «центрировать»/«обе точки» могут сработать раньше готовности карты —
-    // тихо выходим. См. Bugsink: live_map_screen.dart:_centerOnMe.
-    if (!_mapReady) return;
-    final camera = _mapController.camera;
-    final latTween =
-        Tween<double>(begin: camera.center.latitude, end: dest.latitude);
+    // До onMapReady (и после dispose) внутреннее состояние карты не создано, и
+    // `_mapController.camera`/`.move` бросают "Null check operator used on a
+    // null value". Кнопки могут сработать раньше готовности карты, а анимация —
+    // дотикать уже после ухода с экрана. Гардим mounted+_mapReady и оборачиваем
+    // все обращения к карте в try/catch. См. Bugsink #24 (топ-краш экрана).
+    if (!_mapReady || !mounted) return;
+    final LatLng center;
+    final double zoom;
+    try {
+      final camera = _mapController.camera;
+      center = camera.center;
+      zoom = camera.zoom;
+    } catch (_) {
+      return; // карта ещё/уже не готова
+    }
+    final latTween = Tween<double>(begin: center.latitude, end: dest.latitude);
     final lngTween =
-        Tween<double>(begin: camera.center.longitude, end: dest.longitude);
-    final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
+        Tween<double>(begin: center.longitude, end: dest.longitude);
+    final zoomTween = Tween<double>(begin: zoom, end: destZoom);
 
     _moveCtrl?.dispose();
     final ctrl = AnimationController(
@@ -130,10 +138,15 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     _moveCtrl = ctrl;
     final anim = CurvedAnimation(parent: ctrl, curve: Curves.easeInOutCubic);
     ctrl.addListener(() {
-      _mapController.move(
-        LatLng(latTween.evaluate(anim), lngTween.evaluate(anim)),
-        zoomTween.evaluate(anim),
-      );
+      if (!mounted || !_mapReady) return;
+      try {
+        _mapController.move(
+          LatLng(latTween.evaluate(anim), lngTween.evaluate(anim)),
+          zoomTween.evaluate(anim),
+        );
+      } catch (_) {
+        ctrl.stop(); // карта уничтожена во время анимации — тихо останавливаемся
+      }
     });
     ctrl.forward();
   }
@@ -143,18 +156,20 @@ class _LiveMapScreenState extends State<LiveMapScreen>
   }
 
   void _showBoth() {
-    if (!_mapReady) return; // fitCamera тоже читает состояние карты (см. выше)
+    if (!_mapReady || !mounted) return; // fitCamera тоже читает состояние карты
     final me = _me;
     final partner = _partner?.latLng;
     if (me != null && partner != null) {
       _moveCtrl?.dispose();
-      _mapController.fitCamera(
-        CameraFit.coordinates(
-          coordinates: [me, partner],
-          padding: const EdgeInsets.all(90),
-          maxZoom: 16.5,
-        ),
-      );
+      try {
+        _mapController.fitCamera(
+          CameraFit.coordinates(
+            coordinates: [me, partner],
+            padding: const EdgeInsets.all(90),
+            maxZoom: 16.5,
+          ),
+        );
+      } catch (_) {}
     } else if (partner != null) {
       _animatedMapMove(partner, 16);
     } else if (me != null) {
@@ -189,10 +204,12 @@ class _LiveMapScreenState extends State<LiveMapScreen>
               onMapReady: () {
                 _mapReady = true;
                 // Если точка партнёра уже есть — перелетаем после готовности.
-                if (_partner != null && !_focusedPartner) {
+                // Захватываем p локально: _partner может обнулиться до postFrame.
+                final p = _partner;
+                if (p != null && !_focusedPartner) {
                   _focusedPartner = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _animatedMapMove(_partner!.latLng, 16.5);
+                    if (mounted) _animatedMapMove(p.latLng, 16.5);
                   });
                 }
               },

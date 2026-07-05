@@ -240,9 +240,12 @@ class MemoryLanePreview extends StatelessWidget {
           userData: userData,
           onNavTab: onNavTab == null
               ? null
+              // context мог устареть к моменту тапа по вкладке → Navigator.of
+              // даёт "Null check operator used on a null value". Гардим mounted
+              // и зовём onNavTab через ?.call. См. Bugsink #24.
               : (i) {
-                  Navigator.of(context).pop();
-                  onNavTab!(i);
+                  if (context.mounted) Navigator.of(context).pop();
+                  onNavTab?.call(i);
                 },
         ),
         settings: const RouteSettings(name: '/memory_lane'),

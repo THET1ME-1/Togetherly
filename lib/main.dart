@@ -180,7 +180,26 @@ bool _isNetworkNoise(Object error) {
       (s.contains('isAbort: true') || s.contains('statusCode: 0'))) {
     return true;
   }
+  // PocketBase realtime (SSE) постоянно переподключается на мобильной сети:
+  // /api/realtime отдаёт 400 при обрыве/реконнекте — это churn соединения, а не
+  // баг. Именно он был issue #3 (1340 fatal-событий, топ по объёму в Bugsink).
+  // Глушим все ClientException этого эндпоинта независимо от статуса.
+  if (s.contains('ClientException') && s.contains('/api/realtime')) {
+    return true;
+  }
   return false;
+}
+
+/// Android 12+ (mAllowStartForeground) запрещает старт foreground-сервиса из
+/// фона. Прямой путь старта уже обёрнут в try/catch, но плагин
+/// flutter_foreground_task доставляет отказ ещё и асинхронным событием
+/// EventChannel → оно всплывает как необработанная ошибка мимо catch. Это
+/// ограничение ОС, а не баг приложения — не шлём в Bugsink (был issue #35).
+bool _isForegroundServiceRestriction(Object error) {
+  final s = error.toString();
+  return s.contains('startForeground() not allowed') ||
+      s.contains('ForegroundServiceStartNotAllowed') ||
+      s.contains('mAllowStartForeground');
 }
 
 void main() async {
@@ -252,7 +271,10 @@ void main() async {
     // приложения, а они тонной забивали панель и топили реальные краши.
     options.beforeSend = (event, hint) {
       final t = event.throwable;
-      if (t != null && _isNetworkNoise(t)) return null; // выбросить событие
+      if (t != null &&
+          (_isNetworkNoise(t) || _isForegroundServiceRestriction(t))) {
+        return null; // выбросить событие
+      }
       return event;
     };
   });
