@@ -331,6 +331,12 @@ abstract class AppStrings {
   String get logoutQuestion;
   String get logoutConfirm;
   String get logoutBtn;
+  String get deleteAccount;
+  String get deleteAccountQuestion;
+  String get deleteAccountConfirm;
+  String get deleteAccountBtn;
+  String get deleteAccountReauth;
+  String get deleteAccountError;
   String get chooseColorTheme;
   String get themeNamePink;
   String get themeNamePurple;
@@ -1791,6 +1797,22 @@ class _RuStrings extends AppStrings {
   String get logoutConfirm => 'Вы уверены, что хотите выйти из аккаунта?';
   @override
   String get logoutBtn => 'Выйти';
+  @override
+  String get deleteAccount => 'Удалить аккаунт';
+  @override
+  String get deleteAccountQuestion => 'Удалить аккаунт?';
+  @override
+  String get deleteAccountConfirm =>
+      'Аккаунт и все ваши данные будут удалены без возможности восстановления. '
+      'Пара будет разорвана. Это действие необратимо.';
+  @override
+  String get deleteAccountBtn => 'Удалить навсегда';
+  @override
+  String get deleteAccountReauth =>
+      'Для удаления аккаунта войдите заново и повторите.';
+  @override
+  String get deleteAccountError =>
+      'Не удалось удалить аккаунт. Попробуйте ещё раз.';
   @override
   String get chooseColorTheme => 'Выбери цветовую тему';
   @override
@@ -4277,6 +4299,22 @@ class _EnStrings extends AppStrings {
   String get logoutConfirm => 'Are you sure you want to sign out?';
   @override
   String get logoutBtn => 'Sign out';
+  @override
+  String get deleteAccount => 'Delete account';
+  @override
+  String get deleteAccountQuestion => 'Delete account?';
+  @override
+  String get deleteAccountConfirm =>
+      'Your account and all your data will be permanently deleted and cannot '
+      'be recovered. Your pair will be disconnected. This cannot be undone.';
+  @override
+  String get deleteAccountBtn => 'Delete permanently';
+  @override
+  String get deleteAccountReauth =>
+      'Please sign in again and retry to delete your account.';
+  @override
+  String get deleteAccountError =>
+      'Could not delete the account. Please try again.';
   @override
   String get chooseColorTheme => 'Choose color theme';
   @override

@@ -2914,6 +2914,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          // Удаление аккаунта — требование App Store 5.1.1(v). Должно быть
+          // видимым и доступным залогиненному пользователю.
+          GestureDetector(
+            onTap: () => _showDeleteAccountDialog(context),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.delete_forever_rounded,
+                  color: _t.textMuted,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _s.deleteAccount,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _t.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -5119,6 +5143,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  /// Диалог подтверждения удаления аккаунта (App Store 5.1.1(v)).
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(_s.deleteAccountQuestion),
+        content: Text(_s.deleteAccountConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(_s.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _performAccountDeletion(context);
+            },
+            child: Text(
+              _s.deleteAccountBtn,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Выполняет удаление: блокирующий индикатор → удаление → навигация на
+  /// экран приветствия при успехе, либо SnackBar с ошибкой (сессия сохраняется,
+  /// чтобы пользователь мог повторить, например после переавторизации).
+  Future<void> _performAccountDeletion(BuildContext context) async {
+    final userData = widget.userData;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await userData.deleteAccount();
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // закрыть индикатор
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => WelcomeScreen(userData: userData),
+          settings: const RouteSettings(name: '/welcome'),
+        ),
+        (_) => false,
+      );
+    } catch (e) {
+      debugPrint('deleteAccount error: $e');
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // закрыть индикатор
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_s.deleteAccountError)),
+      );
+    }
   }
 }
 

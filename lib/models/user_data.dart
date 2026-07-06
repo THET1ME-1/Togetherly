@@ -873,4 +873,46 @@ class UserData extends ChangeNotifier {
     await prefs.remove('adRewardsDate');
     notifyListeners();
   }
+
+  /// Полное удаление аккаунта (требование App Store 5.1.1(v)).
+  ///
+  /// Порядок важен — удаление auth-записи должно идти, пока сессия ещё валидна:
+  ///   1) Распускаем/покидаем все активные пары (soft-disband: данные
+  ///      восстановимы партнёром, но удаляемому аккаунту они больше недоступны).
+  ///   2) Удаляем саму запись пользователя в PocketBase. Delete-правило
+  ///      коллекции `users` = `id = @request.auth.id`, поэтому самоудаление
+  ///      разрешено; после него войти под старым аккаунтом невозможно.
+  ///   3) Локальный [logout] — чистит офлайн-кэш, сессию и фоновые сервисы.
+  ///
+  /// Шаг 1 — best-effort (его сбой не блокирует удаление). Если шаг 2 бросает
+  /// исключение, оно пробрасывается наверх — UI показывает ошибку и НЕ выходит.
+  Future<void> deleteAccount() async {
+    final pb = PocketBaseService();
+    final uid = pb.userId ?? _uid;
+    if (uid.isEmpty) {
+      // Нет активной сессии — просто чистим локальное состояние.
+      await logout();
+      return;
+    }
+
+    // 1. Распускаем/покидаем все активные группы пользователя (best-effort).
+    try {
+      final groups = await PbDataService().activeGroupRecordsForUser(uid);
+      for (final g in groups) {
+        try {
+          await PbDataService().unpairGroup(g.id, uid);
+        } catch (e) {
+          debugPrint('deleteAccount: unpair ${g.id} failed: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('deleteAccount: unpair phase failed: $e');
+    }
+
+    // 2. Удаляем саму запись пользователя (пока сессия ещё валидна).
+    await pb.pb.collection('users').delete(uid);
+
+    // 3. Локальный выход: кэш, сессия, фоновые сервисы.
+    await logout();
+  }
 }

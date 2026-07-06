@@ -2,7 +2,7 @@ name: love_app
 description: "Togetherly — a private space for couples with shared memories, mood tracking, timers, drawings, and widgets."
 publish_to: "none"
 
-version: 1.15.11+100
+version: 1.15.11+101
 
 environment:
   sdk: ^3.10.4
@@ -61,6 +61,9 @@ dependencies:
   in_app_update: ^4.2.3
   google_mobile_ads: ^5.2.0
   yandex_mobileads: ^7.6.0
+  # ATT-попап на iOS (App Store 2.1): реклама тянет AppTrackingTransparency,
+  # запрос разрешения обязателен до сбора IDFA.
+  app_tracking_transparency: ^2.0.6
   in_app_purchase: ^3.2.0
   connectivity_plus: ^7.1.1
   flutter_rustore_billing: ^9.0.0
