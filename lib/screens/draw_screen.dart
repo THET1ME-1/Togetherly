@@ -11,6 +11,7 @@ import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/share_origin.dart';
 
 import '../models/draw_stroke.dart';
 import '../models/pair_data.dart';
@@ -1520,6 +1521,8 @@ class _DrawScreenState extends State<DrawScreen>
   Future<void> _saveOrShare({required bool share}) async {
     if (_saving) return;
     final s = LocaleService.current;
+    // iPad-поповер: origin считаем до async-gap, пока context жив.
+    final shareOrigin = shareOriginFromContext(context);
     setState(() => _saving = true);
     try {
       final boundary =
@@ -1538,7 +1541,11 @@ class _DrawScreenState extends State<DrawScreen>
         final dir = await getTemporaryDirectory();
         final file = File('${dir.path}/$name');
         await file.writeAsBytes(bytes, flush: true);
-        await Share.shareXFiles([XFile(file.path)], text: ' ${s.drawTogether}');
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: ' ${s.drawTogether}',
+          sharePositionOrigin: shareOrigin,
+        );
       } else {
         final dir = await _resolveSaveDirectory();
         if (!await dir.exists()) await dir.create(recursive: true);

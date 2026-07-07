@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Rect;
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -16,6 +17,9 @@ class ExportService {
     required String groupId,
     required List<TimerItem> timers,
     required UserData userData,
+    // iPad-поповер: якорь для share-листа; без него на планшете лист не
+    // откроется. Считается вызывающим из BuildContext до вызова сервиса.
+    Rect? sharePositionOrigin,
   }) async {
     try {
       final archive = Archive();
@@ -107,9 +111,11 @@ class ExportService {
       await zipFile.writeAsBytes(zipData);
 
       // Share
-      await Share.shareXFiles([
-        XFile(zipFile.path),
-      ], text: 'Архив воспоминаний');
+      await Share.shareXFiles(
+        [XFile(zipFile.path)],
+        text: 'Архив воспоминаний',
+        sharePositionOrigin: sharePositionOrigin,
+      );
     } catch (e) {
       debugPrint('Export Error: $e');
       throw Exception('Ошибка при экспорте архива: $e');

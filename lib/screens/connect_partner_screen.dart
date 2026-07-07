@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/share_origin.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../models/profile_icon.dart';
@@ -822,12 +823,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         icon: Icons.share_rounded,
                         label: LocaleService.current.share,
                         onTap: pair.inviteCode.isEmpty ? null : () async {
+                          // iPad: origin обязателен, считаем ДО await.
+                          final origin = shareOriginFromContext(context);
                           await Share.share(
                             LocaleService.current.shareInviteText(
                               pair.inviteCode,
                               pair.inviteLink,
                             ),
                             subject: LocaleService.current.loveAppInvitation,
+                            sharePositionOrigin: origin,
                           );
                         },
                       ),
@@ -1151,6 +1155,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     height: 44,
                     child: ElevatedButton.icon(
                       onPressed: () async {
+                        // origin считаем ДО Navigator.pop — иначе контекст
+                        // диалога уже мёртв и на iPad popover не откроется.
+                        final origin = shareOriginFromContext(context);
                         Navigator.pop(context);
                         await Share.share(
                           LocaleService.current.shareGroupInviteText(
@@ -1158,6 +1165,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             pair.inviteLink,
                           ),
                           subject: LocaleService.current.groupInvitation,
+                          sharePositionOrigin: origin,
                         );
                       },
                       icon: const Icon(Icons.share_rounded, size: 16),
@@ -1900,11 +1908,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       height: 44,
                       child: OutlinedButton.icon(
                         onPressed: () async {
+                          // iPad «Scan to Connect» — origin ДО await, иначе
+                          // share-лист не открывается (реджект 2.1(a)).
+                          final origin = shareOriginFromContext(context);
                           await Share.share(
                             LocaleService.current.joinMeLinkText(
                               pair.inviteLink,
                             ),
                             subject: LocaleService.current.loveAppInvitation,
+                            sharePositionOrigin: origin,
                           );
                         },
                         icon: const Icon(Icons.share_rounded),

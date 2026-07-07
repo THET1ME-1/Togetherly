@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show Share, XFile;
+import '../utils/share_origin.dart';
 import 'dart:io';
 
 import '../models/mascot.dart';
@@ -391,6 +392,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
   Future<void> _export(Mascot mascot) async {
+    // iPad-поповер: origin считаем до async-gap, пока context жив.
+    final origin = shareOriginFromContext(context);
     try {
       if (mascot.imageUrl != null) {
         final file = await fetchCachedImageFile(mascot.imageUrl!);
@@ -399,7 +402,11 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           '${tmp.path}/${mascot.name.replaceAll(' ', '_')}.png',
         );
         await file.copy(dest.path);
-        await Share.shareXFiles([XFile(dest.path)], text: mascot.localizedName);
+        await Share.shareXFiles(
+          [XFile(dest.path)],
+          text: mascot.localizedName,
+          sharePositionOrigin: origin,
+        );
       }
     } catch (e) {
       if (mounted) {

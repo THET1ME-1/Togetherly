@@ -9,7 +9,6 @@ import 'config/sentry_config.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
-import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,35 +40,15 @@ import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
 import 'widgets/offline_sync_banner.dart';
 
-/// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob SDK.
-/// МobileAds.initialize() ДОЛЖЕН вызываться ПОСЛЕ завершения consent flow,
-/// иначе на EEA-устройствах SDK стартует без согласия и реклама блокируется.
-/// Показывает системный ATT-попап (App Store 2.1) на iOS. AdMob/Yandex линкуют
-/// framework AppTrackingTransparency, и Apple требует запросить разрешение.
-/// На Android — no-op.
-///
-/// ВАЖНО про тайминг: вызывается из `initState` корневого виджета через
-/// post-frame callback — только когда приложение уже `active` и первый кадр
-/// отрисован. Если запросить раньше (до `runApp`, пока окно неактивно), iOS
-/// молча возвращает `denied` и попап НЕ появляется — это и была причина
-/// реджекта. Рекламные SDK стартуют раньше, но до авторизации ATT iOS отдаёт
-/// обнулённый IDFA, поэтому трекинг не начинается до показа попапа.
-///
-/// Запрос делается только при статусе `notDetermined`; повторно iOS его не
-/// показывает. Небольшая задержка — доп. страховка активного состояния.
-Future<void> _requestTrackingAuthorization() async {
-  if (!Platform.isIOS) return;
-  try {
-    final status = await AppTrackingTransparency.trackingAuthorizationStatus;
-    if (status == TrackingStatus.notDetermined) {
-      await Future.delayed(const Duration(milliseconds: 250));
-      await AppTrackingTransparency.requestTrackingAuthorization();
-    }
-  } catch (e) {
-    debugPrint('ATT request failed: $e');
-  }
-}
+// ATT/трекинг убран НАМЕРЕННО: приложение НЕ отслеживает пользователей
+// (в App Store Connect: App Privacy → Tracking = None). Без ATT-авторизации
+// iOS отдаёт обнулённый IDFA, и AdMob/Yandex показывают неперсональную рекламу.
+// Так снят реджект 2.1: ATT-попап всё равно не мог показаться на устройстве
+// ревьюера с выключенным системным тумблером «Allow Apps to Request to Track».
 
+/// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob/Yandex SDK.
+/// MobileAds.initialize() ДОЛЖЕН вызываться ПОСЛЕ завершения consent flow,
+/// иначе на EEA-устройствах SDK стартует без согласия и реклама блокируется.
 Future<void> _initConsentAndAds() async {
   final params = ConsentRequestParameters(
     consentDebugSettings: kDebugMode
@@ -553,11 +532,6 @@ class _LoveAppState extends State<LoveApp> {
   void initState() {
     super.initState();
     _init();
-    // ATT-попап (App Store 2.1) — только после первого кадра, когда приложение
-    // уже active, иначе iOS подавляет запрос (см. _requestTrackingAuthorization).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestTrackingAuthorization();
-    });
     // Отслеживаем жизненный цикл приложения для обновления статуса присутствия
     _lifecycleListener = AppLifecycleListener(
       onResume: () {

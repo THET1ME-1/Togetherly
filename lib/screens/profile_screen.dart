@@ -30,6 +30,7 @@ import '../theme/theme_scope.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
+import '../utils/share_origin.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
 import '../services/home_widget_service.dart';
@@ -2812,6 +2813,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    // iPad-поповер для share-листа архива — считаем ДО showDialog/await.
+    final shareOrigin = shareOriginFromContext(context);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2856,6 +2860,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         groupId: groupId,
         timers: timerService.timers,
         userData: widget.userData,
+        sharePositionOrigin: shareOrigin,
       );
 
       if (context.mounted) {
