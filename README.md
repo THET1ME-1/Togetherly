@@ -1,146 +1,115 @@
+<div align="center">
+
+<img src="docs/branding/readme-banner.png" alt="Togetherly — an app for two" width="100%">
+
 # Togetherly
 
-Togetherly is a Flutter app for couples and small private groups. It combines shared memories, mood tracking, relationship timers, drawings, widgets, location moments, and lightweight social interactions in one private space.
+<br>
 
-## What The App Does
+[![Release](https://img.shields.io/github/v/release/THET1ME-1/togetherly_app_releases?style=for-the-badge&label=release&color=E75480)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/THET1ME-1/togetherly_app_releases/total?style=for-the-badge&color=8E4657)](https://github.com/THET1ME-1/togetherly_app_releases/releases)
+[![Platform](https://img.shields.io/badge/Android_·_iOS-1F1B24?style=for-the-badge)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
 
-- Create a personal profile and sign in with Google or email/password
-- Connect a partner or group with an invite link, code, or QR flow
-- Save shared memories with photos, video links, music, text notes, and places
-- Track mood entries for yourself and view mood history for connected partners
-- Use relationship timers and a system timer tied to the connection start date
-- Send "miss you" events and receive push notifications
-- Create and browse shared drawings
-- Sync selected data to home screen widgets
-- Export memories and timers into a shareable archive
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
+![PocketBase](https://img.shields.io/badge/PocketBase-B8DBD9?style=for-the-badge&logo=pocketbase&logoColor=black)
+![Centrifugo](https://img.shields.io/badge/Centrifugo-46488B?style=for-the-badge)
+![Material 3](https://img.shields.io/badge/Material_3-Expressive-E75480?style=for-the-badge)
 
-## First-Run User Flow
+**A cozy private space for two** — shared memories, moods, live map, home widgets, and little rituals that keep you close, even apart. 💛
 
-The intended first-time experience is:
+🇷🇺 🇬🇧 · 2 languages
 
-1. Open the welcome screen and create an account
-2. Complete profile setup
-3. Enter the app and connect a partner from the Connect tab
-4. Add the first memory, mood entry, or timer
-5. Personalize the shared space with widgets, drawings, and profile settings
+[**⬇ Download**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) · [English](#english) · [Русский](#-togetherly-русский)
 
-## Main Product Areas
+<br>
 
-### Welcome and Auth
+<img src="docs/branding/screenshots.png" alt="Togetherly — profile, widgets, connection, calendar, drawing" width="100%">
 
-- `lib/screens/welcome_screen.dart`
-- `lib/screens/setup_screen.dart`
-- `lib/screens/login_screen.dart`
+</div>
 
-The onboarding flow introduces the app, registration, sign-in, and first profile setup.
+---
 
-### Home
+## English
 
-- `lib/screens/home_screen.dart`
+**Togetherly** is a warm, private app for couples (and small close groups). One shared space where your relationship lives — memories, moods, and everyday closeness — whether you're together or miles apart.
 
-The home screen is the main hub for relationship status, mood previews, memory previews, timers, navigation, and connected features.
+### What's inside
+- 📸 **Shared Memory Lane** — photos, videos, places, music, books & movies in one feed
+- 💌 **Time capsule** — seal a letter or a photo; it opens on the day you choose
+- 🔒 **Secret memories** — hide the special ones behind a PIN
+- 🏆 **Couple achievements** — milestones (100 days together, first photo, …) with confetti
+- 🗺️ **Live map "Where we are"** — see each other's location in real time
+- 🧩 **Home-screen widgets** (Android & iOS) — shared photo, days together, streak, mood
+- 😊 **Moods** — track your mood and see your partner's history
+- ⏱️ **Days together, streaks**, anniversary & birthday reminders
+- 💬 **Private chat** and "miss you" nudges with push notifications
+- 🎨 **Shared drawing canvas** and postcards
+- 🐣 **A couple mascot** that grows with your activity
+- 🎨 **20 themes** (light & dark) and themed app icons
+- 🪙 Coins & rewards, co-watch, and more
 
-### Connect Partner
+### Download
+**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) (recommended).
 
-- `lib/screens/connect_partner_screen.dart`
-- `lib/services/deep_link_service.dart`
+For auto-updates use **[Obtainium](https://github.com/ImranR98/Obtainium)**: *Add App* → paste
+`https://github.com/THET1ME-1/togetherly_app_releases` → it tracks every new release (pick `arm64-v8a` — almost all modern phones).
 
-Users can connect via invite link, code, or QR. The app supports active connection switching and partner presence.
+One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
 
-### Memory Lane
+Signing fingerprint (SHA-256) to verify the APK:
+`1E:94:4F:00:FE:F1:17:D5:00:03:56:03:44:FC:BE:4F:9F:69:BF:FA:4C:F3:5B:A8:9F:26:D0:32:C3:3A:4E:13`
 
-- `lib/screens/memory_lane_screen.dart`
-- `lib/models/memory.dart`
+**RuStore · Google Play · App Store** — coming soon.
 
-Shared memories support multiple formats including text, photo, video links, music, and geolocation.
+### Built with
+Flutter (Material 3) · Dart · self-hosted **PocketBase** (auth / data / media) · **Centrifugo** (realtime) · offline-first sync · Android & iOS.
 
-### Mood Calendar
+*Togetherly is a private product — the app is free to use, the source is not open.*
 
-- `lib/screens/mood_calendar_screen.dart`
-- `lib/services/mood_service.dart`
+---
 
-Tracks daily mood entries and presents shared history and statistics.
+## 🩷 Togetherly (Русский)
 
-### Profile and Settings
+**Togetherly** — тёплое приватное приложение для пар (и небольших близких групп). Одно общее пространство, где живут ваши отношения: воспоминания, настроения и повседневная близость — вместе вы или за тысячи километров.
 
-- `lib/screens/profile_screen.dart`
+### Что внутри
+- 📸 **Общая лента воспоминаний** — фото, видео, места, музыка, книги и фильмы в одной ленте
+- 💌 **Капсула времени** — запечатайте письмо или фото; откроется в выбранный вами день
+- 🔒 **Секретные воспоминания** — спрячьте особенное под PIN
+- 🏆 **Достижения пары** — вехи (100 дней вместе, первое фото…) с праздничным салютом
+- 🗺️ **Живая карта «Где мы»** — видите геопозицию друг друга в реальном времени
+- 🧩 **Виджеты на экране** (Android и iOS) — общее фото, дни вместе, серия, настроение
+- 😊 **Настроения** — отмечайте своё и смотрите историю партнёра
+- ⏱️ **Дни вместе, серии**, напоминания о годовщине и дне рождения
+- 💬 **Личный чат** и кнопка «Я скучаю» с пуш-уведомлениями
+- 🎨 **Общий холст для рисования** и открытки
+- 🐣 **Маскот пары**, который растёт вместе с вами
+- 🎨 **20 тем** (светлые и тёмные) и тематические иконки приложения
+- 🪙 Коины и награды, совместный просмотр и не только
 
-Contains account info, notification preferences, relationship stats, export, privacy policy, and app links.
+### Скачать
+**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) (рекомендуется).
 
-## Tech Stack
+Для авто-обновлений используйте **[Obtainium](https://github.com/ImranR98/Obtainium)**: *Add App* → вставьте
+`https://github.com/THET1ME-1/togetherly_app_releases` → он подхватывает каждый новый релиз (выбирайте `arm64-v8a` — почти все современные телефоны).
 
-- Flutter
-- Firebase Auth
-- Cloud Firestore
-- Firebase Storage
-- Firebase Messaging
-- Firebase Hosting
-- Firebase Cloud Functions
+One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
 
-## Project Structure
+Отпечаток подписи (SHA-256) для проверки APK:
+`1E:94:4F:00:FE:F1:17:D5:00:03:56:03:44:FC:BE:4F:9F:69:BF:FA:4C:F3:5B:A8:9F:26:D0:32:C3:3A:4E:13`
 
-```text
-lib/
-  main.dart
-  models/
-  screens/
-  services/
-  theme/
-  widgets/
-functions/
-hosting/
-test/
-```
+**RuStore · Google Play · App Store** — скоро.
 
-## Local Development
+### На чём сделано
+Flutter (Material 3) · Dart · самохост **PocketBase** (авторизация / данные / медиа) · **Centrifugo** (realtime) · offline-first синхронизация · Android и iOS.
 
-### Requirements
+*Togetherly — приватный продукт: приложение бесплатное, исходники закрыты.*
 
-- Flutter SDK
-- Firebase project configuration for Android/iOS
-- A configured Google Sign-In setup if you want to test auth flows
+---
 
-### Install Dependencies
+<div align="center">
 
-```bash
-flutter pub get
-```
+<sub>Made with Flutter & 💛 · <code>com.togetherly.love</code></sub>
 
-### Run The App
-
-```bash
-flutter run
-```
-
-### Run Tests
-
-```bash
-flutter test
-```
-
-### Analyze
-
-```bash
-flutter analyze
-```
-
-## Web And Static Pages
-
-The repository also contains hosted pages for:
-
-- landing page
-- privacy policy
-- delete account flow
-- store/support banners
-
-Files live in `hosting/` and are served through Firebase Hosting.
-
-## Cloud Functions
-
-Cloud Functions live in `functions/` and currently include notification-related backend behavior such as the miss-you event push flow.
-
-## Notes For Contributors
-
-- This is not a starter Flutter app anymore; product behavior lives across several large screens and services
-- Before adding new features, inspect the existing flows in `home_screen.dart`, `memory_lane_screen.dart`, `profile_screen.dart`, and `firebase_service.dart`
-- Keep product copy aligned across the app, hosted pages, and store-facing materials
+</div>
