@@ -38,6 +38,7 @@ import '../services/pb_media_service.dart';
 import '../services/offline/media_cache.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
+import '../services/secret_pin_service.dart';
 import '../services/pocketbase_service.dart';
 import 'together/together_launcher.dart';
 import '../services/home_widget_service.dart';
@@ -179,6 +180,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   String? _categoryKey;
   bool _favoritesOnly = false;
 
+  /// Секретные воспоминания раскрыты в этой сессии экрана (после ввода PIN).
+  /// Сбрасывается при выходе с экрана — секреты снова прячутся.
+  bool _secretUnlocked = false;
+
   static final List<
       ({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
       _feedCategories = [
@@ -204,6 +209,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Проходит ли воспоминание текущий тег-фильтр (категория + «Избранное»).
   bool _passesFeedFilter(Memory m) {
+    // Секретные скрыты из ленты, пока не введён PIN (см. [_secretUnlocked]).
+    if (m.isSecret && !_secretUnlocked) return false;
     if (_favoritesOnly && !m.isSavedBy(_myUid ?? '')) return false;
     if (_categoryKey == null) return true;
     final cat = _feedCategories.firstWhere((c) => c.key == _categoryKey,
@@ -732,6 +739,25 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
       actions: [
+        if (_memories.any((m) => m.isSecret))
+          IconButton(
+            onPressed: _toggleSecretLock,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: widget.theme.cardSurface.withOpacity(0.8),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _secretUnlocked
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_rounded,
+                color: primary,
+                size: 18,
+              ),
+            ),
+            tooltip: LocaleService.current.secretMemories,
+          ),
         IconButton(
           onPressed: _openPhotoGalleryScreen,
           icon: Container(
@@ -3225,6 +3251,119 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  MEMORY ACTIONS (long press)
   // ═══════════════════════════════════════════════════
+  // ── Секретные воспоминания (PIN) ──────────────────────────────────────────
+  /// Кнопка-замок в шапке: заблокировать снова (мгновенно) либо разблокировать
+  /// вводом PIN.
+  Future<void> _toggleSecretLock() async {
+    if (_secretUnlocked) {
+      setState(() => _secretUnlocked = false);
+      return;
+    }
+    final pin = await _askPin(create: false);
+    if (pin == null || !mounted) return;
+    final ok = await SecretPinService.verify(pin);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _secretUnlocked = true);
+    } else {
+      _secretSnack(LocaleService.current.wrongPin, error: true);
+    }
+  }
+
+  /// Пометить/снять «секретное». При первой пометке (нет PIN) — просим задать.
+  Future<void> _toggleSecret(Memory memory) async {
+    final makeSecret = !memory.isSecret;
+    if (makeSecret && !await SecretPinService.hasPin()) {
+      final pin = await _askPin(create: true);
+      if (pin == null) return;
+      await SecretPinService.setPin(pin);
+      if (mounted) setState(() => _secretUnlocked = true);
+    }
+    await _memRepo.update(
+      groupId: _groupId,
+      memoryId: memory.id,
+      isSecret: makeSecret,
+    );
+    if (mounted) {
+      _secretSnack(makeSecret
+          ? LocaleService.current.markedSecret
+          : LocaleService.current.unmarkedSecret);
+    }
+  }
+
+  /// Диалог PIN. [create]=true — задать новый (≥4 цифр); иначе ввод для
+  /// разблокировки. Возвращает PIN или null (отмена).
+  Future<String?> _askPin({required bool create}) async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String? err;
+        return StatefulBuilder(
+          builder: (ctx, setD) => AlertDialog(
+            backgroundColor: widget.theme.cardSurface,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(create
+                ? LocaleService.current.setPinTitle
+                : LocaleService.current.enterPinTitle),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  autofocus: true,
+                  maxLength: 8,
+                  decoration: InputDecoration(
+                    hintText: '••••',
+                    counterText: '',
+                    errorText: err,
+                  ),
+                ),
+                if (create)
+                  Text(
+                    LocaleService.current.setPinHint,
+                    style:
+                        TextStyle(fontSize: 12, color: widget.theme.textMuted),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(LocaleService.current.cancel),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final v = ctrl.text.trim();
+                  if (create && v.length < 4) {
+                    setD(() => err = LocaleService.current.pinTooShort);
+                    return;
+                  }
+                  if (v.isEmpty) return;
+                  Navigator.pop(ctx, v);
+                },
+                child: Text(LocaleService.current.pinDone),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _secretSnack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: error ? Colors.orange : primary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
+  }
+
   void _showMemoryActions(Memory memory) {
     showModalBottomSheet(
       context: context,
@@ -3278,6 +3417,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _setLocationOnMemory(memory);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                memory.isSecret
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_rounded,
+                color: primary,
+              ),
+              title: Text(
+                memory.isSecret
+                    ? LocaleService.current.unmarkSecret
+                    : LocaleService.current.markSecret,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _toggleSecret(memory);
               },
             ),
             if (_canDownload(memory))

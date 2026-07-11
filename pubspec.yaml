@@ -15,6 +15,7 @@ dependencies:
   characters: ^1.4.0 # графемы для безопасной работы с эмодзи (utils/safe_text)
   google_fonts: ^6.2.1
   shared_preferences: ^2.3.4
+  crypto: ^3.0.7 # SHA-256 для PIN секретных воспоминаний (secret_pin_service)
   google_sign_in: ^6.2.2
   sentry_flutter: ^9.0.0
   qr_flutter: ^4.1.0

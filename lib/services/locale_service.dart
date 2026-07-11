@@ -240,6 +240,17 @@ abstract class AppStrings {
   String get achievementsTitle;
   String get achievementDone;
   String achievementsUnlockedOf(int unlocked, int total);
+  String get markSecret;
+  String get unmarkSecret;
+  String get markedSecret;
+  String get unmarkedSecret;
+  String get secretMemories;
+  String get enterPinTitle;
+  String get setPinTitle;
+  String get setPinHint;
+  String get wrongPin;
+  String get pinTooShort;
+  String get pinDone;
   String get postedToMemoryLane;
   String get moodCalendar;
   String get seeAll;
@@ -1605,6 +1616,29 @@ class _RuStrings extends AppStrings {
   @override
   String achievementsUnlockedOf(int unlocked, int total) =>
       'Открыто $unlocked из $total';
+  @override
+  String get markSecret => 'Сделать секретным';
+  @override
+  String get unmarkSecret => 'Убрать из секретных';
+  @override
+  String get markedSecret => 'Скрыто в секретные 🔒';
+  @override
+  String get unmarkedSecret => 'Больше не секретное';
+  @override
+  String get secretMemories => 'Секретные';
+  @override
+  String get enterPinTitle => 'Введите PIN';
+  @override
+  String get setPinTitle => 'Задайте PIN';
+  @override
+  String get setPinHint =>
+      'Минимум 4 цифры. PIN хранится только на этом устройстве.';
+  @override
+  String get wrongPin => 'Неверный PIN';
+  @override
+  String get pinTooShort => 'Минимум 4 цифры';
+  @override
+  String get pinDone => 'Готово';
   @override
   String get postedToMemoryLane => 'Добавлено в ленту воспоминаний! 📸';
   @override
@@ -4121,6 +4155,29 @@ class _EnStrings extends AppStrings {
   @override
   String achievementsUnlockedOf(int unlocked, int total) =>
       'Unlocked $unlocked of $total';
+  @override
+  String get markSecret => 'Make secret';
+  @override
+  String get unmarkSecret => 'Remove from secret';
+  @override
+  String get markedSecret => 'Hidden as secret 🔒';
+  @override
+  String get unmarkedSecret => 'No longer secret';
+  @override
+  String get secretMemories => 'Secret';
+  @override
+  String get enterPinTitle => 'Enter PIN';
+  @override
+  String get setPinTitle => 'Set a PIN';
+  @override
+  String get setPinHint =>
+      'At least 4 digits. Stored only on this device.';
+  @override
+  String get wrongPin => 'Wrong PIN';
+  @override
+  String get pinTooShort => 'At least 4 digits';
+  @override
+  String get pinDone => 'Done';
   @override
   String get postedToMemoryLane => 'Posted to Memory Lane! 📸';
   @override

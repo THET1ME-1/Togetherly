@@ -55,6 +55,17 @@ class Memory {
   bool isPinned;
   bool isAdult;
 
+  /// Секретное воспоминание — скрыто из ленты, пока не введён PIN. Живёт в
+  /// json-поле `data` (как [isAdult]) → синкается без изменения схемы PB.
+  bool isSecret;
+
+  /// «Капсула времени»: запечатано до [openAt] — до этой даты контент скрыт
+  /// (карточка-замок), после — раскрывается как обычное воспоминание.
+  bool sealed;
+
+  /// Дата открытия капсулы (для [sealed]). null у обычных воспоминаний.
+  DateTime? openAt;
+
   /// UID'ы пользователей, добавивших это воспоминание в «Избранное» (закладка).
   /// Персонально: каждый партнёр видит свой набор закладок.
   List<String> savedBy;
@@ -102,6 +113,9 @@ class Memory {
     this.rating,
     this.isPinned = false,
     this.isAdult = false,
+    this.isSecret = false,
+    this.sealed = false,
+    this.openAt,
     List<String>? savedBy,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
@@ -189,6 +203,9 @@ class Memory {
       'rating': rating,
       'isPinned': isPinned,
       'isAdult': isAdult,
+      'isSecret': isSecret,
+      'sealed': sealed,
+      'openAt': openAt?.toIso8601String(),
       'savedBy': savedBy,
       'commentsCount': commentsCount,
     };
@@ -239,6 +256,9 @@ class Memory {
       rating: (json['rating'] as num?)?.toInt(),
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
+      isSecret: json['isSecret'] ?? false,
+      sealed: json['sealed'] ?? false,
+      openAt: json['openAt'] != null ? DateTime.tryParse(json['openAt']) : null,
       savedBy: json['savedBy'] != null
           ? List<String>.from(json['savedBy'])
           : null,

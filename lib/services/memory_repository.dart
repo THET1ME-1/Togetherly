@@ -99,6 +99,9 @@ class MemoryRepository {
     String? movieInfoUrl,
     int? rating,
     bool isAdult = false,
+    bool isSecret = false,
+    bool sealed = false,
+    DateTime? openAt,
     DateTime? customDate,
   }) async {
     final uid = _uid;
@@ -150,6 +153,9 @@ class MemoryRepository {
       movieInfoUrl: movieInfoUrl,
       rating: rating == 0 ? null : rating,
       isAdult: isAdult,
+      isSecret: isSecret,
+      sealed: sealed,
+      openAt: openAt,
     );
     // 1) оптимистично в кэш → лента показывает сразу (и офлайн)
     await _cache.upsertRaw('memories', memory.id, _row(groupId, memory));
@@ -181,6 +187,7 @@ class MemoryRepository {
     String? imageUrl,
     bool? isPinned,
     bool? isAdult,
+    bool? isSecret,
     DateTime? customDate,
   }) async {
     var cached = await _cache.getRecord('memories', memoryId);
@@ -212,6 +219,7 @@ class MemoryRepository {
     put('imageUrl', imageUrl);
     if (isPinned != null) map['isPinned'] = isPinned;
     if (isAdult != null) map['isAdult'] = isAdult;
+    if (isSecret != null) map['isSecret'] = isSecret;
     if (customDate != null) map['createdAt'] = customDate.toIso8601String();
     map['editedAt'] = DateTime.now().toIso8601String();
 
