@@ -251,6 +251,27 @@ abstract class AppStrings {
   String get wrongPin;
   String get pinTooShort;
   String get pinDone;
+  String get timeCapsule;
+  String get capsuleIntro;
+  String get capsuleLetterHint;
+  String get capsuleAttachPhoto;
+  String get capsuleOpenDate;
+  String get change;
+  String capsuleOpensIn(int days);
+  String get capsulePreset1m;
+  String get capsulePreset6m;
+  String get capsulePreset1y;
+  String get capsuleSeal;
+  String get capsuleNeedsContent;
+  String get capsuleNeedsFutureDate;
+  String capsuleOpensOn(String date);
+  String capsuleFrom(String name);
+  String capsuleNotReady(String date);
+  String get capsuleAddSub;
+  String get capsuleCreated;
+  String get capsuleOpenedTitle;
+  String get capsuleOpenedBody;
+  String capsuleOpenedBodyNamed(String title);
   String get postedToMemoryLane;
   String get moodCalendar;
   String get seeAll;
@@ -1639,6 +1660,51 @@ class _RuStrings extends AppStrings {
   String get pinTooShort => 'Минимум 4 цифры';
   @override
   String get pinDone => 'Готово';
+  @override
+  String get timeCapsule => 'Капсула времени';
+  @override
+  String get capsuleIntro =>
+      'Запечатай письмо или фото — оно откроется в выбранный день 💌';
+  @override
+  String get capsuleLetterHint => 'Напиши письмо в будущее…';
+  @override
+  String get capsuleAttachPhoto => 'Добавить фото';
+  @override
+  String get capsuleOpenDate => 'Дата открытия';
+  @override
+  String get change => 'Изменить';
+  @override
+  String capsuleOpensIn(int days) =>
+      days <= 0 ? 'откроется сегодня' : 'через $days дн.';
+  @override
+  String get capsulePreset1m => 'через месяц';
+  @override
+  String get capsulePreset6m => 'через полгода';
+  @override
+  String get capsulePreset1y => 'через год';
+  @override
+  String get capsuleSeal => 'Запечатать';
+  @override
+  String get capsuleNeedsContent => 'Добавь письмо или фото';
+  @override
+  String get capsuleNeedsFutureDate =>
+      'Дата открытия должна быть в будущем';
+  @override
+  String capsuleOpensOn(String date) => 'Откроется $date';
+  @override
+  String capsuleFrom(String name) => 'от $name';
+  @override
+  String capsuleNotReady(String date) => 'Ещё рано 🙈 Откроется $date';
+  @override
+  String get capsuleAddSub => 'Письмо в будущее';
+  @override
+  String get capsuleCreated => 'Капсула запечатана 💌';
+  @override
+  String get capsuleOpenedTitle => 'Капсула времени открылась! 💌';
+  @override
+  String get capsuleOpenedBody => 'Загляни в ленту воспоминаний';
+  @override
+  String capsuleOpenedBodyNamed(String title) => '«$title» ждёт тебя в ленте';
   @override
   String get postedToMemoryLane => 'Добавлено в ленту воспоминаний! 📸';
   @override
@@ -4178,6 +4244,50 @@ class _EnStrings extends AppStrings {
   String get pinTooShort => 'At least 4 digits';
   @override
   String get pinDone => 'Done';
+  @override
+  String get timeCapsule => 'Time capsule';
+  @override
+  String get capsuleIntro =>
+      'Seal a letter or a photo — it opens on the day you choose 💌';
+  @override
+  String get capsuleLetterHint => 'Write a letter to the future…';
+  @override
+  String get capsuleAttachPhoto => 'Add a photo';
+  @override
+  String get capsuleOpenDate => 'Opens on';
+  @override
+  String get change => 'Change';
+  @override
+  String capsuleOpensIn(int days) => days <= 0 ? 'opens today' : 'in $days days';
+  @override
+  String get capsulePreset1m => '1 month';
+  @override
+  String get capsulePreset6m => '6 months';
+  @override
+  String get capsulePreset1y => '1 year';
+  @override
+  String get capsuleSeal => 'Seal it';
+  @override
+  String get capsuleNeedsContent => 'Add a letter or a photo';
+  @override
+  String get capsuleNeedsFutureDate => 'Open date must be in the future';
+  @override
+  String capsuleOpensOn(String date) => 'Opens $date';
+  @override
+  String capsuleFrom(String name) => 'from $name';
+  @override
+  String capsuleNotReady(String date) => 'Not yet 🙈 Opens $date';
+  @override
+  String get capsuleAddSub => 'A letter to the future';
+  @override
+  String get capsuleCreated => 'Capsule sealed 💌';
+  @override
+  String get capsuleOpenedTitle => 'Your time capsule opened! 💌';
+  @override
+  String get capsuleOpenedBody => 'Take a peek in your memory lane';
+  @override
+  String capsuleOpenedBodyNamed(String title) =>
+      '"$title" is waiting in your feed';
   @override
   String get postedToMemoryLane => 'Posted to Memory Lane! 📸';
   @override

@@ -682,7 +682,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _memorySub = MemoryRepository().watch(groupId).listen(
       (memories) {
         if (mounted) {
-          setState(() => _recentMemories = memories.take(10).toList());
+          // Превью на главной не имеет PIN-гейта/sealed-рендера — прячем
+          // секретные и ещё запечатанные капсулы, чтобы не светить контент.
+          setState(() => _recentMemories = memories
+              .where((m) => !m.sealedNow() && !m.isSecret)
+              .take(10)
+              .toList());
         }
       },
       onError: (e) => debugPrint('home: memory watch error: $e'),

@@ -39,6 +39,9 @@ import '../services/offline/media_cache.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../services/secret_pin_service.dart';
+import '../services/capsule_notification_service.dart';
+import '../widgets/sealed_capsule_card.dart';
+import 'time_capsule_screen.dart';
 import '../services/pocketbase_service.dart';
 import 'together/together_launcher.dart';
 import '../services/home_widget_service.dart';
@@ -293,6 +296,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         if (_firstMemLoad) {
           _firstMemLoad = false;
           if (widget.initialMemoryId != null) _openInitialMemory();
+        }
+        // Планируем «капсула открылась» на дату каждой ещё запечатанной капсулы
+        // (и у автора, и у партнёра — капсула прилетает через realtime). Сервис
+        // идемпотентен по id, так что повторные апдейты ленты безопасны.
+        for (final m in memories) {
+          if (m.sealedNow() && m.openAt != null) {
+            unawaited(CapsuleNotificationService.instance
+                .schedule(m.id, m.openAt!, capsuleTitle: m.title));
+          }
         }
       },
       onError: (e) {
@@ -775,7 +787,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             context,
             MaterialPageRoute(
               builder: (_) => MemoriesMapScreen(
-                memories: _memories,
+                memories: _memories
+                    .where((m) =>
+                        !m.sealedNow() && !(m.isSecret && !_secretUnlocked))
+                    .toList(),
                 theme: widget.theme,
                 currentUserUid: _myUid,
               ),
@@ -1036,6 +1051,21 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  MEMORY TILE (type-specific cards)
   // ═══════════════════════════════════════════════════
   Widget _memoryTile(Memory memory) {
+    // Капсула времени: до даты открытия — запечатанная карточка вместо контента.
+    if (memory.sealedNow()) {
+      return KeyedSubtree(
+        key: ValueKey('capsule_${memory.id}'),
+        child: SealedCapsuleCard(
+          theme: widget.theme,
+          authorName: memory.authorName,
+          authorAvatar: memory.authorAvatar,
+          openAt: memory.openAt!,
+          onTapTooEarly: () => _secretSnack(
+            LocaleService.current.capsuleNotReady(_fmtCapsuleDate(memory.openAt!)),
+          ),
+        ),
+      );
+    }
     final tile = switch (memory.type) {
       MemoryType.photo => _photoTile(memory),
       MemoryType.video => _videoTile(memory),
@@ -3364,6 +3394,28 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     ));
   }
 
+  // ── Капсула времени ───────────────────────────────────────────────────────
+  Future<void> _openTimeCapsule() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TimeCapsuleScreen(
+          theme: widget.theme,
+          pairId: _groupId,
+          authorName: widget.userData?.displayName ?? '',
+          authorAvatar: widget.userData?.avatarUrl ?? '',
+        ),
+        settings: const RouteSettings(name: '/time_capsule'),
+      ),
+    );
+    if (created == true && mounted) {
+      _secretSnack(LocaleService.current.capsuleCreated);
+    }
+  }
+
+  String _fmtCapsuleDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
   void _showMemoryActions(Memory memory) {
     showModalBottomSheet(
       context: context,
@@ -4127,6 +4179,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 label: LocaleService.current.movies,
                 color: const Color(0xFFEF4444),
                 type: MemoryType.movie,
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text('💌', style: TextStyle(fontSize: 20)),
+                ),
+                title: Text(
+                  LocaleService.current.timeCapsule,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: widget.theme.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  LocaleService.current.capsuleAddSub,
+                  style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
+                ),
+                trailing: Icon(Icons.chevron_right_rounded,
+                    color: widget.theme.textMuted),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openTimeCapsule();
+                },
               ),
             ],
           ),
@@ -7423,6 +7502,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final sorted = [..._memories]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     for (final m in sorted) {
+      // Не светим фото запечатанной капсулы (до открытия) и секретных до PIN.
+      if (m.sealedNow()) continue;
+      if (m.isSecret && !_secretUnlocked) continue;
       if (m.type == MemoryType.photo) {
         final urls = <String>[
           if (m.imageUrls?.isNotEmpty == true)

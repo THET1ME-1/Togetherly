@@ -76,6 +76,16 @@ class Memory {
 
   bool isSavedBy(String uid) => uid.isNotEmpty && savedBy.contains(uid);
 
+  /// Капсула ещё запечатана в момент [now] (по умолчанию — сейчас): помечена
+  /// [sealed], задана [openAt] и эта дата ещё не наступила. Логика вынесена в
+  /// геттер, чтобы её можно было покрыть тестами и переиспользовать в ленте.
+  bool sealedNow([DateTime? now]) =>
+      sealed && openAt != null && (now ?? DateTime.now()).isBefore(openAt!);
+
+  /// Это капсула, которая уже раскрылась (была запечатана, дата наступила).
+  bool openedCapsuleAt([DateTime? now]) =>
+      sealed && openAt != null && !(now ?? DateTime.now()).isBefore(openAt!);
+
   Memory({
     required this.id,
     required this.groupId,
