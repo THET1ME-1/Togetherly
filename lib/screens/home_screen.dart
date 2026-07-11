@@ -11,6 +11,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1861,9 +1862,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // 1. Лента воспоминаний.
+      Memory? createdMemory;
       if (result.toMemories) {
         final me = PbAuthService().currentProfile();
-        await MemoryRepository().add(
+        createdMemory = await MemoryRepository().add(
           groupId: _pairData.pairId,
           authorName: (me?['displayName'] as String?) ?? '',
           authorAvatar: (me?['avatarUrl'] as String?) ?? '',
@@ -1875,6 +1877,22 @@ class _HomeScreenState extends State<HomeScreen> {
           latitude: location.lat,
           longitude: location.lng,
         );
+      }
+      // add() возвращает null при тихом дропе (нет сессии/пустой groupId). Раньше
+      // мы всё равно показывали «Добавлено в ленту воспоминаний!» и начисляли
+      // награду — фото уходило в виджеты, но НЕ в воспоминания, а пользователь
+      // был уверен в обратном. Теперь отличаем реальный успех от дропа.
+      final memoryFailed = result.toMemories && createdMemory == null;
+      if (memoryFailed) {
+        unawaited(Sentry.captureMessage(
+          'Instant photo: memory add returned null (не добавилось в ленту)',
+          withScope: (s) {
+            s.level = SentryLevel.error;
+            s.setExtra('isLoggedIn', PocketBaseService().isLoggedIn);
+            s.setExtra('userIdNull', PocketBaseService().userId == null);
+            s.setExtra('pairIdEmpty', _pairData.pairId.isEmpty);
+          },
+        ));
       }
 
       // 2. Парный виджет (моя половина).
@@ -1903,14 +1921,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {
+        final String msg;
+        if (memoryFailed) {
+          msg = LocaleService.current.memoryNotSaved;
+        } else if (result.toMemories) {
+          msg = LocaleService.current.postedToMemoryLane;
+        } else {
+          msg = LocaleService.current.photoSent;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              result.toMemories
-                  ? LocaleService.current.postedToMemoryLane
-                  : LocaleService.current.photoSent,
-            ),
-            backgroundColor: primary,
+            content: Text(msg),
+            backgroundColor: memoryFailed ? Colors.orange : primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1918,8 +1940,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
-      // Награда (1 🪙 в день) — только если фото добавлено в ленту воспоминаний.
-      if (result.toMemories) _tryClaimMemoryReward();
+      // Награда (1 🪙 в день) — только если фото РЕАЛЬНО добавлено в ленту.
+      if (result.toMemories && !memoryFailed) _tryClaimMemoryReward();
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // dismiss loading
       if (mounted) {

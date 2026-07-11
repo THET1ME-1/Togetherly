@@ -40,6 +40,15 @@ class LocaleService extends ChangeNotifier {
         _language = locale.languageCode == 'ru'
             ? AppLanguage.ru
             : AppLanguage.en;
+        // Персистим определённый по локали язык, чтобы фоновые изоляты
+        // (WorkManager / foreground-сервис) читали конкретное значение из
+        // prefs, а не дефолтный EN — иначе mood-виджет обновляется в фоне с
+        // английскими метками. PlatformDispatcher.locale в headless-изоляте
+        // ненадёжен, prefs шарятся между изолятами и надёжны.
+        await prefs.setString(
+          'app_language',
+          _language == AppLanguage.ru ? 'ru' : 'en',
+        );
       }
     } catch (_) {
       _language = AppLanguage.en;
@@ -226,6 +235,7 @@ abstract class AppStrings {
   String get post;
   String get posting;
   String get failedUploadPhoto;
+  String get memoryNotSaved;
   String get postedToMemoryLane;
   String get moodCalendar;
   String get seeAll;
@@ -1579,6 +1589,9 @@ class _RuStrings extends AppStrings {
   String get posting => 'Отправка...';
   @override
   String get failedUploadPhoto => 'Не удалось загрузить фото';
+  @override
+  String get memoryNotSaved =>
+      'Фото не попало в воспоминания. Проверьте вход и повторите.';
   @override
   String get postedToMemoryLane => 'Добавлено в ленту воспоминаний! 📸';
   @override
@@ -4083,6 +4096,9 @@ class _EnStrings extends AppStrings {
   String get posting => 'Posting...';
   @override
   String get failedUploadPhoto => 'Failed to upload photo';
+  @override
+  String get memoryNotSaved =>
+      "Photo wasn't added to memories. Check sign-in and try again.";
   @override
   String get postedToMemoryLane => 'Posted to Memory Lane! 📸';
   @override

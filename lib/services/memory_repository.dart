@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:sentry_flutter/sentry_flutter.dart';
+
 import '../models/comment.dart';
 import '../models/memory.dart';
 import 'analytics_service.dart';
@@ -100,7 +102,19 @@ class MemoryRepository {
     DateTime? customDate,
   }) async {
     final uid = _uid;
-    if (uid == null || groupId.isEmpty) return null;
+    if (uid == null || groupId.isEmpty) {
+      // Тихий дроп воспоминания — самая частая причина жалоб «добавил фото, а в
+      // ленте нет» (виджет-пути uid не требуют и проходят по токену, поэтому
+      // фото «уходит в виджет, но не в воспоминания»). После фолбэка userId на
+      // JWT (см. PocketBaseService.userId) uid==null означает реально нет
+      // сессии — фиксируем, чтобы такие случаи были видимы, а не терялись молча.
+      unawaited(Sentry.captureMessage(
+        'MemoryRepository.add dropped: uid=${uid == null ? "null" : "ok"}, '
+        'groupId=${groupId.isEmpty ? "empty" : "ok"}, type=${type.name}',
+        withScope: (s) => s.level = SentryLevel.warning,
+      ));
+      return null;
+    }
     final memory = Memory(
       id: newPbId(), // валидный PB-id, который сервер примет при отправке
       groupId: groupId,

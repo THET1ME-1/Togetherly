@@ -17,6 +17,7 @@ import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/widget_data.dart';
+import 'locale_service.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -122,6 +123,13 @@ class HomeWidgetService {
   }) async {
     if (!Platform.isAndroid) return;
     if (groupId.isEmpty || myUid.isEmpty) return;
+    // Фоновый изолят (WorkManager / foreground-сервис) НЕ инициализирует
+    // LocaleService — это делает только главный изолят в main.dart. Без этого
+    // MoodOption.localizedLabel в _refreshMoodWidgetFromServer падает в дефолт
+    // EN и mood-виджет обновлялся с английскими метками, пока приложение не
+    // откроют. Инициализируем локаль здесь (идемпотентно), чтобы фон писал
+    // метки настроения на языке пользователя.
+    await LocaleService.instance.init();
     // В фоне нужны СВЕЖИЕ данные на каждое событие — сбрасываем TTL-кэш.
     invalidateWidgetDataCache();
     try {

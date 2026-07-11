@@ -165,6 +165,15 @@ class ProfileIcon {
       descRu: 'Помощник проекта. Спасибо за вклад! 🤝',
       descEn: 'Project helper. Thanks for your contribution! 🤝',
     ),
+    ProfileIcon(
+      id: 'Fish',
+      price: 0,
+      grantOnly: true,
+      nameRu: 'Рыбка',
+      nameEn: 'Fishy',
+      descRu: 'Для тех, кто любит рыбалку 🎣',
+      descEn: 'For those who love fishing 🎣',
+    ),
   ];
 
   /// Иконки, доступные для покупки (исключая grant-only).

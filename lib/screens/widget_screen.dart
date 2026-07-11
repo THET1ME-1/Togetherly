@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
@@ -4936,6 +4937,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       'widget/${_pair.pairId}/${uid}_$ts.jpg',
     );
 
+    var memoryFailed = false;
     if (url != null) {
       // 1. Парный виджет (моя половина + у партнёра как фолбэк).
       if (dest.toPairWidget) {
@@ -4951,7 +4953,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (dest.toMemories) {
         try {
           final me = PbAuthService().currentProfile();
-          await MemoryRepository().add(
+          final created = await MemoryRepository().add(
             groupId: _pair.pairId,
             authorName: (me?['displayName'] as String?) ?? '',
             authorAvatar: (me?['avatarUrl'] as String?) ?? '',
@@ -4959,13 +4961,54 @@ class _WidgetScreenState extends State<WidgetScreen>
             imageUrl: url,
             caption: LocaleService.current.widgetPhotoCaption,
           );
+          // add() == null → тихий дроп (нет сессии/пустой groupId): фото ушло в
+          // виджет, но не в ленту. Раньше это молча терялось — теперь фиксируем и
+          // сообщаем пользователю, а не делаем вид, что всё сохранилось.
+          if (created == null && mounted) {
+            unawaited(Sentry.captureMessage(
+              'Widget photo: memory add returned null (не добавилось в ленту)',
+              withScope: (s) {
+                s.level = SentryLevel.error;
+                s.setExtra('isLoggedIn', PocketBaseService().isLoggedIn);
+                s.setExtra('userIdNull', PocketBaseService().userId == null);
+                s.setExtra('pairIdEmpty', _pair.pairId.isEmpty);
+              },
+            ));
+            memoryFailed = true;
+          }
         } catch (e) {
           debugPrint('Widget → Memory (photo) failed: $e');
+          memoryFailed = true;
         }
       }
     }
 
     if (mounted) Navigator.of(context).pop(); // закрываем лоадер
+    if (mounted && url == null) {
+      // Загрузка не удалась (сеть/сессия). Раньше лоадер просто исчезал без
+      // объяснений — теперь честно сообщаем, как на главном экране.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.current.failedUploadPhoto),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    } else if (mounted && memoryFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LocaleService.current.memoryNotSaved),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 
   void _showPhotoLoader() {

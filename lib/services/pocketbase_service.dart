@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -66,7 +67,36 @@ class PocketBaseService {
   /// `user_uid`, `members[]` ссылаются на него строкой). У мигрированных юзеров
   /// `id` = их прежний uid (через override поля id при импорте), у новых —
   /// авто-id PocketBase. null, если не вошёл.
-  String? get userId => _pb?.authStore.record?.id;
+  String? get userId {
+    final id = _pb?.authStore.record?.id;
+    if (id != null && id.isNotEmpty) return id;
+    // «Полумёртвая» сессия: токен восстановлен и валиден (isValid=true), запросы
+    // авторизуются им — загрузка медиа и правки виджета проходят, — но
+    // authStore.record не десериализовался (напр. после рестарта/рефреша). Код,
+    // гейтящий на userId (в первую очередь MemoryRepository.add), в этом
+    // состоянии молча ронял запись: «фото ушло в виджет, но не в воспоминания»,
+    // без ошибки. id зашит в payload JWT-токена (claim `id` — тем же полем PB
+    // SDK сверяет запись при рефреше), поэтому достаём его оттуда как фолбэк.
+    return _uidFromToken();
+  }
+
+  /// id из payload JWT-токена сессии (claim `id`), либо null. Fallback для
+  /// [userId], когда authStore.record не восстановился, но токен ещё валиден.
+  String? _uidFromToken() {
+    final token = _pb?.authStore.token;
+    if (token == null || token.isEmpty) return null;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = jsonDecode(
+        utf8.decode(base64Decode(base64.normalize(parts[1]))),
+      ) as Map<String, dynamic>;
+      final id = payload['id'];
+      return (id is String && id.isNotEmpty) ? id : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   String? get userEmail => _pb?.authStore.record?.data['email'] as String?;
 

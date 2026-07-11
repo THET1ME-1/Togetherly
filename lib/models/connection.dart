@@ -947,19 +947,24 @@ class Connection {
       customStatuses = [];
     }
 
-    // Update celebration dates (mapper already converts ISO→DateTime)
-    anniversaryDate = data['anniversaryDate'] as DateTime?;
-    firstKissDate = data['firstKissDate'] as DateTime?;
+    // Update celebration dates (mapper already converts ISO→DateTime).
+    // Preserve-on-empty: перезаписываем ТОЛЬКО непустыми значениями — иначе
+    // частичное/устаревшее чтение (или realtime без этих полей) обнулит уже
+    // показанные даты. Легитимной «очистки» даты нет: пикеры всегда ставят
+    // непустое, member_birthdays клиент не пишет вовсе.
+    final anniv = data['anniversaryDate'] as DateTime?;
+    if (anniv != null) anniversaryDate = anniv;
+    final fk = data['firstKissDate'] as DateTime?;
+    if (fk != null) firstKissDate = fk;
     final bdRaw = data['memberBirthdays'] as Map<String, dynamic>?;
     if (bdRaw != null) {
-      memberBirthdays = {};
+      final parsed = <String, DateTime>{};
       for (final entry in bdRaw.entries) {
         if (entry.value is DateTime) {
-          memberBirthdays[entry.key] = entry.value as DateTime;
+          parsed[entry.key] = entry.value as DateTime;
         }
       }
-    } else {
-      memberBirthdays = {};
+      if (parsed.isNotEmpty) memberBirthdays = parsed;
     }
 
     onChanged?.call();
@@ -991,6 +996,13 @@ class Connection {
       'relationshipType': relationshipType.name,
       'customRelationshipLabel': customRelationshipLabel,
       'customRelationshipEmoji': customRelationshipEmoji,
+      // Праздничные даты кэшируем локально, иначе на холодном старте с
+      // неудачным/медленным чтением группы (мёртвая сессия/оффлайн) они
+      // единственные из полей пары пропадают из UI.
+      'anniversaryDate': anniversaryDate?.toIso8601String(),
+      'firstKissDate': firstKissDate?.toIso8601String(),
+      'memberBirthdays': memberBirthdays
+          .map((k, v) => MapEntry(k, v.toIso8601String())),
     };
   }
 
@@ -1070,6 +1082,23 @@ class Connection {
                 ),
               )
               .toList() ??
-          [];
+          []
+      ..anniversaryDate = json['anniversaryDate'] != null
+          ? DateTime.tryParse(json['anniversaryDate'])
+          : null
+      ..firstKissDate = json['firstKissDate'] != null
+          ? DateTime.tryParse(json['firstKissDate'])
+          : null
+      ..memberBirthdays = _birthdaysFromJson(json['memberBirthdays']);
+  }
+
+  static Map<String, DateTime> _birthdaysFromJson(dynamic raw) {
+    if (raw is! Map) return {};
+    final out = <String, DateTime>{};
+    raw.forEach((k, v) {
+      final d = v is String ? DateTime.tryParse(v) : null;
+      if (d != null) out[k.toString()] = d;
+    });
+    return out;
   }
 }

@@ -620,6 +620,12 @@ class _LoveAppState extends State<LoveApp> {
         'lrt56k@mail.ru',
       };
       const helperEmails = {'ashatilov2008@gmail.com'};
+      // Рыбка — награда для любителей рыбалки. Отдельная категория, поэтому
+      // выдаётся независимо (не через else if): её можно совмещать со Sponsor/Helper.
+      const fishEmails = {
+        'vazzxxcc123@gmail.com',
+        'glp010409@gmail.com',
+      };
       if (sponsorEmails.contains(_userData.email)) {
         final granted = await _userData.grantSpecialBadge('Sponsor');
         if (granted) {
@@ -638,6 +644,16 @@ class _LoveAppState extends State<LoveApp> {
             id: 8802,
             title: '🎉 Вам вручён значок «Помощник»!',
             body: 'Спасибо за помощь проекту — особый бейдж теперь ваш 💖',
+          );
+        }
+      }
+      if (fishEmails.contains(_userData.email)) {
+        final granted = await _userData.grantSpecialBadge('Fish');
+        if (granted) {
+          await PbPushService().showLocal(
+            id: 8803,
+            title: '🎣 Вам вручён значок «Рыбка»!',
+            body: 'Особый бейдж для любителей рыбалки теперь ваш 💖',
           );
         }
       }

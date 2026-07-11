@@ -50,7 +50,29 @@ class PbDataService {
   static DateTime? _date(dynamic v) {
     if (v == null) return null;
     if (v is DateTime) return v;
-    if (v is String) return DateTime.tryParse(v);
+    if (v is String) {
+      final s = v.trim();
+      return s.isEmpty ? null : DateTime.tryParse(s);
+    }
+    // Firestore Timestamp из мигрированных данных: {_seconds,_nanoseconds}
+    // (member_birthdays писались миграцией как есть, без конвертации в ISO).
+    if (v is Map) {
+      final sec = v['_seconds'] ?? v['seconds'];
+      if (sec is num) {
+        final ns = v['_nanoseconds'] ?? v['nanoseconds'] ?? 0;
+        final ms = sec.toInt() * 1000 +
+            ((ns is num ? ns.toInt() : 0) ~/ 1000000);
+        return DateTime.fromMillisecondsSinceEpoch(ms);
+      }
+      return null;
+    }
+    // Эпоха числом: секунды или миллисекунды.
+    if (v is num) {
+      final n = v.toInt();
+      return n > 100000000000
+          ? DateTime.fromMillisecondsSinceEpoch(n)
+          : DateTime.fromMillisecondsSinceEpoch(n * 1000);
+    }
     return null;
   }
 
