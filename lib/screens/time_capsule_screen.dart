@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -392,9 +393,11 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
         sealed: true,
         openAt: _openAt,
       );
+      // Уведомление планируем в фоне — не держим закрытие экрана на платформенном
+      // вызове (мог зависнуть на запросе разрешения → композер «крутился»).
       if (created != null) {
-        await CapsuleNotificationService.instance
-            .schedule(created.id, _openAt, capsuleTitle: title);
+        unawaited(CapsuleNotificationService.instance
+            .schedule(created.id, _openAt, capsuleTitle: title));
       }
       if (!mounted) return;
       Navigator.pop(context, true);

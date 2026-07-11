@@ -64,8 +64,14 @@ class CapsuleNotificationService {
     final id = idForMemory(memoryId);
     if (_scheduled.contains(id)) return;
     if (!openAt.isAfter(DateTime.now())) return;
-    if (!_initialized) await init();
+    // Помечаем СРАЗУ: каждую капсулу планируем максимум один раз за сессию, даже
+    // если платформенный вызов упадёт. Иначе стрим-листенер ленты (зовёт schedule
+    // на КАЖДУЮ эмиссию) при неудаче гонял бы тяжёлый init()/tz.initializeTimeZones
+    // заново на каждой эмиссии, забивая isolate и не давая outbox-флашу
+    // завершиться — это читалось как «бесконечная синхронизация».
+    _scheduled.add(id);
     try {
+      if (!_initialized) await init();
       final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       await requestNotificationPermissionSafely(androidPlugin);
@@ -93,9 +99,11 @@ class CapsuleNotificationService {
             presentSound: true,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        // Неточный режим: не требует спец-разрешения SCHEDULE_EXACT_ALARM
+        // (Android 13+ иначе кидает исключение). Для капсулы, открывающейся через
+        // недели/месяцы, окно в пару часов несущественно.
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
-      _scheduled.add(id);
     } catch (e) {
       debugPrint('CapsuleNotificationService.schedule failed: $e');
     }
