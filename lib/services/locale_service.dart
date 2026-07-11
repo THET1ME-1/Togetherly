@@ -236,6 +236,10 @@ abstract class AppStrings {
   String get posting;
   String get failedUploadPhoto;
   String get memoryNotSaved;
+  String get achievementUnlocked;
+  String get achievementsTitle;
+  String get achievementDone;
+  String achievementsUnlockedOf(int unlocked, int total);
   String get postedToMemoryLane;
   String get moodCalendar;
   String get seeAll;
@@ -1592,6 +1596,15 @@ class _RuStrings extends AppStrings {
   @override
   String get memoryNotSaved =>
       'Фото не попало в воспоминания. Проверьте вход и повторите.';
+  @override
+  String get achievementUnlocked => 'Достижение получено!';
+  @override
+  String get achievementsTitle => 'Достижения пары';
+  @override
+  String get achievementDone => 'Получено';
+  @override
+  String achievementsUnlockedOf(int unlocked, int total) =>
+      'Открыто $unlocked из $total';
   @override
   String get postedToMemoryLane => 'Добавлено в ленту воспоминаний! 📸';
   @override
@@ -4099,6 +4112,15 @@ class _EnStrings extends AppStrings {
   @override
   String get memoryNotSaved =>
       "Photo wasn't added to memories. Check sign-in and try again.";
+  @override
+  String get achievementUnlocked => 'Achievement unlocked!';
+  @override
+  String get achievementsTitle => 'Couple achievements';
+  @override
+  String get achievementDone => 'Unlocked';
+  @override
+  String achievementsUnlockedOf(int unlocked, int total) =>
+      'Unlocked $unlocked of $total';
   @override
   String get postedToMemoryLane => 'Posted to Memory Lane! 📸';
   @override

@@ -16,6 +16,10 @@ import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
+import '../models/pair_achievement.dart';
+import 'achievements_screen.dart';
+import '../services/achievement_service.dart';
+import '../widgets/achievement_unlock_overlay.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
@@ -124,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final CanvasStorageService _storage = CanvasStorageService.instance;
   List<Memory> _recentMemories = [];
   StreamSubscription? _memorySub;
+  StreamSubscription? _achievementSub;
 
   // -- User location (for distance calc) --
   double? _userLat;
@@ -245,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _moodStreakRewardDebounce?.cancel();
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
+    _achievementSub?.cancel();
     PbPushService().stop();
     _appLifecycleListener?.dispose();
     _mascotService.dispose();
@@ -661,8 +667,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final groupId = _pairData.pairId;
     if (groupId.isEmpty || !_pairData.isPaired) {
       _recentMemories = [];
+      unawaited(AchievementService.instance.stop());
+      _achievementSub?.cancel();
+      _achievementSub = null;
       return;
     }
+    // Достижения пары: следим за счётчиками группы; на разблокировку — оверлей.
+    unawaited(AchievementService.instance.start(groupId));
+    _achievementSub ??= AchievementService.instance.unlocks.listen((a) {
+      if (mounted) AchievementUnlockOverlay.show(context, a);
+    });
     // PocketBase live-лента (SSE). Берём 10 свежих для превью на главной —
     // watch отдаёт всё новым-сверху, ограничиваем take(10) как прежний limit.
     _memorySub = MemoryRepository().watch(groupId).listen(
@@ -1244,6 +1258,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          if (_pairData.isPaired)
+            AnimatedSlideIn(
+              delay: const Duration(milliseconds: 460),
+              child: _achievementsEntry(),
+            ),
           AnimatedSlideIn(
             delay: const Duration(milliseconds: 500),
             child: MemoryLanePreview(
@@ -1708,6 +1727,78 @@ class _HomeScreenState extends State<HomeScreen> {
       widgetService: _widgetService,
       primary: primary,
       navActiveIcon: _t.navActiveIcon, // добавлено
+    );
+  }
+
+  /// Компактная карточка-вход «Достижения пары» на главном. Счётчик «N из M»
+  /// живёт на снимке [AchievementService.stats] и обновляется в реальном времени.
+  Widget _achievementsEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+      child: GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AchievementsScreen(theme: _t),
+            settings: const RouteSettings(name: '/achievements'),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _t.cardSurface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _t.divider, width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _t.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Text('🏆', style: TextStyle(fontSize: 22)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      LocaleService.current.achievementsTitle,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _t.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    ValueListenableBuilder<AchievementStats>(
+                      valueListenable: AchievementService.instance.stats,
+                      builder: (_, stats, __) {
+                        final n = PairAchievement.all
+                            .where((a) => a.isUnlockedBy(stats))
+                            .length;
+                        return Text(
+                          LocaleService.current.achievementsUnlockedOf(
+                              n, PairAchievement.all.length),
+                          style:
+                              TextStyle(fontSize: 12.5, color: _t.textMuted),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: _t.textMuted, size: 22),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
