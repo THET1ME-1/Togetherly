@@ -103,6 +103,31 @@ onRecordCreateRequest((e) => {
     isSuper = false;
   }
   if (!isSuper) {
+    // ── Чёрный список email (модерация: бан-эвейдеры) ─────────────────────
+    // Список — в файле pb_data/.banned_emails, по одному lowercase-email в
+    // строке. Читаем на КАЖДУЮ регистрацию (createRequest редок) → новые баны
+    // = просто дописать строку в файл, БЕЗ рестарта PB. $os.readFile отдаёт
+    // БАЙТЫ → декодируем fromCharCode. Ошибка чтения/нет файла = fail-open
+    // (не мешаем легитимной регистрации). Блокирует только повторный signup на
+    // тот же email; смена email/oauth — потолок без device-атестации.
+    try {
+      const bodyEmail = String(((e.requestInfo().body || {}).email) || "").trim().toLowerCase();
+      if (bodyEmail) {
+        let raw = "";
+        try {
+          const bytes = $os.readFile("/opt/pocketbase/pb_data/.banned_emails");
+          raw = String.fromCharCode.apply(null, bytes);
+        } catch (_) { raw = ""; }
+        const banned = raw.split("\n").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+        if (banned.indexOf(bodyEmail) !== -1) {
+          throw new ForbiddenError("registration blocked");
+        }
+      }
+    } catch (err) {
+      if (err instanceof ForbiddenError) throw err; // реальный бан — пробрасываем
+      // прочие ошибки (чтение файла и т.п.) — не блокируем регистрацию
+    }
+
     const PROTECTED = [
       "coins", "owned_themes", "owned_icons", "owned_features", "granted_badges",
       "dev_coins_granted", "ad_rewards_date", "ad_rewards_today",
