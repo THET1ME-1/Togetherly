@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'storage_image.dart';
+import '../utils/safe_text.dart';
 
 /// Милая «запечатанная» карточка капсулы времени в ленте: подарок с замочком,
 /// дата открытия и обратный отсчёт. Контент капсулы не показывается до срока.
@@ -234,7 +235,7 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
   }
 
   Widget _avatarFallback(AppTheme t, String name) {
-    final letter = name.isNotEmpty ? name[0].toUpperCase() : '♥';
+    final letter = name.firstGraphemeUpper('♥');
     return Container(
       color: t.primary.withValues(alpha: 0.12),
       alignment: Alignment.center,

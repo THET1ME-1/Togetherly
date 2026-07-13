@@ -144,7 +144,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
         (!lower.contains('firebasestorage') &&
             !lower.contains('firebase') &&
             lower.startsWith('http'))) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      safeLaunchUrl(Uri.parse(url));
       return;
     }
 
@@ -943,7 +943,7 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
     if (url == null || url.isEmpty) return;
 
     if (_isExternalLink) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      safeLaunchUrl(Uri.parse(url));
       return;
     }
 

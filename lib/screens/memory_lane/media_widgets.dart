@@ -371,7 +371,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
     if (videoId == null) {
       final url = widget.memory.videoUrl;
       if (url != null && url.isNotEmpty) {
-        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        safeLaunchUrl(Uri.parse(url));
       }
       return;
     }

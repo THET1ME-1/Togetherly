@@ -11,6 +11,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/storage_image.dart';
+import '../utils/safe_text.dart';
 
 /// Цвет аватарки партнёра на карте (контраст к теме пользователя).
 const Color _kPartnerColor = Color(0xFFFF5C8A);
@@ -380,7 +381,7 @@ class _AvatarMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '♥';
+    final initial = name.firstGraphemeUpper('♥');
     final fallback = Container(
       color: ringColor.withValues(alpha: 0.18),
       alignment: Alignment.center,

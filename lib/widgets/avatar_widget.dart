@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_text.dart';
 import 'storage_image.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
@@ -42,7 +43,7 @@ class AvatarWidget extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    final initial = (name?.isNotEmpty == true) ? name![0].toUpperCase() : '?';
+    final initial = (name ?? '').firstGraphemeUpper();
     return Container(
       width: size,
       height: size,

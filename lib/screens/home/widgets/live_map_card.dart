@@ -12,6 +12,7 @@ import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/storage_image.dart';
 import '../../live_map_screen.dart';
+import '../../../utils/safe_text.dart';
 
 const String _kCollapsedKey = 'live_map_card_collapsed';
 const Color _kPartnerColor = Color(0xFFFF5C8A);
@@ -541,7 +542,7 @@ class _MiniAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '♥';
+    final initial = name.firstGraphemeUpper('♥');
     final fallback = Container(
       color: ring.withValues(alpha: 0.18),
       alignment: Alignment.center,

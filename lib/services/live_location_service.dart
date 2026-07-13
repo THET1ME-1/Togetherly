@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -151,6 +151,15 @@ class LiveLocationService {
   Future<void> startSharing(String pairId, {String partnerUid = ''}) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
     if (!sharingEnabled.value) return;
+    // Android 12+ запрещает старт foreground-сервиса из фона, а geolocator
+    // поднимает location-FGS внутри getPositionStream → из фона это роняет
+    // ForegroundServiceStartNotAllowedException (летит мимо try/catch и onError).
+    // Поднимаем стрим только на переднем плане; из фона выходим — подхватит
+    // resumeIfEnabled при следующем открытии приложения.
+    if (Platform.isAndroid && !_appInForeground()) {
+      debugPrint('LiveLocationService: старт из фона пропущен (FGS запрещён)');
+      return;
+    }
     final channel = _channel(pairId, partnerUid);
     if (_activePairId == channel && _posSub != null) return;
 
@@ -177,6 +186,15 @@ class LiveLocationService {
   /// пользователь его раньше включал. Безопасно вызывать многократно.
   Future<void> resumeIfEnabled(String pairId, {String partnerUid = ''}) async {
     if (sharingEnabled.value) await startSharing(pairId, partnerUid: partnerUid);
+  }
+
+  /// Приложение на переднем плане? Нужен, чтобы не стартовать location-FGS из
+  /// фона (Android 12+ это запрещает и роняет ForegroundServiceStartNotAllowed).
+  bool _appInForeground() {
+    final s = WidgetsBinding.instance.lifecycleState;
+    return s == null ||
+        s == AppLifecycleState.resumed ||
+        s == AppLifecycleState.inactive;
   }
 
   Future<void> _pushCurrent(String pairId) async {
@@ -208,7 +226,13 @@ class LiveLocationService {
   }
 
   Future<void> _cancelStream() async {
-    await _posSub?.cancel();
+    try {
+      await _posSub?.cancel();
+    } catch (e) {
+      // geolocator бросает «No active stream to cancel», если нативный стрим
+      // уже снят системой — это не повод падать.
+      debugPrint('LiveLocationService: отмена стрима: $e');
+    }
     _posSub = null;
   }
 

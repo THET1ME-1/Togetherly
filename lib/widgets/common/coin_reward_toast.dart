@@ -15,7 +15,7 @@ class CoinRewardToast {
     String? label,
   }) {
     if (amount <= 0) return;
-    _current?.remove();
+    _safeRemove(_current);
     _current = null;
 
     final overlay = Overlay.of(context);
@@ -25,13 +25,28 @@ class CoinRewardToast {
         amount: amount,
         label: label,
         onDone: () {
-          entry.remove();
           if (_current == entry) _current = null;
+          _safeRemove(entry);
         },
       ),
     );
     _current = entry;
     overlay.insert(entry);
+  }
+
+  /// Снимает оверлей безопасно — даже если его уже снял следующий тост.
+  ///
+  /// При двух начислениях подряд первый оверлей убирался в show(), а его
+  /// анимация потом доигрывала и звала remove() второй раз. Внутри OverlayEntry
+  /// это дёргает `_overlay!` по null → «Null check operator used on a null
+  /// value» в микротаске, и приложение молча вылетает. try/catch это гасит.
+  static void _safeRemove(OverlayEntry? entry) {
+    if (entry == null) return;
+    try {
+      entry.remove();
+    } catch (_) {
+      // Оверлей уже снят — штатная гонка, игнорируем.
+    }
   }
 }
 

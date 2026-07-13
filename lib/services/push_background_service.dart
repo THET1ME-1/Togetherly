@@ -87,6 +87,15 @@ class PushBackgroundService {
     try {
       _ensureConfigured();
 
+      // Суточный бюджет dataSync-FGS (Android 14+) мог быть исчерпан за день —
+      // тогда старт бессмыслен: ОС всё равно быстро прибьёт сервис по таймауту
+      // (а раньше это роняло приложение). Ждём следующих суток.
+      if (await _dailyBudgetExhausted()) {
+        debugPrint(
+            'PushBackgroundService: суточный бюджет FGS исчерпан, старт отложен');
+        return;
+      }
+
       // Контекст пары для изолята обработчика — он прочитает его в onStart.
       await FlutterForegroundTask.saveData(key: _kGroupId, value: groupId);
       await FlutterForegroundTask.saveData(key: _kMyUid, value: myUid);
@@ -141,12 +150,39 @@ class PushBackgroundService {
       await FlutterForegroundTask.stopService();
     }
   }
+
+  /// true, если сервис уже выбрал суточный бюджет dataSync-FGS сегодня.
+  Future<bool> _dailyBudgetExhausted() async {
+    try {
+      final day = await FlutterForegroundTask.getData<String>(key: _kRunDay);
+      if (day != _pushDayKey()) return false; // другой день — бюджет сброшен
+      final secs =
+          await FlutterForegroundTask.getData<int>(key: _kRunSeconds) ?? 0;
+      return secs >= _kDailyBudgetSeconds;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 const String _kGroupId = 'push_group_id';
 const String _kMyUid = 'push_my_uid';
 const String _kPartnerUid = 'push_partner_uid';
 const String _kPartnerName = 'push_partner_name';
+const String _kRunDay = 'push_run_day'; // YYYY-MM-DD последнего учтённого дня
+const String _kRunSeconds = 'push_run_seconds'; // накоплено секунд работы за день
+
+/// Android 14+ отводит foreground-сервису типа dataSync ~6ч суммарно за 24ч,
+/// после чего убивает его принудительно (ForegroundServiceDidNotStopInTime →
+/// краш). Держим запас: тормозим сами на 5ч30м.
+const int _kDailyBudgetSeconds = 5 * 3600 + 30 * 60;
+
+/// Ключ текущих (локальных) суток для учёта бюджета работы сервиса.
+String _pushDayKey() {
+  final n = DateTime.now();
+  return '${n.year}-${n.month.toString().padLeft(2, '0')}-'
+      '${n.day.toString().padLeft(2, '0')}';
+}
 
 /// Точка входа изолята foreground-сервиса. ДОЛЖНА быть top-level + vm:entry-point
 /// (её адрес передаётся нативной части при старте сервиса).
@@ -257,6 +293,8 @@ class _PushTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) {
+    // Учёт суточного бюджета dataSync-FGS — тормозим до принудительного таймаута.
+    unawaited(_tickRuntimeBudget());
     // watchdog: если не поднялись (старт раньше входа) — пробуем снова;
     // иначе раз в минуту дёшево освежаем парный/mood-виджет как страховку от
     // пропущенной дельты (без перекачивания фото — оно тянется на каждом вызове).
@@ -271,14 +309,57 @@ class _PushTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _widgetDebounce?.cancel();
     _widgetDebounce = null;
+    _started = false;
     final ws = _widgetSub;
     _widgetSub = null;
+
+    // На таймауте (Android 14+ прибил сервис по лимиту dataSync) у нас считанные
+    // секунды на остановку. Сетевой teardown на мёртвом сокете может зависнуть и
+    // не дать сервису закрыться → ForegroundServiceDidNotStopInTimeException.
+    // Поэтому на таймауте чистим в фоне, не блокируя onDestroy.
+    if (isTimeout) {
+      unawaited(_teardown(ws));
+      return;
+    }
+    await _teardown(ws);
+  }
+
+  Future<void> _teardown(RtUnsub? ws) async {
     if (ws != null) {
       try {
         await ws();
       } catch (_) {}
     }
-    await PbPushService().stop();
-    _started = false;
+    try {
+      await PbPushService().stop();
+    } catch (_) {}
+  }
+
+  /// Копит суммарное время работы FGS за сутки (переживает рестарты через
+  /// saveData) и штатно останавливает сервис до 6-часового лимита dataSync,
+  /// чтобы Android 14+ не убил его принудительно с краш-исключением.
+  Future<void> _tickRuntimeBudget() async {
+    try {
+      final today = _pushDayKey();
+      final storedDay =
+          await FlutterForegroundTask.getData<String>(key: _kRunDay);
+      int seconds;
+      if (storedDay == today) {
+        seconds =
+            await FlutterForegroundTask.getData<int>(key: _kRunSeconds) ?? 0;
+      } else {
+        seconds = 0;
+        await FlutterForegroundTask.saveData(key: _kRunDay, value: today);
+      }
+      seconds += 60; // период eventAction.repeat(60000)
+      await FlutterForegroundTask.saveData(key: _kRunSeconds, value: seconds);
+      if (seconds >= _kDailyBudgetSeconds) {
+        debugPrint('PushBackgroundService: суточный бюджет FGS исчерпан '
+            '($seconds c) — останавливаемся штатно');
+        await FlutterForegroundTask.stopService();
+      }
+    } catch (e) {
+      debugPrint('PushBackgroundService: watchdog бюджета упал: $e');
+    }
   }
 }

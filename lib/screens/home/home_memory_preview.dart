@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/safe_text.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
@@ -370,8 +371,7 @@ class _PreviewCard extends StatelessWidget {
   }
 
   Widget _avatarFallback() {
-    final letter =
-        authorName.trim().isNotEmpty ? authorName.trim()[0].toUpperCase() : '♥';
+    final letter = authorName.firstGraphemeUpper('♥');
     return Container(
       color: primary.withValues(alpha:0.12),
       alignment: Alignment.center,

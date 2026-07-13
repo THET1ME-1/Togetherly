@@ -4,13 +4,19 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Ускорили и разгрузили — особенно совместное рисование.\n'
+    'Тихое, но важное обновление — выследили и починили несколько редких вылетов 💛\n'
     '\n'
-    '— Живое рисование идёт по быстрому прямому каналу, а не через базу: штрихи партнёра плавнее, сервер разгружен, приложение быстрее.\n'
-    '— Мелкие исправления.';
+    '— Больше не вылетает при начислении монет.\n'
+    '— Исправили вылет с именами и подписями, которые начинаются со смайлика.\n'
+    '— Стабильнее фоновая доставка уведомлений и живая карта «Где мы».\n'
+    '— Починили вылет при открытии некоторых музыкальных ссылок.\n'
+    '— Мелкие улучшения стабильности.';
 
 const String enWhatsNew =
-    'Faster and lighter — especially shared drawing.\n'
+    'A quiet but important update — we hunted down a few rare crashes 💛\n'
     '\n'
-    '— Live drawing now goes over a fast direct channel instead of the database: partner strokes are smoother, the server is lighter, the app is faster.\n'
-    '— Minor fixes.';
+    '— No more crash when earning coins.\n'
+    '— Fixed a crash with names and captions that start with an emoji.\n'
+    '— More stable background notifications and the live “Where we are” map.\n'
+    '— Fixed a crash when opening some music links.\n'
+    '— Minor stability improvements.';
