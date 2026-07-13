@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
-"""Генерирует pocketbase/pb_public/privacy-policy/index.html из PRIVACY_POLICY.md.
+"""Генерирует юридические страницы pb_public из Markdown-исходников в репо.
 
-Зачем свой конвертер: на машинах сборки нет pandoc/python-markdown, а политика
-использует узкое подмножество Markdown (заголовки #..####, списки -/1., «---»,
+    PRIVACY_POLICY.md -> pocketbase/pb_public/privacy-policy/index.html
+    TERMS_OF_USE.md   -> pocketbase/pb_public/terms/index.html
+
+Зачем свой конвертер: на машинах сборки нет pandoc/python-markdown, а документы
+используют узкое подмножество Markdown (заголовки #..####, списки -/1., «---»,
 **жирный**, [ссылки](url), абзацы). Держим генератор в repo, чтобы правки
-политики можно было перевыкладывать одной командой:
+документов можно было перевыкладывать одной командой:
 
-    python3 tool/gen_privacy_html.py && scp pocketbase/pb_public/privacy-policy/index.html \
-        root@77.91.95.34:/opt/pocketbase/pb_public/privacy-policy/index.html
+    python3 tool/gen_legal_html.py && \
+        scp pocketbase/pb_public/privacy-policy/index.html \
+            root@77.91.95.34:/opt/pocketbase/pb_public/privacy-policy/index.html && \
+        scp pocketbase/pb_public/terms/index.html \
+            root@77.91.95.34:/opt/pocketbase/pb_public/terms/index.html
 """
 import html
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "PRIVACY_POLICY.md"
-DST = ROOT / "pocketbase" / "pb_public" / "privacy-policy" / "index.html"
+
+# (исходник, каталог в pb_public, <title>)
+DOCS = [
+    ("PRIVACY_POLICY.md", "privacy-policy", "Privacy Policy — Togetherly"),
+    ("TERMS_OF_USE.md", "terms", "Terms of Use — Togetherly"),
+]
 
 INLINE_BOLD = re.compile(r"\*\*(.+?)\*\*")
 INLINE_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -96,14 +106,13 @@ def convert(md: str) -> str:
     return "\n".join(out)
 
 
-def main() -> None:
-    body = convert(SRC.read_text(encoding="utf-8"))
-    page = f"""<!doctype html>
+def render(body: str, title: str) -> str:
+    return f"""<!doctype html>
 <html lang=\"ru\">
 <head>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
-<title>Privacy Policy — Togetherly</title>
+<title>{title}</title>
 <style>
 body{{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#fff5f7;color:#33202a;
 margin:0;padding:0}}
@@ -122,9 +131,15 @@ a{{color:#e5578a}}li{{margin:4px 0}}p,li{{line-height:1.55}}
 </body>
 </html>
 """
-    DST.parent.mkdir(parents=True, exist_ok=True)
-    DST.write_text(page, encoding="utf-8")
-    print(f"OK: {DST} ({DST.stat().st_size} bytes)")
+
+
+def main() -> None:
+    for src_name, out_dir, title in DOCS:
+        src = ROOT / src_name
+        dst = ROOT / "pocketbase" / "pb_public" / out_dir / "index.html"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(render(convert(src.read_text(encoding="utf-8")), title), encoding="utf-8")
+        print(f"OK: {dst} ({dst.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

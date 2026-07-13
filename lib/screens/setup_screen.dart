@@ -1,7 +1,9 @@
 import 'dart:io';
 import '../widgets/storage_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/safe_launch.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../utils/safe_pick.dart';
@@ -40,6 +42,13 @@ class _SetupScreenState extends State<SetupScreen>
   String _avatarUrl = '';
   XFile? _selectedAvatarFile; // Локальный файл для загрузки после регистрации
   bool _agreeToTerms = false;
+
+  // Ссылки на юридические документы (раздаются с нашего сервера, pb_public).
+  static final Uri _termsUri = Uri.parse('https://togetherly.duckdns.org/terms');
+  static final Uri _privacyUri =
+      Uri.parse('https://togetherly.duckdns.org/privacy-policy');
+  final _termsRecognizer = TapGestureRecognizer();
+  final _privacyRecognizer = TapGestureRecognizer();
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -86,6 +95,8 @@ class _SetupScreenState extends State<SetupScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _fadeController.dispose();
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
     super.dispose();
   }
 
@@ -941,8 +952,33 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              s.agreeToTerms,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: s.agreeToTermsPrefix),
+                  TextSpan(
+                    text: s.termsOfUse,
+                    style: TextStyle(
+                      color: _accent,
+                      decoration: TextDecoration.underline,
+                      decorationColor: _accent,
+                    ),
+                    recognizer: _termsRecognizer
+                      ..onTap = () => safeLaunchUrl(_termsUri),
+                  ),
+                  TextSpan(text: s.agreeToTermsAnd),
+                  TextSpan(
+                    text: s.privacyPolicyLink,
+                    style: TextStyle(
+                      color: _accent,
+                      decoration: TextDecoration.underline,
+                      decorationColor: _accent,
+                    ),
+                    recognizer: _privacyRecognizer
+                      ..onTap = () => safeLaunchUrl(_privacyUri),
+                  ),
+                ],
+              ),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,

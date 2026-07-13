@@ -625,6 +625,7 @@ class _LoveAppState extends State<LoveApp> {
       const fishEmails = {
         'vazzxxcc123@gmail.com',
         'glp010409@gmail.com',
+        'milkalove12let@gmail.com',
       };
       if (sponsorEmails.contains(_userData.email)) {
         final granted = await _userData.grantSpecialBadge('Sponsor');

@@ -74,11 +74,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _iapLoading = false;
 
 
-  // Политика живёт на PocketBase-VPS (Firebase Hosting гасится вместе с
-  // проектом). Раздаётся из pb_public, исходник — PRIVACY_POLICY.md в репо
-  // (регенерация: tool/gen_privacy_html.py).
+  // Политика и условия живут на PocketBase-VPS (Firebase Hosting гасится вместе
+  // с проектом). Раздаются из pb_public, исходники — PRIVACY_POLICY.md и
+  // TERMS_OF_USE.md в репо (регенерация: tool/gen_legal_html.py).
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly.duckdns.org/privacy-policy',
+  );
+  static final Uri _termsUri = Uri.parse(
+    'https://togetherly.duckdns.org/terms',
   );
   // Лендинг тоже переехал с Firebase Hosting на VPS (pb_public).
   static final Uri _aboutAppUri = Uri.parse(
@@ -288,6 +291,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _openPrivacyPolicy() async {
     await _openExternalUri(_privacyPolicyUri);
+  }
+
+  Future<void> _openTerms() async {
+    await _openExternalUri(_termsUri);
   }
 
   Future<void> _openAboutApp() async {
@@ -2360,6 +2367,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.lock_outline_rounded,
             label: _s.privacy,
             onTap: _openPrivacyPolicy,
+          ),
+          _divider(),
+          _settingsTile(
+            icon: Icons.description_outlined,
+            label: _s.termsOfUse,
+            onTap: _openTerms,
           ),
           _divider(),
           _settingsTile(

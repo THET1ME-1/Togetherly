@@ -159,7 +159,13 @@ abstract class AppStrings {
   String get accountExists;
   String get emailAlreadyRegistered;
   String registrationError(String e);
-  String get agreeToTerms;
+  // Согласие на онбординге собирается из частей: чекбокс «Я принимаю
+  // <Условия использования> и <Политику конфиденциальности>», где обе ссылки
+  // кликабельны (требование сторов к UGC-приложениям).
+  String get agreeToTermsPrefix;
+  String get termsOfUse;
+  String get agreeToTermsAnd;
+  String get privacyPolicyLink;
   String get forgotPassword;
   String passwordResetSent(String email);
   String get passwordResetError;
@@ -1474,7 +1480,13 @@ class _RuStrings extends AppStrings {
   @override
   String registrationError(String e) => 'Ошибка регистрации: $e';
   @override
-  String get agreeToTerms => 'Я принимаю условия использования';
+  String get agreeToTermsPrefix => 'Я принимаю ';
+  @override
+  String get termsOfUse => 'Условия использования';
+  @override
+  String get agreeToTermsAnd => ' и ';
+  @override
+  String get privacyPolicyLink => 'Политику конфиденциальности';
   @override
   String get forgotPassword => 'Забыли пароль?';
   @override
@@ -4058,7 +4070,13 @@ class _EnStrings extends AppStrings {
   @override
   String registrationError(String e) => 'Registration error: $e';
   @override
-  String get agreeToTerms => 'I agree to the terms & conditions';
+  String get agreeToTermsPrefix => 'I agree to the ';
+  @override
+  String get termsOfUse => 'Terms of Use';
+  @override
+  String get agreeToTermsAnd => ' and the ';
+  @override
+  String get privacyPolicyLink => 'Privacy Policy';
   @override
   String get forgotPassword => 'Forgot password?';
   @override
