@@ -60,7 +60,14 @@ routerAdd("POST", "/api/group/increment", (e) => {
   const groupId = String(body.groupId || "").trim();
   const field = String(body.field || "").trim();
   const by = Number(body.by);
-  const ALLOWED = ["memories_count", "drawings_count", "xp"];
+  // drawings_count теперь ведёт серверный хук counters.pb.js (по canvas_catalogue
+  // create/delete). Старые клиенты всё ещё дёргают increment(drawings_count) —
+  // гасим в NO-OP с ok:true (клиент считает операцию выполненной и НЕ падает в
+  // локальный RMW), иначе счётчик задвоился бы с хуком.
+  if (field === "drawings_count") {
+    return e.json(200, { ok: true, value: 0, noop: true });
+  }
+  const ALLOWED = ["memories_count", "xp"];
   if (!groupId || ALLOWED.indexOf(field) === -1 || !Number.isFinite(by)) {
     return e.json(400, { ok: false, error: "bad params" });
   }
