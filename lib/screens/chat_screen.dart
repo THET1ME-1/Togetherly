@@ -20,6 +20,7 @@ import '../services/pb_data_service.dart';
 import '../services/presence_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/md_message_text.dart';
 import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
 
@@ -1746,7 +1747,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (msg.replyToId != null) _buildReplyQuote(msg, isMine),
           if (msg.pinId != null) _buildPinChip(msg, isMine),
           if (msg.text.isNotEmpty)
-            Text(
+            MdMessageText(
               msg.text,
               style: TextStyle(color: fg, fontSize: 15, height: 1.25),
             ),
