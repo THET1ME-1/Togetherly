@@ -1,7 +1,9 @@
+import 'dart:async' show TimeoutException;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
@@ -145,22 +147,25 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
-      final errorMsg = e.toString();
-      if (errorMsg.contains('user-not-found')) {
-        _showError(LocaleService.current.userNotFound);
-      } else if (errorMsg.contains('wrong-password') ||
-          errorMsg.contains('invalid-credential')) {
-        _showError(LocaleService.current.wrongPassword);
-      } else if (errorMsg.contains('invalid-email')) {
-        _showError(LocaleService.current.invalidEmailFormat);
-      } else if (errorMsg.contains('too-many-requests')) {
-        _showError(LocaleService.current.tooManyAttempts);
-      } else if (errorMsg.contains('TimeoutException')) {
-        _showError(LocaleService.current.serverNotResponding);
-      } else {
-        _showError(LocaleService.current.loginError(errorMsg));
-      }
+      _showError(_authErrorMessage(e));
     }
+  }
+
+  /// Человеко-понятный текст ошибки входа. Приложение на PocketBase — прежние
+  /// проверки строк Firebase (`wrong-password`/`invalid-credential`/…) НИКОГДА не
+  /// совпадали, и юзер видел сырой `ClientException{…}` вместо понятной причины.
+  /// PB отдаёт 400/403 и на неверный email, и на пароль (анти-энумерация) — их
+  /// не различить, показываем общий «неверный email или пароль».
+  String _authErrorMessage(Object e) {
+    final s = LocaleService.current;
+    if (e is TimeoutException) return s.serverNotResponding;
+    if (e is ClientException) {
+      final code = e.statusCode;
+      if (code == 400 || code == 403) return s.wrongPassword;
+      if (code == 429) return s.tooManyAttempts;
+      if (code == 0 || code >= 500) return s.serverNotResponding;
+    }
+    return s.loginError(e.toString());
   }
 
   /// Универсальный OAuth-вход: google / apple / yandex / vk / facebook.
@@ -257,10 +262,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      final errorMsg = e.toString();
-      if (errorMsg.contains('invalid-email')) {
-        _showError(LocaleService.current.invalidEmailFormat);
-      } else if (errorMsg.contains('too-many-requests')) {
+      // PB (не Firebase): различаем лишь «слишком часто» (429), остальное —
+      // общий текст. Прежние строки Firebase здесь тоже никогда не совпадали.
+      if (e is ClientException && e.statusCode == 429) {
         _showError(LocaleService.current.tooManyAttempts);
       } else {
         _showError(LocaleService.current.passwordResetError);
