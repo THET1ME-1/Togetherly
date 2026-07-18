@@ -4,19 +4,19 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Тихое, но важное обновление — выследили и починили несколько редких вылетов 💛\n'
+    'Дни рождения вернулись на место, а достижения наконец считают всё как надо 💛\n'
     '\n'
-    '— Больше не вылетает при начислении монет.\n'
-    '— Исправили вылет с именами и подписями, которые начинаются со смайлика.\n'
-    '— Стабильнее фоновая доставка уведомлений и живая карта «Где мы».\n'
-    '— Починили вылет при открытии некоторых музыкальных ссылок.\n'
-    '— Мелкие улучшения стабильности.';
+    '— День рождения партнёра снова виден, и мы напомним о нём заранее.\n'
+    '— Достижения считают сообщения и рисунки — прогресс больше не стоит на нуле.\n'
+    '— В чате заработала разметка: **жирный**, *курсив*, ~~зачёркнутый~~ и ссылки.\n'
+    '— Если войти не получилось, теперь видно причину.\n'
+    '— Добавили Условия использования.';
 
 const String enWhatsNew =
-    'A quiet but important update — we hunted down a few rare crashes 💛\n'
+    'Birthdays are back where they belong, and achievements finally count everything 💛\n'
     '\n'
-    '— No more crash when earning coins.\n'
-    '— Fixed a crash with names and captions that start with an emoji.\n'
-    '— More stable background notifications and the live “Where we are” map.\n'
-    '— Fixed a crash when opening some music links.\n'
-    '— Minor stability improvements.';
+    '— Your partner’s birthday is visible again, and we’ll remind you in advance.\n'
+    '— Achievements now count messages and drawings — progress no longer sits at zero.\n'
+    '— Text formatting in chat: **bold**, *italic*, ~~strikethrough~~ and links.\n'
+    '— If sign-in fails, you can now see why.\n'
+    '— Added Terms of Use.';
