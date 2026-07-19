@@ -8,6 +8,8 @@
 
 [![Release](https://img.shields.io/github/v/release/THET1ME-1/togetherly_app_releases?style=for-the-badge&label=release&color=E75480)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/THET1ME-1/togetherly_app_releases/total?style=for-the-badge&color=8E4657)](https://github.com/THET1ME-1/togetherly_app_releases/releases)
+[![License](https://img.shields.io/github/license/THET1ME-1/togetherly?style=for-the-badge&color=8E4657)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/THET1ME-1/togetherly?style=for-the-badge&color=E75480)](https://github.com/THET1ME-1/togetherly/stargazers)
 [![Platform](https://img.shields.io/badge/Android_·_iOS-1F1B24?style=for-the-badge)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
 
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
@@ -65,12 +67,20 @@ Signing fingerprint (SHA-256) to verify the APK:
 ### Built with
 Flutter (Material 3) · Dart · self-hosted **PocketBase** (auth / data / media) · **Centrifugo** (realtime) · offline-first sync · Android & iOS.
 
-### Build & contribute
-Togetherly is **open source under [GPL-3.0](LICENSE)**. To build it yourself or run your own backend, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. Bug reports and pull requests are welcome; security issues → **[SECURITY.md](SECURITY.md)**.
+### Build from source
+```bash
+flutter pub get
+# runs against the author's backend by default; point it at your own:
+flutter run \
+  --dart-define=PB_URL=https://your-pocketbase.example.com \
+  --dart-define=CENTRIFUGO_WS=wss://your-pocketbase.example.com:8443/connection/websocket
+```
+No project keys ship in the repo — config files are `*.example` templates you fill in.
+Full guide: **[CONTRIBUTING.md](CONTRIBUTING.md)**. Security issues → **[SECURITY.md](SECURITY.md)**.
 
-> The author's project keys are not shipped. Config files ship as `*.example` templates — copy them and plug in your own (Firebase, PocketBase, provider tokens). See CONTRIBUTING for the full list.
-
-*The app is free to use. Source © THET1ME-1, licensed under the GNU General Public License v3.0.*
+### License
+[GPL-3.0](LICENSE) — free software with copyleft: any fork/derivative, when distributed,
+must stay open under the same license. The app is free to use; source © THET1ME-1.
 
 ---
 
@@ -109,17 +119,36 @@ One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
 ### На чём сделано
 Flutter (Material 3) · Dart · самохост **PocketBase** (авторизация / данные / медиа) · **Centrifugo** (realtime) · offline-first синхронизация · Android и iOS.
 
-### Сборка и вклад
-Togetherly — **открытый код под [GPL-3.0](LICENSE)**. Как собрать самому или поднять свой бэкенд — см. **[CONTRIBUTING.md](CONTRIBUTING.md)**. Баг-репорты и pull request'ы приветствуются; про уязвимости — **[SECURITY.md](SECURITY.md)**.
+### Сборка из исходников
+```bash
+flutter pub get
+# по умолчанию цепляется к бэкенду автора; наведи на свой:
+flutter run \
+  --dart-define=PB_URL=https://твой-pocketbase.example.com \
+  --dart-define=CENTRIFUGO_WS=wss://твой-pocketbase.example.com:8443/connection/websocket
+```
+Ключей проекта в репозитории нет — конфиги идут `*.example`-шаблонами, подставь свои.
+Полный гайд: **[CONTRIBUTING.md](CONTRIBUTING.md)**. Про уязвимости — **[SECURITY.md](SECURITY.md)**.
 
-> Ключи проекта автора в репозитории не лежат. Конфиги идут как `*.example`-шаблоны — скопируйте и подставьте свои (Firebase, PocketBase, токены провайдеров). Полный список — в CONTRIBUTING.
-
-*Приложение бесплатное. Исходники © THET1ME-1, под лицензией GNU General Public License v3.0.*
+### Лицензия
+[GPL-3.0](LICENSE) — свободное ПО с копилефтом: любой форк/производная при распространении
+остаётся открытым под той же лицензией. Приложение бесплатное; исходники © THET1ME-1.
 
 ---
 
 <div align="center">
 
-<sub>Made with Flutter & 💛 · <code>com.togetherly.love</code></sub>
+## 👥 Team · S&amp;T Company
+
+Togetherly is built by **S&amp;T Company**
+
+| | |
+|:--|:--|
+| [**THET1ME-1**](https://github.com/THET1ME-1) | founder · lead dev |
+| [**JbSharan2**](https://github.com/JbSharan2) | co-founder |
+
+<br>
+
+<sub>Made with Flutter &amp; 💛 · <code>com.togetherly.love</code></sub>
 
 </div>
