@@ -3161,6 +3161,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Юзер осознанно открыл магазин коинов — теперь имеет смысл
     // предзагрузить rewarded, чтобы к тапу «Смотреть видео» он был готов.
     _rewardedAd.load();
+    // Вторая попытка инициализации: init() из initState мог не успеть или
+    // упасть (медленная сеть, sandbox-аккаунт, StoreKit ещё не поднялся).
+    // Лист подписан на _iap, поэтому цены подтянутся прямо в открытом листе.
+    if (!_iap.isAvailable || _iap.priceLabel(kCoinPacks.first.productId) == null) {
+      unawaited(_initIap());
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3168,8 +3174,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Лист подписан на userData: начисления (реклама/ежедневный бонус/
       // воспоминание) идут через notifyListeners, поэтому баланс и счётчик
       // «X/3» в открытом магазине обновляются сразу, без переоткрытия/рестарта.
+      //
+      // И на _iap: загрузка продуктов из App Store/Google Play асинхронная, и
+      // раньше открытый лист на неё НЕ реагировал (setState в _initIap чинит
+      // экран профиля, а не этот модальный роут). Если магазин успевали
+      // открыть до окончания queryProductDetails — паки не отрисовывались и
+      // не появлялись, пока лист открыт. Из-за этого App Review не нашёл
+      // покупки и отклонил сборку (Guideline 2.1(b), 1.16.2).
       builder: (_) => ListenableBuilder(
-        listenable: widget.userData,
+        listenable: Listenable.merge([widget.userData, _iap]),
         builder: (ctx, _) => DraggableScrollableSheet(
           initialChildSize: 0.75,
           minChildSize: 0.4,
@@ -3339,7 +3352,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: null,
                       ),
                       // ── Купить монеты (IAP) ───────────────────────────
-                      if (_iap.isAvailable) ...[
+                      // Показываем ВСЕГДА, не прячем за _iap.isAvailable.
+                      // Покупки обязаны быть findable: App Review открывает
+                      // магазин на свежей установке, и если продукты ещё не
+                      // догрузились, скрытая секция читается как «покупок в
+                      // приложении нет» → отклонение по Guideline 2.1(b).
+                      // Пока цены не подъехали — в subtitle стоит «…».
+                      ...[
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
