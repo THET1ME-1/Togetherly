@@ -38,7 +38,7 @@ class UpdateService {
   UpdateService._();
 
   /// Публичный репо с релизами (отдельный от приватных исходников).
-  static const String _repo = 'THET1ME-1/togetherly_app_releases';
+  static const String _repo = 'THET1ME-1/togetherly';
 
   /// Стабильная ссылка на манифест последней версии (редиректит на ассет).
   static const String _versionJsonUrl =

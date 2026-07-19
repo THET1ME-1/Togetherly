@@ -6,11 +6,11 @@
 
 <br>
 
-[![Release](https://img.shields.io/github/v/release/THET1ME-1/togetherly_app_releases?style=for-the-badge&label=release&color=E75480)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/THET1ME-1/togetherly_app_releases/total?style=for-the-badge&color=8E4657)](https://github.com/THET1ME-1/togetherly_app_releases/releases)
+[![Release](https://img.shields.io/github/v/release/THET1ME-1/togetherly?style=for-the-badge&label=release&color=E75480)](https://github.com/THET1ME-1/togetherly/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/THET1ME-1/togetherly/total?style=for-the-badge&color=8E4657)](https://github.com/THET1ME-1/togetherly/releases)
 [![License](https://img.shields.io/github/license/THET1ME-1/togetherly?style=for-the-badge&color=8E4657)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/THET1ME-1/togetherly?style=for-the-badge&color=E75480)](https://github.com/THET1ME-1/togetherly/stargazers)
-[![Platform](https://img.shields.io/badge/Android_·_iOS-1F1B24?style=for-the-badge)](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest)
+[![Platform](https://img.shields.io/badge/Android_·_iOS-1F1B24?style=for-the-badge)](https://github.com/THET1ME-1/togetherly/releases/latest)
 
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
@@ -22,7 +22,7 @@
 
 🇷🇺 🇬🇧 · 2 languages
 
-[**⬇ Download**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) · [English](#english) · [Русский](#-togetherly-русский)
+[**⬇ Download**](https://github.com/THET1ME-1/togetherly/releases/latest) · [English](#english) · [Русский](#-togetherly-русский)
 
 <br>
 
@@ -52,12 +52,12 @@
 - 🪙 Coins & rewards, co-watch, and more
 
 ### Download
-**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) (recommended).
+**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly/releases/latest) (recommended).
 
 For auto-updates use **[Obtainium](https://github.com/ImranR98/Obtainium)**: *Add App* → paste
-`https://github.com/THET1ME-1/togetherly_app_releases` → it tracks every new release (pick `arm64-v8a` — almost all modern phones).
+`https://github.com/THET1ME-1/togetherly` → it tracks every new release (pick `arm64-v8a` — almost all modern phones).
 
-One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
+One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly`
 
 Signing fingerprint (SHA-256) to verify the APK:
 `1E:94:4F:00:FE:F1:17:D5:00:03:56:03:44:FC:BE:4F:9F:69:BF:FA:4C:F3:5B:A8:9F:26:D0:32:C3:3A:4E:13`
@@ -104,12 +104,12 @@ must stay open under the same license. The app is free to use; source © THET1ME
 - 🪙 Коины и награды, совместный просмотр и не только
 
 ### Скачать
-**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly_app_releases/releases/latest) (рекомендуется).
+**Android** — [**GitHub Releases**](https://github.com/THET1ME-1/togetherly/releases/latest) (рекомендуется).
 
 Для авто-обновлений используйте **[Obtainium](https://github.com/ImranR98/Obtainium)**: *Add App* → вставьте
-`https://github.com/THET1ME-1/togetherly_app_releases` → он подхватывает каждый новый релиз (выбирайте `arm64-v8a` — почти все современные телефоны).
+`https://github.com/THET1ME-1/togetherly` → он подхватывает каждый новый релиз (выбирайте `arm64-v8a` — почти все современные телефоны).
 
-One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
+One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly`
 
 Отпечаток подписи (SHA-256) для проверки APK:
 `1E:94:4F:00:FE:F1:17:D5:00:03:56:03:44:FC:BE:4F:9F:69:BF:FA:4C:F3:5B:A8:9F:26:D0:32:C3:3A:4E:13`

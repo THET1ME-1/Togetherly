@@ -140,7 +140,7 @@ jobs:
         with:
           # Исходники приватные → APK кладём в отдельный ПУБЛИЧНЫЙ репо,
           # откуда приложение качает его без токена.
-          repository: THET1ME-1/togetherly_app_releases
+          repository: THET1ME-1/togetherly
           token: ${{ secrets.RELEASES_REPO_TOKEN }}
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})

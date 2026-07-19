@@ -73,7 +73,7 @@ AdMob требует Google-сервисы и на «чистых» RuStore-ус
 
 ## Самообновление (self-update)
 
-Текущий sideload self-update (`update_service.dart` + репо togetherly_app_releases)
+Текущий sideload self-update (`update_service.dart` + репо togetherly)
 для RuStore не нужен — магазин обновляет сам. На будущее: можно отключать
 self-update во флаге `STORE=rustore` (сейчас не сделано, не блокер).
 

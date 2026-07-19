@@ -17,7 +17,7 @@ routerAdd("GET", "/invite/{code}", (e) => {
   // JSVM-изоляция: константы объявляем ВНУТРИ хендлера — модульный уровень
   // хендлеру не виден (иначе ReferenceError). DOWNLOAD_URL — куда слать, если
   // приложение не установлено. TODO: заменить на реальную страницу загрузки.
-  const DOWNLOAD_URL = "https://github.com/THET1ME-1/togetherly_app_releases/releases/latest";
+  const DOWNLOAD_URL = "https://github.com/THET1ME-1/togetherly/releases/latest";
   // Санитизация: только буквы/цифры, максимум 12 символов — иначе это не наш
   // код (и защита от reflected-XSS при вставке в HTML/URL).
   // Path-параметр берём из url.path (pathValue роутером этой сборки PB не

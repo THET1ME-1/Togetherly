@@ -15,7 +15,7 @@ class ForceUpdateScreen extends StatelessWidget {
 
   /// Публичная страница последнего релиза (sideload-сборки).
   static const String _releasesLatestUrl =
-      'https://github.com/THET1ME-1/togetherly_app_releases/releases/latest';
+      'https://github.com/THET1ME-1/togetherly/releases/latest';
 
   /// Страница приложения в Google Play.
   static const String _playUrl =
