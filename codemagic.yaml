@@ -30,9 +30,10 @@ workflows:
       # fetch-signing-files переиспользует ОДИН distribution-сертификат каждую
       # сборку и создаёт app_store-профили (приложение И виджет).
       #
-      # Как завести: Codemagic → App settings → Environment variables →
-      # CERTIFICATE_PRIVATE_KEY = содержимое PEM-ключа, флаг Secure, группа
-      # подключена к этому workflow (vars ниже или groups).
+      # Как завести (один раз): Codemagic → App settings → Environment variables →
+      # создать группу `ios_signing`, добавить в неё переменную
+      # CERTIFICATE_PRIVATE_KEY = содержимое PEM-ключа (ios/certs/dist_cert_key.pem),
+      # флаг Secure. Группа импортируется ниже (`groups:`) → ключ доступен в билде.
       #
       # НЕ генерить ключ в билде (openssl) — так под каждый прогон заводился НОВЫЙ
       # сертификат, лимит Apple исчерпывался, fetch-signing-files падал, профили не
@@ -43,6 +44,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - ios_signing   # содержит секрет CERTIFICATE_PRIVATE_KEY (создать в UI)
       vars:
         BUNDLE_ID: "com.togetherly.love"
         # Числовой Apple ID приложения из App Store Connect (App Information →
