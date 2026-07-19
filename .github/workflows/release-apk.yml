@@ -5,9 +5,11 @@ name: Release → GitHub + RuStore (Play — вручную из AAB)
 #  2) Вручную: вкладка Actions → "Build APK → GitHub Release" → Run workflow
 #  Обычные коммиты в main сборку НЕ запускают.
 on:
-  push:
-    tags:
-      - 'v*'
+  # Только ручной запуск: Actions → «Release…» → Run workflow (ветка main).
+  # Тег-триггер убран намеренно — шаг публикации сам создаёт тег vX, а он
+  # повторно триггерил ЭТОТ ЖЕ workflow (лавина лишних прогонов; особенно при
+  # массовом создании релизов). Плюс на ручном запуске включается Google Play
+  # (на пуше тега публикация в Play пропускалась by design).
   workflow_dispatch:
 
 permissions:
