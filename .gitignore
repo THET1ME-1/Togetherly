@@ -48,6 +48,15 @@ app.*.map.json
 *.keystore
 key.properties
 
+# iOS distribution signing key — приватный ключ, НИКОГДА не коммитить.
+# Живёт в секретной переменной Codemagic CERTIFICATE_PRIVATE_KEY (см. codemagic.yaml).
+ios/certs/*.pem
+
+# Firebase client config — ключи проекта автора. В публичном репо лежат ТОЛЬКО
+# *.example-шаблоны; реальные файлы подставляет каждый под свой проект.
+ios/Runner/GoogleService-Info.plist
+android/app/google-services.json
+
 # Firebase Admin SDK private key — никогда не коммитить
 scripts/serviceAccountKey.json
 scripts/togetherly-d4856-firebase-adminsdk-*.json
@@ -67,9 +76,9 @@ play-publisher*.json
 /android/app/release
 .firebase/hosting.aG9zdGluZw.cache
 
-.claude/worktrees/
-# Локальные настройки/разрешения Claude Code — у каждого свои, не версионируем
-.claude/settings.local.json
+# Локальные настройки/состояние Claude Code — не версионируем (у каждого свои,
+# содержат внутренние алиасы команд/почты — не для публичного репозитория).
+.claude/
 # iOS Xcode build artifacts (do not commit)
 ios/build/
 

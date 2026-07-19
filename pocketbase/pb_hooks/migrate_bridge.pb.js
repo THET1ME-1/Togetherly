@@ -24,9 +24,14 @@
 /// инлайн, доступны только $app/$apis/$http/e.*; тело — e.requestInfo().body.
 
 routerAdd("POST", "/api/migrate/verify-password", (e) => {
-  // Публичный Firebase Web API key проекта togetherly-d4856 (НЕ секрет — он же
-  // лежит в клиенте google-services.json; ограничен по package в Google Cloud).
-  const FB_KEY = "AIzaSyCZTu-T61earAaCRkMEvrn6_wCH1X0sANg";
+  // Firebase Web API key берётся из окружения PocketBase (НЕ хардкодим в
+  // публичном репо). Задать: FB_WEB_API_KEY в env процесса pocketbase.
+  // Клиентский ключ Firebase формально не секрет, но это ключ проекта — держим
+  // его вне кода. Пусто → мост входа через старый Firebase-пароль отключён.
+  let FB_KEY = ""; try { FB_KEY = $os.getenv("FB_WEB_API_KEY") || ""; } catch (_) {}
+  if (!FB_KEY) {
+    return e.json(200, { ok: false, reason: "bridge_disabled" });
+  }
 
   const body = (e.requestInfo().body || {});
   const email = String(body.email || "").trim().toLowerCase();

@@ -1,15 +1,21 @@
 # ios/certs
 
-`dist_cert_key.pem` — **постоянный** приватный RSA-ключ (2048), под который
-Codemagic создаёт/переиспользует ОДИН iOS distribution-сертификат для подписи
-App Store-сборок (см. `codemagic.yaml` → шаг «Set up code signing», флаг
-`--certificate-key @file:ios/certs/dist_cert_key.pem`).
+Пусто по замыслу. Приватный ключ iOS distribution-сертификата **в git не
+хранится** — репозиторий публичный.
 
-**Зачем в репо:** репозиторий приватный. Так CI не генерит новый ключ каждую
-сборку (это плодило сертификаты и упиралось в лимит Apple → «No Accounts» /
-«No profiles for com.togetherly.love»). Один ключ → один сертификат навсегда.
-Паттерн уровня Fastlane Match (приватный git как хранилище подписи).
+## Где ключ теперь
 
-**Не удалять и не перегенерировать** без причины — иначе Codemagic заведёт ещё
-один distribution-сертификат. Если ключ всё же меняется, старый сертификат стоит
-отозвать в Apple Developer → Certificates.
+Codemagic → App settings → Environment variables → **`CERTIFICATE_PRIVATE_KEY`**
+(значение = PEM приватного ключа, флаг **Secure**). Скрипт подписи в
+`codemagic.yaml` читает его как `--certificate-key @env:CERTIFICATE_PRIVATE_KEY`.
+
+Ключ **постоянный**: fetch-signing-files под ним переиспользует ОДИН
+distribution-сертификат каждую сборку (не плодит новые → не упирается в лимит
+Apple → нет «No Accounts» / «No profiles for com.togetherly.love»). Паттерн
+уровня Fastlane Match, только хранилище подписи — не git, а секреты Codemagic.
+
+## Если ключ меняется / скомпрометирован
+
+1. Отозвать старый сертификат: Apple Developer → Certificates → Revoke.
+2. Сгенерировать новый приватный ключ, обновить `CERTIFICATE_PRIVATE_KEY` в Codemagic.
+3. Следующая сборка заведёт новый distribution-сертификат под новым ключом.

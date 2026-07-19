@@ -39,8 +39,11 @@ class CentrifugoService {
   factory CentrifugoService() => instance;
 
   /// Внешний TLS-порт Centrifugo (тот же домен/сертификат, что у PocketBase).
-  static const String _wsUrl =
-      'wss://togetherly.duckdns.org:8443/connection/websocket';
+  /// Переопределяется: `--dart-define=CENTRIFUGO_WS=wss://.../connection/websocket`
+  static const String _wsUrl = String.fromEnvironment(
+    'CENTRIFUGO_WS',
+    defaultValue: 'wss://togetherly.duckdns.org:8443/connection/websocket',
+  );
 
   centrifuge.Client? _client;
   final Map<String, _ChannelHub> _channels = {};

@@ -65,7 +65,12 @@ Signing fingerprint (SHA-256) to verify the APK:
 ### Built with
 Flutter (Material 3) · Dart · self-hosted **PocketBase** (auth / data / media) · **Centrifugo** (realtime) · offline-first sync · Android & iOS.
 
-*Togetherly is a private product — the app is free to use, the source is not open.*
+### Build & contribute
+Togetherly is **open source under [GPL-3.0](LICENSE)**. To build it yourself or run your own backend, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. Bug reports and pull requests are welcome; security issues → **[SECURITY.md](SECURITY.md)**.
+
+> The author's project keys are not shipped. Config files ship as `*.example` templates — copy them and plug in your own (Firebase, PocketBase, provider tokens). See CONTRIBUTING for the full list.
+
+*The app is free to use. Source © THET1ME-1, licensed under the GNU General Public License v3.0.*
 
 ---
 
@@ -104,7 +109,12 @@ One-tap: `obtainium://add/https://github.com/THET1ME-1/togetherly_app_releases`
 ### На чём сделано
 Flutter (Material 3) · Dart · самохост **PocketBase** (авторизация / данные / медиа) · **Centrifugo** (realtime) · offline-first синхронизация · Android и iOS.
 
-*Togetherly — приватный продукт: приложение бесплатное, исходники закрыты.*
+### Сборка и вклад
+Togetherly — **открытый код под [GPL-3.0](LICENSE)**. Как собрать самому или поднять свой бэкенд — см. **[CONTRIBUTING.md](CONTRIBUTING.md)**. Баг-репорты и pull request'ы приветствуются; про уязвимости — **[SECURITY.md](SECURITY.md)**.
+
+> Ключи проекта автора в репозитории не лежат. Конфиги идут как `*.example`-шаблоны — скопируйте и подставьте свои (Firebase, PocketBase, токены провайдеров). Полный список — в CONTRIBUTING.
+
+*Приложение бесплатное. Исходники © THET1ME-1, под лицензией GNU General Public License v3.0.*
 
 ---
 

@@ -25,10 +25,14 @@ workflows:
       app_store_connect: TogetherlyASC
     environment:
       # ПОДПИСЬ целиком в скрипте ниже. Приватный ключ сертификата — ПОСТОЯННЫЙ,
-      # закоммичен в репо: ios/certs/dist_cert_key.pem (репо приватный). Один и тот
-      # же ключ → fetch-signing-files переиспользует ОДИН distribution-сертификат
-      # каждую сборку и создаёт app_store-профили (приложение И виджет). Никаких
-      # ручных переменных в Codemagic UI не требуется.
+      # лежит в СЕКРЕТНОЙ переменной Codemagic `CERTIFICATE_PRIVATE_KEY` (репо
+      # ПУБЛИЧНЫЙ — ключ в git больше НЕ хранится). Один и тот же ключ →
+      # fetch-signing-files переиспользует ОДИН distribution-сертификат каждую
+      # сборку и создаёт app_store-профили (приложение И виджет).
+      #
+      # Как завести: Codemagic → App settings → Environment variables →
+      # CERTIFICATE_PRIVATE_KEY = содержимое PEM-ключа, флаг Secure, группа
+      # подключена к этому workflow (vars ниже или groups).
       #
       # НЕ генерить ключ в билде (openssl) — так под каждый прогон заводился НОВЫЙ
       # сертификат, лимит Apple исчерпывался, fetch-signing-files падал, профили не
@@ -78,11 +82,11 @@ workflows:
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key @file:ios/certs/dist_cert_key.pem \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
             --create
           app-store-connect fetch-signing-files "$BUNDLE_ID.TogetherlyWidget" \
             --type IOS_APP_STORE \
-            --certificate-key @file:ios/certs/dist_cert_key.pem \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
             --create
           keychain add-certificates
           xcode-project use-profiles

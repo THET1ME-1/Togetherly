@@ -18,8 +18,13 @@ class PocketBaseService {
   static final PocketBaseService instance = PocketBaseService._();
   factory PocketBaseService() => instance;
 
-  /// Базовый URL нашего PocketBase (HTTPS, Let's Encrypt; домен держит DuckDNS).
-  static const String baseUrl = 'https://togetherly.duckdns.org';
+  /// Базовый URL PocketBase (HTTPS, Let's Encrypt; домен держит DuckDNS).
+  /// Переопределяется под свой бэкенд: `--dart-define=PB_URL=https://...`
+  /// По умолчанию — прод-инстанс автора.
+  static const String baseUrl = String.fromEnvironment(
+    'PB_URL',
+    defaultValue: 'https://togetherly.duckdns.org',
+  );
 
   /// Ключ хранения сериализованной auth-сессии.
   static const String _authPrefsKey = 'pb_auth';
