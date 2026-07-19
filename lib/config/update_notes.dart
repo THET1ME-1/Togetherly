@@ -4,19 +4,15 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Дни рождения вернулись на место, а достижения наконец считают всё как надо 💛\n'
+    'В чате теперь есть разметка, а вход и достижения починили 💛\n'
     '\n'
-    '— День рождения партнёра снова виден, и мы напомним о нём заранее.\n'
-    '— Достижения считают сообщения и рисунки — прогресс больше не стоит на нуле.\n'
-    '— В чате заработала разметка: **жирный**, *курсив*, ~~зачёркнутый~~ и ссылки.\n'
-    '— Если войти не получилось, теперь видно причину.\n'
-    '— Добавили Условия использования.';
+    '— Сделали поддержку Markdown в сообщениях: **жирный**, *курсив*, ~~зачёркнутый~~, `моно`, [текст](ссылка).\n'
+    '— Починили достижения: теперь сообщения и рисунки засчитываются.\n'
+    '— Починили невнятные ошибки при входе — теперь пишет понятную причину.';
 
 const String enWhatsNew =
-    'Birthdays are back where they belong, and achievements finally count everything 💛\n'
+    'Chat now has text formatting, and we fixed sign-in and achievements 💛\n'
     '\n'
-    '— Your partner’s birthday is visible again, and we’ll remind you in advance.\n'
-    '— Achievements now count messages and drawings — progress no longer sits at zero.\n'
-    '— Text formatting in chat: **bold**, *italic*, ~~strikethrough~~ and links.\n'
-    '— If sign-in fails, you can now see why.\n'
-    '— Added Terms of Use.';
+    '— Markdown in messages: **bold**, *italic*, ~~strikethrough~~, `mono`, [text](link).\n'
+    '— Fixed achievements: messages and drawings now count.\n'
+    '— Fixed vague sign-in errors — now it shows a clear reason.';
