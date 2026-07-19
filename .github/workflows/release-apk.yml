@@ -138,9 +138,27 @@ jobs:
       - name: Publish to public releases repo
         uses: softprops/action-gh-release@v2
         with:
-          # Исходники приватные → APK кладём в отдельный ПУБЛИЧНЫЙ репо,
-          # откуда приложение качает его без токена.
+          # Основной дом релизов и автообновления — публичный THET1ME-1/togetherly
+          # (там же исходники, открытый код). Приложение качает APK без токена.
           repository: THET1ME-1/togetherly
+          token: ${{ secrets.RELEASES_REPO_TOKEN }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
+          body_path: dist/notes.md
+          make_latest: true
+          files: |
+            dist/togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}-arm64-v8a.apk
+            dist/togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}-armeabi-v7a.apk
+            dist/version.json
+
+      - name: Bridge — publish to OLD releases repo (миграция автообновления)
+        # РАЗОВЫЙ МОСТ. Уже установленные приложения проверяют апдейты в старом
+        # togetherly_app_releases. Публикуем тот же релиз и туда — пользователи
+        # получат обновление, которое переводит их автообновление на новый
+        # THET1ME-1/togetherly. Когда основная масса обновится — шаг можно удалить.
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: THET1ME-1/togetherly_app_releases
           token: ${{ secrets.RELEASES_REPO_TOKEN }}
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
