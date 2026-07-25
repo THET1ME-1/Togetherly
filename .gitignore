@@ -91,3 +91,10 @@ CLAUDE.local.md
 
 # Личные планы и заметки, в публичный репозиторий не уезжают
 docs/superpowers/
+
+# Админка модерации — только локально. Раздаёт чужие фото и профили, в
+# публичном репозитории ей не место (вычищена и из истории, 2026-07-25).
+hosting/mod-memories.html
+pocketbase/pb_public/mod-memories.html
+pocketbase/pb_hooks/moderation.pb.js
+tools/admin_groups.js
