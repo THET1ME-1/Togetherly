@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Вместе», размер 4×4. Фон surface #FEF7FF, радиус 36, отступы 24,
-  внутренние промежутки 18. Шапка с именами 14/800 #49454F и сердцем; блок
-  primary радиус 28 с числом 72/800 и месяцами справа; секция «ДАЛЬШЕ» с двумя
-  строками — ближайшая круглая дата (#F3EDF7) и годовщина (#FFD8E4).
+  Виджет «Вместе», 4×4. Фон surface #FEF7FF, радиус 36.
+
+  Высота ячейки 4×4 сильно зависит от лончера: Nova даёт ниже квадрата (строка
+  «1 год» схлопывалась в цветную полоску), стандартный лончер Xiaomi — заметно
+  выше (внизу оставалась треть пустой карточки). Поэтому столбец собран на
+  wrap_content и центрирован: сжиматься нечему, лишняя высота уходит в поля.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:gravity="center_vertical"
     android:background="@drawable/tg_bg_surface_36"
-    android:padding="17dp">
+    android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -36,6 +39,7 @@
         <ImageView
             android:layout_width="15dp"
             android:layout_height="15dp"
+            android:layout_marginStart="8dp"
             android:src="@drawable/ic_heart_timer"
             android:contentDescription="@null" />
     </LinearLayout>
@@ -44,11 +48,12 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="13dp"
+        android:minHeight="72dp"
+        android:layout_marginTop="11dp"
         android:orientation="horizontal"
         android:gravity="bottom"
         android:background="@drawable/tg_block_primary_28"
-        android:padding="15dp">
+        android:padding="14dp">
 
         <LinearLayout
             android:layout_width="1dp"
@@ -61,16 +66,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
-                android:textSize="50dp"
+                android:textSize="46dp"
                 android:textStyle="bold"
                 android:letterSpacing="-0.045"
                 android:includeFontPadding="false"
+                android:maxLines="1"
                 android:text="—" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:textColor="#E9DDFF"
                 android:textSize="11dp"
                 android:textStyle="bold"
@@ -81,6 +87,7 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:orientation="vertical"
             android:gravity="end">
 
@@ -110,7 +117,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="13dp"
+        android:layout_marginTop="11dp"
         android:textColor="#7A757F"
         android:textSize="11dp"
         android:textStyle="bold"
@@ -121,14 +128,14 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/tg_row_surface_20"
         android:paddingLeft="13dp"
         android:paddingRight="13dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp">
 
         <TextView
             android:id="@+id/next_round_title"
@@ -139,12 +146,15 @@
             android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="" />
 
         <TextView
             android:id="@+id/next_round_when"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:textColor="#49454F"
             android:textSize="11dp"
             android:textStyle="bold"
@@ -155,14 +165,14 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/tg_row_tertiary_20"
         android:paddingLeft="13dp"
         android:paddingRight="13dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp">
 
         <TextView
             android:id="@+id/anniversary_title"
@@ -173,12 +183,15 @@
             android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="" />
 
         <TextView
             android:id="@+id/anniversary_when"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:textColor="#31111D"
             android:textSize="11dp"
             android:textStyle="bold"

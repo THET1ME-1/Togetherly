@@ -609,6 +609,8 @@ class _HomeScreenState extends State<HomeScreen> {
       activeStartDate: _pairData.startDate,
       coupleNames: '$myName & $partnerName',
       emoji: _pairData.relationshipEmoji,
+      myAvatarUrl: widget.userData.avatarUrl,
+      partnerAvatarUrl: _pairData.partnerAvatarUrl,
       myGender: myGender,
       partnerGender: partnerGender,
       relationshipStatusId: _pairData.relationshipStatusId,

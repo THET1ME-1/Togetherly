@@ -999,11 +999,29 @@ class HomeWidgetService {
     String partnerInitial = '',
     String names = '',
     String anniversary = '',
+    String myAvatarUrl = '',
+    String partnerAvatarUrl = '',
   }) async {
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('together_${g}_days', '$days');
       await HomeWidget.saveWidgetData<String>('together_${g}_start_date', startDate);
+
+      // Настоящие аватарки для размера 2×2. Кружок с инициалом остаётся
+      // фолбэком: пути пустые — виджет рисует букву, как в хендофе.
+      if (myAvatarUrl.isNotEmpty || partnerAvatarUrl.isNotEmpty) {
+        final myPath = myAvatarUrl.isEmpty
+            ? ''
+            : await _cachePhotoFromUrl(myAvatarUrl, 'together_avatar_my_$g');
+        final partnerPath = partnerAvatarUrl.isEmpty
+            ? ''
+            : await _cachePhotoFromUrl(
+                partnerAvatarUrl, 'together_avatar_partner_$g');
+        await HomeWidget.saveWidgetData<String>(
+            'together_${g}_my_avatar_path', myPath);
+        await HomeWidget.saveWidgetData<String>(
+            'together_${g}_partner_avatar_path', partnerPath);
+      }
       if (myInitial.isNotEmpty) {
         await HomeWidget.saveWidgetData<String>('together_${g}_my_initial', myInitial);
         _cachedMyInitial = myInitial;
@@ -1075,12 +1093,17 @@ class HomeWidgetService {
   /// Отметка после отправки прямо с рабочего стола: свой счётчик +1, состояние
   /// «отправлено» и время. Приложение при этом может быть закрыто, поэтому
   /// читаем прежние значения из данных виджета.
-  Future<void> markMissSentFromWidget(String groupId) async {
+  /// [alreadyCounted] — нативный виджет уже прибавил себе счётчик ради
+  /// мгновенного отклика на тап; тогда здесь остаётся только пометить отправку.
+  Future<void> markMissSentFromWidget(
+    String groupId, {
+    bool alreadyCounted = false,
+  }) async {
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       final prev =
           await HomeWidget.getWidgetData<String>('miss_${g}_my_count') ?? '0';
-      final next = (int.tryParse(prev) ?? 0) + 1;
+      final next = (int.tryParse(prev) ?? 0) + (alreadyCounted ? 0 : 1);
       final now = DateTime.now();
       final hh = now.hour.toString().padLeft(2, '0');
       final mm = now.minute.toString().padLeft(2, '0');
@@ -1967,6 +1990,9 @@ class HomeWidgetService {
     String relationshipStatusId = '',
     bool isRomantic = true,
     int themeIndex = 0,
+    // Для аватарок на виджете «Вместе» 2×2. Пусто — останется кружок с буквой.
+    String myAvatarUrl = '',
+    String partnerAvatarUrl = '',
   }) async {
     try {
       debugPrint(
@@ -1996,8 +2022,13 @@ class HomeWidgetService {
           partnerInitial: parts.length > 1 && parts[1].trim().isNotEmpty
               ? parts[1].trim()[0].toUpperCase()
               : '',
-          names: coupleNames,
+          // В макете «Вместе» разделитель — плюс («АНЯ + МИША»). Общий
+          // coupleNames приходит с главного экрана через «&» и раньше
+          // перебивал то, что писал экран виджетов.
+          names: coupleNames.replaceAll(RegExp(r'\s*[&·]\s*'), ' + '),
           anniversary: start == null ? '' : _formatDateShort(start),
+          myAvatarUrl: myAvatarUrl,
+          partnerAvatarUrl: partnerAvatarUrl,
         );
       }
 

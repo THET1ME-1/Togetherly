@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/couple_days.dart';
+import '../widgets/avatar_widget.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../logic/photo_day_widget_logic.dart';
@@ -1068,6 +1069,8 @@ class _WidgetScreenState extends State<WidgetScreen>
               partnerName.isEmpty ? '' : partnerName.characters.first.toUpperCase(),
           names: [myName, partnerName].where((n) => n.isNotEmpty).join(' + '),
           anniversary: anniversary,
+          myAvatarUrl: widget.userData.avatarUrl,
+          partnerAvatarUrl: _pair.partnerAvatarUrl,
         );
         break;
       case 'timer':
@@ -1965,7 +1968,10 @@ class _WidgetScreenState extends State<WidgetScreen>
     final myInitial = _initialOf(widget.userData.displayName);
     final partnerInitial = _initialOf(_pair.partnerDisplayName);
 
-    Widget avatar(String initial, Color bg, Color fg) => Container(
+    // Фото, если оно есть, и кружок с буквой как фолбэк — ровно так же, как
+    // рисует сам виджет на рабочем столе.
+    Widget avatar(String initial, Color bg, Color fg, String uid, String url) =>
+        Container(
           width: 34,
           height: 34,
           decoration: BoxDecoration(
@@ -1973,17 +1979,26 @@ class _WidgetScreenState extends State<WidgetScreen>
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0xFF6750A4), width: 2),
           ),
+          clipBehavior: Clip.antiAlias,
           alignment: Alignment.center,
-          child: initial.isEmpty
-              ? Icon(Icons.favorite_rounded, size: 15, color: fg)
-              : Text(
-                  initial,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: fg,
-                  ),
-                ),
+          child: url.isNotEmpty
+              ? AvatarWidget(
+                  uid: uid,
+                  liveUrl: url,
+                  name: initial,
+                  size: 34,
+                  primary: bg,
+                )
+              : (initial.isEmpty
+                  ? Icon(Icons.favorite_rounded, size: 15, color: fg)
+                  : Text(
+                      initial,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    )),
         );
 
     return AspectRatio(
@@ -2002,11 +2017,13 @@ class _WidgetScreenState extends State<WidgetScreen>
               child: Stack(
                 children: [
                   avatar(myInitial, const Color(0xFFD0BCFF),
-                      const Color(0xFF21005D)),
+                      const Color(0xFF21005D), widget.userData.uid,
+                      widget.userData.avatarUrl),
                   Positioned(
                     left: 24,
                     child: avatar(partnerInitial, const Color(0xFFFFD8E4),
-                        const Color(0xFF31111D)),
+                        const Color(0xFF31111D), _pair.partnerUid,
+                        _pair.partnerAvatarUrl),
                   ),
                 ],
               ),

@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -67,6 +69,8 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
             data.getString("${prefix}partner_initial", null).orEmpty().ifEmpty { "?" }
         val names = data.getString("${prefix}names", null).orEmpty()
         val anniversary = data.getString("${prefix}anniversary", null).orEmpty()
+        val myAvatarPath = data.getString("${prefix}my_avatar_path", null)
+        val partnerAvatarPath = data.getString("${prefix}partner_avatar_path", null)
 
         val options = manager.getAppWidgetOptions(widgetId)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
@@ -81,6 +85,14 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
             else -> R.layout.tg_together_2x2
         }
 
+        // Разметка свёрстана под нижнюю границу вилки из гайдлайнов; на высокой
+        // ячейке (лончер Xiaomi) кегли растягиваются, иначе карточка пустует.
+        val baseDp = when (layout) {
+            R.layout.tg_together_4x4 -> 185
+            else -> 115
+        }
+        val scale = WidgetSizing.scale(minHeight, baseDp)
+
         val views = RemoteViews(context.packageName, layout).apply {
             setOnClickPendingIntent(
                 R.id.widget_root,
@@ -91,11 +103,38 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
                 ),
             )
             setTextViewText(R.id.days_value, days.toString())
+            val bigDp = when (layout) {
+                R.layout.tg_together_2x2 -> 38f
+                R.layout.tg_together_4x2 -> 36f
+                else -> 46f
+            }
+            setTextViewTextSize(R.id.days_value, TypedValue.COMPLEX_UNIT_DIP, bigDp * scale)
 
             when (layout) {
                 R.layout.tg_together_2x2 -> {
                     setTextViewText(R.id.avatar_me, myInitial)
                     setTextViewText(R.id.avatar_partner, partnerInitial)
+
+                    // Настоящие аватарки поверх кружка с инициалом. Инициал —
+                    // фолбэк: остаётся, только если фото нет или не читается.
+                    val myPhoto = WidgetImages.circularFromFile(myAvatarPath)
+                    val partnerPhoto = WidgetImages.circularFromFile(partnerAvatarPath)
+                    if (myPhoto != null) {
+                        setImageViewBitmap(R.id.avatar_me_photo, myPhoto)
+                        setViewVisibility(R.id.avatar_me_photo, View.VISIBLE)
+                        setViewVisibility(R.id.avatar_me, View.INVISIBLE)
+                    } else {
+                        setViewVisibility(R.id.avatar_me_photo, View.GONE)
+                        setViewVisibility(R.id.avatar_me, View.VISIBLE)
+                    }
+                    if (partnerPhoto != null) {
+                        setImageViewBitmap(R.id.avatar_partner_photo, partnerPhoto)
+                        setViewVisibility(R.id.avatar_partner_photo, View.VISIBLE)
+                        setViewVisibility(R.id.avatar_partner, View.INVISIBLE)
+                    } else {
+                        setViewVisibility(R.id.avatar_partner_photo, View.GONE)
+                        setViewVisibility(R.id.avatar_partner, View.VISIBLE)
+                    }
                 }
 
                 R.layout.tg_together_4x2 -> {

@@ -1,20 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Размер 4×4, отдельная позиция в списке виджетов.
+  «Вместе» 4×4 — отдельная позиция в списке виджетов.
 
-  previewImage обязателен наравне с previewLayout: лончеры без поддержки
-  previewLayout (в том числе MIUI) иначе не показывают виджет в списке вовсе —
-  именно из-за этого новые виджеты не появлялись.
+  minWidth/minHeight считаются как 70*n-30: столько занимает n ячеек на
+  стандартной сетке. Просить больше нельзя — лончер всё равно выдаёт ячейку по
+  своей сетке и молча сжимает содержимое, обрезая нижние строки. Так пропала
+  полоса прогресса в 4×2 и схлопнулась строка годовщины в 4×4.
+
+  previewImage без previewLayout: разметка-превью рисуется с пустыми данными
+  (число «—», нули), и в диалоге установки виджет выглядит сломанным. Картинка
+  показывает то же, что и макет; рисует её tools/gen_widget_previews.py.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/tg_together_4x4"
-    android:previewLayout="@layout/tg_together_4x4"
     android:previewImage="@drawable/tg_preview_together_4x4"
     android:description="@string/tg_desc_together_4x4"
-    android:minWidth="300dp"
-    android:minHeight="300dp"
-    android:minResizeWidth="240dp"
-    android:minResizeHeight="260dp"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="200dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="568dp"
     android:targetCellWidth="4"
     android:targetCellHeight="4"
     android:resizeMode="horizontal|vertical"

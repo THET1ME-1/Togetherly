@@ -139,7 +139,11 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
           '';
       if (groupId.isEmpty || groupId == 'solo') return;
       await MissYouRepository().sendMissYou(groupId);
-      await HomeWidgetService.instance.markMissSentFromWidget(groupId);
+      // local=1 — виджет уже посчитал отправку сам, чтобы кнопка отзывалась
+      // мгновенно. Прибавлять второй раз нельзя.
+      final countedLocally = uri.queryParameters['local'] == '1';
+      await HomeWidgetService.instance
+          .markMissSentFromWidget(groupId, alreadyCounted: countedLocally);
     } catch (e) {
       debugPrint('miss from widget failed: $e');
     }

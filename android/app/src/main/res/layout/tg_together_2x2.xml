@@ -1,54 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Вместе», размер 2×2. Значения из хендофа: фон primary #6750A4,
-  радиус 32, внутренние отступы 18. Сверху стек двух аватаров 34dp (второй
-  наезжает на 10dp), снизу число 54/800 и подпись 15/600 цветом #E9DDFF.
+  Виджет «Вместе», 2×2. Фон primary #6750A4, радиус 32.
+
+  Стек из двух аватаров: сверху лежит ImageView с фотографией, под ним TextView
+  с инициалом на цветном круге. Фото есть — инициал прячется, фото нет —
+  остаётся кружок с буквой (фолбэк из хендофа).
+
+  Содержимое центрировано по вертикали: ячейка 2×2 у Nova почти квадратная, у
+  лончера Xiaomi заметно вытянута вверх, и прижатый к краям контент оставлял
+  посередине дыру.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:gravity="center_vertical"
     android:background="@drawable/tg_bg_primary_32"
     android:padding="13dp">
 
     <!-- Аватары пары -->
     <FrameLayout
         android:layout_width="wrap_content"
-        android:layout_height="24dp">
+        android:layout_height="26dp">
 
-        <TextView
-            android:id="@+id/avatar_me"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:background="@drawable/tg_avatar_primary"
-            android:gravity="center"
-            android:textColor="#21005D"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:text=" " />
+        <FrameLayout
+            android:layout_width="26dp"
+            android:layout_height="26dp">
 
-        <TextView
-            android:id="@+id/avatar_partner"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="17dp"
-            android:background="@drawable/tg_avatar_tertiary"
-            android:gravity="center"
-            android:textColor="#31111D"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:text=" " />
+            <TextView
+                android:id="@+id/avatar_me"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@drawable/tg_avatar_primary"
+                android:gravity="center"
+                android:textColor="#21005D"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text=" " />
+
+            <ImageView
+                android:id="@+id/avatar_me_photo"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:contentDescription="@null" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="18dp">
+
+            <TextView
+                android:id="@+id/avatar_partner"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@drawable/tg_avatar_tertiary"
+                android:gravity="center"
+                android:textColor="#31111D"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text=" " />
+
+            <ImageView
+                android:id="@+id/avatar_partner_photo"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:contentDescription="@null" />
+        </FrameLayout>
     </FrameLayout>
 
-    <!-- Отжимаем счётчик к низу: в макете space-between -->
-    <!-- Распорка. Именно FrameLayout, а не Space: RemoteViews инфлейтит только
-         классы из своего белого списка, Space в него не входит и лончер
-         показывает «Невозможно загрузить виджет». -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_weight="1" />
+        android:layout_height="12dp" />
 
     <TextView
         android:id="@+id/days_value"
@@ -59,6 +89,7 @@
         android:textStyle="bold"
         android:letterSpacing="-0.04"
         android:includeFontPadding="false"
+        android:maxLines="1"
         android:text="—" />
 
     <TextView
@@ -70,5 +101,6 @@
         android:textSize="11dp"
         android:textStyle="bold"
         android:includeFontPadding="false"
+        android:maxLines="1"
         android:text="дней вместе" />
 </LinearLayout>

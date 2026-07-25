@@ -1,20 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Вместе», размер 4×2. Фон primary-container #EADDFF, радиус 32,
-  отступы 20/22. Слева дата старта 13/700 #4F378B, число 60/800 и «дней»
-  17/700 по базовой линии, справа сердце 26dp. Внизу подпись до круглой даты
-  и трек 12dp: #D6C6F0 с заливкой #6750A4.
+  Виджет «Вместе», 4×2. Фон primary-container #EADDFF, радиус 32.
+
+  Ячейка 4×2 у каждого лончера своя: Nova даёт низкую (низ срезался, полосы
+  прогресса не было видно), стандартный лончер Xiaomi — вдвое выше макета
+  (распорка на весе раздувалась в дыру посреди карточки). Поэтому содержимое
+  собрано в компактный блок и центрировано по вертикали: лишняя высота уходит
+  в равные поля сверху и снизу, а не в пустоту между строками.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:gravity="center_vertical"
     android:background="@drawable/tg_bg_primary_container_32"
-    android:paddingLeft="15dp"
-    android:paddingRight="15dp"
-    android:paddingTop="14dp"
-    android:paddingBottom="14dp">
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -29,18 +33,20 @@
 
             <TextView
                 android:id="@+id/start_date"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#4F378B"
                 android:textSize="11dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:orientation="horizontal"
                 android:baselineAligned="true">
 
@@ -49,17 +55,18 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="#21005D"
-                    android:textSize="42dp"
+                    android:textSize="36dp"
                     android:textStyle="bold"
                     android:letterSpacing="-0.04"
                     android:includeFontPadding="false"
+                    android:maxLines="1"
                     android:text="—" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:layout_marginBottom="4dp"
+                    android:layout_marginBottom="3dp"
                     android:textColor="#21005D"
                     android:textSize="12dp"
                     android:textStyle="bold"
@@ -70,19 +77,15 @@
 
         <ImageView
             android:id="@+id/heart_icon"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
+            android:layout_width="17dp"
+            android:layout_height="17dp"
             android:src="@drawable/ic_heart_timer"
             android:contentDescription="@null" />
     </LinearLayout>
 
-    <!-- Распорка. Именно FrameLayout, а не Space: RemoteViews инфлейтит только
-         классы из своего белого списка, Space в него не входит и лончер
-         показывает «Невозможно загрузить виджет». -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_weight="1" />
+        android:layout_height="10dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -98,12 +101,15 @@
             android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="" />
 
         <TextView
             android:id="@+id/next_percent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:textColor="#4F378B"
             android:textSize="11dp"
             android:textStyle="bold"
@@ -118,7 +124,7 @@
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="8dp"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="5dp"
         android:max="100"
         android:progress="56"
         android:progressDrawable="@drawable/tg_progress_12" />

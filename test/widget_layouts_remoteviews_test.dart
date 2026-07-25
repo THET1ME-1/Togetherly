@@ -99,6 +99,35 @@ void main() {
     );
   });
 
+  test('размеры виджетов лежат на сетке 70*n-30', () {
+    // Гайдлайны Android: 1 ячейка — 40dp, дальше 70*n-30 (2 → 110, 4 → 250).
+    // Просьба «300dp» не даёт лишнего места: лончер выдаёт ячейку по своей
+    // сетке и молча сжимает содержимое.
+    const allowed = {40, 110, 180, 250, 320, 390, 460, 530, 568, 624};
+    final dir = Directory('android/app/src/main/res/xml');
+    if (!dir.existsSync()) return;
+
+    final bad = <String>[];
+    final re = RegExp(r'android:(minWidth|minHeight)="(\d+)dp"');
+    for (final f in dir.listSync().whereType<File>()) {
+      if (!f.path.endsWith('.xml')) continue;
+      final text = f.readAsStringSync();
+      if (!text.contains('<appwidget-provider')) continue;
+      // Проверяем только новый каталог: старые виджеты живут со своими
+      // размерами, трогать их ради теста смысла нет.
+      if (!f.uri.pathSegments.last.startsWith('tg_')) continue;
+      for (final m in re.allMatches(text)) {
+        final v = int.parse(m.group(2)!);
+        if (!allowed.contains(v)) {
+          bad.add('${f.uri.pathSegments.last}: ${m.group(1)}=${v}dp');
+        }
+      }
+    }
+
+    expect(bad, isEmpty,
+        reason: 'размер не лежит на сетке 70*n-30: ${bad.join(', ')}');
+  });
+
   test('у каждого appwidget-provider есть previewImage', () {
     // Лончеры без поддержки previewLayout (в том числе MIUI) без картинки
     // не показывают виджет в списке вовсе.

@@ -1,13 +1,18 @@
 package com.togetherly.love
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.util.TypedValue
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetProvider
+import java.util.Calendar
 
 /**
  * Виджет «Скучаю» — парный, интерактивный.
@@ -46,6 +51,60 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
     }
 
+    /**
+     * Тап по кнопке. Раньше он уходил сразу в Dart, и до ответа сети виджет не
+     * менялся вообще — кнопка выглядела мёртвой. Теперь состояние пишется здесь
+     * же, виджет перерисовывается мгновенно, и только потом будится Dart,
+     * который отправляет «скучаю» на сервер.
+     */
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION_TAP) {
+            super.onReceive(context, intent)
+            return
+        }
+
+        val g = intent.getStringExtra(EXTRA_GROUP).orEmpty()
+        val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+        val prefix = if (g.isEmpty()) "" else "miss_${g}_"
+
+        // Второй тап за день ничего не меняет: по спецификации отправка одна,
+        // состояние живёт до полуночи.
+        if (prefs.getString("${prefix}sent_today", null) != "1") {
+            val my = prefs.getString("${prefix}my_count", null)?.toIntOrNull() ?: 0
+            val now = Calendar.getInstance()
+            val hh = now.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')
+            val mm = now.get(Calendar.MINUTE).toString().padStart(2, '0')
+            prefs.edit()
+                .putString("${prefix}my_count", (my + 1).toString())
+                .putString("${prefix}sent_today", "1")
+                .putString("${prefix}last_time", "$hh:$mm")
+                .apply()
+
+            // Перерисовываем все три размера: пользователь мог поставить
+            // несколько экземпляров, и отстать не должен ни один.
+            val manager = AppWidgetManager.getInstance(context)
+            listOf(
+                MissWidget2x2Provider::class.java,
+                MissWidget4x2Provider::class.java,
+                MissWidget4x1Provider::class.java,
+            ).forEach { cls ->
+                manager.getAppWidgetIds(ComponentName(context, cls)).forEach { id ->
+                    render(context, manager, id, prefs)
+                }
+            }
+        }
+
+        // Счётчик уже увеличен здесь — Dart об этом узнаёт по local=1 и только
+        // отправляет реакцию на сервер, не прибавляя второй раз.
+        try {
+            HomeWidgetBackgroundIntent
+                .getBroadcast(context, Uri.parse("loveapp://miss?group=$g&local=1"))
+                .send()
+        } catch (e: Exception) {
+            android.util.Log.w("MissWidget", "не удалось разбудить Dart: $e")
+        }
+    }
+
     private fun render(
         context: Context,
         manager: AppWidgetManager,
@@ -75,16 +134,30 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         }
 
         val stateIcon = if (sent) R.drawable.ic_tg_check else R.drawable.ic_tg_heart
-        val tapIntent = HomeWidgetBackgroundIntent.getBroadcast(
+        // Тап идёт в собственный onReceive, а не сразу в Dart: сначала мгновенно
+        // меняем состояние виджета, потом уже сеть.
+        val tapIntent = PendingIntent.getBroadcast(
             context,
-            Uri.parse("loveapp://miss?group=$g"),
+            widgetId,
+            Intent(context, javaClass).apply {
+                action = ACTION_TAP
+                putExtra(EXTRA_GROUP, g)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+
+        // Та же вилка высот, что и у «Вместе»: на просторной ячейке кегли
+        // растягиваются, на тесной остаются компактными.
+        val baseDp = if (layout == R.layout.tg_miss_4x1) 56 else 115
+        val scale = WidgetSizing.scale(minHeight, baseDp)
 
         val views = RemoteViews(context.packageName, layout).apply {
             setImageViewResource(R.id.state_icon, stateIcon)
 
             when (layout) {
                 R.layout.tg_miss_2x2 -> {
+                    setTextViewTextSize(
+                        R.id.title, TypedValue.COMPLEX_UNIT_DIP, 24f * scale)
                     setTextViewText(
                         R.id.partner_name,
                         if (partnerName.isEmpty()) "Партнёру" else dativeName(partnerName),
@@ -97,6 +170,10 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                 R.layout.tg_miss_4x2 -> {
                     setTextViewText(R.id.my_count, myCount.toString())
                     setTextViewText(R.id.partner_count, partnerCount.toString())
+                    setTextViewTextSize(
+                        R.id.my_count, TypedValue.COMPLEX_UNIT_DIP, 28f * scale)
+                    setTextViewTextSize(
+                        R.id.partner_count, TypedValue.COMPLEX_UNIT_DIP, 28f * scale)
                     setTextViewText(
                         R.id.partner_label,
                         partnerName.ifEmpty { "Партнёр" },
@@ -145,6 +222,12 @@ open class MissWidgetProvider : HomeWidgetProvider() {
             n.endsWith("й", true) -> n.dropLast(1) + "ю"
             else -> n + "у"
         }
+    }
+
+    companion object {
+        /** Тап по кнопке «Скучаю». Ловится в onReceive этого же провайдера. */
+        const val ACTION_TAP = "com.togetherly.love.action.MISS_TAP"
+        const val EXTRA_GROUP = "group"
     }
 }
 
