@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Описания виджетов нового каталога (Android 12+ показывает их в списке) -->
+    <string name="tg_desc_together_2x2">Дни вместе и аватары пары</string>
+    <string name="tg_desc_together_4x2">Дни вместе и прогресс до круглой даты</string>
+    <string name="tg_desc_together_4x4">Дни вместе и ближайшие даты пары</string>
+    <string name="tg_desc_miss_2x2">Отправить «скучаю» одним тапом</string>
+    <string name="tg_desc_miss_4x2">Счётчики «скучаю» обоих и кнопка</string>
+    <string name="tg_desc_miss_4x1">Полоска: отправить «скучаю»</string>
+</resources>
