@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Скучаю» 4×1 — полоска высотой 92. Фон primary #6750A4, радиус 28,
+  горизонтальные отступы 20. Слева аватар 44dp #D0BCFF с инициалом,
+  дальше заголовок 16/700 и подпись 13/500 #D0BCFF, справа иконка 26dp #FFD8E4.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/tg_bg_primary_28"
+    android:paddingLeft="20dp"
+    android:paddingRight="20dp">
+
+    <TextView
+        android:id="@+id/avatar"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/tg_avatar_44"
+        android:gravity="center"
+        android:textColor="#21005D"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:text="?" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:text="Скучаю" />
+
+        <TextView
+            android:id="@+id/subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#D0BCFF"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:text="один тап — и он узнает" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/state_icon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:src="@drawable/ic_tg_heart"
+        android:contentDescription="@null" />
+</LinearLayout>

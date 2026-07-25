@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
+import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
@@ -111,6 +112,8 @@ class _WidgetScreenState extends State<WidgetScreen>
   int? _memoriesCount;
   int? _drawingsCount;
   int? _missYouCount;
+  /// uid → сколько раз скучал. Виджету «Скучаю» нужны оба числа по отдельности.
+  Map<String, int> _missCounts = const {};
   StreamSubscription? _missYouSub;
   Timer? _loadPhotoDayDebounce;
 
@@ -277,9 +280,11 @@ class _WidgetScreenState extends State<WidgetScreen>
     // Live-счётчик «Я скучаю» (сумма по паре) из PB — чтения бесплатны.
     _missYouSub = MissYouRepository().watchCounts(groupId).listen((counts) {
       if (mounted) {
-        setState(
-          () => _missYouCount = counts.values.fold<int>(0, (s, v) => s + v),
-        );
+        setState(() {
+          _missCounts = counts;
+          _missYouCount = counts.values.fold<int>(0, (s, v) => s + v);
+        });
+        unawaited(_syncMissWidget());
       }
     });
   }
@@ -1020,6 +1025,39 @@ class _WidgetScreenState extends State<WidgetScreen>
           startDate: startLabel,
           myGender: widget.userData.gender?.name ?? '',
           partnerGender: _ws.firstPartnerData?.gender ?? '',
+        );
+        break;
+      case 'miss':
+        await _syncMissWidget();
+        break;
+      case 'together':
+        // Дни — из активного таймера, как и у остальных счётчиков.
+        final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
+        final start = timer?.startDate ?? _pair.startDate;
+        final days = timer != null
+            ? timer.daysElapsed.abs()
+            : (start != null ? DateTime.now().difference(start).inDays : 0);
+        const months = [
+          'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+          'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+        ];
+        final startLabel = start == null
+            ? ''
+            : 'С ${start.day} ${months[start.month - 1]} ${start.year}';
+        final myName = widget.userData.displayName.trim();
+        final partnerName = _pair.partnerDisplayName.trim();
+        final anniversary = start == null
+            ? ''
+            : '${start.day} ${months[start.month - 1]}';
+        await hws.syncTogether(
+          groupId: _pair.pairId,
+          days: days,
+          startDate: startLabel,
+          myInitial: myName.isEmpty ? '' : myName.characters.first.toUpperCase(),
+          partnerInitial:
+              partnerName.isEmpty ? '' : partnerName.characters.first.toUpperCase(),
+          names: [myName, partnerName].where((n) => n.isNotEmpty).join(' + '),
+          anniversary: anniversary,
         );
         break;
       case 'timer':
@@ -1815,7 +1853,277 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
   /// все размеры, состояния и данные — и только потом берётся следующий.
   List<Widget> _newWidgetItems(bool isPaired) {
-    return const [];
+    if (!isPaired) return const [];
+    return [
+      _buildGalleryItem(
+        title: LocaleService.current.tgTogetherTitle,
+        subtitle: LocaleService.current.tgTogetherSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.TogetherWidgetProvider',
+        widgetType: 'together',
+        preview: _buildTogetherPreview(),
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: LocaleService.current.tgMissTitle,
+        subtitle: LocaleService.current.tgMissSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.MissWidgetProvider',
+        widgetType: 'miss',
+        preview: _buildMissPreview(),
+      ),
+    ];
+  }
+
+  /// Отдаём виджету «Скучаю» свежие счётчики обоих.
+  Future<void> _syncMissWidget() async {
+    final partnerName = _pair.partnerDisplayName.trim();
+    await HomeWidgetService.instance.syncMiss(
+      groupId: _pair.pairId,
+      myCount: _missCounts[widget.userData.uid] ?? 0,
+      partnerCount: _missCounts[_pair.partnerUid] ?? 0,
+      partnerName: partnerName,
+      partnerInitial:
+          partnerName.isEmpty ? '' : partnerName.characters.first.toUpperCase(),
+    );
+  }
+
+  /// Превью виджета «Скучаю» — размер 4×2 из хендофа: surface #FEF7FF,
+  /// счётчики обоих на тональных плашках и кнопка отправки 64×64.
+  Widget _buildMissPreview() {
+    final partnerName = _pair.partnerDisplayName.trim();
+    final myCount = _missCounts[widget.userData.uid] ?? 0;
+    final partnerCount = _missCounts[_pair.partnerUid] ?? 0;
+
+    Widget tile({
+      required String label,
+      required int value,
+      required Color bg,
+      required Color labelColor,
+      required Color valueColor,
+    }) =>
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: labelColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    fontSize: 34,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    color: valueColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF7FF),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'СКУЧАЮ СЕГОДНЯ',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                color: Color(0xFF1D1B20),
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                tile(
+                  label: 'Я',
+                  value: myCount,
+                  bg: const Color(0xFFEADDFF),
+                  labelColor: const Color(0xFF4F378B),
+                  valueColor: const Color(0xFF21005D),
+                ),
+                const SizedBox(width: 14),
+                tile(
+                  label: partnerName.isEmpty ? 'Партнёр' : partnerName,
+                  value: partnerCount,
+                  bg: const Color(0xFFFFD8E4),
+                  labelColor: const Color(0xFF7D5260),
+                  valueColor: const Color(0xFF31111D),
+                ),
+                const SizedBox(width: 14),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6750A4),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: const Icon(Icons.favorite_rounded,
+                      size: 30, color: Colors.white),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью виджета «Вместе» — размер 4×2 из хендофа: контейнер #EADDFF,
+  /// радиус 32, число 60/800, трек прогресса до ближайшей круглой даты.
+  /// Дни берём из активного таймера, как и сам виджет.
+  Widget _buildTogetherPreview() {
+    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
+    final start = timer?.startDate ?? _pair.startDate;
+    final days = timer != null
+        ? timer.daysElapsed.abs()
+        : (start != null ? DateTime.now().difference(start).inDays : 0);
+
+    // Ближайшая круглая дата: сотня дней или годовщина — что раньше.
+    final nextHundred = ((days ~/ 100) + 1) * 100;
+    final nextYear = ((days ~/ 365) + 1) * 365;
+    final target = nextHundred <= nextYear ? nextHundred : nextYear;
+    final prev = nextHundred <= nextYear ? target - 100 : target - 365;
+    final span = (target - prev).clamp(1, 100000);
+    final percent = (((days - prev) / span) * 100).round().clamp(0, 100);
+    final left = target - days;
+
+    const months = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+    ];
+    final startLabel = start == null
+        ? ''
+        : 'С ${start.day} ${months[start.month - 1]} ${start.year}';
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEADDFF),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        startLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4F378B),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '$days',
+                            style: const TextStyle(
+                              fontSize: 60,
+                              height: 1.05,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -2.4,
+                              color: Color(0xFF21005D),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'дней',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF21005D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.favorite_rounded,
+                    size: 26, color: Color(0xFF6750A4)),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'До $target — $left дней',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4F378B),
+                    ),
+                  ),
+                ),
+                Text(
+                  '$percent%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4F378B),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(100),
+              child: LinearProgressIndicator(
+                value: percent / 100,
+                minHeight: 12,
+                backgroundColor: const Color(0xFFD6C6F0),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF6750A4)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Нынешние виджеты рабочего стола — тем же составом, что и раньше, но

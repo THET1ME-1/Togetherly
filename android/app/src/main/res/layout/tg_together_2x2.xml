@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Вместе», размер 2×2. Значения из хендофа: фон primary #6750A4,
+  радиус 32, внутренние отступы 18. Сверху стек двух аватаров 34dp (второй
+  наезжает на 10dp), снизу число 54/800 и подпись 15/600 цветом #E9DDFF.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/tg_bg_primary_32"
+    android:padding="18dp">
+
+    <!-- Аватары пары -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="34dp">
+
+        <TextView
+            android:id="@+id/avatar_me"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/tg_avatar_primary"
+            android:gravity="center"
+            android:textColor="#21005D"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:text="А" />
+
+        <TextView
+            android:id="@+id/avatar_partner"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="24dp"
+            android:background="@drawable/tg_avatar_tertiary"
+            android:gravity="center"
+            android:textColor="#31111D"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:text="М" />
+    </FrameLayout>
+
+    <!-- Отжимаем счётчик к низу: в макете space-between -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/days_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="54sp"
+        android:textStyle="bold"
+        android:letterSpacing="-0.04"
+        android:includeFontPadding="false"
+        android:text="205" />
+
+    <TextView
+        android:id="@+id/days_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#E9DDFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:text="дней вместе" />
+</LinearLayout>

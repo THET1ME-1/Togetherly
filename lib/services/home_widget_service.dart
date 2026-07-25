@@ -987,6 +987,112 @@ class HomeWidgetService {
 
   /// Синхронизирует Timer-виджет И Days Counter одним вызовом.
   /// Вызывается из TimerService._syncWidgetTimer, чтобы оба виджета
+  /// Данные виджета «Вместе» (новый каталог).
+  ///
+  /// Дни берём из АКТИВНОГО таймера — того же, что показывает круг на главной,
+  /// а не от даты регистрации пары в приложении.
+  Future<void> syncTogether({
+    required String groupId,
+    required int days,
+    required String startDate,
+    String myInitial = '',
+    String partnerInitial = '',
+    String names = '',
+    String anniversary = '',
+  }) async {
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>('together_${g}_days', '$days');
+      await HomeWidget.saveWidgetData<String>('together_${g}_start_date', startDate);
+      if (myInitial.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>('together_${g}_my_initial', myInitial);
+        _cachedMyInitial = myInitial;
+      }
+      if (partnerInitial.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>(
+            'together_${g}_partner_initial', partnerInitial);
+        _cachedPartnerInitial = partnerInitial;
+      }
+      if (names.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>('together_${g}_names', names);
+        _cachedCoupleNames = names;
+      }
+      if (anniversary.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>(
+            'together_${g}_anniversary', anniversary);
+      }
+      await HomeWidget.saveWidgetData<String>('together_latest_group', g);
+      await HomeWidget.updateWidget(
+        name: 'TogetherWidgetProvider',
+        androidName: 'TogetherWidgetProvider',
+        qualifiedAndroidName: 'com.togetherly.love.TogetherWidgetProvider',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncTogether failed: $e');
+    }
+  }
+
+  /// Данные виджета «Скучаю» (новый каталог).
+  Future<void> syncMiss({
+    required String groupId,
+    required int myCount,
+    required int partnerCount,
+    String partnerName = '',
+    String partnerInitial = '',
+    String lastTime = '',
+    bool sentToday = false,
+  }) async {
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>('miss_${g}_my_count', '$myCount');
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${g}_partner_count', '$partnerCount');
+      await HomeWidget.saveWidgetData<String>('miss_${g}_partner_name', partnerName);
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${g}_partner_initial', partnerInitial);
+      await HomeWidget.saveWidgetData<String>('miss_${g}_last_time', lastTime);
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${g}_sent_today', sentToday ? '1' : '0');
+      await HomeWidget.saveWidgetData<String>('miss_latest_group', g);
+      await HomeWidget.updateWidget(
+        name: 'MissWidgetProvider',
+        androidName: 'MissWidgetProvider',
+        qualifiedAndroidName: 'com.togetherly.love.MissWidgetProvider',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncMiss failed: $e');
+    }
+  }
+
+  /// Отметка после отправки прямо с рабочего стола: свой счётчик +1, состояние
+  /// «отправлено» и время. Приложение при этом может быть закрыто, поэтому
+  /// читаем прежние значения из данных виджета.
+  Future<void> markMissSentFromWidget(String groupId) async {
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      final prev =
+          await HomeWidget.getWidgetData<String>('miss_${g}_my_count') ?? '0';
+      final next = (int.tryParse(prev) ?? 0) + 1;
+      final now = DateTime.now();
+      final hh = now.hour.toString().padLeft(2, '0');
+      final mm = now.minute.toString().padLeft(2, '0');
+      await HomeWidget.saveWidgetData<String>('miss_${g}_my_count', '$next');
+      await HomeWidget.saveWidgetData<String>('miss_${g}_sent_today', '1');
+      await HomeWidget.saveWidgetData<String>('miss_${g}_last_time', '$hh:$mm');
+      await HomeWidget.updateWidget(
+        name: 'MissWidgetProvider',
+        androidName: 'MissWidgetProvider',
+        qualifiedAndroidName: 'com.togetherly.love.MissWidgetProvider',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.markMissSentFromWidget failed: $e');
+    }
+  }
+
+  String _cachedMyInitial = '';
+  String _cachedPartnerInitial = '';
+  String _cachedCoupleNames = '';
+
   /// всегда обновлялись вместе при любом изменении активного таймера.
   Future<void> syncTimerAndDays(TimerItem timer, {required String groupId}) async {
     await syncTimer(timer, groupId: groupId);
@@ -1006,6 +1112,16 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', _cachedMyGender);
       await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', _cachedPartnerGender);
       await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
+      // «Вместе» из нового каталога считает дни от того же активного таймера,
+      // а не от даты, когда пара сошлась в приложении.
+      unawaited(syncTogether(
+        groupId: groupId,
+        days: timer.daysElapsed.abs(),
+        startDate: 'С ${_formatDateLong(timer.startDate)}',
+        myInitial: _cachedMyInitial,
+        partnerInitial: _cachedPartnerInitial,
+        names: _cachedCoupleNames,
+      ));
       await HomeWidget.updateWidget(
         name: 'DaysCounterWidgetProvider',
         androidName: 'DaysCounterWidgetProvider',
@@ -2084,6 +2200,15 @@ class HomeWidgetService {
       ),
     );
     await syncTimer(timer, groupId: groupId, isRomantic: isRomantic, themeIndex: themeIndex);
+  }
+
+  /// «1 ноября 2025» — как в хендофе виджета «Вместе».
+  String _formatDateLong(DateTime d) {
+    const months = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
   String _formatDate(DateTime d) =>

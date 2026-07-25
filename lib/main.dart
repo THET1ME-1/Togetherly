@@ -31,6 +31,7 @@ import 'services/pocketbase_service.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
 import 'services/home_widget_service.dart';
+import 'services/miss_you_repository.dart';
 import 'services/widget_background_refresh_service.dart';
 import 'services/offline/local_store.dart';
 import 'services/offline/connectivity_service.dart';
@@ -123,7 +124,29 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
   if (!Platform.isAndroid || uri == null) return;
 
   final host = uri.host.trim().toLowerCase();
-  if (host.isEmpty || host != 'refresh') return;
+  if (host.isEmpty) return;
+
+  // Тап по виджету «Скучаю»: отправляем реакцию партнёру, не открывая
+  // приложение. Виджет уже показал «Отправлено» — здесь только запись на
+  // сервер и обновление счётчиков.
+  if (host == 'miss') {
+    try {
+      await PocketBaseService().init();
+      final uid = PocketBaseService().userId ?? '';
+      if (uid.isEmpty) return;
+      final groupId = uri.queryParameters['group']?.trim() ??
+          await HomeWidget.getWidgetData<String>('miss_latest_group') ??
+          '';
+      if (groupId.isEmpty || groupId == 'solo') return;
+      await MissYouRepository().sendMissYou(groupId);
+      await HomeWidgetService.instance.markMissSentFromWidget(groupId);
+    } catch (e) {
+      debugPrint('miss from widget failed: $e');
+    }
+    return;
+  }
+
+  if (host != 'refresh') return;
 
   try {
     // PB-фон: процесс мёртв → инициализируем клиент и восстанавливаем сессию

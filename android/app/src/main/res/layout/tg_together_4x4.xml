@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Вместе», размер 4×4. Фон surface #FEF7FF, радиус 36, отступы 24,
+  внутренние промежутки 18. Шапка с именами 14/800 #49454F и сердцем; блок
+  primary радиус 28 с числом 72/800 и месяцами справа; секция «ДАЛЬШЕ» с двумя
+  строками — ближайшая круглая дата (#F3EDF7) и годовщина (#FFD8E4).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/tg_bg_surface_36"
+    android:padding="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/couple_names"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#49454F"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="АНЯ + МИША" />
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_heart_timer"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <!-- Крупный счётчик -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal"
+        android:gravity="bottom"
+        android:background="@drawable/tg_block_primary_28"
+        android:padding="22dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/days_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="72sp"
+                android:textStyle="bold"
+                android:letterSpacing="-0.045"
+                android:includeFontPadding="false"
+                android:text="205" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#E9DDFF"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text="дней вместе" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:id="@+id/months_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text="6" />
+
+            <TextView
+                android:id="@+id/months_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="#D0BCFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text="месяцев" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:textColor="#7A757F"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.06"
+        android:includeFontPadding="false"
+        android:text="ДАЛЬШЕ" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/tg_row_surface_20"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/next_round_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#1D1B20"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:text="300 дней" />
+
+        <TextView
+            android:id="@+id/next_round_when"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#49454F"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:text="через 95 дней" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/tg_row_tertiary_20"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/anniversary_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#31111D"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:text="1 год" />
+
+        <TextView
+            android:id="@+id/anniversary_when"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#31111D"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:text="1 ноября" />
+    </LinearLayout>
+</LinearLayout>

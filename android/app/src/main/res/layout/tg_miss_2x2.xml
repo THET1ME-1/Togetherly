@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Скучаю» 2×2 — интерактивный. Фон tertiary-container #FFD8E4, радиус 32,
+  отступы 18. Сверху имя партнёра 13/700 и иконка состояния 20dp #7D5260,
+  снизу заголовок 26/800 и пилюля #7D5260 с белым текстом 13/700.
+  Тап по карточке отправляет «скучаю».
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/tg_bg_tertiary_32"
+    android:padding="18dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/partner_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#31111D"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:text="Партнёру" />
+
+        <ImageView
+            android:id="@+id/state_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_tg_heart"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#31111D"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:letterSpacing="-0.02"
+        android:includeFontPadding="false"
+        android:text="Скучаю" />
+
+    <TextView
+        android:id="@+id/cta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/tg_pill_tertiary"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:text="Отправить" />
+</LinearLayout>

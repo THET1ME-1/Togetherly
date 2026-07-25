@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Трек прогресса виджета «Вместе»: подложка #D6C6F0 и заливка #6750A4, обе со
+  скруглением 100 (как в хендофе). RemoteViews умеет менять только progress у
+  ProgressBar, поэтому вес через LinearLayout тут не подходит.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="#D6C6F0" />
+            <corners android:radius="100dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <solid android:color="#6750A4" />
+                <corners android:radius="100dp" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

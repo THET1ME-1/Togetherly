@@ -1053,6 +1053,11 @@ abstract class AppStrings {
   String get widgetsCurrentSubtitle;
   String get widgetsNewSection;
   String get widgetsNewSubtitle;
+  /// Виджет «Вместе» из нового каталога.
+  String get tgTogetherTitle;
+  String get tgTogetherSubtitle;
+  String get tgMissTitle;
+  String get tgMissSubtitle;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3472,6 +3477,14 @@ class _RuStrings extends AppStrings {
   String get widgetsNewSection => 'Новые виджеты';
   @override
   String get widgetsNewSubtitle => 'Material 3, несколько размеров';
+  @override
+  String get tgTogetherTitle => 'Вместе';
+  @override
+  String get tgTogetherSubtitle => 'Дни вместе и ближайшая круглая дата';
+  @override
+  String get tgMissTitle => 'Скучаю';
+  @override
+  String get tgMissSubtitle => 'Тап с рабочего стола — партнёр сразу узнает';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6285,6 +6298,14 @@ class _EnStrings extends AppStrings {
   String get widgetsNewSection => 'New widgets';
   @override
   String get widgetsNewSubtitle => 'Material 3, several sizes';
+  @override
+  String get tgTogetherTitle => 'Together';
+  @override
+  String get tgTogetherSubtitle => 'Days together and the next milestone';
+  @override
+  String get tgMissTitle => 'Miss you';
+  @override
+  String get tgMissSubtitle => 'One tap from the home screen';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

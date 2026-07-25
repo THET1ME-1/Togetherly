@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Кнопка-пилюля «Отправить»: tertiary #7D5260. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#7D5260" />
+    <corners android:radius="100dp" />
+</shape>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Второй аватар #FFD8E4 с той же обводкой. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FFD8E4" />
+    <stroke android:width="2dp" android:color="#6750A4" />
+</shape>

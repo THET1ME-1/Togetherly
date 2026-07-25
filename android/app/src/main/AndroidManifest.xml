@@ -348,6 +348,30 @@
         </receiver>
 
         <!-- ═══ Виджет: Счётчик дней вместе ═══ -->
+        <!-- Новый каталог: «Вместе» (счётчик дней + ближайшая круглая дата) -->
+        <receiver android:name=".TogetherWidgetProvider"
+            android:exported="true"
+            android:label="Вместе">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_together_widget_info" />
+        </receiver>
+
+        <!-- Новый каталог: «Скучаю» (тап отправляет реакцию партнёру) -->
+        <receiver android:name=".MissWidgetProvider"
+            android:exported="true"
+            android:label="Скучаю">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_miss_widget_info" />
+        </receiver>
+
         <receiver android:name=".DaysCounterWidgetProvider"
             android:exported="true"
             android:label="Дни вместе">

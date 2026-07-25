@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «Скучаю» 4×2: surface #FEF7FF, радиус 32. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FEF7FF" />
+    <corners android:radius="32dp" />
+</shape>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Виджет «Вместе» 2×2: primary #6750A4, радиус 32 (из хендофа). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#6750A4" />
+    <corners android:radius="32dp" />
+</shape>

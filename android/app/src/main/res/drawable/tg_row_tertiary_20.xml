@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Строка годовщины: tertiary-container #FFD8E4, радиус 20. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFD8E4" />
+    <corners android:radius="20dp" />
+</shape>
