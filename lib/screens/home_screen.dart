@@ -63,6 +63,7 @@ import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
+import '../services/cycle_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
@@ -453,6 +454,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Bind mood service to group for Firestore sync
         _moodService.bindToGroup(_pairData.pairId);
+
+        // Календарь цикла: раздел показывается только женскому полу, но
+        // привязку делаем всегда — партнёрские отметки нужны и мужчине,
+        // когда она разрешила их видеть.
+        unawaited(CycleService.instance.bind(
+          groupId: _pairData.pairId,
+          partnerUid: _pairData.partnerUid,
+        ));
 
         // Bind widget service to group for Firestore sync
         await _widgetService.bindToGroup(_pairData.pairId);

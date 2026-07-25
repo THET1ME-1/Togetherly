@@ -1032,6 +1032,96 @@ class PbDataService {
     }
   }
 
+  // ══════════════════════════════════════════════ CYCLE
+
+  /// Отметки календаря цикла. Свои — всегда, партнёрские — только те, что
+  /// разрешено показывать: остальные не отдаст само правило чтения коллекции.
+  Future<List<RecordModel>> loadCycle(String groupId, String uid) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('cycle_entries').getFullList(
+            filter: _pb.filter('group_id = {:g} && user_uid = {:u}',
+                {'g': groupId, 'u': uid}),
+            sort: 'day',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadCycle($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  Future<bool> upsertCycle(
+    String groupId,
+    String uid,
+    Map<String, dynamic> entry,
+  ) async {
+    final id = entry['id'] as String?;
+    if (id == null || id.isEmpty) return false;
+    return _upsertById('cycle_entries', id, {
+      'group_id': groupId,
+      'user_uid': uid,
+      'day': _iso(entry['day']) ?? DateTime.now().toIso8601String(),
+      'kind': entry['kind'],
+      'flow': entry['flow'],
+      'shared': entry['shared'] ?? false,
+    }, op: 'upsertCycle');
+  }
+
+  Future<bool> deleteCycle(String entryId) async {
+    if (entryId.isEmpty) return false;
+    try {
+      await _pb.collection('cycle_entries').delete(entryId);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteCycle($entryId) failed: $e');
+      return false;
+    }
+  }
+
+  /// Переключает видимость СРАЗУ У ВСЕХ своих отметок.
+  ///
+  /// Видимость — это поле каждой записи, а не флажок в профиле: правило чтения
+  /// смотрит именно на него, поэтому выключенный доступ закрывает данные на
+  /// сервере. Значит при переключении тумблера надо пройтись по всем записям.
+  Future<bool> setCycleShared(String groupId, String uid, bool shared) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    try {
+      final recs = await _pb.collection('cycle_entries').getFullList(
+            filter: _pb.filter('group_id = {:g} && user_uid = {:u}',
+                {'g': groupId, 'u': uid}),
+          );
+      for (final rec in recs) {
+        if (rec.getBoolValue('shared') == shared) continue;
+        await _pb
+            .collection('cycle_entries')
+            .update(rec.id, body: {'shared': shared});
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PbData.setCycleShared($groupId) failed: $e');
+      return false;
+    }
+  }
+
+  /// Стирает все свои отметки цикла — по кнопке «удалить данные».
+  Future<bool> wipeCycle(String groupId, String uid) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    try {
+      final recs = await _pb.collection('cycle_entries').getFullList(
+            filter: _pb.filter('group_id = {:g} && user_uid = {:u}',
+                {'g': groupId, 'u': uid}),
+          );
+      for (final rec in recs) {
+        await _pb.collection('cycle_entries').delete(rec.id);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PbData.wipeCycle($groupId) failed: $e');
+      return false;
+    }
+  }
+
   // ══════════════════════════════════════════════ TIMERS
   // Групповые таймеры живут json-массивом в колонке `groups.timers`; соло —
   // в `users.solo_timers`. Гранулярные правки — RMW массива (PB без транзакций;

@@ -34,6 +34,11 @@ class SettingsScreen extends StatelessWidget {
     required this.sideActionIsArrow,
     required this.onToggleSideAction,
     this.appVersion = '',
+    this.cycleAvailable = false,
+    this.cycleShared = false,
+    this.onCycleOpen,
+    this.onCycleSharedChanged,
+    this.onCycleWipe,
   });
 
   final ColorScheme scheme;
@@ -58,6 +63,14 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onToggleSideAction;
 
   final String appVersion;
+
+  /// Раздел цикла показывается только при женском поле в профиле: у остальных
+  /// цикла не бывает, и пункт был бы шумом.
+  final bool cycleAvailable;
+  final bool cycleShared;
+  final VoidCallback? onCycleOpen;
+  final ValueChanged<bool>? onCycleSharedChanged;
+  final VoidCallback? onCycleWipe;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +159,40 @@ class SettingsScreen extends StatelessWidget {
                   onTap: onToggleSideAction,
                 ),
               ]),
+
+              if (cycleAvailable) ...[
+                SettingsSection(s.cycleTitle),
+                SettingsGroup([
+                  SettingsRow(
+                    icon: Icons.water_drop_rounded,
+                    title: s.cycleTitle,
+                    subtitle: s.cycleSettingsHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onCycleOpen,
+                  ),
+                  const SettingsDivider(),
+                  SettingsRow(
+                    icon: Icons.visibility_rounded,
+                    title: s.cycleShareWithPartner,
+                    subtitle: s.cycleShareHint,
+                    trailing: Switch(
+                      value: cycleShared,
+                      onChanged: onCycleSharedChanged,
+                    ),
+                    onTap: () => onCycleSharedChanged?.call(!cycleShared),
+                  ),
+                  const SettingsDivider(),
+                  SettingsRow(
+                    icon: Icons.delete_outline_rounded,
+                    title: s.cycleWipe,
+                    subtitle: s.cycleWipeHint,
+                    iconBg: scheme.errorContainer,
+                    iconFg: scheme.onErrorContainer,
+                    titleColor: scheme.error,
+                    onTap: onCycleWipe,
+                  ),
+                ]),
+              ],
 
               SettingsSection(s.settingsDataSection),
               SettingsGroup([

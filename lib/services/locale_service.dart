@@ -1106,6 +1106,49 @@ abstract class AppStrings {
   String get settingsSupportHint;
   String get settingsAccountSection;
   String get settingsDeleteHint;
+  /// Календарь цикла.
+  String get cycleTitle;
+  String get cycleSettingsHint;
+  String get cycleShareWithPartner;
+  String get cycleShareHint;
+  String get cycleWipe;
+  String get cycleWipeHint;
+  String get cycleWipeConfirm;
+  String get cycleNoDataTitle;
+  String get cycleNoDataHint;
+  String get cycleExpectedToday;
+  String cycleDaysLeft(int days);
+  String cycleDayOfCycle(int day);
+  String cycleOverdue(int days);
+  String get cycleOverdueHint;
+  String get cycleIrregularWarning;
+  String get cycleMarkPeriod;
+  String get cycleMarkPeriodHint;
+  String get cycleMarkIntimacy;
+  String get cycleMarkIntimacyHint;
+  String get cycleAnalyticsTitle;
+  String cycleAnalyticsHint(int cycles);
+  String get cycleAverageLength;
+  String get cycleAveragePeriod;
+  String get cycleNextPeriod;
+  String get cycleFertileWindow;
+  String cycleDaysValue(int days);
+  String get cycleDaysUnit;
+  String get cycleAverageShort;
+  String get cycleRangeShort;
+  String get cycleRegularity;
+  String get cycleRegularityOk;
+  String get cycleRegularityLow;
+  String get cycleChartLengths;
+  String get cycleChartDurations;
+  String get cycleLegendPeriod;
+  String get cycleLegendPredicted;
+  String get cycleLegendOvulation;
+  String get cycleLegendFertile;
+  String get cycleLegendIntimacy;
+  List<String> get cycleWeekdayShorts;
+  List<String> get cycleMonthNames;
+  List<String> get cycleMonthsGenitive;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3648,6 +3691,103 @@ class _RuStrings extends AppStrings {
   String get settingsAccountSection => 'Аккаунт';
   @override
   String get settingsDeleteHint => 'вместе со всеми записями, без возврата';
+  @override
+  String get cycleTitle => 'Цикл';
+  @override
+  String get cycleSettingsHint => 'календарь, прогноз и доступ партнёра';
+  @override
+  String get cycleShareWithPartner => 'Показывать партнёру';
+  @override
+  String get cycleShareHint => 'он увидит отметки и ожидаемые дни';
+  @override
+  String get cycleWipe => 'Удалить данные цикла';
+  @override
+  String get cycleWipeHint => 'все отметки и расчёты, без возврата';
+  @override
+  String get cycleWipeConfirm => 'Удалить все отметки цикла? Отменить нельзя.';
+  @override
+  String get cycleNoDataTitle => 'Отметьте первые дни';
+  @override
+  String get cycleNoDataHint =>
+      'Прогноз появится, когда наберутся два цикла подряд';
+  @override
+  String get cycleExpectedToday => 'Ожидаются сегодня';
+  @override
+  String cycleDaysLeft(int days) =>
+      'Через ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String cycleDayOfCycle(int day) => '$day-й день цикла';
+  @override
+  String cycleOverdue(int days) =>
+      'Задержка ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String get cycleOverdueHint => 'Отметьте, когда начнутся, — прогноз обновится';
+  @override
+  String get cycleIrregularWarning =>
+      'Цикл нерегулярный, прогноз приблизительный';
+  @override
+  String get cycleMarkPeriod => 'Месячные';
+  @override
+  String get cycleMarkPeriodHint => 'этот день войдёт в расчёт цикла';
+  @override
+  String get cycleMarkIntimacy => 'Близость';
+  @override
+  String get cycleMarkIntimacyHint => 'видно обоим, на прогноз не влияет';
+  @override
+  String get cycleAnalyticsTitle => 'Статистика';
+  @override
+  String cycleAnalyticsHint(int cycles) =>
+      'по ${_ruPlural(cycles, 'последнему циклу', 'последним циклам', 'последним циклам')}';
+  @override
+  String get cycleAverageLength => 'Средняя длина цикла';
+  @override
+  String get cycleAveragePeriod => 'Средняя длительность';
+  @override
+  String get cycleNextPeriod => 'Следующие месячные';
+  @override
+  String get cycleFertileWindow => 'Фертильное окно';
+  @override
+  String cycleDaysValue(int days) =>
+      '$days ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String get cycleDaysUnit => 'дней';
+  @override
+  String get cycleAverageShort => 'В среднем';
+  @override
+  String get cycleRangeShort => 'Разброс';
+  @override
+  String get cycleRegularity => 'Регулярность';
+  @override
+  String get cycleRegularityOk => 'Ровный';
+  @override
+  String get cycleRegularityLow => 'Скачет';
+  @override
+  String get cycleChartLengths => 'Длина последних циклов';
+  @override
+  String get cycleChartDurations => 'Сколько длились месячные';
+  @override
+  String get cycleLegendPeriod => 'месячные';
+  @override
+  String get cycleLegendPredicted => 'ожидаются';
+  @override
+  String get cycleLegendOvulation => 'овуляция';
+  @override
+  String get cycleLegendFertile => 'фертильные дни';
+  @override
+  String get cycleLegendIntimacy => 'близость';
+  @override
+  List<String> get cycleWeekdayShorts =>
+      const ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+  @override
+  List<String> get cycleMonthNames => const [
+        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+      ];
+  @override
+  List<String> get cycleMonthsGenitive => const [
+        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+        'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+      ];
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6563,6 +6703,100 @@ class _EnStrings extends AppStrings {
   String get settingsAccountSection => 'Account';
   @override
   String get settingsDeleteHint => 'with every entry, no way back';
+  @override
+  String get cycleTitle => 'Cycle';
+  @override
+  String get cycleSettingsHint => 'calendar, forecast and partner access';
+  @override
+  String get cycleShareWithPartner => 'Show to partner';
+  @override
+  String get cycleShareHint => 'they will see marks and expected days';
+  @override
+  String get cycleWipe => 'Delete cycle data';
+  @override
+  String get cycleWipeHint => 'every mark and calculation, no way back';
+  @override
+  String get cycleWipeConfirm => 'Delete all cycle marks? This cannot be undone.';
+  @override
+  String get cycleNoDataTitle => 'Mark your first days';
+  @override
+  String get cycleNoDataHint => 'The forecast appears after two cycles in a row';
+  @override
+  String get cycleExpectedToday => 'Expected today';
+  @override
+  String cycleDaysLeft(int days) => 'In $days ${days == 1 ? 'day' : 'days'}';
+  @override
+  String cycleDayOfCycle(int day) => 'Day $day of the cycle';
+  @override
+  String cycleOverdue(int days) =>
+      '$days ${days == 1 ? 'day' : 'days'} late';
+  @override
+  String get cycleOverdueHint => 'Mark the start and the forecast will update';
+  @override
+  String get cycleIrregularWarning =>
+      'The cycle is irregular, the forecast is rough';
+  @override
+  String get cycleMarkPeriod => 'Period';
+  @override
+  String get cycleMarkPeriodHint => 'this day counts towards the cycle';
+  @override
+  String get cycleMarkIntimacy => 'Intimacy';
+  @override
+  String get cycleMarkIntimacyHint => 'visible to both, no effect on forecast';
+  @override
+  String get cycleAnalyticsTitle => 'Statistics';
+  @override
+  String cycleAnalyticsHint(int cycles) =>
+      'over the last $cycles ${cycles == 1 ? 'cycle' : 'cycles'}';
+  @override
+  String get cycleAverageLength => 'Average cycle length';
+  @override
+  String get cycleAveragePeriod => 'Average period length';
+  @override
+  String get cycleNextPeriod => 'Next period';
+  @override
+  String get cycleFertileWindow => 'Fertile window';
+  @override
+  String cycleDaysValue(int days) => '$days ${days == 1 ? 'day' : 'days'}';
+  @override
+  String get cycleDaysUnit => 'days';
+  @override
+  String get cycleAverageShort => 'Average';
+  @override
+  String get cycleRangeShort => 'Range';
+  @override
+  String get cycleRegularity => 'Regularity';
+  @override
+  String get cycleRegularityOk => 'Steady';
+  @override
+  String get cycleRegularityLow => 'Uneven';
+  @override
+  String get cycleChartLengths => 'Length of recent cycles';
+  @override
+  String get cycleChartDurations => 'How long periods lasted';
+  @override
+  String get cycleLegendPeriod => 'period';
+  @override
+  String get cycleLegendPredicted => 'expected';
+  @override
+  String get cycleLegendOvulation => 'ovulation';
+  @override
+  String get cycleLegendFertile => 'fertile days';
+  @override
+  String get cycleLegendIntimacy => 'intimacy';
+  @override
+  List<String> get cycleWeekdayShorts =>
+      const ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  @override
+  List<String> get cycleMonthNames => const [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ];
+  @override
+  List<String> get cycleMonthsGenitive => const [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

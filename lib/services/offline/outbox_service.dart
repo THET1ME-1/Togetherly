@@ -302,6 +302,15 @@ class OutboxService {
         return k('mood_entries', (p['entry'] as Map?)?['id']);
       case 'moodDelete':
         return k('mood_entries', p['id']);
+      case 'cycleUpsert':
+        return k('cycle_entries', (p['entry'] as Map?)?['id']);
+      case 'cycleDelete':
+        return k('cycle_entries', p['id']);
+      // Переключение видимости и стирание трогают все записи разом, поэтому
+      // делят один ключ с самими записями — иначе порядок разъедется.
+      case 'cycleShareAll':
+      case 'cycleWipe':
+        return k('cycle_entries', p['groupId']);
       case 'chatUpsert':
       case 'chatUpdate':
       case 'chatSetReaction':
@@ -559,6 +568,26 @@ class OutboxService {
         );
       case 'moodDelete':
         return data.deleteMood(p['id'] as String? ?? '');
+      // ── календарь цикла ──
+      case 'cycleUpsert':
+        return data.upsertCycle(
+          p['groupId'] as String? ?? '',
+          p['uid'] as String? ?? '',
+          Map<String, dynamic>.from(p['entry'] as Map? ?? const {}),
+        );
+      case 'cycleDelete':
+        return data.deleteCycle(p['id'] as String? ?? '');
+      case 'cycleShareAll':
+        return data.setCycleShared(
+          p['groupId'] as String? ?? '',
+          p['uid'] as String? ?? '',
+          (p['shared'] as bool?) ?? false,
+        );
+      case 'cycleWipe':
+        return data.wipeCycle(
+          p['groupId'] as String? ?? '',
+          p['uid'] as String? ?? '',
+        );
       // ── комментарии ──
       case 'commentUpsert':
         return data.upsertComment(

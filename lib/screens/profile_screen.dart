@@ -31,6 +31,8 @@ import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/settings_scaffold.dart';
+import '../services/cycle_service.dart';
+import 'cycle_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
@@ -1267,10 +1269,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await _toggleSideAction();
               setSheetState(() {});
             },
+            cycleAvailable: CycleService.availableFor(widget.userData),
+            cycleShared: CycleService.instance.shareWithPartner,
+            onCycleOpen: () => _openCycle(ctx),
+            onCycleSharedChanged: (v) async {
+              await CycleService.instance.setShareWithPartner(v);
+              setSheetState(() {});
+            },
+            onCycleWipe: () => _confirmCycleWipe(ctx, setSheetState),
           ),
         ),
       ),
     );
+  }
+
+  /// Календарь цикла. Раздел доступен только при женском поле в профиле.
+  void _openCycle(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CycleScreen(
+          scheme: _cs,
+          groupId: widget.pairData.pairId,
+          partnerName: widget.pairData.partnerDisplayName,
+        ),
+      ),
+    );
+  }
+
+  /// Стирание данных цикла: спрашиваем прежде, чем удалять, — вернуть нельзя.
+  Future<void> _confirmCycleWipe(
+    BuildContext context,
+    StateSetter refreshSheet,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(_s.cycleWipeConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: _cs.error),
+            child: Text(_s.delete),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await CycleService.instance.wipe();
+    refreshSheet(() {});
   }
 
   /// Оформление отдельным экраном — как в эталоне. Внутри та же карточка, что
