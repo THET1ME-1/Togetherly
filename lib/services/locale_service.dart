@@ -1048,6 +1048,11 @@ abstract class AppStrings {
   String get plainCanvasSubtitle;
   String get pixelCanvasSubtitle;
   /// Массовые действия в галерее холстов.
+  /// Секции каталога виджетов.
+  String get widgetsCurrentSection;
+  String get widgetsCurrentSubtitle;
+  String get widgetsNewSection;
+  String get widgetsNewSubtitle;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3459,6 +3464,14 @@ class _RuStrings extends AppStrings {
   String get plainCanvasSubtitle => 'Кисть, фигуры, фото';
   @override
   String get pixelCanvasSubtitle => 'Рисуем по клеткам, сетку выберете сами';
+  @override
+  String get widgetsCurrentSection => 'Что уже есть';
+  @override
+  String get widgetsCurrentSubtitle => 'Виджеты прежнего вида';
+  @override
+  String get widgetsNewSection => 'Новые виджеты';
+  @override
+  String get widgetsNewSubtitle => 'Material 3, несколько размеров';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6264,6 +6277,14 @@ class _EnStrings extends AppStrings {
   String get plainCanvasSubtitle => 'Brush, shapes, photos';
   @override
   String get pixelCanvasSubtitle => 'Cell by cell, you pick the grid';
+  @override
+  String get widgetsCurrentSection => 'Already there';
+  @override
+  String get widgetsCurrentSubtitle => 'Widgets in the old look';
+  @override
+  String get widgetsNewSection => 'New widgets';
+  @override
+  String get widgetsNewSubtitle => 'Material 3, several sizes';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

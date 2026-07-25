@@ -94,18 +94,28 @@ abstract final class ProfileTheme {
   }
 
   static TextTheme _expressiveText(TextTheme base) {
+    // Unbounded и Onest — вариативные (fvar), поэтому вес задаётся ещё и через
+    // fontVariations: без него Flutter рисует одно начертание, и «жирный»
+    // заголовок выглядит обычным.
     TextStyle display(TextStyle? s) => (s ?? const TextStyle()).copyWith(
         fontFamily: displayFont,
         fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
         letterSpacing: -0.5);
     TextStyle headline(TextStyle? s) => (s ?? const TextStyle()).copyWith(
         fontFamily: displayFont,
         fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
         letterSpacing: -0.3);
-    TextStyle title(TextStyle? s) => (s ?? const TextStyle())
-        .copyWith(fontFamily: displayFont, fontWeight: FontWeight.w600);
-    TextStyle body(TextStyle? s) =>
-        (s ?? const TextStyle()).copyWith(fontFamily: bodyFont);
+    TextStyle title(TextStyle? s) => (s ?? const TextStyle()).copyWith(
+        fontFamily: displayFont,
+        fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)]);
+    TextStyle body(TextStyle? s) => (s ?? const TextStyle()).copyWith(
+        fontFamily: bodyFont,
+        fontVariations: [
+          FontVariation('wght', (s?.fontWeight?.value ?? 400).toDouble()),
+        ]);
     return base.copyWith(
       displayLarge: display(base.displayLarge),
       displayMedium: display(base.displayMedium),

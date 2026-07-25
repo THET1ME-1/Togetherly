@@ -78,6 +78,7 @@ Widget sheetHeader(ColorScheme cs, String title, [String subtitle = '']) =>
             style: TextStyle(
                 fontFamily: 'Unbounded',
                 fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                 fontSize: 22,
                 color: cs.onSurface)),
         if (subtitle.isNotEmpty) ...[
@@ -86,6 +87,7 @@ Widget sheetHeader(ColorScheme cs, String title, [String subtitle = '']) =>
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                   fontSize: 14,
                   color: cs.onSurfaceVariant)),
         ],
@@ -134,6 +136,7 @@ Widget typeSheetOption({
                       style: TextStyle(
                           fontFamily: 'Onest',
                           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                           fontSize: 16,
                           color: selected
                               ? cs.onSecondaryContainer
@@ -144,6 +147,7 @@ Widget typeSheetOption({
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                           fontSize: 12.5,
                           color: cs.onSurfaceVariant)),
                 ],
@@ -268,6 +272,7 @@ void showRelationshipTypeSheet(
                             style: TextStyle(
                                 fontFamily: 'Onest',
                                 fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                                 fontSize: 15,
                                 color: cs.onPrimaryContainer)),
                       ],
@@ -366,6 +371,7 @@ void showAddCustomRelTypeSheet(
                       textStyle: const TextStyle(
                           fontFamily: 'Onest',
                           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                           fontSize: 16),
                     ),
                     onPressed: () async {

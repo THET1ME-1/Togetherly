@@ -401,6 +401,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         fontFamily: 'Onest',
         fontSize: 15,
         fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
         color: fg);
     final dot = Container(
         width: 8,
@@ -460,6 +461,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           style: TextStyle(
               fontFamily: 'Unbounded',
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               fontSize: 18,
               color: cs.primary)),
     );
@@ -691,6 +693,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                       fontFamily: 'Unbounded',
                       fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                       fontSize: 36,
                       height: 0.95,
                       letterSpacing: -1.5,
@@ -703,6 +706,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(
                   fontFamily: 'Onest',
                   fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)],
                   fontSize: 12,
                   height: 1.1,
                   color: fg)),
@@ -732,6 +736,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     style: TextStyle(
                         fontFamily: 'Unbounded',
                         fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                         fontSize: 44,
                         height: 1.0,
                         letterSpacing: -1.5,
@@ -769,6 +774,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                       fontFamily: 'Onest',
                       fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                       fontSize: 14,
                       color: fg)),
             ),
@@ -807,6 +813,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     style: TextStyle(
                         fontFamily: 'Unbounded',
                         fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                         fontSize: 15,
                         color: cs.onSurface))
                 : Row(
@@ -817,6 +824,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           style: TextStyle(
                               fontFamily: 'Unbounded',
                               fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                               fontSize: 23,
                               letterSpacing: -0.5,
                               color: cs.onSurface)),
@@ -829,6 +837,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             style: TextStyle(
                                 fontFamily: 'Onest',
                                 fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)],
                                 fontSize: 14,
                                 color: cs.onSurfaceVariant)),
                       ),
@@ -850,6 +859,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         style: TextStyle(
           fontFamily: 'Unbounded',
           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
           fontSize: 26,
           color: cs.onPrimary,
         ),
@@ -878,6 +888,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 fontFamily: 'Onest',
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                 letterSpacing: 2,
                 color: cs.onSurfaceVariant,
               ),
@@ -909,6 +920,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                                   fontFamily: 'Onest',
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                                   color: cs.onSurface,
                                 ),
                               ),
@@ -921,6 +933,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                             m.name,
                             style: TextStyle(
                               fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                               fontSize: 11.5,
                               color: cs.onSurfaceVariant,
                             ),
@@ -995,6 +1008,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 fontFamily: 'Onest',
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                 color: cs.onError,
               ),
             ),
@@ -1109,6 +1123,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               fontFamily: 'Onest',
               fontSize: 11,
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               letterSpacing: 2.4,
               color: cs.onPrimaryContainer.withValues(alpha: 0.66),
             ),
@@ -1142,6 +1157,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       fontFamily: 'Onest',
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                       color: cs.onPrimaryContainer,
                     ),
                   ),
@@ -1245,6 +1261,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 style: TextStyle(
                   fontFamily: 'Unbounded',
                   fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                   fontSize: 17,
                   color: cs.onSecondaryContainer,
                 ),
@@ -1331,6 +1348,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               style: TextStyle(
                 fontFamily: 'Onest',
                 fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                 fontSize: 15,
                 color: fg,
               ),
@@ -1375,6 +1393,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     style: TextStyle(
                       fontFamily: 'Onest',
                       fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                       fontSize: 15.5,
                       color: cs.onSurface,
                     ),
@@ -2311,6 +2330,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   fontFamily: 'Unbounded',
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                   color: cs.primary,
                   letterSpacing: 6,
                 ),
@@ -2343,6 +2363,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           textStyle: const TextStyle(
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                               fontSize: 15),
                         ),
                       ),
@@ -2361,6 +2382,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                           textStyle: const TextStyle(
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                               fontSize: 15),
                         ),
                         child: Text(s.done),
@@ -2606,6 +2628,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   style: TextStyle(
                       fontFamily: 'Unbounded',
                       fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                       fontSize: 23,
                       height: 1.15,
                       color: cs.onSurface),
@@ -2616,6 +2639,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                       fontSize: 15,
                       height: 1.42,
                       color: cs.onSurfaceVariant),
@@ -2631,7 +2655,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       textStyle: const TextStyle(
                           fontFamily: 'Onest',
                           fontSize: 16,
-                          fontWeight: FontWeight.w700),
+                          fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],),
                     ),
                     // Закрываем ДО сетевого removeConnection: после pop кнопки
                     // нет — двойной тап и лишний pop нижнего экрана невозможны.
@@ -2656,7 +2681,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                       textStyle: const TextStyle(
                           fontFamily: 'Onest',
                           fontSize: 16,
-                          fontWeight: FontWeight.w600),
+                          fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)],),
                     ),
                     onPressed: () => Navigator.of(sheetCtx).pop(),
                     child: Text(LocaleService.current.cancel),

@@ -284,6 +284,7 @@ class _PrimaryBtn extends StatelessWidget {
             fontFamily: 'Onest',
             fontSize: 17,
             fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
           ),
         ),
       ),

@@ -62,6 +62,7 @@ class _AuthFieldState extends State<AuthField> {
         fontFamily: 'Onest',
         fontSize: 15,
         fontWeight: FontWeight.w500,
+        fontVariations: const [FontVariation('wght', 500)],
         color: cs.onSurface,
       ),
       decoration: InputDecoration(
@@ -71,12 +72,14 @@ class _AuthFieldState extends State<AuthField> {
           fontFamily: 'Onest',
           fontSize: 13,
           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
           color: cs.onSurfaceVariant,
         ),
         floatingLabelStyle: TextStyle(
           fontFamily: 'Onest',
           fontSize: 13,
           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
           color: cs.primary,
         ),
         hintText: widget.hint,

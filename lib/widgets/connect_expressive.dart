@@ -76,6 +76,7 @@ class CookieAvatar extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Unbounded',
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               fontSize: size * 0.4,
               color: onColor,
             ),
@@ -315,6 +316,7 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
                   style: TextStyle(
                     fontFamily: 'Unbounded',
                     fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                     fontSize: fs,
                     height: 1.0,
                     color: widget.color,

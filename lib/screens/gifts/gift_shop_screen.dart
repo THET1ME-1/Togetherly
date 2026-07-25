@@ -192,6 +192,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                               fontFamily: 'Unbounded',
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                               letterSpacing: -0.3,
                               color: cs.onSurface)),
                     ),
@@ -273,6 +274,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           fontFamily: 'Unbounded',
           color: cs.onSurface,
           fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
           letterSpacing: -0.4,
           fontSize: 22,
         ),
@@ -425,6 +427,7 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Onest',
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               fontSize: 13.5,
               color:
                   selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
@@ -454,6 +457,7 @@ class _ShelfHeader extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Unbounded',
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               fontSize: 15,
               letterSpacing: -0.2,
               color: cs.onSurface,
@@ -467,6 +471,7 @@ class _ShelfHeader extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Onest',
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               fontSize: 12,
               color: cs.onSurfaceVariant,
             ),
@@ -659,6 +664,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
               style: TextStyle(
                 fontFamily: 'Unbounded',
                 fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)],
                 fontSize: 13.5,
                 letterSpacing: -0.2,
                 color: affordable ? cs.onSurface : cs.onSurfaceVariant,
@@ -678,6 +684,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
                     fontFamily: 'Onest',
                     color: affordable ? cs.primary : cs.onSurfaceVariant,
                     fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                     fontSize: 13.5,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -870,6 +877,7 @@ class _Badge extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'Onest',
           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
           fontSize: 10.5,
           color: cs.onSurfaceVariant,
         ),

@@ -87,6 +87,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   PairData get _pair => widget.pairData;
   AppStrings get _s => LocaleService.current;
 
+  /// Нынешние виджеты свёрнуты по умолчанию: сверху должен быть новый каталог.
+  bool _legacySectionExpanded = false;
+  bool _newSectionExpanded = true;
+
   // Скролл галереи + ключ карточки «Парный виджет» — чтобы прокрутить к ней
   // при открытии по тапу на виджет рабочего стола.
   final ScrollController _galleryScrollController = ScrollController();
@@ -1268,6 +1272,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               fontFamily: 'Unbounded',
               fontSize: 30,
               fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
               letterSpacing: -1,
               color: _cs.onSurface,
             ),
@@ -1289,6 +1294,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       fontFamily: 'Onest',
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                       color: _cs.primary,
                     ),
                   ),
@@ -1538,6 +1544,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
     ];
 
+    // Список нынешних виджетов собираем отдельно: он уезжает в сворачивающийся
+    // блок, чтобы новый каталог не тонул под ним.
+    final legacyItems = _legacyWidgetItems(isPaired, halfTiles);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1562,6 +1572,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   fontFamily: 'Unbounded',
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                   letterSpacing: -0.5,
                   color: _cs.onSurface,
                 ),
@@ -1570,147 +1581,32 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ),
 
-        // ── 1. Парный виджет ──
-        if (!isPaired) ...[_buildNotPairedBanner(), const SizedBox(height: 16)],
-
-        if (isPaired) ...[
-          KeyedSubtree(
-            key: _pairWidgetKey,
-            child: _buildGalleryItem(
-              title: LocaleService.current.pairWidgetTitle,
-              subtitle: LocaleService.current.pairWidgetSubtitle,
-              svgString: _heartSvg,
-              qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
-              preview: _buildWidgetPreview(),
-              widgetType: 'pair',
-              expandedContent: _buildPairWidgetExpandedContent(),
-              isExpanded: _pairWidgetExpanded,
-              onToggleExpand: () =>
-                  setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
-            ),
+        // ── Нынешние виджеты: сворачиваются, чтобы не заслонять новый каталог ──
+        _CollapsibleWidgetSection(
+          cs: _cs,
+          title: LocaleService.current.widgetsCurrentSection,
+          subtitle: LocaleService.current.widgetsCurrentSubtitle,
+          icon: Icons.widgets_rounded,
+          expanded: _legacySectionExpanded,
+          onToggle: () => setState(
+            () => _legacySectionExpanded = !_legacySectionExpanded,
           ),
-          const SizedBox(height: 16),
-
-          // ── Баннер 1 ──
-          _buildAdBanner('ad_banner_1'),
-          const SizedBox(height: 16),
-
-          // ── 2. Счётчик дней вместе ──
-          _buildGalleryItem(
-            title: LocaleService.current.daysTogetherStat,
-            subtitle: LocaleService.current.daysCounterSubtitle,
-            svgString: _calendarSvg,
-            qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
-            preview: _buildDaysCounterPreview(),
-            widgetType: 'days_counter',
-            expandedContent: _buildDaysPhotosCard(),
-            isExpanded: _daysCounterExpanded,
-            onToggleExpand: () =>
-                setState(() => _daysCounterExpanded = !_daysCounterExpanded),
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // ── Бенто: Огонёк + Таймер по два в ряд ──
-        _halfGrid(halfTiles),
-        if (halfTiles.isNotEmpty) const SizedBox(height: 16),
-
-        // ── Лепестковый таймер (настоящее превью + выбор) ──
-        _buildGalleryItem(
-          title: LocaleService.current.widgetPetalTimerTitle,
-          subtitle: LocaleService.current.widgetPetalTimerSubtitle,
-          svgString: _timerSvg,
-          qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
-          preview: _buildPetalTimerPreview(),
-          widgetType: 'petal_timer',
-          expandedContent: _buildTimerSelector(),
-          isExpanded: _petalTimerWidgetExpanded,
-          onToggleExpand: () => setState(
-            () => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded,
-          ),
+          children: legacyItems,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
-        if (isPaired) ...[
-          // ── Настроение (настоящее превью) ──
-          _buildGalleryItem(
-            title: LocaleService.current.mood,
-            subtitle: LocaleService.current.moodWidgetSubtitle,
-            svgString: _moodSvg,
-            qualifiedName: 'com.togetherly.love.MoodWidgetProvider',
-            preview: _buildMoodPreview(),
-            widgetType: 'mood',
+        // ── Новый каталог ──
+        _CollapsibleWidgetSection(
+          cs: _cs,
+          title: LocaleService.current.widgetsNewSection,
+          subtitle: LocaleService.current.widgetsNewSubtitle,
+          icon: Icons.auto_awesome_rounded,
+          expanded: _newSectionExpanded,
+          onToggle: () => setState(
+            () => _newSectionExpanded = !_newSectionExpanded,
           ),
-          const SizedBox(height: 16),
-          // ── Статистика отношений (настоящее превью) ──
-          _buildGalleryItem(
-            title: LocaleService.current.relationshipStats,
-            subtitle: LocaleService.current.relationshipStatsSubtitle,
-            svgString: _statsSvg,
-            qualifiedName:
-                'com.togetherly.love.RelationshipStatsWidgetProvider',
-            preview: _buildRelationshipStatsPreview(),
-            widgetType: 'relationship_stats',
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // ── 4. Фото-виджет (личный) ──
-        if (isPaired || _pair.isSolo) ...[
-          _buildGalleryItem(
-            title: LocaleService.current.widgetPhotoTitle,
-            subtitle: LocaleService.current.widgetPhotoSubtitle,
-            svgString: _photoSvg,
-            qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
-            widgetType: 'photo_day_self',
-            expandedContent: _buildPhotoDayExpandedContent(),
-            isExpanded: _photoDayExpanded,
-            onToggleExpand: () =>
-                setState(() => _photoDayExpanded = !_photoDayExpanded),
-          ),
-          const SizedBox(height: 16),
-
-          // ── 4б. Фото партнёра ──
-          if (isPaired) ...[
-            _buildGalleryItem(
-              title: LocaleService.current.widgetModePartner,
-              subtitle: LocaleService.current.photoDayPartnerSubtitle,
-              svgString: _photoSvg,
-              qualifiedName: 'com.togetherly.love.PartnerPhotoWidgetProvider',
-              widgetType: 'photo_day_partner',
-              expandedContent: _buildPartnerPhotoExpandedContent(),
-              isExpanded: _partnerPhotoExpanded,
-              onToggleExpand: () => setState(
-                () => _partnerPhotoExpanded = !_partnerPhotoExpanded,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ],
-
-        // ── Настроение на экране блокировки + Фото-сетка ──
-        if (isPaired) ...[
-          _buildLockScreenMoodCard(),
-          const SizedBox(height: 16),
-
-          // ── 5в. Фото-сетка ──
-          _buildGalleryItem(
-            title: LocaleService.current.photoGridWidget,
-            subtitle: LocaleService.current.photoGridWidgetSubtitle,
-            svgString: _photoSvg,
-            qualifiedName: 'com.togetherly.love.PhotoGridWidgetProvider',
-            preview: _buildPhotoGridPreview(),
-            widgetType: 'photo_grid',
-            expandedContent: _buildPhotoGridExpandedContent(),
-            isExpanded: _photoGridExpanded,
-            onToggleExpand: () =>
-                setState(() => _photoGridExpanded = !_photoGridExpanded),
-          ),
-          const SizedBox(height: 16),
-
-          // ── Баннер 2 ──
-          _buildAdBanner('ad_banner_2'),
-        ],
+          children: _newWidgetItems(isPaired),
+        ),
       ],
     );
   }
@@ -1778,6 +1674,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               fontFamily: 'Onest',
               fontSize: 14,
               fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
               height: 1.15,
               color: _cs.onSurface,
             ),
@@ -1797,6 +1694,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     fontFamily: 'Onest',
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                   ),
                 ),
                 style: FilledButton.styleFrom(
@@ -1863,6 +1761,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 fontFamily: 'Unbounded',
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                 color: Colors.white,
                 height: 1.05,
               ),
@@ -1871,6 +1770,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               LocaleService.current.daysInARow,
               style: TextStyle(
                 fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                 fontSize: 10,
                 color: Colors.white.withValues(alpha: 0.9),
               ),
@@ -1892,6 +1792,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 fontFamily: 'Onest',
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 600)],
                 color: Colors.white,
               ),
             ),
@@ -1908,6 +1809,162 @@ class _WidgetScreenState extends State<WidgetScreen>
       key: ValueKey(slot),
       adUnitId: kDebugMode ? '' : realId,
     );
+  }
+
+
+  /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
+  /// все размеры, состояния и данные — и только потом берётся следующий.
+  List<Widget> _newWidgetItems(bool isPaired) {
+    return const [];
+  }
+
+  /// Нынешние виджеты рабочего стола — тем же составом, что и раньше, но
+  /// собранные списком: секция сворачивает их целиком.
+  List<Widget> _legacyWidgetItems(bool isPaired, List<Widget> halfTiles) {
+    return [
+        // ── 1. Парный виджет ──
+      if (!isPaired) ...[_buildNotPairedBanner(), const SizedBox(height: 16)],
+
+      if (isPaired) ...[
+        KeyedSubtree(
+          key: _pairWidgetKey,
+          child: _buildGalleryItem(
+            title: LocaleService.current.pairWidgetTitle,
+            subtitle: LocaleService.current.pairWidgetSubtitle,
+            svgString: _heartSvg,
+            qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
+            preview: _buildWidgetPreview(),
+            widgetType: 'pair',
+            expandedContent: _buildPairWidgetExpandedContent(),
+            isExpanded: _pairWidgetExpanded,
+            onToggleExpand: () =>
+                setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Баннер 1 ──
+        _buildAdBanner('ad_banner_1'),
+        const SizedBox(height: 16),
+
+        // ── 2. Счётчик дней вместе ──
+        _buildGalleryItem(
+          title: LocaleService.current.daysTogetherStat,
+          subtitle: LocaleService.current.daysCounterSubtitle,
+          svgString: _calendarSvg,
+          qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
+          preview: _buildDaysCounterPreview(),
+          widgetType: 'days_counter',
+          expandedContent: _buildDaysPhotosCard(),
+          isExpanded: _daysCounterExpanded,
+          onToggleExpand: () =>
+              setState(() => _daysCounterExpanded = !_daysCounterExpanded),
+        ),
+        const SizedBox(height: 16),
+      ],
+
+      // ── Бенто: Огонёк + Таймер по два в ряд ──
+      _halfGrid(halfTiles),
+      if (halfTiles.isNotEmpty) const SizedBox(height: 16),
+
+      // ── Лепестковый таймер (настоящее превью + выбор) ──
+      _buildGalleryItem(
+        title: LocaleService.current.widgetPetalTimerTitle,
+        subtitle: LocaleService.current.widgetPetalTimerSubtitle,
+        svgString: _timerSvg,
+        qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
+        preview: _buildPetalTimerPreview(),
+        widgetType: 'petal_timer',
+        expandedContent: _buildTimerSelector(),
+        isExpanded: _petalTimerWidgetExpanded,
+        onToggleExpand: () => setState(
+          () => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded,
+        ),
+      ),
+      const SizedBox(height: 16),
+
+      if (isPaired) ...[
+        // ── Настроение (настоящее превью) ──
+        _buildGalleryItem(
+          title: LocaleService.current.mood,
+          subtitle: LocaleService.current.moodWidgetSubtitle,
+          svgString: _moodSvg,
+          qualifiedName: 'com.togetherly.love.MoodWidgetProvider',
+          preview: _buildMoodPreview(),
+          widgetType: 'mood',
+        ),
+        const SizedBox(height: 16),
+        // ── Статистика отношений (настоящее превью) ──
+        _buildGalleryItem(
+          title: LocaleService.current.relationshipStats,
+          subtitle: LocaleService.current.relationshipStatsSubtitle,
+          svgString: _statsSvg,
+          qualifiedName:
+              'com.togetherly.love.RelationshipStatsWidgetProvider',
+          preview: _buildRelationshipStatsPreview(),
+          widgetType: 'relationship_stats',
+        ),
+        const SizedBox(height: 16),
+      ],
+
+      // ── 4. Фото-виджет (личный) ──
+      if (isPaired || _pair.isSolo) ...[
+        _buildGalleryItem(
+          title: LocaleService.current.widgetPhotoTitle,
+          subtitle: LocaleService.current.widgetPhotoSubtitle,
+          svgString: _photoSvg,
+          qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
+          widgetType: 'photo_day_self',
+          expandedContent: _buildPhotoDayExpandedContent(),
+          isExpanded: _photoDayExpanded,
+          onToggleExpand: () =>
+              setState(() => _photoDayExpanded = !_photoDayExpanded),
+        ),
+        const SizedBox(height: 16),
+
+        // ── 4б. Фото партнёра ──
+        if (isPaired) ...[
+          _buildGalleryItem(
+            title: LocaleService.current.widgetModePartner,
+            subtitle: LocaleService.current.photoDayPartnerSubtitle,
+            svgString: _photoSvg,
+            qualifiedName: 'com.togetherly.love.PartnerPhotoWidgetProvider',
+            widgetType: 'photo_day_partner',
+            expandedContent: _buildPartnerPhotoExpandedContent(),
+            isExpanded: _partnerPhotoExpanded,
+            onToggleExpand: () => setState(
+              () => _partnerPhotoExpanded = !_partnerPhotoExpanded,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+
+      // ── Настроение на экране блокировки + Фото-сетка ──
+      if (isPaired) ...[
+        _buildLockScreenMoodCard(),
+        const SizedBox(height: 16),
+
+        // ── 5в. Фото-сетка ──
+        _buildGalleryItem(
+          title: LocaleService.current.photoGridWidget,
+          subtitle: LocaleService.current.photoGridWidgetSubtitle,
+          svgString: _photoSvg,
+          qualifiedName: 'com.togetherly.love.PhotoGridWidgetProvider',
+          preview: _buildPhotoGridPreview(),
+          widgetType: 'photo_grid',
+          expandedContent: _buildPhotoGridExpandedContent(),
+          isExpanded: _photoGridExpanded,
+          onToggleExpand: () =>
+              setState(() => _photoGridExpanded = !_photoGridExpanded),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Баннер 2 ──
+        _buildAdBanner('ad_banner_2'),
+      ],
+
+    ];
   }
 
   Widget _buildGalleryItem({
@@ -1959,6 +2016,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                           fontFamily: 'Unbounded',
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                           color: _cs.onSurface,
                         ),
                       ),
@@ -1967,6 +2025,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         subtitle,
                         style: TextStyle(
                           fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                           fontSize: 12.5,
                           color: _cs.onSurfaceVariant,
                         ),
@@ -2004,6 +2063,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     fontFamily: 'Onest',
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
+        fontVariations: const [FontVariation('wght', 700)],
                   ),
                 ),
                 style: FilledButton.styleFrom(
@@ -4865,6 +4925,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       fontFamily: 'Unbounded',
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
+        fontVariations: const [FontVariation('wght', 800)],
                       color: _cs.onPrimaryContainer,
                     ),
                   ),
@@ -4873,6 +4934,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     LocaleService.current.createPostcardSubtitle,
                     style: TextStyle(
                       fontFamily: 'Onest',
+        fontVariations: const [FontVariation('wght', 400)],
                       fontSize: 12.5,
                       color: _cs.onPrimaryContainer.withValues(alpha: 0.82),
                     ),
@@ -6636,6 +6698,130 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
           vertical: 14,
         ),
       ),
+    );
+  }
+}
+
+/// Сворачивающийся раздел каталога виджетов.
+///
+/// Заголовок с иконкой и счётчиком, содержимое раскрывается анимацией. Нужен,
+/// чтобы прежние виджеты не заслоняли новый каталог: их список длинный, а
+/// смотреть в первую очередь надо новые.
+class _CollapsibleWidgetSection extends StatelessWidget {
+  const _CollapsibleWidgetSection({
+    required this.cs,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.expanded,
+    required this.onToggle,
+    required this.children,
+  });
+
+  final ColorScheme cs;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Material(
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(26),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: cs.secondaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child:
+                        Icon(icon, size: 20, color: cs.onSecondaryContainer),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontFamily: 'Unbounded',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontVariations: const [FontVariation('wght', 700)],
+                            letterSpacing: -0.3,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${children.length}',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.expand_more_rounded,
+                        color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+          crossFadeState:
+              expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 220),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
     );
   }
 }
