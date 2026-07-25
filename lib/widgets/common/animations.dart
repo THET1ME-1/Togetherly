@@ -632,32 +632,26 @@ class DrawModeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.appTheme;
+    // M3: тональный контейнер без рамок и полупрозрачных заливок, крупные
+    // скругления, иконка в квадрате-контейнере.
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      color: t.surfaceMuted,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.18),
-              width: 1.2,
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
           child: Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: t.primaryLight,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: t.primary, size: 23),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -666,27 +660,21 @@ class DrawModeOption extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 15,
+                      style: TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
+                        color: t.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: t.textSecondary,
-                      ),
+                      style: TextStyle(fontSize: 13, color: t.textSecondary),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: t.textMuted,
-              ),
+              Icon(Icons.chevron_right_rounded, size: 22, color: t.textMuted),
             ],
           ),
         ),

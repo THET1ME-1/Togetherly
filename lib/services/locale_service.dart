@@ -1039,6 +1039,14 @@ abstract class AppStrings {
   String pixelCanvasSummary(int cells, int px);
   String get pixelGridShow;
   String get pixelGridHide;
+  /// Галерея холстов: заголовок во весь верх и строка под ним.
+  String get canvasesTitle;
+  String canvasesSubtitle(int count, String lastDate);
+  /// Экран выбора сетки пиксель-арта.
+  String get pixelScreenTitle;
+  String get pixelCanvasCreateAction;
+  String get plainCanvasSubtitle;
+  String get pixelCanvasSubtitle;
   String get chatStyleFace;
   String get chatStyleBackground;
   String get chatStyleTextColor;
@@ -3427,6 +3435,25 @@ class _RuStrings extends AppStrings {
   String get pixelGridShow => 'Показать сетку';
   @override
   String get pixelGridHide => 'Скрыть сетку';
+  @override
+  String get canvasesTitle => 'ХОЛ\nСТЫ';
+  @override
+  String canvasesSubtitle(int count, String lastDate) {
+    final word = count % 10 == 1 && count % 100 != 11
+        ? 'рисунок'
+        : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)
+            ? 'рисунка'
+            : 'рисунков');
+    return '$count $word · последний $lastDate';
+  }
+  @override
+  String get pixelScreenTitle => 'ПИК\nСЕЛИ';
+  @override
+  String get pixelCanvasCreateAction => 'Создать холст';
+  @override
+  String get plainCanvasSubtitle => 'Кисть, фигуры, фото';
+  @override
+  String get pixelCanvasSubtitle => 'Рисуем по клеткам, сетку выберете сами';
   @override
   String get chatStyleFace => 'Мордочка';
   @override
@@ -6209,6 +6236,19 @@ class _EnStrings extends AppStrings {
   String get pixelGridShow => 'Show grid';
   @override
   String get pixelGridHide => 'Hide grid';
+  @override
+  String get canvasesTitle => 'CAN\nVAS';
+  @override
+  String canvasesSubtitle(int count, String lastDate) =>
+      '$count drawing${count == 1 ? '' : 's'} · last $lastDate';
+  @override
+  String get pixelScreenTitle => 'PIX\nELS';
+  @override
+  String get pixelCanvasCreateAction => 'Create canvas';
+  @override
+  String get plainCanvasSubtitle => 'Brush, shapes, photos';
+  @override
+  String get pixelCanvasSubtitle => 'Cell by cell, you pick the grid';
   @override
   String get chatStyleFace => 'Face';
   @override

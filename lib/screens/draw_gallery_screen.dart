@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
 import 'draw_screen.dart';
+import 'pixel_size_screen.dart';
 
 /// Gallery of saved drawings.  Shows a 2-column card grid with thumbnail
 /// preview, canvas name and date.  A prominent "New Canvas" card is always
@@ -109,8 +110,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     );
     if (name == null || !mounted) return;
 
-    // Пиксельный холст или обычный, и если пиксельный — какая сетка.
-    final grid = await _showPixelDialog();
+    // Обычный холст или пиксель-арт; сетка выбирается на своём экране.
+    final grid = await _askPixelGrid();
     if (!mounted) return;
 
     final meta = await _storage.createCanvas(
@@ -169,109 +170,129 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     _load();
   }
 
-  /// Выбор сетки для пиксель-арта. null — обычный холст.
-  /// Размер задаёт пользователь: 5×5, 12×15, 200×100 — что угодно в разумных
-  /// пределах. Менять его потом нельзя: точки хранятся в долях листа, и смена
-  /// сетки сдвинула бы рисунок у обоих.
-  Future<(int, int)?> _showPixelDialog() async {
+  /// Спрашиваем режим: обычный холст или пиксель-арт. Сетка выбирается на
+  /// отдельном экране [PixelSizeScreen] — так же, как в макете.
+  Future<(int, int)?> _askPixelGrid() async {
     final s = LocaleService.current;
     final t = widget.theme;
-    final wCtrl = TextEditingController(text: '32');
-    final hCtrl = TextEditingController(text: '40');
 
-    return showDialog<(int, int)?>(
+    final wantPixel = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDlg) {
-            int parse(TextEditingController c, int fallback) {
-              final v = int.tryParse(c.text.trim()) ?? fallback;
-              return v.clamp(2, 400);
-            }
-
-            final w = parse(wCtrl, 32);
-            final h = parse(hCtrl, 40);
-
-            Widget preset(int pw, int ph) => OutlinedButton(
-                  onPressed: () => setDlg(() {
-                    wCtrl.text = '$pw';
-                    hCtrl.text = '$ph';
-                  }),
-                  style: OutlinedButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      backgroundColor: t.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: t.divider,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: Text('$pw×$ph'),
-                );
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                s.newCanvas,
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  color: t.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _modeTile(
+                t,
+                icon: Icons.brush_rounded,
+                title: s.plainCanvas,
+                subtitle: s.plainCanvasSubtitle,
+                onTap: () => Navigator.pop(ctx, false),
+              ),
+              const SizedBox(height: 10),
+              _modeTile(
+                t,
+                icon: Icons.grid_on_rounded,
+                title: s.pixelCanvasCreate,
+                subtitle: s.pixelCanvasSubtitle,
+                onTap: () => Navigator.pop(ctx, true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
 
-            Widget field(TextEditingController c, String label) => Expanded(
-                  child: TextField(
-                    controller: c,
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setDlg(() {}),
-                    decoration: InputDecoration(
-                      labelText: label,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
+    if (wantPixel != true || !mounted) return null;
+
+    return Navigator.push<(int, int)>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PixelSizeScreen(theme: t),
+        settings: const RouteSettings(name: '/pixel_size'),
+      ),
+    );
+  }
+
+  Widget _modeTile(
+    AppTheme t, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: t.surfaceMuted,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: t.primaryLight,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: t.primary, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: t.textPrimary,
                       ),
                     ),
-                  ),
-                );
-
-            return AlertDialog(
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text(s.pixelCanvasTitle),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.pixelCanvasHint,
-                    style: TextStyle(fontSize: 13, color: t.textSecondary),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      field(wCtrl, s.pixelWidth),
-                      const SizedBox(width: 10),
-                      field(hCtrl, s.pixelHeight),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      preset(5, 5),
-                      preset(12, 15),
-                      preset(32, 40),
-                      preset(64, 80),
-                      preset(200, 100),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    s.pixelCanvasSummary(w * h, (1600 / w).round()),
-                    style: TextStyle(fontSize: 12.5, color: t.textMuted),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 13, color: t.textSecondary),
+                    ),
+                  ],
+                ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  child: Text(s.plainCanvas),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, (w, h)),
-                  child: Text(s.pixelCanvasCreate),
-                ),
-              ],
-            );
-          },
-        );
-      },
+              Icon(Icons.chevron_right_rounded, color: t.textMuted),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -373,41 +394,92 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     final s = LocaleService.current;
     final t = widget.theme;
 
+    // Экран по макету: имя раздела во весь верх, под ним счёт рисунков,
+    // дальше сетка карточек, внизу пилюля нового холста. Без AppBar — назад
+    // уводит круглая кнопка, чтобы заголовок начинался прямо с края.
     return Scaffold(
-      backgroundColor: t.surfaceMuted,
-      appBar: AppBar(
-        backgroundColor: t.cardSurface,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          s.myDrawings,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              onPressed: _createNewCanvas,
-              icon: Icon(Icons.add_rounded, color: t.primary, size: 20),
-              label: Text(
-                s.newCanvas,
-                style: TextStyle(color: t.primary, fontWeight: FontWeight.w600),
+      backgroundColor: t.bgGradient.first,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _roundBack(t),
+              const SizedBox(height: 6),
+              Text(
+                s.canvasesTitle,
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontSize: 62,
+                  height: 0.86,
+                  letterSpacing: -3,
+                  fontWeight: FontWeight.w800,
+                  color: t.textPrimary,
+                ),
               ),
-            ),
+              const SizedBox(height: 10),
+              if (!_loading && _canvases.isNotEmpty)
+                Text(
+                  s.canvasesSubtitle(
+                    _canvases.length,
+                    _formatDate(_canvases.first.updatedAt),
+                  ),
+                  style: TextStyle(fontSize: 13.5, color: t.textSecondary),
+                ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _loading
+                    ? Center(child: M3LoadingDots(color: t.primaryLight))
+                    : _canvases.isEmpty
+                        ? _buildEmpty(s, t)
+                        : _buildGrid(s, t),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _createNewCanvas,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: t.primary,
+                    foregroundColor: _onPrimary(t),
+                    padding: const EdgeInsets.symmetric(vertical: 17),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(
+                    s.newCanvas,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      body: _loading
-          ? Center(child: M3LoadingDots(color: t.primaryLight))
-          : _canvases.isEmpty
-          ? _buildEmpty(s, t)
-          : _buildGrid(s, t),
     );
   }
+
+  /// Контрастный цвет поверх акцента: у светлых акцентов белый текст тонет.
+  Color _onPrimary(AppTheme t) =>
+      t.primary.computeLuminance() > 0.55 ? const Color(0xFF16161A) : Colors.white;
+
+  Widget _roundBack(AppTheme t) => Material(
+        color: t.cardSurface,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.pop(context),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(Icons.arrow_back_rounded,
+                size: 20, color: t.textPrimary),
+          ),
+        ),
+      );
 
   Widget _buildEmpty(AppStrings s, AppTheme t) {
     return Center(
@@ -415,34 +487,21 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 74,
+            height: 74,
             decoration: BoxDecoration(
               color: t.primaryLight,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(26),
             ),
-            child: Icon(Icons.brush_rounded, size: 36, color: t.primary),
+            child: Icon(Icons.brush_rounded, size: 32, color: t.primary),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           Text(
             s.noDrawingsYet,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15.5,
               fontWeight: FontWeight.w600,
               color: t.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: _createNewCanvas,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(s.newCanvas),
-            style: FilledButton.styleFrom(
-              backgroundColor: t.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
@@ -451,72 +510,102 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   }
 
   Widget _buildGrid(AppStrings s, AppTheme t) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.82,
-        ),
-        itemCount: _canvases.length,
-        itemBuilder: (ctx, i) => _buildCard(ctx, _canvases[i], t),
+    return GridView.builder(
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.88,
       ),
+      itemCount: _canvases.length,
+      itemBuilder: (ctx, i) => _buildCard(ctx, _canvases[i], t),
     );
   }
 
   Widget _buildCard(BuildContext ctx, CanvasMeta meta, AppTheme t) {
+    // Карточка из макета: превью на всю плитку, имя и дата поверх него в
+    // нижнем углу. Без белой полосы снизу и без теней.
     return GestureDetector(
       onTap: () => _openCanvas(meta),
       onLongPress: () => _showContextMenu(ctx, meta),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.cardSurface,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            // ── Thumbnail ──────────────────────────────────
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(18),
+            _buildThumbnail(meta, t),
+            // Затемнение снизу, чтобы подпись читалась на любом рисунке.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 88,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.62),
+                      Colors.black.withValues(alpha: 0.0),
+                    ],
+                  ),
                 ),
-                child: _buildThumbnail(meta, t),
               ),
             ),
-            // ── Info strip ─────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 12,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     meta.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     _formatDate(meta.updatedAt),
-                    style: TextStyle(fontSize: 11, color: t.textMuted),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
                   ),
                 ],
               ),
             ),
+            // Пиксельный холст помечаем: сетку потом не поменять, полезно
+            // видеть заранее.
+            if (meta.isPixel)
+              Positioned(
+                left: 12,
+                top: 12,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${meta.pixelW}×${meta.pixelH}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

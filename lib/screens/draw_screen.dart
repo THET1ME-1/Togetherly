@@ -2006,6 +2006,17 @@ class _DrawScreenState extends State<DrawScreen>
             ),
           ),
           const SizedBox(width: 8),
+          // Тумблер сетки — только на пиксельном холсте и всегда на виду:
+          // в нижнем ряду он уезжал за край.
+          if (_isPixel) ...[
+            _pillIcon(
+              _showPixelGrid ? Icons.grid_on_rounded : Icons.grid_off_rounded,
+              _togglePixelGrid,
+              tooltip: _showPixelGrid ? s.pixelGridHide : s.pixelGridShow,
+              active: _showPixelGrid,
+            ),
+            const SizedBox(width: 8),
+          ],
           _pillIcon(Icons.undo_rounded, _canUndo ? _undo : null,
               tooltip: s.undoAction),
           const SizedBox(width: 8),
@@ -2029,10 +2040,15 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   /// Круглая кнопка-пилюля верхней панели.
-  Widget _pillIcon(IconData icon, VoidCallback? onTap, {String? tooltip}) {
+  Widget _pillIcon(
+    IconData icon,
+    VoidCallback? onTap, {
+    String? tooltip,
+    bool active = false,
+  }) {
     final t = widget.theme;
     final btn = Material(
-      color: t.cardSurface,
+      color: active ? t.primary : t.cardSurface,
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -2043,7 +2059,9 @@ class _DrawScreenState extends State<DrawScreen>
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null ? t.textMuted : t.textPrimary,
+            color: active
+                ? _onPrimaryColor(t)
+                : (onTap == null ? t.textMuted : t.textPrimary),
           ),
         ),
       ),
@@ -2295,7 +2313,7 @@ class _DrawScreenState extends State<DrawScreen>
   Widget _buildScaleIndicator() {
     final pct = (_scale * 100).round();
     final deg = (_canvasRotation * 180 / math.pi).round();
-    final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$deg�' : '$pct%';
+    final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$deg°' : '$pct%';
     return GestureDetector(
       onTap: _resetZoom,
       child: Container(
@@ -2624,14 +2642,6 @@ class _DrawScreenState extends State<DrawScreen>
               tooltip: s.strokeThickness,
               badge: _strokeWidth.round().toString(),
             ),
-            // Сетка на пиксельном холсте прячется и возвращается
-            if (_isPixel)
-              _actionBtn(
-                _showPixelGrid ? Icons.grid_on_rounded : Icons.grid_off_rounded,
-                _togglePixelGrid,
-                tooltip: _showPixelGrid ? s.pixelGridHide : s.pixelGridShow,
-                color: _showPixelGrid ? t.primary : null,
-              ),
             // Отмена и возврат — здесь же, у большого пальца
             _actionBtn(
               Icons.undo_rounded,

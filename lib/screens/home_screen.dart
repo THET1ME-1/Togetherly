@@ -1593,7 +1593,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1611,12 +1611,14 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
               Text(
                 s.drawingMode,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: t.textPrimary,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               DrawModeOption(
                 icon: Icons.add_circle_outline_rounded,
                 color: t.primary,
