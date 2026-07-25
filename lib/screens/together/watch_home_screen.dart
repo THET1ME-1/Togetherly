@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:io';
 
@@ -9,6 +10,7 @@ import '../../models/pair_data.dart';
 import '../../services/locale_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
+import '../../services/plus_service.dart';
 import '../../services/watch_videos_service.dart';
 import 'together_launcher.dart';
 import 'watch_player_screen.dart';
@@ -47,6 +49,9 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     _loadRoom();
     _loadRecent();
     _loadVideos();
+    // Ролики нужны на вечер, а лежали вечно. Убираем просроченные при заходе:
+    // отдельный планировщик ради этого не нужен.
+    unawaited(WatchVideosService.purgeExpired(widget.pairData.pairId));
   }
 
   Future<void> _loadVideos() async {
@@ -66,7 +71,9 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     if (path == null) return;
 
     final file = File(path);
-    if (await file.length() > WatchVideosService.maxBytes) {
+    final limit =
+        WatchVideosService.limitFor(plus: PlusService.instance.active);
+    if (await file.length() > limit) {
       messenger.showSnackBar(SnackBar(
         content: Text(s.watchVideoTooBig),
         behavior: SnackBarBehavior.floating,

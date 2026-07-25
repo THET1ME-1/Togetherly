@@ -16,6 +16,8 @@ import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/pb_push_service.dart';
 import '../services/locale_service.dart';
+import '../services/media_service.dart';
+import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/presence_service.dart';
@@ -164,6 +166,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Путь к локальному фону чата (null — фон не задан).
   String? _bgPath;
 
+  /// Ссылка на общий фон пары (Togetherly+). Пусто — общего фона нет.
+  String _sharedBgUrl = '';
+
   /// Окно подгрузки истории. Не грузим всю переписку сразу — стартуем с
   /// небольшого окна и расширяем его при прокрутке к началу (экономит трафик
   /// RTDB: onValue иначе тянул бы весь срез на каждое новое сообщение).
@@ -277,6 +282,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     if (path != null && File(path).existsSync()) {
       setState(() => _bgPath = path);
+      // Общий фон пары приезжает с сервера и перекрывает локальный.
+      unawaited(_chat.sharedBackground(_groupId).then((url) {
+        if (mounted && url.isNotEmpty) setState(() => _sharedBgUrl = url);
+      }));
     } else if (path != null) {
       // Файл пропал (очистка кэша/переустановка) — сбрасываем.
       await _chat.clearBackground(_groupId);
@@ -826,9 +835,52 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ── Фон чата ────────────────────────────────────────────────────────────────
 
+  /// Ставит общий фон чата — доступно с Togetherly+.
+  ///
+  /// Локальный фон видит только тот, кто его поставил; общий лежит в группе, и
+  /// его видят оба. Монет за это не берём: платить за картинку, которую видишь
+  /// один, было странно, а в Togetherly+ это уже оплачено.
+  Future<void> _pickSharedChatBackground() async {
+    final s = LocaleService.current;
+    final picked = await safePick(
+      () => ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1600,
+      ),
+    );
+    if (picked == null) return;
+
+    _toast(s.chatBgUploading);
+    try {
+      final url = await MediaService().uploadFile(
+        picked.path,
+        'chat_bg/$_groupId/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+      if (url == null) {
+        _toast(s.chatBgSaveFailed);
+        return;
+      }
+      final ok = await _chat.setSharedBackground(_groupId, url);
+      if (!ok) {
+        _toast(s.chatBgSaveFailed);
+        return;
+      }
+      if (mounted) {
+        setState(() => _sharedBgUrl = url);
+        _toast(s.chatBgSharedDone);
+      }
+    } catch (e) {
+      _toast(s.chatBgSaveFailed);
+    }
+  }
+
   Future<void> _changeBackground() async {
     final s = LocaleService.current;
-    final hasBg = _bgPath != null;
+    final hasBg = _bgPath != null || _sharedBgUrl.isNotEmpty;
+    // С Togetherly+ фон бесплатный и общий для пары; без него — как прежде,
+    // за монеты и только у себя.
+    final plus = PlusService.instance.active;
 
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -878,16 +930,19 @@ class _ChatScreenState extends State<ChatScreen> {
             ListTile(
               leading: Icon(Icons.image_outlined, color: _t.primary),
               title: Text(hasBg ? s.chatBgChange : s.chatBgSet),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('assets/images/icons/coin.webp',
-                      width: 18, height: 18),
-                  const SizedBox(width: 3),
-                  Text('$_kChatBgPrice',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
-              ),
+              subtitle: plus ? Text(s.chatBgSharedHint) : null,
+              trailing: plus
+                  ? null
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset('assets/images/icons/coin.webp',
+                            width: 18, height: 18),
+                        const SizedBox(width: 3),
+                        Text('$_kChatBgPrice',
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ],
+                    ),
               onTap: () => Navigator.pop(ctx, 'change'),
             ),
             if (hasBg)
@@ -903,9 +958,22 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
+    if (action == 'change' && plus) {
+      await _pickSharedChatBackground();
+      return;
+    }
+
     if (action == 'remove') {
       await _chat.clearBackground(_groupId);
-      if (mounted) setState(() => _bgPath = null);
+      if (_sharedBgUrl.isNotEmpty) {
+        await _chat.setSharedBackground(_groupId, '');
+      }
+      if (mounted) {
+        setState(() {
+          _bgPath = null;
+          _sharedBgUrl = '';
+        });
+      }
       return;
     }
     if (action != 'change') return;
@@ -1460,8 +1528,17 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Stack(
         children: [
-          // Свой фон чата (локальный, у каждого свой).
-          if (_bgPath != null)
+          // Общий фон пары — поверх него локальный не нужен: если пара
+          // выбрала картинку вместе, она и должна быть у обоих.
+          if (_sharedBgUrl.isNotEmpty)
+            Positioned.fill(
+              child: Image.network(
+                _sharedBgUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            )
+          else if (_bgPath != null)
             Positioned.fill(
               child: Image.file(
                 File(_bgPath!),
@@ -1470,7 +1547,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           // Лёгкая вуаль для читаемости пузырей поверх любого фото.
-          if (_bgPath != null)
+          if (_sharedBgUrl.isNotEmpty || _bgPath != null)
             Positioned.fill(
               child: Container(color: Colors.black.withOpacity(0.06)),
             ),

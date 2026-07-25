@@ -85,9 +85,14 @@ class MediaService {
         }
       }
 
-      // Compress video before upload — uses device hardware encoder (H.264).
-      // HighestQuality keeps original resolution and framerate; typical savings
-      // are 60-80% vs camera-recorded files with no perceptible quality loss.
+      // Сжатие перед загрузкой аппаратным кодеком устройства (H.264).
+      //
+      // Раньше стояло HighestQuality — исходное разрешение и частота кадров.
+      // Для воспоминания, которое смотрят с телефона, это перебор: файл втрое
+      // тяжелее, а разница на шестидюймовом экране не видна. Место при этом
+      // занимается навсегда — воспоминания не удаляют, в них весь смысл.
+      //
+      // DefaultQuality даёт 720p: минута видео весит около 30 МБ вместо 90.
       File? compressedTempFile;
       if (!kIsWeb && ['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
         try {
@@ -98,7 +103,7 @@ class MediaService {
           // по истечении бросаем → catch ниже грузит оригинал.
           final info = await VideoCompress.compressVideo(
             path,
-            quality: VideoQuality.HighestQuality,
+            quality: VideoQuality.DefaultQuality,
             deleteOrigin: false,
             includeAudio: true,
           ).timeout(

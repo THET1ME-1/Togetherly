@@ -197,6 +197,11 @@
           "type": "json",
           "required": false,
           "maxSize": 2000000
+        },
+        {
+          "name": "chat_background",
+          "type": "text",
+          "required": false
         }
       ],
       "indexes": [
@@ -1402,7 +1407,7 @@
           "type": "file",
           "required": false,
           "maxSelect": 1,
-          "maxSize": 52428800,
+          "maxSize": 209715200,
           "mimeTypes": [],
           "protected": true
         },
@@ -1758,7 +1763,7 @@
           "type": "file",
           "required": true,
           "maxSelect": 1,
-          "maxSize": 104857600,
+          "maxSize": 314572800,
           "mimeTypes": [],
           "protected": false
         },

@@ -166,6 +166,54 @@ routerAdd("POST", "/api/coins/daily-bonus", (e) => {
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 
+// ── Ежемесячные монеты владельцам Togetherly+ ────────────────────────────────
+//
+// Разовая покупка имеет неприятное свойство: заплатил, получил, забыл.
+// Небольшое начисление раз в месяц напоминает, что покупка продолжает
+// работать, и стоит нам ничего — монеты внутренние.
+//
+// Клиент дёргает роут при входе; сервер сам решает, пора ли. Дату держим в
+// том же виде, что и остальные кулдауны, — миллисекундами на записи юзера.
+routerAdd("POST", "/api/coins/plus-monthly", (e) => {
+  const AMOUNT = 150;
+  const PERIOD = 30 * 24 * 60 * 60 * 1000;
+  let out;
+  try {
+    $app.runInTransaction((txApp) => {
+      const rec = txApp.findRecordById("users", e.auth.id);
+
+      if (!rec.getBool("plus")) {
+        out = { s: 200, b: { ok: false, error: "no_plus" } };
+        return;
+      }
+
+      const now = Date.now();
+      const last = rec.getInt("last_plus_grant_ms") || 0;
+      if (last && now - last < PERIOD) {
+        out = {
+          s: 200,
+          b: {
+            ok: false,
+            cooldown: true,
+            nextAt: last + PERIOD,
+            coins: rec.getInt("coins") || 0,
+          },
+        };
+        return;
+      }
+
+      const coins = (rec.getInt("coins") || 0) + AMOUNT;
+      rec.set("coins", coins);
+      rec.set("last_plus_grant_ms", now);
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, coins: coins, awarded: AMOUNT } };
+    });
+  } catch (err) {
+    return e.json(500, { ok: false, error: "tx failed" });
+  }
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
 // ── Награда за воспоминание (1, кулдаун 20ч) ──────────────────────────────────
 routerAdd("POST", "/api/coins/memory-reward", (e) => {
   const COOLDOWN = 20 * 60 * 60 * 1000;

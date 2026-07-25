@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -41,8 +42,40 @@ class WatchVideosService {
 
   static const String _col = 'watch_videos';
 
-  /// Больше сотни мегабайт не берём: это ограничение стоит и в базе.
+  /// Потолок для бесплатной версии. Ограничение стоит и в базе.
   static const int maxBytes = 100 * 1024 * 1024;
+
+  /// Потолок с Togetherly+. Больше базы не просим: сервер отвергнет.
+  static const int maxBytesPlus = 300 * 1024 * 1024;
+
+  /// Сколько живёт ролик совместного просмотра.
+  ///
+  /// Его заливают, чтобы посмотреть вдвоём в этот вечер, а не хранить. Раньше
+  /// такие файлы лежали вечно и молча занимали диск, за который платят каждый
+  /// месяц.
+  static const Duration lifetime = Duration(days: 30);
+
+  /// Действующий потолок с учётом покупки.
+  static int limitFor({required bool plus}) => plus ? maxBytesPlus : maxBytes;
+
+  /// Убирает ролики старше [lifetime]. Зовётся при открытии раздела: отдельного
+  /// планировщика ради уборки заводить незачем.
+  static Future<void> purgeExpired(String groupId) async {
+    if (groupId.isEmpty) return;
+    try {
+      final edge = DateTime.now().toUtc().subtract(lifetime);
+      final list = await _pb.collection(_col).getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+          );
+      for (final rec in list) {
+        final created = DateTime.tryParse(rec.created)?.toUtc();
+        if (created == null || created.isAfter(edge)) continue;
+        await _pb.collection(_col).delete(rec.id);
+      }
+    } catch (e) {
+      debugPrint('WatchVideos.purgeExpired failed: $e');
+    }
+  }
 
   static PocketBase get _pb => PocketBaseService.instance.pb;
 

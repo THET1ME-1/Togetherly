@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_msg.dart';
@@ -283,6 +285,35 @@ class ChatService {
   Future<void> clearBackground(String groupId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_bgKey(groupId));
+  }
+
+  // ── Общий фон чата (Togetherly+) ────────────────────────────────────────
+  //
+  // Локальный фон видит только тот, кто его поставил, — за такое брать монеты
+  // странно. Общий лежит в группе: поставил один, видят оба.
+
+  /// Ссылка на общий фон. Пустая строка — общего фона нет.
+  Future<String> sharedBackground(String groupId) async {
+    if (groupId.isEmpty) return '';
+    try {
+      final rec = await PbDataService().loadGroupById(groupId);
+      return (rec?.data['chat_background'] ?? '').toString();
+    } catch (e) {
+      debugPrint('ChatService.sharedBackground failed: $e');
+      return '';
+    }
+  }
+
+  /// Ставит общий фон для пары. Пустая ссылка убирает его.
+  Future<bool> setSharedBackground(String groupId, String url) async {
+    if (groupId.isEmpty) return false;
+    try {
+      await PbDataService().updateGroupFields(groupId, {'chat_background': url});
+      return true;
+    } catch (e) {
+      debugPrint('ChatService.setSharedBackground failed: $e');
+      return false;
+    }
   }
 
   // ── Позиция прокрутки (локально, чтобы вернуться ровно туда же) ──────────────

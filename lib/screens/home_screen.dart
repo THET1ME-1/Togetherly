@@ -461,7 +461,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // когда она разрешила их видеть.
         // Togetherly+ — серверный флаг: перечитываем при каждом входе, чтобы
         // покупка с сайта открылась сама, без перезапуска приложения.
-        unawaited(PlusService.instance.refresh());
+        unawaited(PlusService.instance.refresh().then((_) {
+          // Ежемесячные монеты владельцам: сервер сам решит, прошёл ли месяц.
+          unawaited(PlusService.instance.claimMonthlyCoins());
+        }));
 
         unawaited(CycleService.instance.bind(
           groupId: _pairData.pairId,

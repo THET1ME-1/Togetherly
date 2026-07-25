@@ -1190,6 +1190,10 @@ abstract class AppStrings {
   String get plusLockedTipsTitle;
   String get plusLockedTipsBody;
   String get plusUnlock;
+  /// Общий фон чата — часть Togetherly+.
+  String get chatBgSharedHint;
+  String get chatBgUploading;
+  String get chatBgSharedDone;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3938,6 +3942,12 @@ class _RuStrings extends AppStrings {
       'писали друг другу.';
   @override
   String get plusUnlock => 'Открыть в Togetherly+';
+  @override
+  String get chatBgSharedHint => 'бесплатно, увидите оба';
+  @override
+  String get chatBgUploading => 'Загружаем фон…';
+  @override
+  String get chatBgSharedDone => 'Фон поставлен — он теперь у обоих';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -7053,6 +7063,12 @@ class _EnStrings extends AppStrings {
       'been silent.';
   @override
   String get plusUnlock => 'Unlock with Togetherly+';
+  @override
+  String get chatBgSharedHint => 'free, both of you will see it';
+  @override
+  String get chatBgUploading => 'Uploading the background…';
+  @override
+  String get chatBgSharedDone => 'Background set — both of you see it now';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

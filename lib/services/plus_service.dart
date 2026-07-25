@@ -73,6 +73,19 @@ class PlusService extends ChangeNotifier {
     }
   }
 
+  /// Просит ежемесячные монеты. Сервер сам решит, прошёл ли месяц.
+  Future<int> claimMonthlyCoins() async {
+    if (!_active) return 0;
+    try {
+      final res = await PbCoinsService().plusMonthly();
+      if (res == null || res['ok'] != true) return 0;
+      return (res['awarded'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      debugPrint('PlusService.claimMonthlyCoins failed: $e');
+      return 0;
+    }
+  }
+
   /// Гасит код, выданный ботом. Возвращает true, если доступ открылся.
   Future<bool> redeem(String code) async {
     try {

@@ -98,6 +98,9 @@ class PbCoinsService {
       _call('purchase-icon', {'iconId': iconId});
   Future<Map<String, dynamic>?> purchaseFeature(String featureId) =>
       _call('purchase-feature', {'featureId': featureId});
+  /// Ежемесячные монеты владельцам Togetherly+. Сервер сам решает, пора ли.
+  Future<Map<String, dynamic>?> plusMonthly() => _call('plus-monthly', {});
+
   /// Погашение кода пополнения из телеграм-бота (покупка мимо магазинов).
   Future<Map<String, dynamic>?> redeem(String code) =>
       _call('redeem', {'code': code});
