@@ -11,7 +11,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/tg_bg_surface_36"
-    android:padding="24dp">
+    android:padding="17dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,21 +21,21 @@
 
         <TextView
             android:id="@+id/couple_names"
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#49454F"
-            android:textSize="14sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:letterSpacing="0.02"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:ellipsize="end"
-            android:text="АНЯ + МИША" />
+            android:text="" />
 
         <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="15dp"
+            android:layout_height="15dp"
             android:src="@drawable/ic_heart_timer"
             android:contentDescription="@null" />
     </LinearLayout>
@@ -44,14 +44,14 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="13dp"
         android:orientation="horizontal"
         android:gravity="bottom"
         android:background="@drawable/tg_block_primary_28"
-        android:padding="22dp">
+        android:padding="15dp">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical">
@@ -61,18 +61,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
-                android:textSize="72sp"
+                android:textSize="50dp"
                 android:textStyle="bold"
                 android:letterSpacing="-0.045"
                 android:includeFontPadding="false"
-                android:text="205" />
+                android:text="—" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:textColor="#E9DDFF"
-                android:textSize="16sp"
+                android:textSize="11dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
                 android:text="дней вместе" />
@@ -89,18 +89,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#FFFFFF"
-                android:textSize="26sp"
+                android:textSize="18dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
-                android:text="6" />
+                android:text="0" />
 
             <TextView
                 android:id="@+id/months_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:textColor="#D0BCFF"
-                android:textSize="12sp"
+                android:textSize="11dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
                 android:text="месяцев" />
@@ -110,9 +110,9 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="13dp"
         android:textColor="#7A757F"
-        android:textSize="13sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:letterSpacing="0.06"
         android:includeFontPadding="false"
@@ -121,68 +121,68 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="7dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/tg_row_surface_20"
-        android:paddingLeft="18dp"
-        android:paddingRight="18dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+        android:paddingLeft="13dp"
+        android:paddingRight="13dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
 
         <TextView
             android:id="@+id/next_round_title"
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#1D1B20"
-            android:textSize="15sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="300 дней" />
+            android:text="" />
 
         <TextView
             android:id="@+id/next_round_when"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#49454F"
-            android:textSize="14sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="через 95 дней" />
+            android:text="" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="7dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/tg_row_tertiary_20"
-        android:paddingLeft="18dp"
-        android:paddingRight="18dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+        android:paddingLeft="13dp"
+        android:paddingRight="13dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
 
         <TextView
             android:id="@+id/anniversary_title"
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#31111D"
-            android:textSize="15sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="1 год" />
+            android:text="" />
 
         <TextView
             android:id="@+id/anniversary_when"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#31111D"
-            android:textSize="14sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="1 ноября" />
+            android:text="" />
     </LinearLayout>
 </LinearLayout>

@@ -11,10 +11,10 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/tg_bg_primary_container_32"
-    android:paddingLeft="22dp"
-    android:paddingRight="22dp"
-    android:paddingTop="20dp"
-    android:paddingBottom="20dp">
+    android:paddingLeft="15dp"
+    android:paddingRight="15dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,7 +22,7 @@
         android:orientation="horizontal">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical">
@@ -32,15 +32,15 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#4F378B"
-                android:textSize="13sp"
+                android:textSize="11dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
-                android:text="С 1 ноября 2025" />
+                android:text="" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal"
                 android:baselineAligned="true">
 
@@ -49,19 +49,19 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="#21005D"
-                    android:textSize="60sp"
+                    android:textSize="42dp"
                     android:textStyle="bold"
                     android:letterSpacing="-0.04"
                     android:includeFontPadding="false"
-                    android:text="205" />
+                    android:text="—" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginBottom="6dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginBottom="4dp"
                     android:textColor="#21005D"
-                    android:textSize="17sp"
+                    android:textSize="12dp"
                     android:textStyle="bold"
                     android:includeFontPadding="false"
                     android:text="дней" />
@@ -70,15 +70,15 @@
 
         <ImageView
             android:id="@+id/heart_icon"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_heart_timer"
             android:contentDescription="@null" />
     </LinearLayout>
 
     <Space
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="1dp"
         android:layout_weight="1" />
 
     <LinearLayout
@@ -88,24 +88,24 @@
 
         <TextView
             android:id="@+id/next_label"
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#4F378B"
-            android:textSize="13sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="До года — 160 дней" />
+            android:text="" />
 
         <TextView
             android:id="@+id/next_percent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#4F378B"
-            android:textSize="13sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
-            android:text="56%" />
+            android:text="" />
     </LinearLayout>
 
     <!-- Трек: RemoteViews умеет менять только progress, поэтому ProgressBar со
@@ -114,8 +114,8 @@
         android:id="@+id/progress"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="12dp"
-        android:layout_marginTop="8dp"
+        android:layout_height="8dp"
+        android:layout_marginTop="6dp"
         android:max="100"
         android:progress="56"
         android:progressDrawable="@drawable/tg_progress_12" />

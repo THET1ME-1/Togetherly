@@ -21,7 +21,10 @@ import kotlin.math.roundToInt
  *
  * Данные кладёт Flutter (`home_widget`) ключами `together_<groupId>_*`.
  */
-class TogetherWidgetProvider : HomeWidgetProvider() {
+open class TogetherWidgetProvider : HomeWidgetProvider() {
+
+    /** Раскладка, закреплённая за провайдером; null — выбирать по размеру. */
+    protected open val forcedLayout: Int? = null
 
     override fun onUpdate(
         context: Context,
@@ -69,11 +72,12 @@ class TogetherWidgetProvider : HomeWidgetProvider() {
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
 
-        // Пороги в dp: одна ячейка ≈ 70dp. Широкий и высокий — 4×4, широкий и
-        // низкий — 4×2, остальное — 2×2.
-        val layout = when {
-            minWidth >= 250 && minHeight >= 250 -> R.layout.tg_together_4x4
-            minWidth >= 250 -> R.layout.tg_together_4x2
+        // Ячейка на телефоне ≈ 70dp: 2×2 ≈ 140dp, 4×2 ≈ 300×140, 4×4 ≈ 300×300.
+        // Если виджет поставлен из «своей» позиции списка, раскладка закреплена;
+        // иначе подбираем по фактическому размеру после растягивания.
+        val layout = forcedLayout ?: when {
+            minWidth >= 200 && minHeight >= 200 -> R.layout.tg_together_4x4
+            minWidth >= 200 -> R.layout.tg_together_4x2
             else -> R.layout.tg_together_2x2
         }
 
@@ -185,4 +189,19 @@ class TogetherWidgetProvider : HomeWidgetProvider() {
             else -> "лет"
         }
     }
+}
+
+/** «Вместе» в размере 2×2 — отдельная позиция в списке виджетов лончера. */
+class TogetherWidget2x2Provider : TogetherWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_together_2x2
+}
+
+/** «Вместе» 4×2. */
+class TogetherWidget4x2Provider : TogetherWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_together_4x2
+}
+
+/** «Вместе» 4×4. */
+class TogetherWidget4x4Provider : TogetherWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_together_4x4
 }

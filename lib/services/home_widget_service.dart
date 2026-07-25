@@ -1022,11 +1022,16 @@ class HomeWidgetService {
             'together_${g}_anniversary', anniversary);
       }
       await HomeWidget.saveWidgetData<String>('together_latest_group', g);
-      await HomeWidget.updateWidget(
-        name: 'TogetherWidgetProvider',
-        androidName: 'TogetherWidgetProvider',
-        qualifiedAndroidName: 'com.togetherly.love.TogetherWidgetProvider',
-      );
+      // Размеров три и провайдера три — будим каждый, иначе обновится только
+      // тот виджет, что стоит на рабочем столе в «основном» размере.
+      for (final n in const ['TogetherWidget2x2Provider',
+          'TogetherWidget4x2Provider', 'TogetherWidget4x4Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
     } catch (e) {
       debugPrint('HomeWidgetService.syncTogether failed: $e');
     }
@@ -1054,11 +1059,14 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>(
           'miss_${g}_sent_today', sentToday ? '1' : '0');
       await HomeWidget.saveWidgetData<String>('miss_latest_group', g);
-      await HomeWidget.updateWidget(
-        name: 'MissWidgetProvider',
-        androidName: 'MissWidgetProvider',
-        qualifiedAndroidName: 'com.togetherly.love.MissWidgetProvider',
-      );
+      for (final n in const ['MissWidget2x2Provider',
+          'MissWidget4x2Provider', 'MissWidget4x1Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
     } catch (e) {
       debugPrint('HomeWidgetService.syncMiss failed: $e');
     }
@@ -1079,11 +1087,14 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('miss_${g}_my_count', '$next');
       await HomeWidget.saveWidgetData<String>('miss_${g}_sent_today', '1');
       await HomeWidget.saveWidgetData<String>('miss_${g}_last_time', '$hh:$mm');
-      await HomeWidget.updateWidget(
-        name: 'MissWidgetProvider',
-        androidName: 'MissWidgetProvider',
-        qualifiedAndroidName: 'com.togetherly.love.MissWidgetProvider',
-      );
+      for (final n in const ['MissWidget2x2Provider',
+          'MissWidget4x2Provider', 'MissWidget4x1Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
     } catch (e) {
       debugPrint('HomeWidgetService.markMissSentFromWidget failed: $e');
     }
@@ -1966,6 +1977,30 @@ class HomeWidgetService {
       // и в Days Counter, чтобы они гарантированно показывали одно и то же.
       final activeTimer = await _resolveActiveTimer(activeTimers, activeGroupId);
 
+      // ── Новый каталог: «Вместе» ──
+      // Без этого виджет на рабочем столе не знает даже своей группы и стоит
+      // пустой до первого захода на экран виджетов.
+      {
+        final start = activeTimer?.startDate ?? activeSysTimer?.startDate ?? activeStartDate;
+        final days = activeTimer != null
+            ? activeTimer.daysElapsed.abs()
+            : (start != null ? DateTime.now().difference(start).inDays : 0);
+        final parts = coupleNames.split(RegExp(r'\s*[+&·]\s*'));
+        await syncTogether(
+          groupId: activeGroupId,
+          days: days,
+          startDate: start == null ? '' : 'С ${_formatDateLong(start)}',
+          myInitial: parts.isNotEmpty && parts.first.trim().isNotEmpty
+              ? parts.first.trim()[0].toUpperCase()
+              : '',
+          partnerInitial: parts.length > 1 && parts[1].trim().isNotEmpty
+              ? parts[1].trim()[0].toUpperCase()
+              : '',
+          names: coupleNames,
+          anniversary: start == null ? '' : _formatDateShort(start),
+        );
+      }
+
       // ── Days Counter ──
       debugPrint('  days_counter → syncing (activeGroup=$activeGroupId, timer=${activeTimer?.title})');
       await _syncDaysCounterWithTimer(
@@ -2200,6 +2235,15 @@ class HomeWidgetService {
       ),
     );
     await syncTimer(timer, groupId: groupId, isRomantic: isRomantic, themeIndex: themeIndex);
+  }
+
+  /// «1 ноября» — без года, для строки годовщины.
+  String _formatDateShort(DateTime d) {
+    const months = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+    ];
+    return '${d.day} ${months[d.month - 1]}';
   }
 
   /// «1 ноября 2025» — как в хендофе виджета «Вместе».

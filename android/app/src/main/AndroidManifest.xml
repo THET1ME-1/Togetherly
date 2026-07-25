@@ -348,29 +348,75 @@
         </receiver>
 
         <!-- ═══ Виджет: Счётчик дней вместе ═══ -->
-        <!-- Новый каталог: «Вместе» (счётчик дней + ближайшая круглая дата) -->
-        <receiver android:name=".TogetherWidgetProvider"
+        <!-- Новый каталог: «Вместе» в трёх размерах -->
+        <receiver android:name=".TogetherWidget2x2Provider"
             android:exported="true"
-            android:label="Вместе">
+            android:label="Вместе · 2×2">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/tg_together_widget_info" />
+                android:resource="@xml/tg_together_2x2_info" />
         </receiver>
 
-        <!-- Новый каталог: «Скучаю» (тап отправляет реакцию партнёру) -->
-        <receiver android:name=".MissWidgetProvider"
+        <receiver android:name=".TogetherWidget4x2Provider"
             android:exported="true"
-            android:label="Скучаю">
+            android:label="Вместе · 4×2">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/tg_miss_widget_info" />
+                android:resource="@xml/tg_together_4x2_info" />
         </receiver>
+
+        <receiver android:name=".TogetherWidget4x4Provider"
+            android:exported="true"
+            android:label="Вместе · 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_together_4x4_info" />
+        </receiver>
+
+
+        <!-- Новый каталог: «Скучаю» в трёх размерах -->
+        <receiver android:name=".MissWidget2x2Provider"
+            android:exported="true"
+            android:label="Скучаю · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_miss_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".MissWidget4x2Provider"
+            android:exported="true"
+            android:label="Скучаю · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_miss_4x2_info" />
+        </receiver>
+
+        <receiver android:name=".MissWidget4x1Provider"
+            android:exported="true"
+            android:label="Скучаю · полоска">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_miss_4x1_info" />
+        </receiver>
+
 
         <receiver android:name=".DaysCounterWidgetProvider"
             android:exported="true"

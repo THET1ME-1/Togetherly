@@ -11,10 +11,10 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/tg_bg_surface_32"
-    android:paddingLeft="22dp"
-    android:paddingRight="22dp"
-    android:paddingTop="20dp"
-    android:paddingBottom="20dp">
+    android:paddingLeft="15dp"
+    android:paddingRight="15dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -23,11 +23,11 @@
         android:gravity="center_vertical">
 
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#1D1B20"
-            android:textSize="14sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:letterSpacing="0.02"
             android:includeFontPadding="false"
@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="#7A757F"
-            android:textSize="12sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:includeFontPadding="false"
             android:text="" />
@@ -46,7 +46,7 @@
 
     <Space
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="1dp"
         android:layout_weight="1" />
 
     <LinearLayout
@@ -56,21 +56,21 @@
         android:gravity="center_vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
             android:background="@drawable/tg_tile_primary_24"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingLeft="11dp"
+            android:paddingRight="11dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#4F378B"
-                android:textSize="12sp"
+                android:textSize="11dp"
                 android:textStyle="bold"
                 android:includeFontPadding="false"
                 android:text="Я" />
@@ -79,9 +79,9 @@
                 android:id="@+id/my_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:textColor="#21005D"
-                android:textSize="34sp"
+                android:textSize="24dp"
                 android:textStyle="bold"
                 android:letterSpacing="-0.03"
                 android:includeFontPadding="false"
@@ -89,23 +89,23 @@
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="10dp"
             android:orientation="vertical"
             android:background="@drawable/tg_tile_tertiary_24"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="14dp">
+            android:paddingLeft="11dp"
+            android:paddingRight="11dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
 
             <TextView
                 android:id="@+id/partner_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#7D5260"
-                android:textSize="12sp"
+                android:textSize="11dp"
                 android:textStyle="bold"
                 android:maxLines="1"
                 android:ellipsize="end"
@@ -116,9 +116,9 @@
                 android:id="@+id/partner_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:textColor="#31111D"
-                android:textSize="34sp"
+                android:textSize="24dp"
                 android:textStyle="bold"
                 android:letterSpacing="-0.03"
                 android:includeFontPadding="false"
@@ -127,15 +127,15 @@
 
         <FrameLayout
             android:id="@+id/send_button"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:layout_marginStart="14dp"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_marginStart="10dp"
             android:background="@drawable/tg_btn_primary_22">
 
             <ImageView
                 android:id="@+id/state_icon"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="21dp"
+                android:layout_height="21dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_tg_heart"
                 android:contentDescription="@null" />

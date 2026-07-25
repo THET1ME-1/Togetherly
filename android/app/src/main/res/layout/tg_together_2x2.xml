@@ -10,41 +10,41 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/tg_bg_primary_32"
-    android:padding="18dp">
+    android:padding="13dp">
 
     <!-- Аватары пары -->
     <FrameLayout
         android:layout_width="wrap_content"
-        android:layout_height="34dp">
+        android:layout_height="24dp">
 
         <TextView
             android:id="@+id/avatar_me"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:background="@drawable/tg_avatar_primary"
             android:gravity="center"
             android:textColor="#21005D"
-            android:textSize="13sp"
+            android:textSize="11dp"
             android:textStyle="bold"
-            android:text="А" />
+            android:text=" " />
 
         <TextView
             android:id="@+id/avatar_partner"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="24dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="17dp"
             android:background="@drawable/tg_avatar_tertiary"
             android:gravity="center"
             android:textColor="#31111D"
-            android:textSize="13sp"
+            android:textSize="11dp"
             android:textStyle="bold"
-            android:text="М" />
+            android:text=" " />
     </FrameLayout>
 
     <!-- Отжимаем счётчик к низу: в макете space-between -->
     <Space
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="1dp"
         android:layout_weight="1" />
 
     <TextView
@@ -52,19 +52,19 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="#FFFFFF"
-        android:textSize="54sp"
+        android:textSize="38dp"
         android:textStyle="bold"
         android:letterSpacing="-0.04"
         android:includeFontPadding="false"
-        android:text="205" />
+        android:text="—" />
 
     <TextView
         android:id="@+id/days_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="1dp"
         android:textColor="#E9DDFF"
-        android:textSize="15sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:includeFontPadding="false"
         android:text="дней вместе" />

@@ -21,7 +21,10 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * PocketBase и обновляет данные виджета. Локально сразу переводим карточку в
  * состояние «отправлено», чтобы палец получил отклик без ожидания сети.
  */
-class MissWidgetProvider : HomeWidgetProvider() {
+open class MissWidgetProvider : HomeWidgetProvider() {
+
+    /** Раскладка, закреплённая за провайдером; null — выбирать по размеру. */
+    protected open val forcedLayout: Int? = null
 
     override fun onUpdate(
         context: Context,
@@ -65,9 +68,9 @@ class MissWidgetProvider : HomeWidgetProvider() {
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
 
-        val layout = when {
-            minWidth >= 250 && minHeight < 120 -> R.layout.tg_miss_4x1
-            minWidth >= 250 -> R.layout.tg_miss_4x2
+        val layout = forcedLayout ?: when {
+            minWidth >= 200 && minHeight < 110 -> R.layout.tg_miss_4x1
+            minWidth >= 200 -> R.layout.tg_miss_4x2
             else -> R.layout.tg_miss_2x2
         }
 
@@ -143,6 +146,21 @@ class MissWidgetProvider : HomeWidgetProvider() {
             else -> n + "у"
         }
     }
+}
+
+/** «Скучаю» 2×2 — отдельная позиция в списке виджетов. */
+class MissWidget2x2Provider : MissWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_miss_2x2
+}
+
+/** «Скучаю» 4×2. */
+class MissWidget4x2Provider : MissWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_miss_4x2
+}
+
+/** «Скучаю» полоской 4×1. */
+class MissWidget4x1Provider : MissWidgetProvider() {
+    override val forcedLayout: Int = R.layout.tg_miss_4x1
 }
 
 /** Открытие приложения из виджета — вынесено, чтобы не плодить дубли. */

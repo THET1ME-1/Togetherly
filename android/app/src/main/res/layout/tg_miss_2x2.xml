@@ -11,7 +11,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/tg_bg_tertiary_32"
-    android:padding="18dp">
+    android:padding="13dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,11 +21,11 @@
 
         <TextView
             android:id="@+id/partner_name"
-            android:layout_width="0dp"
+            android:layout_width="1dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="#31111D"
-            android:textSize="13sp"
+            android:textSize="11dp"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
@@ -34,15 +34,15 @@
 
         <ImageView
             android:id="@+id/state_icon"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
             android:src="@drawable/ic_tg_heart"
             android:contentDescription="@null" />
     </LinearLayout>
 
     <Space
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="1dp"
         android:layout_weight="1" />
 
     <TextView
@@ -50,7 +50,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="#31111D"
-        android:textSize="26sp"
+        android:textSize="18dp"
         android:textStyle="bold"
         android:letterSpacing="-0.02"
         android:includeFontPadding="false"
@@ -60,14 +60,14 @@
         android:id="@+id/cta"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="7dp"
         android:background="@drawable/tg_pill_tertiary"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="9dp"
-        android:paddingBottom="9dp"
+        android:paddingLeft="11dp"
+        android:paddingRight="11dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
         android:textColor="#FFFFFF"
-        android:textSize="13sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:includeFontPadding="false"
         android:text="Отправить" />
