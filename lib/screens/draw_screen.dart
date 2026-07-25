@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
@@ -74,6 +75,10 @@ class DrawScreen extends StatefulWidget {
   final int? pixelW;
   final int? pixelH;
 
+  /// Пропорция листа. null — холст создан до появления листа: он рисуется во
+  /// всю область, иначе штрихи, сохранённые в долях старого холста, сплющило бы.
+  final double? sheetRatio;
+
   const DrawScreen({
     super.key,
     required this.userData,
@@ -83,6 +88,7 @@ class DrawScreen extends StatefulWidget {
     this.canvasName,
     this.pixelW,
     this.pixelH,
+    this.sheetRatio,
   });
 
   @override
@@ -107,8 +113,13 @@ class _DrawScreenState extends State<DrawScreen>
   int get _pxCols => widget.pixelW ?? 1;
   int get _pxRows => widget.pixelH ?? 1;
 
-  /// Пропорция листа: у пиксельного холста её задаёт сетка, у обычного — 4:5.
-  double get _sheetRatio => _isPixel ? _pxCols / _pxRows : _kSheetRatio;
+  /// Пропорция листа: у пиксельного её задаёт сетка, у нового обычного —
+  /// сохранённая при создании. null — старый холст без листа.
+  double? get _sheetRatio =>
+      _isPixel ? _pxCols / _pxRows : widget.sheetRatio;
+
+  /// Старые холсты живут по-прежнему: лист во всю свободную область.
+  bool get _hasSheet => _sheetRatio != null;
 
   /// Касание переводим в центр клетки: так палец не мажет мимо пикселя, а
   /// точки штриха ложатся ровно в сетку.
@@ -128,6 +139,11 @@ class _DrawScreenState extends State<DrawScreen>
   static const double _kMinScale = 0.2;
   /// Порог поворота: ниже него щипок считается чистым зумом.
   static const double _kRotationSlop = 0.16; // ≈9°
+  /// Показывать направляющие пиксельной сетки. Выбор запоминается: кому-то
+  /// удобнее целиться по клеткам, кому-то они мешают смотреть на рисунок.
+  bool _showPixelGrid = true;
+  static const String _kPixelGridPref = 'draw_pixel_grid_visible';
+
   bool _rotationUnlocked = false;
   double _rotationSlopUsed = 0.0;
   static const double _kMaxScale = 10.0;
@@ -250,6 +266,7 @@ class _DrawScreenState extends State<DrawScreen>
     _activeColor = widget.pairData.isPaired
         ? _colorForUser(_myUid)
         : const Color(0xFF000000);
+    unawaited(_loadPixelGridPref());
     _currentColorValue = _activeColor.toARGB32();
 
     _toolbarAnim = AnimationController(
@@ -1013,6 +1030,25 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Возврат листа на место — анимацией, а не прыжком: рывок сбивает с толку,
   /// особенно когда лист был повёрнут.
+  Future<void> _togglePixelGrid() async {
+    setState(() => _showPixelGrid = !_showPixelGrid);
+    _repaintNotifier.value++;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kPixelGridPref, _showPixelGrid);
+    } catch (_) {}
+  }
+
+  Future<void> _loadPixelGridPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getBool(_kPixelGridPref);
+      if (v != null && mounted && v != _showPixelGrid) {
+        setState(() => _showPixelGrid = v);
+      }
+    } catch (_) {}
+  }
+
   void _resetZoom() {
     _resetCtrl?.dispose();
     final ctrl = AnimationController(
@@ -2025,17 +2061,35 @@ class _DrawScreenState extends State<DrawScreen>
         // растягивался по экрану: точки хранятся в долях 0..1, поэтому у
         // партнёра с другой формой экрана рисунок съезжал, а выгруженный PNG
         // каждый раз получался своего размера.
-        final maxW = (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
-        final maxH = (available.height - _kCanvasPad * 2 - _kSheetCaption)
-            .clamp(1.0, double.infinity);
-        double sheetW = maxW;
-        double sheetH = sheetW / _sheetRatio;
-        if (sheetH > maxH) {
-          sheetH = maxH;
-          sheetW = sheetH * _sheetRatio;
+        final ratio = _sheetRatio;
+        final double sheetW;
+        final double sheetH;
+        final double sheetLeft;
+        final double sheetTop;
+        if (ratio == null) {
+          // Холст, созданный до появления листа: прежняя геометрия во всю
+          // область — иначе сохранённые штрихи сплющит.
+          sheetW = (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
+          sheetH =
+              (available.height - _kCanvasPad * 2).clamp(1.0, double.infinity);
+          sheetLeft = _kCanvasPad;
+          sheetTop = _kCanvasPad;
+        } else {
+          final maxW =
+              (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
+          final maxH = (available.height - _kCanvasPad * 2 - _kSheetCaption)
+              .clamp(1.0, double.infinity);
+          double w = maxW;
+          double h = w / ratio;
+          if (h > maxH) {
+            h = maxH;
+            w = h * ratio;
+          }
+          sheetW = w;
+          sheetH = h;
+          sheetLeft = (available.width - w) / 2;
+          sheetTop = ((available.height - _kSheetCaption) - h) / 2;
         }
-        final sheetLeft = (available.width - sheetW) / 2;
-        final sheetTop = ((available.height - _kSheetCaption) - sheetH) / 2;
         final nextSize = Size(sheetW, sheetH);
         // ��������� ������ ������ �������� �� ����� build-����.
         // addPostFrameCallback ����� ������ � �������� ������ �����������.
@@ -2075,6 +2129,7 @@ class _DrawScreenState extends State<DrawScreen>
                         gridColor: _isPixel ? null : _sheetGridColor,
                         pixelCols: _isPixel ? _pxCols : null,
                         pixelRows: _isPixel ? _pxRows : null,
+                        showPixelGrid: _showPixelGrid,
                         strokes: _visibleStrokes,
                         currentPoints: _currentPoints,
                         currentColorValue: _currentColorValue,
@@ -2114,8 +2169,8 @@ class _DrawScreenState extends State<DrawScreen>
                 ),
               ),
             ),
-            // Формат листа — тем же языком, что в макете
-            Positioned(
+            // Формат листа — только там, где лист есть
+            if (_hasSheet) Positioned(
               left: 0,
               right: 0,
               top: sheetTop + sheetH + 6,
@@ -2569,6 +2624,14 @@ class _DrawScreenState extends State<DrawScreen>
               tooltip: s.strokeThickness,
               badge: _strokeWidth.round().toString(),
             ),
+            // Сетка на пиксельном холсте прячется и возвращается
+            if (_isPixel)
+              _actionBtn(
+                _showPixelGrid ? Icons.grid_on_rounded : Icons.grid_off_rounded,
+                _togglePixelGrid,
+                tooltip: _showPixelGrid ? s.pixelGridHide : s.pixelGridShow,
+                color: _showPixelGrid ? t.primary : null,
+              ),
             // Отмена и возврат — здесь же, у большого пальца
             _actionBtn(
               Icons.undo_rounded,
@@ -2846,6 +2909,8 @@ class _CanvasScene extends StatefulWidget {
   /// Сетка пиксельного холста (колонки × строки); null — обычный холст.
   final int? pixelCols;
   final int? pixelRows;
+  /// Показывать направляющие сетки поверх листа.
+  final bool showPixelGrid;
   final List<DrawStroke> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
@@ -2863,6 +2928,7 @@ class _CanvasScene extends StatefulWidget {
     this.gridColor,
     this.pixelCols,
     this.pixelRows,
+    this.showPixelGrid = true,
     required this.strokes,
     required this.currentPoints,
     required this.currentColorValue,
@@ -2920,7 +2986,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
             Positioned.fill(child: _GridBackground(lineColor: widget.gridColor!)),
           // Пиксельная сетка: тонкие направляющие ровно по клеткам, чтобы было
           // видно, куда встанет следующий пиксель.
-          if (widget.pixelCols != null && widget.pixelRows != null)
+          if (widget.showPixelGrid &&
+              widget.pixelCols != null &&
+              widget.pixelRows != null)
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(

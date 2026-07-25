@@ -15,6 +15,14 @@ class CanvasMeta {
   final int? pixelW;
   final int? pixelH;
 
+  /// Пропорция листа (ширина/высота), с которой холст создан.
+  ///
+  /// null — холст из времён, когда лист занимал всю свободную область экрана.
+  /// Точки штрихов хранятся в долях 0..1 от холста, поэтому такие рисунки
+  /// нельзя перекладывать на лист 4:5 — их сплющило бы. Им оставляем прежнее
+  /// поведение, лист получают только новые холсты.
+  final double? sheetRatio;
+
   const CanvasMeta({
     required this.id,
     required this.name,
@@ -23,13 +31,16 @@ class CanvasMeta {
     this.previewBase64,
     this.pixelW,
     this.pixelH,
+    this.sheetRatio,
   });
 
   /// true — холст в режиме пиксель-арта.
   bool get isPixel => (pixelW ?? 0) > 1 && (pixelH ?? 0) > 1;
 
-  /// Пропорция листа: у пиксельного холста её задаёт сетка, у обычного — 4:5.
-  double get sheetRatio => isPixel ? pixelW! / pixelH! : 4 / 5;
+  /// Пропорция листа для отрисовки: у пиксельного её задаёт сетка, у нового
+  /// обычного — сохранённая, у старого — null (рисуем во всю область).
+  double? get effectiveRatio =>
+      isPixel ? pixelW! / pixelH! : sheetRatio;
 
   CanvasMeta copyWith({
     String? name,
@@ -46,6 +57,7 @@ class CanvasMeta {
             clearPreview ? null : (previewBase64 ?? this.previewBase64),
         pixelW: pixelW,
         pixelH: pixelH,
+        sheetRatio: sheetRatio,
       );
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +68,7 @@ class CanvasMeta {
         if (previewBase64 != null) 'previewBase64': previewBase64,
         if (pixelW != null) 'pixelW': pixelW,
         if (pixelH != null) 'pixelH': pixelH,
+        if (sheetRatio != null) 'sheetRatio': sheetRatio,
       };
 
   factory CanvasMeta.fromJson(Map<String, dynamic> json) => CanvasMeta(
@@ -68,5 +81,6 @@ class CanvasMeta {
         previewBase64: json['previewBase64'] as String?,
         pixelW: (json['pixelW'] as num?)?.toInt(),
         pixelH: (json['pixelH'] as num?)?.toInt(),
+        sheetRatio: (json['sheetRatio'] as num?)?.toDouble(),
       );
 }

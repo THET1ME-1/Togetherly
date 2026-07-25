@@ -1037,6 +1037,8 @@ abstract class AppStrings {
   String get plainCanvas;
   String get pixelCanvasCreate;
   String pixelCanvasSummary(int cells, int px);
+  String get pixelGridShow;
+  String get pixelGridHide;
   String get chatStyleFace;
   String get chatStyleBackground;
   String get chatStyleTextColor;
@@ -3421,6 +3423,10 @@ class _RuStrings extends AppStrings {
   @override
   String pixelCanvasSummary(int cells, int px) =>
       '$cells клеток · пиксель $px px в выгрузке';
+  @override
+  String get pixelGridShow => 'Показать сетку';
+  @override
+  String get pixelGridHide => 'Скрыть сетку';
   @override
   String get chatStyleFace => 'Мордочка';
   @override
@@ -6199,6 +6205,10 @@ class _EnStrings extends AppStrings {
   @override
   String pixelCanvasSummary(int cells, int px) =>
       '$cells cells · $px px per pixel on export';
+  @override
+  String get pixelGridShow => 'Show grid';
+  @override
+  String get pixelGridHide => 'Hide grid';
   @override
   String get chatStyleFace => 'Face';
   @override

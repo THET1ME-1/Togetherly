@@ -71,6 +71,11 @@ class CanvasStorageService {
       updatedAt: DateTime.now(),
       pixelW: pixelW,
       pixelH: pixelH,
+      // Новый холст сразу с листом. У старых поле пустое — их рисунки
+      // остаются в прежней геометрии.
+      sheetRatio: (pixelW != null && pixelH != null)
+          ? pixelW / pixelH
+          : 4 / 5,
     );
     await _save(uid, groupId, [meta, ...canvases]);
 
