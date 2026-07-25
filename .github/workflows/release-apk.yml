@@ -1,4 +1,4 @@
-name: Release → GitHub + Google Play + RuStore + iOS
+name: Release → GitHub (APK+IPA) + Google Play + RuStore + iOS
 
 # ── Когда запускается сборка ──────────────────────────────────────────────
 #  1) Пуш тега вида v1.12.9  →  git tag v1.12.9 && git push origin v1.12.9
@@ -26,6 +26,8 @@ jobs:
     # Публикуем APK на GitHub, если выбран target github (или all).
     if: ${{ inputs.targets == '' || contains(inputs.targets, 'all') || contains(inputs.targets, 'github') }}
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -159,6 +161,18 @@ jobs:
             dist/togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}-arm64-v8a.apk
             dist/togetherly-${{ steps.ver.outputs.name }}-${{ steps.ver.outputs.code }}-armeabi-v7a.apk
             dist/version.json
+
+  # ── Unsigned IPA в тот же релиз (сайдлоад через AltStore/Sideloadly) ────────
+  # Вызываем reusable-воркфлоу: в GitHub-релизе всегда лежат и APK, и IPA —
+  # руками второй прогон запускать не нужно.
+  attach-ipa:
+    needs: build-apk
+    permissions:
+      contents: write
+    secrets: inherit
+    uses: ./.github/workflows/ios-unsigned-ipa.yml
+    with:
+      tag: ${{ needs.build-apk.outputs.tag }}
 
   # ── Гейт: публикуем в Play только если задан секрет сервис-аккаунта ──────────
   # Без PLAY_SERVICE_ACCOUNT_JSON job publish-play пропускается (не краснеет),
