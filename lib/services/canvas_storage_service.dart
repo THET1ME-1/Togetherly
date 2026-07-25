@@ -59,6 +59,8 @@ class CanvasStorageService {
     String uid, {
     String? name,
     String groupId = '',
+    int? pixelW,
+    int? pixelH,
   }) async {
     final canvases = await getCanvases(uid, groupId: groupId);
     final id = 'canvas_${DateTime.now().millisecondsSinceEpoch}';
@@ -67,6 +69,8 @@ class CanvasStorageService {
       name: name ?? 'Canvas ${canvases.length + 1}',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      pixelW: pixelW,
+      pixelH: pixelH,
     );
     await _save(uid, groupId, [meta, ...canvases]);
 
@@ -79,6 +83,8 @@ class CanvasStorageService {
         createdAt: meta.createdAt.millisecondsSinceEpoch,
         updatedAt: meta.updatedAt.millisecondsSinceEpoch,
         createdBy: uid,
+        pixelW: meta.pixelW,
+        pixelH: meta.pixelH,
       );
       _canvas.incrementDrawings(groupId, 1);
     }
@@ -204,6 +210,9 @@ class CanvasStorageService {
         (remote['updatedAt'] as num?)?.toInt() ?? 0,
       );
 
+      final pixelW = (remote['pixelW'] as num?)?.toInt();
+      final pixelH = (remote['pixelH'] as num?)?.toInt();
+
       if (!localById.containsKey(id)) {
         // New canvas from partner — add it locally
         localById[id] = CanvasMeta(
@@ -211,6 +220,8 @@ class CanvasStorageService {
           name: name,
           createdAt: createdAt,
           updatedAt: updatedAt,
+          pixelW: pixelW,
+          pixelH: pixelH,
         );
         changed = true;
       } else {
@@ -218,6 +229,21 @@ class CanvasStorageService {
         final existing = localById[id]!;
         if (updatedAt.isAfter(existing.updatedAt) && name != existing.name) {
           localById[id] = existing.copyWith(name: name, updatedAt: updatedAt);
+          changed = true;
+        }
+        // Сетку холста узнаём от партнёра один раз: у создателя она есть сразу,
+        // у второго — приезжает вместе с каталогом.
+        if (pixelW != null && pixelH != null && !localById[id]!.isPixel) {
+          final e = localById[id]!;
+          localById[id] = CanvasMeta(
+            id: e.id,
+            name: e.name,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+            previewBase64: e.previewBase64,
+            pixelW: pixelW,
+            pixelH: pixelH,
+          );
           changed = true;
         }
       }

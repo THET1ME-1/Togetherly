@@ -70,6 +70,10 @@ class DrawScreen extends StatefulWidget {
   /// Human-readable title shown in the top bar.
   final String? canvasName;
 
+  /// Пиксельная сетка холста: колонки × строки. null — обычный холст.
+  final int? pixelW;
+  final int? pixelH;
+
   const DrawScreen({
     super.key,
     required this.userData,
@@ -77,6 +81,8 @@ class DrawScreen extends StatefulWidget {
     required this.theme,
     this.canvasId = 'main',
     this.canvasName,
+    this.pixelW,
+    this.pixelH,
   });
 
   @override
@@ -86,12 +92,44 @@ class DrawScreen extends StatefulWidget {
 class _DrawScreenState extends State<DrawScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   static const double _kCanvasPad = 16.0;
+  /// Ширина к высоте листа. 4:5 — вертикаль, привычная по фото в галерее.
+  static const double _kSheetRatio = 4 / 5;
+  /// Место под подписью формата под листом.
+  static const double _kSheetCaption = 22.0;
+  /// Скругление листа — как у карточек приложения.
+  static const double _kSheetRadius = 14.0;
+  /// Цвет клетки на листе — бесплатный фон «Клетка» из макета.
+  static const Color _sheetGridColor = Color(0x1A6E4FC0);
+
+  /// Холст в режиме пиксель-арта.
+  bool get _isPixel =>
+      (widget.pixelW ?? 0) > 1 && (widget.pixelH ?? 0) > 1;
+  int get _pxCols => widget.pixelW ?? 1;
+  int get _pxRows => widget.pixelH ?? 1;
+
+  /// Пропорция листа: у пиксельного холста её задаёт сетка, у обычного — 4:5.
+  double get _sheetRatio => _isPixel ? _pxCols / _pxRows : _kSheetRatio;
+
+  /// Касание переводим в центр клетки: так палец не мажет мимо пикселя, а
+  /// точки штриха ложатся ровно в сетку.
+  Offset _snapToCell(Offset canvasPx) {
+    if (!_isPixel || _canvasSize.isEmpty) return canvasPx;
+    final cw = _canvasSize.width / _pxCols;
+    final ch = _canvasSize.height / _pxRows;
+    final cx = (canvasPx.dx / cw).floor().clamp(0, _pxCols - 1);
+    final cy = (canvasPx.dy / ch).floor().clamp(0, _pxRows - 1);
+    return Offset((cx + 0.5) * cw, (cy + 0.5) * ch);
+  }
   // Live cursor throttle. 60ms felt great but produced ~16 writes/sec per
   // drawing user — combined with the partner's snapshot listener that's
   // ~16 reads/sec on the other side. 150ms (~6.6 fps) still feels fluid for
   // a follow-along cursor and roughly halves both reads and writes.
   static const int _liveThrottleMs = 150;
   static const double _kMinScale = 0.2;
+  /// Порог поворота: ниже него щипок считается чистым зумом.
+  static const double _kRotationSlop = 0.16; // ≈9°
+  bool _rotationUnlocked = false;
+  double _rotationSlopUsed = 0.0;
   static const double _kMaxScale = 10.0;
 
   /// Только для загрузки картинок-вставок в Storage (медиа §4). Холст/штрихи —
@@ -305,6 +343,7 @@ class _DrawScreenState extends State<DrawScreen>
     _hintTimer?.cancel();
     _toolbarAnim.dispose();
     _pulseAnim.dispose();
+    _resetCtrl?.dispose();
     _clearLiveStroke();
     _repaintNotifier.dispose();
     _partnerNotifier.dispose();
@@ -675,7 +714,10 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {
       _currentPoints
         ..clear()
-        ..add(DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize));
+        ..add(DrawPoint.fromOffset(
+          _snapToCell(_screenToCanvas(localPoint)),
+          _canvasSize,
+        ));
       _currentShapeType = null;
       _currentColorValue = _activeTool == DrawTool.eraser
           ? _bgColor.toARGB32()
@@ -701,9 +743,19 @@ class _DrawScreenState extends State<DrawScreen>
         _currentPoints.add(end);
       }
     } else {
-      _currentPoints.add(
-        DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize),
+      final pt = DrawPoint.fromOffset(
+        _snapToCell(_screenToCanvas(localPoint)),
+        _canvasSize,
       );
+      // В пиксельном режиме палец внутри одной клетки не должен плодить точки:
+      // штрих раздувается, а рисунок от этого не меняется.
+      if (_isPixel && _currentPoints.isNotEmpty) {
+        final last = _currentPoints.last;
+        if ((last.x - pt.x).abs() < 1e-6 && (last.y - pt.y).abs() < 1e-6) {
+          return;
+        }
+      }
+      _currentPoints.add(pt);
     }
     _repaintNotifier.value++;
     _pushLiveStrokeIfNeeded();
@@ -780,8 +832,15 @@ class _DrawScreenState extends State<DrawScreen>
     _activePointers.add(event.pointer);
 
     if (_activePointers.length >= 2) {
-      _isZooming = false; // ����� ����������� onScaleStart
-      _cancelCurrentGesture();
+      _isZooming = false; // дальше подхватит onScaleStart
+      // Второй палец раньше стирал начатую линию целиком: коснулись ладонью —
+      // и штрих пропал. Теперь он фиксируется, а зум начинается со следующего
+      // события. Терять работу из-за случайного касания нельзя.
+      if (_isDrawing && _currentPoints.length > 1) {
+        _finishStroke();
+      } else {
+        _cancelCurrentGesture();
+      }
       return;
     }
 
@@ -866,6 +925,8 @@ class _DrawScreenState extends State<DrawScreen>
   void _onScaleStart(ScaleStartDetails details) {
     if (details.pointerCount < 2) return;
     _isZooming = true;
+    _rotationUnlocked = false;
+    _rotationSlopUsed = 0.0;
     _cancelCurrentGesture();
     _baseScale = _scale;
     _baseOffset = _canvasOffset;
@@ -904,7 +965,17 @@ class _DrawScreenState extends State<DrawScreen>
       _kMinScale,
       _kMaxScale,
     );
-    final nextRotation = _baseRotation + details.rotation;
+    // Поворот включается только после заметного разворота пальцев (~9°):
+    // раньше лист кренился от любого щипка, и его приходилось выправлять.
+    // После срабатывания порог вычитается, иначе лист прыгнул бы рывком.
+    if (!_rotationUnlocked && details.rotation.abs() > _kRotationSlop) {
+      _rotationUnlocked = true;
+      _rotationSlopUsed =
+          details.rotation.sign * _kRotationSlop;
+    }
+    final nextRotation = _rotationUnlocked
+        ? _baseRotation + details.rotation - _rotationSlopUsed
+        : _baseRotation;
     final focalCanvas = _rotateOffset(
       (_baseFocalPoint - _baseOffset) / _baseScale,
       -_baseRotation,
@@ -940,13 +1011,37 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  /// Возврат листа на место — анимацией, а не прыжком: рывок сбивает с толку,
+  /// особенно когда лист был повёрнут.
   void _resetZoom() {
-    setState(() {
-      _scale = 1.0;
-      _canvasOffset = Offset.zero;
-      _canvasRotation = 0.0;
+    _resetCtrl?.dispose();
+    final ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _resetCtrl = ctrl;
+    final curve = CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic);
+    final fromScale = _scale;
+    final fromOffset = _canvasOffset;
+    final fromRot = _canvasRotation;
+    ctrl.addListener(() {
+      final t = curve.value;
+      setState(() {
+        _scale = fromScale + (1.0 - fromScale) * t;
+        _canvasOffset = Offset.lerp(fromOffset, Offset.zero, t)!;
+        _canvasRotation = fromRot * (1 - t);
+      });
+    });
+    ctrl.forward().whenComplete(() {
+      ctrl.dispose();
+      if (identical(_resetCtrl, ctrl)) _resetCtrl = null;
+      if (_hasSharedCanvas) {
+        unawaited(_canvas.setRotation(_groupId, widget.canvasId, 0));
+      }
     });
   }
+
+  AnimationController? _resetCtrl;
 
   // ── Image helpers ──────────────────────────────────────────────────────────
 
@@ -1831,113 +1926,93 @@ class _DrawScreenState extends State<DrawScreen>
         )
         .toList();
 
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: t.cardSurface,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
+    // Панель без фона и тени: плавающие пилюли поверх «стола» — так лист
+    // получает всю высоту, а живое присутствие партнёра видно сразу.
+    final live = drawingPartners.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
       child: Row(
         children: [
-          _topIconBtn(
-            Icons.arrow_back_ios_new_rounded,
-            _captureThumbnailAndExit,
-          ),
-          const SizedBox(width: 4),
+          _pillIcon(Icons.arrow_back_rounded, _captureThumbnailAndExit),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.canvasName ?? s.drawTogether,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (drawingPartners.isNotEmpty)
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: live ? t.primaryLight : t.cardSurface,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  if (live) ...[
+                    const _PulsingDot(),
+                    const SizedBox(width: 9),
+                  ],
+                  Expanded(
                     child: Text(
-                      s.partnerIsDrawing(drawingPartners.join(', ')),
-                      key: ValueKey(drawingPartners.join()),
+                      live
+                          ? s.partnerIsDrawing(drawingPartners.join(', '))
+                          : (widget.canvasName ?? s.drawTogether),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: t.primary,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w600,
+                        color: t.textPrimary,
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
-          _topIconBtn(
-            Icons.undo_rounded,
-            _canUndo ? _undo : null,
-            tooltip: s.undoAction,
-          ),
-          _topIconBtn(
-            Icons.redo_rounded,
-            _canRedo ? _redo : null,
-            tooltip: s.redoAction,
-          ),
+          const SizedBox(width: 8),
+          _pillIcon(Icons.undo_rounded, _canUndo ? _undo : null,
+              tooltip: s.undoAction),
+          const SizedBox(width: 8),
           _saving
               ? SizedBox(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   child: Padding(
-                    padding: const EdgeInsets.all(11),
+                    padding: const EdgeInsets.all(12),
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      color: widget.theme.primary,
+                      color: t.primary,
                     ),
                   ),
                 )
-              : _topIconBtn(
-                  Icons.save_alt_rounded,
-                  () => _saveOrShare(share: false),
-                  tooltip: s.saveDrawing,
-                ),
-          _topIconBtn(
-            Icons.share_rounded,
-            () => _saveOrShare(share: true),
-            tooltip: s.shareDrawing,
-          ),
+              : _pillIcon(Icons.ios_share_rounded, () => _saveOrShare(share: true),
+                  tooltip: s.shareDrawing),
         ],
       ),
     );
   }
 
-  Widget _topIconBtn(IconData icon, VoidCallback? onTap, {String? tooltip}) {
+  /// Круглая кнопка-пилюля верхней панели.
+  Widget _pillIcon(IconData icon, VoidCallback? onTap, {String? tooltip}) {
+    final t = widget.theme;
     final btn = Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      color: t.cardSurface,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: SizedBox(
-          width: 40,
-          height: 40,
+          width: 42,
+          height: 42,
           child: Icon(
             icon,
             size: 20,
-            color: onTap == null
-                ? widget.theme.textMuted
-                : widget.theme.textSecondary,
+            color: onTap == null ? t.textMuted : t.textPrimary,
           ),
         ),
       ),
     );
-    if (tooltip != null) return Tooltip(message: tooltip, child: btn);
-    return btn;
+    return tooltip == null ? btn : Tooltip(message: tooltip, child: btn);
   }
 
   //  Canvas area
@@ -1946,10 +2021,22 @@ class _DrawScreenState extends State<DrawScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.biggest;
-        final nextSize = Size(
-          (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity),
-          (available.height - _kCanvasPad * 2).clamp(1.0, double.infinity),
-        );
+        // Лист держит формат 4:5 и одинаков у обоих в паре. Раньше холст
+        // растягивался по экрану: точки хранятся в долях 0..1, поэтому у
+        // партнёра с другой формой экрана рисунок съезжал, а выгруженный PNG
+        // каждый раз получался своего размера.
+        final maxW = (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
+        final maxH = (available.height - _kCanvasPad * 2 - _kSheetCaption)
+            .clamp(1.0, double.infinity);
+        double sheetW = maxW;
+        double sheetH = sheetW / _sheetRatio;
+        if (sheetH > maxH) {
+          sheetH = maxH;
+          sheetW = sheetH * _sheetRatio;
+        }
+        final sheetLeft = (available.width - sheetW) / 2;
+        final sheetTop = ((available.height - _kSheetCaption) - sheetH) / 2;
+        final nextSize = Size(sheetW, sheetH);
         // ��������� ������ ������ �������� �� ����� build-����.
         // addPostFrameCallback ����� ������ � �������� ������ �����������.
         if (!nextSize.isEmpty && nextSize != _canvasSize) {
@@ -1958,26 +2045,20 @@ class _DrawScreenState extends State<DrawScreen>
 
         return Stack(
           children: [
-            // Subtle grid background
-            Positioned.fill(child: _GridBackground(lineColor: widget.theme.divider)),
-            // White canvas with shadow
+            // «Стол», на котором лежит лист. Сетка теперь живёт внутри листа —
+            // это фон самого рисунка, он и уходит в экспорт.
+            Positioned.fill(
+              child: ColoredBox(color: widget.theme.bgGradient.first),
+            ),
+            // Лист: скруглённый, по центру «стола»
             Positioned(
-              left: _kCanvasPad,
-              top: _kCanvasPad,
-              right: _kCanvasPad,
-              bottom: _kCanvasPad,
-              child: Container(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipRect(
+              left: sheetLeft,
+              top: sheetTop,
+              width: sheetW,
+              height: sheetH,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_kSheetRadius),
+                child: SizedBox.expand(
                   child: Transform(
                     transform: Matrix4.identity()
                       ..setTranslationRaw(
@@ -1991,6 +2072,9 @@ class _DrawScreenState extends State<DrawScreen>
                       key: _canvasKey,
                       child: _CanvasScene(
                         bgColor: _bgColor,
+                        gridColor: _isPixel ? null : _sheetGridColor,
+                        pixelCols: _isPixel ? _pxCols : null,
+                        pixelRows: _isPixel ? _pxRows : null,
                         strokes: _visibleStrokes,
                         currentPoints: _currentPoints,
                         currentColorValue: _currentColorValue,
@@ -2008,12 +2092,13 @@ class _DrawScreenState extends State<DrawScreen>
                 ),
               ),
             ),
-            // Input layer
+            // Слой ввода лежит ровно на листе: координаты штрихов считаются
+            // от него, поэтому рамки должны совпадать до пикселя.
             Positioned(
-              left: _kCanvasPad,
-              top: _kCanvasPad,
-              right: _kCanvasPad,
-              bottom: _kCanvasPad,
+              left: sheetLeft,
+              top: sheetTop,
+              width: sheetW,
+              height: sheetH,
               child: Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: _onPointerDown,
@@ -2026,6 +2111,22 @@ class _DrawScreenState extends State<DrawScreen>
                   onScaleUpdate: _onScaleUpdate,
                   onScaleEnd: _onScaleEnd,
                   child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            // Формат листа — тем же языком, что в макете
+            Positioned(
+              left: 0,
+              right: 0,
+              top: sheetTop + sheetH + 6,
+              child: Center(
+                child: Text(
+                  _sheetCaption(sheetW, sheetH),
+                  style: TextStyle(
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                    color: widget.theme.textMuted,
+                  ),
                 ),
               ),
             ),
@@ -2046,6 +2147,18 @@ class _DrawScreenState extends State<DrawScreen>
         );
       },
     );
+  }
+
+  /// Подпись под листом: у пиксельного холста — сетка и сторона пикселя,
+  /// у обычного — формат и размер будущего PNG.
+  String _sheetCaption(double w, double h) {
+    if (_isPixel) {
+      final px = (1600 / _pxCols).round();
+      return '$_pxCols × $_pxRows · клетка $px px';
+    }
+    const exportW = 1600;
+    final exportH = (exportW / _kSheetRatio).round();
+    return '4 : 5 · $exportW×$exportH';
   }
 
   Widget _buildPartnerCursor(DrawStroke stroke) {
@@ -2131,17 +2244,18 @@ class _DrawScreenState extends State<DrawScreen>
     return GestureDetector(
       onTap: _resetZoom,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.black.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
           label,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -2455,6 +2569,17 @@ class _DrawScreenState extends State<DrawScreen>
               tooltip: s.strokeThickness,
               badge: _strokeWidth.round().toString(),
             ),
+            // Отмена и возврат — здесь же, у большого пальца
+            _actionBtn(
+              Icons.undo_rounded,
+              _canUndo ? _undo : null,
+              tooltip: s.undoAction,
+            ),
+            _actionBtn(
+              Icons.redo_rounded,
+              _canRedo ? _redo : null,
+              tooltip: s.redoAction,
+            ),
             // Expand/collapse more tools
             _expandBtn(t),
             const SizedBox(width: 4),
@@ -2472,7 +2597,7 @@ class _DrawScreenState extends State<DrawScreen>
     bool compact = false,
   }) {
     final active = _activeTool == tool;
-    final size = compact ? 36.0 : 42.0;
+    final size = compact ? 40.0 : 48.0;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -2486,26 +2611,24 @@ class _DrawScreenState extends State<DrawScreen>
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: active
-                ? t.primary.withValues(alpha: 0.13)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: active
-                ? Border.all(
-                    color: t.primary.withValues(alpha: 0.45),
-                    width: 1.5,
-                  )
-                : null,
+            // Круглая кнопка: выбранный инструмент залит акцентом, остальные —
+            // на поверхности карточки. Рамок и полупрозрачных заливок нет.
+            color: active ? t.primary : t.surfaceMuted,
+            shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
             size: compact ? 20 : 22,
-            color: active ? t.primary : t.textMuted,
+            color: active ? _onPrimaryColor(t) : t.textSecondary,
           ),
         ),
       ),
     );
   }
+
+  /// Контрастный цвет поверх акцента: у светлых акцентов белый текст тонет.
+  Color _onPrimaryColor(AppTheme t) =>
+      t.primary.computeLuminance() > 0.55 ? const Color(0xFF16161A) : Colors.white;
 
   Widget _actionBtn(
     IconData icon,
@@ -2520,11 +2643,11 @@ class _DrawScreenState extends State<DrawScreen>
         onTap: onTap,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-          width: 42,
-          height: 42,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             color: widget.theme.surfaceMuted,
-            borderRadius: BorderRadius.circular(12),
+            shape: BoxShape.circle,
           ),
           child: Stack(
             children: [
@@ -2604,6 +2727,37 @@ class _DrawScreenState extends State<DrawScreen>
 }
 
 //  Grid background
+
+/// Направляющие пиксельной сетки. Рисуются только когда клетка крупнее 6 px —
+/// на мелкой сетке линии сливаются в кашу и мешают.
+class _PixelGridPainter extends CustomPainter {
+  final int cols;
+  final int rows;
+
+  const _PixelGridPainter({required this.cols, required this.rows});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cw = size.width / cols;
+    final ch = size.height / rows;
+    if (cw < 6 || ch < 6) return;
+    final paint = Paint()
+      ..color = const Color(0x14000000)
+      ..strokeWidth = 1;
+    for (int i = 1; i < cols; i++) {
+      final x = i * cw;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (int j = 1; j < rows; j++) {
+      final y = j * ch;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PixelGridPainter old) =>
+      old.cols != cols || old.rows != rows;
+}
 
 class _GridBackground extends StatelessWidget {
   final Color lineColor;
@@ -2687,6 +2841,11 @@ class _PulsingDotState extends State<_PulsingDot>
 
 class _CanvasScene extends StatefulWidget {
   final Color bgColor;
+  /// Цвет клетки фона; null — фон без сетки.
+  final Color? gridColor;
+  /// Сетка пиксельного холста (колонки × строки); null — обычный холст.
+  final int? pixelCols;
+  final int? pixelRows;
   final List<DrawStroke> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
@@ -2701,6 +2860,9 @@ class _CanvasScene extends StatefulWidget {
 
   const _CanvasScene({
     required this.bgColor,
+    this.gridColor,
+    this.pixelCols,
+    this.pixelRows,
     required this.strokes,
     required this.currentPoints,
     required this.currentColorValue,
@@ -2752,10 +2914,29 @@ class _CanvasSceneState extends State<_CanvasScene> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Клетка — бесплатный фон листа. Лежит под штрихами и попадает в
+          // выгрузку вместе с рисунком.
+          if (widget.gridColor != null)
+            Positioned.fill(child: _GridBackground(lineColor: widget.gridColor!)),
+          // Пиксельная сетка: тонкие направляющие ровно по клеткам, чтобы было
+          // видно, куда встанет следующий пиксель.
+          if (widget.pixelCols != null && widget.pixelRows != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _PixelGridPainter(
+                    cols: widget.pixelCols!,
+                    rows: widget.pixelRows!,
+                  ),
+                ),
+              ),
+            ),
           SizedBox.expand(
             child: CustomPaint(
               painter: _DrawingPainter(
                 strokes: drawStrokes,
+                pixelCols: widget.pixelCols,
+                pixelRows: widget.pixelRows,
                 currentPoints: widget.currentPoints,
                 currentColorValue: widget.currentColorValue,
                 currentStrokeWidth: widget.currentStrokeWidth,
@@ -2866,9 +3047,14 @@ class _DrawingPainter extends CustomPainter {
   final DrawShapeType? currentShapeType;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
+  /// Сетка пиксельного холста; null — обычное рисование кривыми.
+  final int? pixelCols;
+  final int? pixelRows;
 
   _DrawingPainter({
     required this.strokes,
+    this.pixelCols,
+    this.pixelRows,
     required this.currentPoints,
     required this.currentColorValue,
     required this.currentStrokeWidth,
@@ -2995,6 +3181,62 @@ class _DrawingPainter extends CustomPainter {
     }
   }
 
+  /// Пиксельный штрих: точки — номера клеток, между ними шагаем алгоритмом
+  /// Брезенхэма, иначе при быстром движении пальца в дорожке остаются дыры.
+  void _drawPixelStroke(
+    Canvas canvas,
+    List<DrawPoint> points,
+    int colorValue,
+    bool isEraser,
+    Size size,
+    int cols,
+    int rows, {
+    double alpha = 1.0,
+  }) {
+    if (points.isEmpty || cols < 1 || rows < 1) return;
+    final cw = size.width / cols;
+    final ch = size.height / rows;
+    final c = Color(colorValue);
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = false
+      ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;
+
+    final cells = <int>{};
+    int? prevX, prevY;
+    for (final p in points) {
+      final cx = (p.x * cols).floor().clamp(0, cols - 1);
+      final cy = (p.y * rows).floor().clamp(0, rows - 1);
+      if (prevX != null && prevY != null && (prevX != cx || prevY != cy)) {
+        int x0 = prevX, y0 = prevY;
+        final dx = (cx - x0).abs(), sx = x0 < cx ? 1 : -1;
+        final dy = -(cy - y0).abs(), sy = y0 < cy ? 1 : -1;
+        int err = dx + dy;
+        while (true) {
+          cells.add(y0 * cols + x0);
+          if (x0 == cx && y0 == cy) break;
+          final e2 = 2 * err;
+          if (e2 >= dy) { err += dy; x0 += sx; }
+          if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+      }
+      cells.add(cy * cols + cx);
+      prevX = cx;
+      prevY = cy;
+    }
+
+    // +0.5 к стороне — чтобы между соседними клетками не просвечивали щели
+    // после округления координат.
+    for (final key in cells) {
+      final x = key % cols;
+      final y = key ~/ cols;
+      canvas.drawRect(
+        Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
+        paint,
+      );
+    }
+  }
+
   void _drawStroke(
     Canvas canvas,
     List<DrawPoint> points,
@@ -3005,6 +3247,12 @@ class _DrawingPainter extends CustomPainter {
     double alpha = 1.0,
   }) {
     if (points.isEmpty) return;
+    // Пиксельный холст: клетки вместо сглаженной кривой.
+    if (pixelCols != null && pixelRows != null) {
+      _drawPixelStroke(canvas, points, colorValue, isEraser, size,
+          pixelCols!, pixelRows!, alpha: alpha);
+      return;
+    }
     final paint = Paint()
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
@@ -3054,5 +3302,7 @@ class _DrawingPainter extends CustomPainter {
       old.currentStrokeWidth != currentStrokeWidth ||
       old.currentIsEraser != currentIsEraser ||
       old.currentShapeType != currentShapeType ||
-      old.canvasSize != canvasSize;
+      old.canvasSize != canvasSize ||
+      old.pixelCols != pixelCols ||
+      old.pixelRows != pixelRows;
 }

@@ -45,6 +45,10 @@ class CanvasRepository {
                 'name': (r.data['name'] ?? '').toString(),
                 'createdAt': (r.data['created_at'] as num?)?.toInt() ?? 0,
                 'updatedAt': (r.data['updated_at'] as num?)?.toInt() ?? 0,
+                // Размер пиксельной сетки: партнёр должен открыть холст ровно
+                // с той же сеткой, иначе клетки не совпадут.
+                'pixelW': (r.data['pixel_w'] as num?)?.toInt(),
+                'pixelH': (r.data['pixel_h'] as num?)?.toInt(),
               })
           .where((m) => (m['id'] as String).isNotEmpty)
           .toList());
@@ -56,12 +60,16 @@ class CanvasRepository {
     required int createdAt,
     required int updatedAt,
     String? createdBy,
+    int? pixelW,
+    int? pixelH,
   }) =>
       _data.upsertCanvasCatalogue(groupId, canvasId, {
         'name': name,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'createdBy': ?createdBy,
+        'pixelW': ?pixelW,
+        'pixelH': ?pixelH,
       });
 
   Future<void> renameCatalogue(String groupId, String canvasId, String name) =>

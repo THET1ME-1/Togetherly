@@ -1029,6 +1029,14 @@ abstract class AppStrings {
   /// Заголовок-разделитель по дате в чате: «Сегодня»/«Вчера»/«5 июня».
   String chatDateHeader(DateTime day);
   /// Лист оформления сообщения: подписи слоёв и кнопок.
+  /// Пиксель-арт: диалог выбора сетки при создании холста.
+  String get pixelCanvasTitle;
+  String get pixelCanvasHint;
+  String get pixelWidth;
+  String get pixelHeight;
+  String get plainCanvas;
+  String get pixelCanvasCreate;
+  String pixelCanvasSummary(int cells, int px);
   String get chatStyleFace;
   String get chatStyleBackground;
   String get chatStyleTextColor;
@@ -3397,6 +3405,22 @@ class _RuStrings extends AppStrings {
 
   @override
   String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
+  @override
+  String get pixelCanvasTitle => 'Пиксель-арт?';
+  @override
+  String get pixelCanvasHint =>
+      'Рисуйте по клеткам вдвоём. Размер сетки задаётся сейчас и потом не меняется.';
+  @override
+  String get pixelWidth => 'Ширина';
+  @override
+  String get pixelHeight => 'Высота';
+  @override
+  String get plainCanvas => 'Обычный холст';
+  @override
+  String get pixelCanvasCreate => 'По клеткам';
+  @override
+  String pixelCanvasSummary(int cells, int px) =>
+      '$cells клеток · пиксель $px px в выгрузке';
   @override
   String get chatStyleFace => 'Мордочка';
   @override
@@ -6159,6 +6183,22 @@ class _EnStrings extends AppStrings {
 
   @override
   String chatDeleteConfirm(String text) => 'Delete this message?';
+  @override
+  String get pixelCanvasTitle => 'Pixel art?';
+  @override
+  String get pixelCanvasHint =>
+      'Draw cell by cell together. The grid size is set now and cannot be changed later.';
+  @override
+  String get pixelWidth => 'Width';
+  @override
+  String get pixelHeight => 'Height';
+  @override
+  String get plainCanvas => 'Plain canvas';
+  @override
+  String get pixelCanvasCreate => 'Pixel grid';
+  @override
+  String pixelCanvasSummary(int cells, int px) =>
+      '$cells cells · $px px per pixel on export';
   @override
   String get chatStyleFace => 'Face';
   @override

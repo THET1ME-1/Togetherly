@@ -1570,6 +1570,8 @@ class PbDataService {
     if (data.containsKey('createdAt')) body['created_at'] = data['createdAt'];
     if (data.containsKey('updatedAt')) body['updated_at'] = data['updatedAt'];
     if (data.containsKey('createdBy')) body['created_by'] = data['createdBy'];
+    if (data.containsKey('pixelW')) body['pixel_w'] = data['pixelW'];
+    if (data.containsKey('pixelH')) body['pixel_h'] = data['pixelH'];
     return _upsertByFilter('canvas_catalogue',
         'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
         body, op: 'upsertCanvasCatalogue');

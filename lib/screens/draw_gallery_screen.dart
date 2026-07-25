@@ -88,6 +88,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           theme: widget.theme,
           canvasId: meta.id,
           canvasName: meta.name,
+          pixelW: meta.pixelW,
+          pixelH: meta.pixelH,
         ),
         fullscreenDialog: true,
         settings: const RouteSettings(name: '/draw'),
@@ -106,12 +108,18 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     );
     if (name == null || !mounted) return;
 
+    // Пиксельный холст или обычный, и если пиксельный — какая сетка.
+    final grid = await _showPixelDialog();
+    if (!mounted) return;
+
     final meta = await _storage.createCanvas(
       _uid,
       name: name.trim().isEmpty
           ? '${s.untitledCanvas} ${_canvases.length + 1}'
           : name.trim(),
       groupId: _groupId,
+      pixelW: grid?.$1,
+      pixelH: grid?.$2,
     );
 
     if (!mounted) return;
@@ -124,6 +132,8 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           theme: widget.theme,
           canvasId: meta.id,
           canvasName: meta.name,
+          pixelW: meta.pixelW,
+          pixelH: meta.pixelH,
         ),
         fullscreenDialog: true,
         settings: const RouteSettings(name: '/draw'),
@@ -155,6 +165,112 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     if (!confirmed || !mounted) return;
     await _storage.deleteCanvas(_uid, meta.id, groupId: _groupId);
     _load();
+  }
+
+  /// Выбор сетки для пиксель-арта. null — обычный холст.
+  /// Размер задаёт пользователь: 5×5, 12×15, 200×100 — что угодно в разумных
+  /// пределах. Менять его потом нельзя: точки хранятся в долях листа, и смена
+  /// сетки сдвинула бы рисунок у обоих.
+  Future<(int, int)?> _showPixelDialog() async {
+    final s = LocaleService.current;
+    final t = widget.theme;
+    final wCtrl = TextEditingController(text: '32');
+    final hCtrl = TextEditingController(text: '40');
+
+    return showDialog<(int, int)?>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDlg) {
+            int parse(TextEditingController c, int fallback) {
+              final v = int.tryParse(c.text.trim()) ?? fallback;
+              return v.clamp(2, 400);
+            }
+
+            final w = parse(wCtrl, 32);
+            final h = parse(hCtrl, 40);
+
+            Widget preset(int pw, int ph) => OutlinedButton(
+                  onPressed: () => setDlg(() {
+                    wCtrl.text = '$pw';
+                    hCtrl.text = '$ph';
+                  }),
+                  style: OutlinedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  ),
+                  child: Text('$pw×$ph'),
+                );
+
+            Widget field(TextEditingController c, String label) => Expanded(
+                  child: TextField(
+                    controller: c,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDlg(() {}),
+                    decoration: InputDecoration(
+                      labelText: label,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                );
+
+            return AlertDialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text(s.pixelCanvasTitle),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.pixelCanvasHint,
+                    style: TextStyle(fontSize: 13, color: t.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      field(wCtrl, s.pixelWidth),
+                      const SizedBox(width: 10),
+                      field(hCtrl, s.pixelHeight),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      preset(5, 5),
+                      preset(12, 15),
+                      preset(32, 40),
+                      preset(64, 80),
+                      preset(200, 100),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    s.pixelCanvasSummary(w * h, (1600 / w).round()),
+                    style: TextStyle(fontSize: 12.5, color: t.textMuted),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: Text(s.plainCanvas),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, (w, h)),
+                  child: Text(s.pixelCanvasCreate),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<String?> _showNameDialog({
