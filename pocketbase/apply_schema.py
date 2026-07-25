@@ -86,6 +86,10 @@ USERS_CUSTOM = [
     # Кулдауны коин-наград — epoch-ms (number, а не date): надёжнее в pb_hooks
     # JSVM (тривиальное сравнение чисел вместо date-API). Заполняют коин-роуты.
     number("last_daily_bonus_ms"), number("last_memory_reward_ms"),
+    # Togetherly+: флаг покупки (его читает PlusService и ставят lava.pb.js /
+    # redeem.pb.js) и дата последней выдачи ежемесячных монет. Без этих полей
+    # оплата проходила, а доступ не открывался — save просто терял значение.
+    boolean("plus"), number("last_plus_grant_ms"),
 ]
 # Override поля id у users: принимать внешний id (= прежний uid мигрированного
 # юзера, до 50 симв., смешанный регистр/'_'/'-'), но СОХРАНИТЬ автогенерацию
