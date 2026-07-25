@@ -4,12 +4,22 @@ name: iOS unsigned IPA → GitHub release
 # пересобирают подпись под Apple ID пользователя) и прикрепляет его к уже
 # существующему релизу. НЕ трогает Play / RuStore / TestFlight.
 on:
+  # Вызывается из релизного воркфлоу сразу после публикации APK — отдельного
+  # запуска руками больше не нужно (в GitHub-релизе всегда лежит и IPA).
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Тег релиза, к которому прицепить IPA'
+        required: true
+        type: string
+  # Ручной запуск оставлен для случая «релиз уже есть, IPA не доехал».
   workflow_dispatch:
     inputs:
       tag:
         description: 'Тег релиза, к которому прицепить IPA'
         required: true
-        default: 'v1.18.0+125'
+        type: string
+        default: 'v1.18.1+126'
 
 jobs:
   ipa:
