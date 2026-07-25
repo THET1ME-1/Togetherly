@@ -32,7 +32,9 @@ import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
+import '../services/plus_service.dart';
 import 'cycle_screen.dart';
+import 'plus_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
@@ -1269,9 +1271,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await _toggleSideAction();
               setSheetState(() {});
             },
+            plusActive: PlusService.instance.active,
+            onPlus: () => _openPlus(ctx),
             cycleAvailable: CycleService.availableFor(widget.userData),
             cycleShared: CycleService.instance.shareWithPartner,
-            onCycleOpen: () => _openCycle(ctx),
+            // Не куплено — строка ведёт на экран покупки, а не в пустоту.
+            onCycleOpen: () => PlusService.instance.active
+                ? _openCycle(ctx)
+                : _openPlus(ctx),
             onCycleSharedChanged: (v) async {
               await CycleService.instance.setShareWithPartner(v);
               setSheetState(() {});
@@ -1280,6 +1287,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Экран Togetherly+.
+  void _openPlus(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
     );
   }
 

@@ -9,6 +9,7 @@ import '../services/push_background_service.dart';
 import '../services/widget_background_refresh_service.dart';
 import '../services/offline/offline_reset.dart';
 import '../theme/app_theme.dart';
+import '../services/plus_service.dart';
 import '../theme/app_palettes.dart';
 import '../utils/safe_text.dart';
 import 'profile_icon.dart';
@@ -237,10 +238,13 @@ class UserData extends ChangeNotifier {
   /// Список ID разблокированных премиум-тем
   Set<int> get ownedThemes => Set.unmodifiable(_ownedThemes);
 
-  /// Доступна ли тема (free или куплена)
+  /// Доступна ли тема: бесплатная, купленная за монеты или открытая
+  /// покупкой Togetherly+ — она открывает все платные темы разом.
   bool hasTheme(int id) {
     final t = AppThemes.byIndex(id);
-    return !t.isPremium || _ownedThemes.contains(id);
+    if (!t.isPremium) return true;
+    if (PlusService.instance.active) return true;
+    return _ownedThemes.contains(id);
   }
 
   // ── Профильные иконки ───────────────────────────────────────────────────────

@@ -53,12 +53,27 @@ routerAdd("POST", "/api/coins/redeem", (e) => {
               ok: true,
               alreadyRedeemed: true,
               coins: user.getInt("coins") || 0,
+              plus: user.getBool("plus") || false,
               awarded: 0,
             },
           };
         } else {
           out = { s: 409, b: { ok: false, error: "code_used" } };
         }
+        return;
+      }
+
+      // Код Togetherly+ монет не несёт — он открывает возможности. Проверяем
+      // это раньше суммы, иначе такой код упёрся бы в «invalid_code».
+      const isPlus = rec.getBool("plus");
+      if (isPlus) {
+        rec.set("used_by", me);
+        rec.set("used_at", Date.now());
+        txApp.save(rec);
+
+        user.set("plus", true);
+        txApp.save(user);
+        out = { s: 200, b: { ok: true, plus: true, awarded: 0 } };
         return;
       }
 

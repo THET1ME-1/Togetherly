@@ -210,6 +210,9 @@ class PbAuthService {
       'email': s(d['email']).isNotEmpty ? s(d['email']) : (_svc.userEmail ?? ''),
       'gender': d['gender'],
       'avatarUrl': s(d['avatar_url']),
+      // Togetherly+ — серверный флаг: подделать на устройстве нельзя, и он
+      // переезжает вместе с аккаунтом на новый телефон.
+      'plus': d['plus'] == true,
     };
   }
 

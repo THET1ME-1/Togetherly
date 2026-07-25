@@ -1160,6 +1160,36 @@ abstract class AppStrings {
   String drawLayerStrokes(int count);
   String get drawBackgrounds;
   String drawBackgroundName(String id);
+  /// Togetherly+ — разовая покупка через lava.top.
+  String get plusTitle;
+  String get plusHeroTitle;
+  String get plusHeroBody;
+  String get plusActiveTitle;
+  String get plusActiveBody;
+  String get plusNoAdsTitle;
+  String get plusNoAdsBody;
+  String get plusThemesTitle;
+  String get plusThemesBody;
+  String get plusCycleTitle;
+  String get plusCycleBody;
+  String get plusWidgetsTitle;
+  String get plusWidgetsBody;
+  String get plusTipsTitle;
+  String get plusTipsBody;
+  String get plusVideoTitle;
+  String get plusVideoBody;
+  String get plusBuy;
+  String get plusHaveCode;
+  String get plusHowItWorks;
+  String get plusPortableNote;
+  String get plusUnavailableHere;
+  String get plusCodeHint;
+  String get plusCodeApply;
+  String get plusCodeOk;
+  String get plusCodeFailed;
+  String get plusLockedTipsTitle;
+  String get plusLockedTipsBody;
+  String get plusUnlock;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3835,6 +3865,79 @@ class _RuStrings extends AppStrings {
         'film' => 'Плёнка',
         _ => id,
       };
+  @override
+  String get plusTitle => 'Togetherly+';
+  @override
+  String get plusHeroTitle => 'Один раз — и навсегда';
+  @override
+  String get plusHeroBody =>
+      'Не подписка: платите однажды, доступ остаётся за аккаунтом и '
+      'переезжает на любой телефон.';
+  @override
+  String get plusActiveTitle => 'Togetherly+ у вас есть';
+  @override
+  String get plusActiveBody => 'Спасибо. Всё ниже уже открыто.';
+  @override
+  String get plusNoAdsTitle => 'Без рекламы';
+  @override
+  String get plusNoAdsBody =>
+      'Баннеры исчезают, совместный просмотр запускается сразу — без ролика';
+  @override
+  String get plusThemesTitle => 'Все темы и иконки';
+  @override
+  String get plusThemesBody => 'Платные палитры и иконки профиля разом';
+  @override
+  String get plusCycleTitle => 'Календарь цикла';
+  @override
+  String get plusCycleBody => 'Отметки, прогноз и статистика с графиками';
+  @override
+  String get plusWidgetsTitle => 'Новые виджеты';
+  @override
+  String get plusWidgetsBody =>
+      '«Вместе», «Скучаю», «Настроение», «До встречи» — в разных размерах';
+  @override
+  String get plusTipsTitle => 'Советы и статистика';
+  @override
+  String get plusTipsBody =>
+      'Что сделать сегодня и как меняются ваши отношения в цифрах';
+  @override
+  String get plusVideoTitle => 'Видео крупнее';
+  @override
+  String get plusVideoBody =>
+      '200 МБ в воспоминаниях и 300 МБ в совместном просмотре';
+  @override
+  String get plusBuy => 'Купить за \$10';
+  @override
+  String get plusHaveCode => 'У меня есть код';
+  @override
+  String get plusHowItWorks =>
+      'Платите почтой от аккаунта — доступ откроется сам. Платили с другой? '
+      'Бот @SnTAppsBot выдаст код.';
+  @override
+  String get plusPortableNote =>
+      'Доступ привязан к аккаунту: меняете телефон — просто входите под своей '
+      'почтой.';
+  @override
+  String get plusUnavailableHere =>
+      'В этой версии покупка недоступна. Купленный доступ работает — войдите '
+      'под своей почтой.';
+  @override
+  String get plusCodeHint =>
+      'Код из письма или от бота. Регистр и дефисы не важны.';
+  @override
+  String get plusCodeApply => 'Активировать';
+  @override
+  String get plusCodeOk => 'Готово, Togetherly+ открыт';
+  @override
+  String get plusCodeFailed => 'Код не подошёл';
+  @override
+  String get plusLockedTipsTitle => 'Советы на сегодня';
+  @override
+  String get plusLockedTipsBody =>
+      'Подскажем, что сделать: по настроению, датам и тому, как давно вы не '
+      'писали друг другу.';
+  @override
+  String get plusUnlock => 'Открыть в Togetherly+';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6880,6 +6983,76 @@ class _EnStrings extends AppStrings {
         'film' => 'Film',
         _ => id,
       };
+  @override
+  String get plusTitle => 'Togetherly+';
+  @override
+  String get plusHeroTitle => 'Pay once, keep it';
+  @override
+  String get plusHeroBody =>
+      'Not a subscription: pay once and it stays with your account on any '
+      'phone.';
+  @override
+  String get plusActiveTitle => 'Togetherly+ is yours';
+  @override
+  String get plusActiveBody => 'Thank you. Everything below is unlocked.';
+  @override
+  String get plusNoAdsTitle => 'No ads';
+  @override
+  String get plusNoAdsBody =>
+      'Banners disappear and watching together starts right away';
+  @override
+  String get plusThemesTitle => 'All themes and icons';
+  @override
+  String get plusThemesBody => 'Every paid palette and profile icon at once';
+  @override
+  String get plusCycleTitle => 'Cycle calendar';
+  @override
+  String get plusCycleBody => 'Marks, forecast and statistics with charts';
+  @override
+  String get plusWidgetsTitle => 'New widgets';
+  @override
+  String get plusWidgetsBody =>
+      'Together, Miss you, Mood and Countdown in several sizes';
+  @override
+  String get plusTipsTitle => 'Tips and statistics';
+  @override
+  String get plusTipsBody =>
+      'What to do today and how your relationship changes in numbers';
+  @override
+  String get plusVideoTitle => 'Bigger videos';
+  @override
+  String get plusVideoBody => '200 MB for memories, 300 MB for watching together';
+  @override
+  String get plusBuy => 'Buy for \$10';
+  @override
+  String get plusHaveCode => 'I have a code';
+  @override
+  String get plusHowItWorks =>
+      'Pay with the email of your account and it unlocks itself. Used another '
+      'one? The @SnTAppsBot will give you a code.';
+  @override
+  String get plusPortableNote =>
+      'Access belongs to your account: change the phone and just sign in.';
+  @override
+  String get plusUnavailableHere =>
+      'Purchase is unavailable in this build. Access bought elsewhere still '
+      'works — just sign in.';
+  @override
+  String get plusCodeHint => 'The code from the email or the bot.';
+  @override
+  String get plusCodeApply => 'Activate';
+  @override
+  String get plusCodeOk => 'Done, Togetherly+ unlocked';
+  @override
+  String get plusCodeFailed => 'That code did not work';
+  @override
+  String get plusLockedTipsTitle => 'Tips for today';
+  @override
+  String get plusLockedTipsBody =>
+      'We will suggest what to do — based on mood, dates and how long you have '
+      'been silent.';
+  @override
+  String get plusUnlock => 'Unlock with Togetherly+';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

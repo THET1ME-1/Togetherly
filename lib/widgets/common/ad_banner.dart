@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../../services/plus_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
@@ -119,6 +121,9 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   Widget build(BuildContext context) {
+    // Togetherly+ снимает рекламу целиком: не прячет уже загруженный баннер, а
+    // не занимает под него место. Проверка здесь одна на все пять мест показа.
+    if (PlusService.instance.active) return const SizedBox.shrink();
     if (_loaded && _ad != null) {
       return Container(
         height: widget.height,

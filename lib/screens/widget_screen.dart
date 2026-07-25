@@ -13,7 +13,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/plus_service.dart';
 import '../services/widget_theme_sync.dart';
+import '../widgets/tips_card.dart';
+import 'plus_screen.dart';
 import '../utils/couple_days.dart';
 import '../widgets/avatar_widget.dart';
 import '../utils/safe_pick.dart';
@@ -1664,8 +1667,12 @@ class _WidgetScreenState extends State<WidgetScreen>
           onToggle: () => setState(
             () => _newSectionExpanded = !_newSectionExpanded,
           ),
+          // Без Togetherly+ раздел виден, но вместо карточек — предложение
+          // купить: прятать его целиком значит не показать, что появилось.
           count: isPaired ? _kNewWidgetCount : 0,
-          itemsBuilder: () => _newWidgetItems(isPaired),
+          itemsBuilder: () => PlusService.instance.active
+              ? _newWidgetItems(isPaired)
+              : [_newWidgetsLocked()],
         ),
       ],
     );
@@ -1871,6 +1878,18 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
+
+  /// Заглушка нового каталога, когда Togetherly+ не куплен.
+  Widget _newWidgetsLocked() => TipsCard(
+        tips: const [],
+        locked: true,
+        lockedTitle: _s.plusWidgetsTitle,
+        lockedBody: _s.plusWidgetsBody,
+        unlockLabel: _s.plusUnlock,
+        onUnlock: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
+        ),
+      );
 
   /// Сколько виджетов в новом каталоге — для бейджа раздела, без построения
   /// карточек. Держать в согласии с [_newWidgetItems].

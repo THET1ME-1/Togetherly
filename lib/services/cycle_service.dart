@@ -5,6 +5,7 @@ import '../models/cycle_entry.dart';
 import '../models/user_data.dart';
 import '../utils/cycle_math.dart';
 import 'cycle_repository.dart';
+import 'plus_service.dart';
 import 'pocketbase_service.dart';
 
 /// Состояние календаря цикла.
@@ -40,7 +41,15 @@ class CycleService extends ChangeNotifier {
   bool get shareWithPartner => _shareWithPartner;
 
   /// Показывать ли раздел вообще.
+  ///
+  /// Женский пол — потому что цикла у остальных не бывает; Togetherly+ —
+  /// потому что это платная часть. Раздел не прячем совсем: без покупки
+  /// строка ведёт на экран Togetherly+, иначе о ней никто не узнает.
   static bool availableFor(UserData? user) => user?.gender == Gender.female;
+
+  /// Открыт ли раздел на самом деле.
+  static bool unlockedFor(UserData? user) =>
+      availableFor(user) && PlusService.instance.active;
 
   /// Дни, когда у меня отмечены месячные, — вход для всех расчётов.
   List<DateTime> get _periodDays => _mine

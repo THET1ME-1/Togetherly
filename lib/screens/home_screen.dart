@@ -64,6 +64,7 @@ import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
+import '../services/plus_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
@@ -458,6 +459,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // Календарь цикла: раздел показывается только женскому полу, но
         // привязку делаем всегда — партнёрские отметки нужны и мужчине,
         // когда она разрешила их видеть.
+        // Togetherly+ — серверный флаг: перечитываем при каждом входе, чтобы
+        // покупка с сайта открылась сама, без перезапуска приложения.
+        unawaited(PlusService.instance.refresh());
+
         unawaited(CycleService.instance.bind(
           groupId: _pairData.pairId,
           partnerUid: _pairData.partnerUid,

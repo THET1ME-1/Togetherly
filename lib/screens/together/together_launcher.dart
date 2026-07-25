@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import '../../services/plus_service.dart';
 import 'package:flutter/material.dart';
 import '../../main.dart';
 import '../../services/locale_service.dart';
@@ -37,6 +39,8 @@ class TogetherLauncher {
   /// закрывается свайпом и кнопкой «назад»: закрыл — значит передумал, и
   /// комната не открывается.
   static Future<bool> _requireStartAd(BuildContext context) async {
+    // Togetherly+ снимает обязательный ролик: за просмотр вдвоём уже заплачено.
+    if (PlusService.instance.active) return true;
     if (!_ads.isReady) {
       await _waitForAd(context);
       if (!context.mounted) return false;

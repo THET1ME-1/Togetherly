@@ -21,6 +21,12 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
     "64e68f3f-7281-4593-aa00-0b438522750b": 1400,
     "cd2e08ec-e826-495d-bb55-842a3e3742dc": 4000,
   };
+  // Togetherly+ — разовая покупка: платные темы, календарь цикла и новый
+  // каталог виджетов. Идентификатор товара публичный (он же в ссылке на
+  // покупку), поэтому лежит прямо здесь; переменной окружения можно
+  // переопределить, если товар пересоздадут.
+  const PLUS_SKU = ($os.getenv("LAVA_PLUS_SKU") ||
+    "ec861b44-a4b7-49e3-aa0e-e4608abdb0f0").trim().toLowerCase();
   const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   const secret = $os.getenv("LAVA_WEBHOOK_KEY") || "";
@@ -79,8 +85,9 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
     .trim().toLowerCase();
   const orderId = (pick(["contractid", "orderid", "invoiceid", "paymentid"]) || "").trim();
   const amount = PRODUCTS[productId];
+  const isPlus = PLUS_SKU !== "" && productId === PLUS_SKU;
 
-  if (!amount) {
+  if (!amount && !isPlus) {
     // Товар другого приложения — этим занимается бот, не мы.
     return e.json(200, { ok: true, skipped: "not_ours", product: productId });
   }
@@ -122,7 +129,10 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
 
       const col = txApp.findCollectionByNameOrId("redeem_codes");
       const rec = new Record(col);
-      rec.set("coins", amount);
+      // У Togetherly+ монет нет: код открывает возможности, а не пополняет
+      // баланс. Флаг едет вместе с кодом, чтобы погашение знало, что делать.
+      rec.set("coins", isPlus ? 0 : amount);
+      rec.set("plus", isPlus);
       rec.set("sku", productId);
       rec.set("buyer_email", email);
       rec.set("order_key", key);
@@ -132,6 +142,13 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
         rec.set("used_by", user.id);
         rec.set("used_at", Date.now());
         txApp.save(rec);
+
+        if (isPlus) {
+          user.set("plus", true);
+          txApp.save(user);
+          out = { s: 200, b: { ok: true, plus: true, direct: true } };
+          return;
+        }
 
         user.set("coins", (user.getInt("coins") || 0) + amount);
         txApp.save(user);

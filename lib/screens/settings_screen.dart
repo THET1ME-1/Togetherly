@@ -34,6 +34,8 @@ class SettingsScreen extends StatelessWidget {
     required this.sideActionIsArrow,
     required this.onToggleSideAction,
     this.appVersion = '',
+    this.plusActive = false,
+    this.onPlus,
     this.cycleAvailable = false,
     this.cycleShared = false,
     this.onCycleOpen,
@@ -63,6 +65,10 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onToggleSideAction;
 
   final String appVersion;
+
+  /// Куплен ли Togetherly+ — от этого зависит подпись строки.
+  final bool plusActive;
+  final VoidCallback? onPlus;
 
   /// Раздел цикла показывается только при женском поле в профиле: у остальных
   /// цикла не бывает, и пункт был бы шумом.
@@ -104,6 +110,20 @@ class SettingsScreen extends StatelessWidget {
               MediaQuery.of(context).padding.bottom + 32,
             ),
             children: [
+              // Togetherly+ первым: это главное, что можно тут сделать.
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.workspace_premium_rounded,
+                  title: s.plusTitle,
+                  subtitle: plusActive ? s.plusActiveBody : s.plusHeroBody,
+                  iconBg: plusActive ? scheme.primary : scheme.primaryContainer,
+                  iconFg:
+                      plusActive ? scheme.onPrimary : scheme.onPrimaryContainer,
+                  trailing: const SettingsChevron(),
+                  onTap: onPlus,
+                ),
+              ]),
+
               SettingsSection(s.appearanceTitle),
               SettingsGroup([
                 SettingsRow(
