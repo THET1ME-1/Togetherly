@@ -70,12 +70,21 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     final path = picked?.files.single.path;
     if (path == null) return;
 
+    final name = picked!.files.single.name;
+    if (!WatchVideosService.isPlayable(name)) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(s.watchVideoFormatUnsupported),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     final file = File(path);
-    final limit =
-        WatchVideosService.limitFor(plus: PlusService.instance.active);
+    final plus = PlusService.instance.active;
+    final limit = WatchVideosService.limitFor(plus: plus);
     if (await file.length() > limit) {
       messenger.showSnackBar(SnackBar(
-        content: Text(s.watchVideoTooBig),
+        content: Text(s.watchVideoTooBig(limit ~/ (1024 * 1024))),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -85,7 +94,8 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     final saved = await WatchVideosService.upload(
       groupId: widget.pairData.pairId,
       file: file,
-      title: picked!.files.single.name,
+      title: name,
+      plus: plus,
     );
     if (!mounted) return;
     setState(() => _uploading = false);
@@ -195,11 +205,17 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
               if (i == 0) {
                 if (!_uploading) _uploadVideo();
               } else {
-                _openNative(_videos[i - 1]);
+                _openVideo(_videos[i - 1]);
               }
             },
             children: [
-              _UploadTile(busy: _uploading),
+              _UploadTile(
+                busy: _uploading,
+                limitMb: WatchVideosService.limitFor(
+                      plus: PlusService.instance.active,
+                    ) ~/
+                    (1024 * 1024),
+              ),
               for (final v in _videos) _VideoTile(video: v),
             ],
           ),
@@ -239,19 +255,44 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     await _loadRecent();
   }
 
-  /// Своё видео играем нативно: кадр рисует само приложение, поэтому пауза и
-  /// перемотка мгновенные. Чужие площадки остаются в комнате-браузере.
-  Future<void> _openNative(WatchVideo video) async {
+  /// Свой ролик открываем в комнате пары: файл лежит у нас и отдаётся прямой
+  /// ссылкой, поэтому партнёр видит тот же кадр — и в приложении, и во вкладке
+  /// браузера, секунда в секунду.
+  ///
+  /// Ролик из ленты воспоминаний туда не отдать: его ссылка живёт полторы
+  /// минуты и только с нашей сессией. Такой играем нативно, у себя.
+  Future<void> _openVideo(WatchVideo video) async {
     if (_room.isEmpty) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => WatchPlayerScreen(
-          room: _room,
-          pairId: widget.pairData.pairId,
-          url: video.url,
-          title: video.title,
+
+    if (video.appOnly) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => WatchPlayerScreen(
+            room: _room,
+            pairId: widget.pairData.pairId,
+            url: video.url,
+            title: video.title,
+          ),
         ),
-      ),
+      );
+      await _loadRecent();
+      return;
+    }
+
+    // Название и обложку знаем только мы: комната пришлёт в историю одну
+    // ссылку, и «Недавнее» показало бы голый адрес сервера вместо ролика.
+    unawaited(WatchHistoryService.remember(
+      groupId: widget.pairData.pairId,
+      url: video.url,
+      kind: 'video',
+      title: video.title,
+      thumb: video.thumbUrl,
+    ));
+
+    await TogetherLauncher.open(
+      context,
+      pairId: widget.pairData.pairId,
+      videoUrl: video.url,
     );
     await _loadRecent();
   }
@@ -701,7 +742,10 @@ class _VideoTile extends StatelessWidget {
 class _UploadTile extends StatelessWidget {
   final bool busy;
 
-  const _UploadTile({required this.busy});
+  /// Потолок размера — свой у бесплатной версии и у Togetherly+.
+  final int limitMb;
+
+  const _UploadTile({required this.busy, required this.limitMb});
 
   @override
   Widget build(BuildContext context) {
@@ -745,7 +789,7 @@ class _UploadTile extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                busy ? s.watchVideoUploading : s.watchVideoAdd,
+                busy ? s.watchVideoUploading : s.watchVideoAdd(limitMb),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

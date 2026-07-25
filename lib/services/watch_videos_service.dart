@@ -58,6 +58,26 @@ class WatchVideosService {
   /// Действующий потолок с учётом покупки.
   static int limitFor({required bool plus}) => plus ? maxBytesPlus : maxBytes;
 
+  /// Форматы, которые играют у обоих. Комната пары показывает ролик обычным
+  /// плеером браузера — а он берёт только эти контейнеры (см. `parseSource`
+  /// в `pb_public/watch/room/room.js`). MKV или AVI загрузятся, но у партнёра
+  /// останется пустой кадр, поэтому отсекаем их до загрузки.
+  static const List<String> playableExtensions = [
+    'mp4',
+    'm4v',
+    'mov',
+    'webm',
+    'ogv',
+    'ogg',
+  ];
+
+  /// Проиграется ли файл с таким именем у обоих.
+  static bool isPlayable(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return false;
+    return playableExtensions.contains(fileName.substring(dot + 1).toLowerCase());
+  }
+
   /// Убирает ролики старше [lifetime]. Зовётся при открытии раздела: отдельного
   /// планировщика ради уборки заводить незачем.
   static Future<void> purgeExpired(String groupId) async {
@@ -154,15 +174,17 @@ class WatchVideosService {
   }
 
   /// Загружает ролик. Возвращает запись или null, если файл слишком большой
-  /// либо сервер отказал.
+  /// либо сервер отказал. [plus] поднимает потолок до [maxBytesPlus] — тот же,
+  /// что стоит в коллекции.
   static Future<WatchVideo?> upload({
     required String groupId,
     required File file,
     required String title,
+    bool plus = false,
   }) async {
     if (groupId.isEmpty) return null;
     final size = await file.length();
-    if (size > maxBytes) return null;
+    if (size > limitFor(plus: plus)) return null;
 
     try {
       final bytes = await file.readAsBytes();
@@ -170,6 +192,17 @@ class WatchVideosService {
       final files = <http.MultipartFile>[
         http.MultipartFile.fromBytes('file', bytes, filename: title),
       ];
+
+      // Длительность для подписи на плитке. Не вышло — плитка обойдётся без
+      // неё, загрузку из-за этого не роняем.
+      int seconds = 0;
+      try {
+        final info = await VideoCompress.getMediaInfo(file.path)
+            .timeout(const Duration(seconds: 20));
+        seconds = ((info.duration ?? 0) / 1000).round();
+      } catch (e) {
+        debugPrint('WatchVideos.upload: длительность не прочиталась: $e');
+      }
 
       // Обложка для карусели — первый информативный кадр. Таймаут обязателен:
       // getByteThumbnail на части кодеков виснет. При неудаче грузим без
@@ -197,6 +230,7 @@ class WatchVideosService {
             body: {
               'group_id': groupId,
               'title': title,
+              'seconds': seconds,
               'added_by': PocketBaseService().userId ?? '',
             },
             files: files,
@@ -205,7 +239,10 @@ class WatchVideosService {
           // как у фотографий, тут не хватает.
           .timeout(const Duration(minutes: 10));
       return _fromRecord(rec);
-    } catch (_) {
+    } catch (e) {
+      // Отказ сервера виден только здесь: экран покажет общую ошибку, а причину
+      // (потолок размера, правила коллекции) без этой строки не найти.
+      debugPrint('WatchVideos.upload failed: $e');
       return null;
     }
   }

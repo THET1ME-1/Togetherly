@@ -1416,9 +1416,10 @@ abstract class AppStrings {
   String get watchPartnerInBrowser;
   String get watchRecent;
   String get watchOurVideos;
-  String get watchVideoAdd;
+  String watchVideoAdd(int mb);
   String get watchVideoUploading;
-  String get watchVideoTooBig;
+  String watchVideoTooBig(int mb);
+  String get watchVideoFormatUnsupported;
   String get watchPickFileAgain;
   String get watchHeroTitle;
   String get watchHeroText;
@@ -4440,11 +4441,15 @@ class _RuStrings extends AppStrings {
   @override
   String get watchOurVideos => 'Наши видео';
   @override
-  String get watchVideoAdd => 'Загрузить до 100 МБ';
+  String watchVideoAdd(int mb) => 'Загрузить до $mb МБ';
   @override
   String get watchVideoUploading => 'Загружаю…';
   @override
-  String get watchVideoTooBig => 'Видео больше 100 МБ: сожмите его или выберите короче';
+  String watchVideoTooBig(int mb) =>
+      'Видео больше $mb МБ: сожмите его или выберите короче';
+  @override
+  String get watchVideoFormatUnsupported =>
+      'Такой формат вдвоём не играет. Подойдут MP4, MOV или WebM';
   @override
   String get watchPickFileAgain => 'Это ваш файл с телефона: выберите его в комнате';
   @override
@@ -7546,11 +7551,15 @@ class _EnStrings extends AppStrings {
   @override
   String get watchOurVideos => 'Our videos';
   @override
-  String get watchVideoAdd => 'Upload up to 100 MB';
+  String watchVideoAdd(int mb) => 'Upload up to $mb MB';
   @override
   String get watchVideoUploading => 'Uploading…';
   @override
-  String get watchVideoTooBig => 'The video is over 100 MB: compress it or pick a shorter one';
+  String watchVideoTooBig(int mb) =>
+      'The video is over $mb MB: compress it or pick a shorter one';
+  @override
+  String get watchVideoFormatUnsupported =>
+      'That format will not play together. Use MP4, MOV or WebM';
   @override
   String get watchPickFileAgain => 'That is a file from your phone: pick it inside the room';
   @override

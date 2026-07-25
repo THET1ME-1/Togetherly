@@ -22,6 +22,8 @@
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
+    // Ролик из адреса комнаты (?src=): включаем его, как только канал ожил.
+    wanted: '',
     // Файл с диска: сам он никуда не уходит, партнёру достаётся только имя,
     // чтобы он открыл у себя такой же.
     file: null,
@@ -515,6 +517,17 @@
     state.sub.publish(payload).catch(() => {});
   }
 
+  /** Включает ссылку у себя и рассказывает о ней комнате. */
+  function applySource(raw) {
+    const src = parseSource(raw);
+    if (!src) { setStatus(I18N.t('room.badLink')); return false; }
+    const url = raw.trim();
+    $('#link').value = url;
+    mountPlayer(src, url);
+    send('source', 0, { url: url });
+    return true;
+  }
+
   function onMessage(data) {
     if (!data || data.from === state.me) return;
     switch (data.t) {
@@ -682,6 +695,14 @@
       refreshViewers();
       // Просим тех, кто уже внутри, прислать ссылку и переписку.
       send('hello');
+      // Пришли с готовым роликом (приложение открывает комнату с ?src=):
+      // включаем только теперь. До подписки publish уходит в никуда, и партнёр
+      // остаётся с пустым экраном — ровно это и ломало свои ролики.
+      if (state.wanted && !state.kind) {
+        const wanted = state.wanted;
+        state.wanted = '';
+        applySource(wanted);
+      }
     });
     sub.on('join', refreshViewers);
     sub.on('leave', refreshViewers);
@@ -727,15 +748,16 @@
     $('#code').textContent = room;
     if (navigator.share) $('#share').hidden = false;
 
+    // Приложение открывает комнату сразу с роликом: /watch/room/?src=<адрес>#код.
+    const wanted = new URLSearchParams(location.search).get('src');
+    if (wanted) {
+      state.wanted = wanted;
+      $('#link').value = wanted;
+    }
+
     connect(room).catch(() => setStatus(I18N.t('room.lost')));
 
-    $('#apply').addEventListener('click', () => {
-      const src = parseSource($('#link').value);
-      if (!src) { setStatus(I18N.t('room.badLink')); return; }
-      const url = $('#link').value.trim();
-      mountPlayer(src, url);
-      send('source', 0, { url: url });
-    });
+    $('#apply').addEventListener('click', () => applySource($('#link').value));
 
     $('#together').addEventListener('click', () => {
       send('countdown', 0);

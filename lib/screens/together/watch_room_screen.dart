@@ -36,34 +36,22 @@ class WatchRoomScreen extends StatefulWidget {
 }
 
 class _WatchRoomScreenState extends State<WatchRoomScreen> {
-  InAppWebViewController? _web;
   bool _loading = true;
 
-  String get _url => WatchRoomService.siteUrl(widget.room);
+  /// Адрес открытой комнаты: с роликом, если пришли из карточки или карусели.
+  String get _url =>
+      WatchRoomService.siteUrl(widget.room, src: widget.videoUrl);
 
-  /// Подставляет ссылку в комнату и включает видео за человека — так переход
-  /// «из ленты сразу к просмотру» не требует ручного копирования.
-  Future<void> _applyVideo() async {
-    final url = widget.videoUrl;
-    if (url == null || url.isEmpty || _web == null) return;
-    final safe = url.replaceAll("'", r"\'");
-    await _web!.evaluateJavascript(source: """
-      (function () {
-        var link = document.querySelector('#link');
-        var apply = document.querySelector('#apply');
-        if (!link || !apply) return;
-        link.value = '$safe';
-        apply.click();
-      })();
-    """);
-  }
+  /// Ссылка для партнёра — без ролика: он войдёт в ту же комнату и получит
+  /// источник от нас по каналу.
+  String get _inviteUrl => WatchRoomService.siteUrl(widget.room);
 
   Future<void> _share() async {
-    await Share.share(_url);
+    await Share.share(_inviteUrl);
   }
 
   Future<void> _copy() async {
-    await Clipboard.setData(ClipboardData(text: _url));
+    await Clipboard.setData(ClipboardData(text: _inviteUrl));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -109,7 +97,6 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
               supportZoom: false,
             ),
             onWebViewCreated: (c) {
-              _web = c;
               // Комната сама сообщает, что включили: иначе приложение не знает,
               // что происходит внутри встроенного браузера.
               c.addJavaScriptHandler(
@@ -129,9 +116,8 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
                 },
               );
             },
-            onLoadStop: (c, _) async {
+            onLoadStop: (c, _) {
               if (mounted) setState(() => _loading = false);
-              await _applyVideo();
             },
           ),
           if (_loading)

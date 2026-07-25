@@ -15,8 +15,15 @@ class WatchRoomService {
   static final Map<String, String> _cache = {};
 
   /// Адрес комнаты на сайте для кода [room].
-  static String siteUrl(String room) =>
-      'https://togetherly.day/watch/room/#$room';
+  ///
+  /// [src] — ссылка на ролик, который надо включить сразу после входа. Комната
+  /// применит её, когда поднимется канал, и объявит партнёру. Ссылку для
+  /// партнёра (копирование, «поделиться») берём без [src] — там свой выбор.
+  static String siteUrl(String room, {String? src}) {
+    final base = 'https://togetherly.day/watch/room/';
+    if (src == null || src.isEmpty) return '$base#$room';
+    return '$base?src=${Uri.encodeQueryComponent(src)}#$room';
+  }
 
   /// Код комнаты пары. Пустая строка означает отказ сервера — вызывающий
   /// показывает ошибку и не открывает просмотр.
