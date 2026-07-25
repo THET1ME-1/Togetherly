@@ -67,8 +67,12 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
 
   Future<void> reload() async {
     final data = PbDataService();
-    final gifts =
-        await data.fetchGiftsFor(groupId: widget.groupId, uid: widget.uid);
+    // Свои подарки собираем по ВСЕМ связям (groupId пустой): полка пустовала,
+    // когда подарок пришёл в другой паре. Партнёрская — строго его группа.
+    final gifts = await data.fetchGiftsFor(
+      groupId: widget.isSelf ? '' : widget.groupId,
+      uid: widget.uid,
+    );
     final miss =
         await data.fetchMissYouFor(groupId: widget.groupId, uid: widget.uid);
     if (!mounted) return;

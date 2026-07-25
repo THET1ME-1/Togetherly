@@ -6,6 +6,7 @@ import 'profile/miss_you_week_chart.dart';
 import '../models/partner_profile.dart';
 import 'package:flutter/services.dart';
 import '../utils/safe_text.dart';
+import '../utils/couple_days.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
@@ -203,12 +204,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   StreamSubscription? _missYouSub;
   String? _lastLoadedGroupId;
 
-  int _calculateDaysTogether(DateTime? fallbackDate) {
-    final timerDate = widget.timerService.systemTimer?.startDate;
-    final date = timerDate ?? fallbackDate;
-    if (date == null) return 0;
-    return DateTime.now().difference(date).inDays;
-  }
+  int _calculateDaysTogether(DateTime? fallbackDate) =>
+      coupleDaysTogether(
+        timerStart: widget.timerService.systemTimer?.startDate,
+        groupStart: fallbackDate,
+      ) ??
+      0;
+
+  /// Дней вместе в активной паре — та же дата, что у счётчика на главной.
+  /// null — пары нет (в шапке тогда показываем email).
+  int? _daysTogetherActive() => coupleDaysTogether(
+        timerStart: widget.timerService.systemTimer?.startDate,
+        groupStart: widget.pairData.startDate,
+      );
+
+  /// Дней вместе в произвольной связи из «Друзей». Таймеры привязаны к активной
+  /// группе, поэтому чужой связи достаётся только дата коннекта.
+  int? _daysTogetherOf(Connection c) => coupleDaysTogether(
+        timerStart: c.pairId == widget.pairData.pairId
+            ? widget.timerService.systemTimer?.startDate
+            : null,
+        groupStart: c.startDate,
+      );
 
   @override
   void initState() {
@@ -861,8 +878,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _m3Header(BuildContext context) {
     final cs = _cs;
-    final start = widget.pairData.startDate;
-    final days = start == null ? null : DateTime.now().difference(start).inDays;
+    final days = _daysTogetherActive();
     final partnerName = widget.pairData.partnerDisplayName;
     final chipText = (days != null && partnerName.isNotEmpty)
         ? _s.partnerDaysTogether(days)
@@ -1044,8 +1060,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final myUid = widget.userData.uid.isNotEmpty
         ? widget.userData.uid
         : (PocketBaseService().userId ?? '');
-    final start = widget.pairData.startDate;
-    final days = start == null ? null : DateTime.now().difference(start).inDays;
+    final days = _daysTogetherActive();
     return Column(
       children: [
         GiftProfileBody(
@@ -1357,8 +1372,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _openPartnerProfile(BuildContext context, _PartnerEntry e) {
-    final start = e.connection.startDate;
-    final days = start == null ? null : DateTime.now().difference(start).inDays;
+    final days = _daysTogetherOf(e.connection);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1378,15 +1392,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Свой профиль-«Открытка»: полка полученных подарков и «Я скучаю» по дням —
   /// симметрично профилю партнёра (тап по аватару в «Друзьях»).
   void _openSelfProfile(BuildContext context) {
-    final start = widget.pairData.startDate;
-    final days = start == null ? null : DateTime.now().difference(start).inDays;
+    final days = _daysTogetherActive();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SelfProfileScreen(
           theme: _t,
           groupId: widget.pairData.pairId,
-          selfUid: widget.userData.uid,
+          // Фолбэк на id сессии PB: пустой uid в профиле (бывает после
+          // восстановления сессии) оставлял полку подарков пустой навсегда.
+          selfUid: widget.userData.uid.isNotEmpty
+              ? widget.userData.uid
+              : (PocketBaseService().userId ?? ''),
           selfName: widget.userData.displayName,
           selfAvatarUrl: widget.userData.avatarUrl,
           bannerUrl: widget.userData.bannerUrl,
@@ -1609,8 +1626,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final t = _t;
     final name = widget.pairData.partnerDisplayName;
     final avatar = widget.pairData.partnerAvatarUrl;
-    final start = widget.pairData.startDate;
-    final days = start == null ? null : DateTime.now().difference(start).inDays;
+    final days = _daysTogetherActive();
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -3900,8 +3916,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 value: _notifDaysTogether,
                 onChanged: (v) {
                   setModal(() => _notifDaysTogether = v);
-                  final start = widget.timerService.systemTimer?.startDate ??
-                      widget.pairData.startDate;
+                  final start = coupleStartDate(
+                    timerStart: widget.timerService.systemTimer?.startDate,
+                    groupStart: widget.pairData.startDate,
+                  );
                   DaysTogetherNotificationService.instance
                       .setEnabled(v, startDate: start);
                 },

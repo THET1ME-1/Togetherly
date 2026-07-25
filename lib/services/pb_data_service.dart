@@ -1934,6 +1934,7 @@ class PbDataService {
       'reply_to_text': msg['replyToText'],
       'face': msg['face'],
       'color': msg['color'],
+      'text_color': msg['textColor'],
       'face_x': msg['faceX'],
       'face_y': msg['faceY'],
     }..removeWhere((k, v) => v == null);
@@ -1964,6 +1965,7 @@ class PbDataService {
         'reply_to_text': msg['replyToText'],
         'face': msg['face'],
         'color': msg['color'],
+        'text_color': msg['textColor'],
         'face_x': msg['faceX'],
         'face_y': msg['faceY'],
       }..removeWhere((k, v) => v == null);
@@ -2203,19 +2205,26 @@ class PbDataService {
 
   /// Подарки, полученные участником [uid] в группе [groupId] — новые сверху.
   ///
+  /// Пустой [groupId] = все связи пользователя: в личном профиле полка иначе
+  /// пустует, когда подарок пришёл в другой паре (у кого их несколько). Чужого
+  /// сюда не попадёт — правило коллекции пускает только к своим группам.
+  ///
   /// Возвращает сырые записи: полку из них собирает `tallyGifts`
   /// (`lib/models/partner_profile.dart`). Пустой список при любой ошибке —
   /// профиль партнёра не та страница, ради которой стоит показывать сбой.
   Future<List<Map<String, dynamic>>> fetchGiftsFor({
-    required String groupId,
+    String groupId = '',
     required String uid,
     int limit = 200,
   }) async {
-    if (groupId.isEmpty || uid.isEmpty) return const [];
+    if (uid.isEmpty) return const [];
     try {
+      final filter = groupId.isEmpty
+          ? 'recipient_uid = "$uid"'
+          : 'group_id = "$groupId" && recipient_uid = "$uid"';
       final res = await _pb.collection('gifts').getList(
             perPage: limit,
-            filter: 'group_id = "$groupId" && recipient_uid = "$uid"',
+            filter: filter,
             sort: '-created',
           );
       return res.items.map((r) => Map<String, dynamic>.from(r.data)).toList();

@@ -64,6 +64,7 @@ class ChatService {
     String? replyToText,
     String? face,
     int? color,
+    int? textColor,
     double? faceX,
     double? faceY,
   }) async {
@@ -88,6 +89,7 @@ class ChatService {
       'reply_to_text': ?replyToText,
       'face': ?face,
       'color': ?color,
+      'text_color': ?textColor,
       'face_x': ?faceX,
       'face_y': ?faceY,
     });
@@ -108,6 +110,7 @@ class ChatService {
         'replyToText': replyToText,
         'face': face,
         'color': color,
+        'textColor': textColor,
         'faceX': faceX,
         'faceY': faceY,
       },
@@ -117,7 +120,7 @@ class ChatService {
   }
 
   /// Редактировать своё сообщение. null-значения оформления СТИРАЮТ поле:
-  /// face→'' и color/face_x/face_y→0 (ChatMsg.fromPb коэрсит ''/0 обратно в null),
+  /// face→'' и color/text_color/face_x/face_y→0 (ChatMsg.fromPb коэрсит ''/0 обратно в null),
   /// чтобы можно было снять лицо/вернуть цвет темы.
   Future<void> edit({
     required String groupId,
@@ -125,6 +128,7 @@ class ChatService {
     required String newText,
     String? face,
     int? color,
+    int? textColor,
     double? faceX,
     double? faceY,
   }) async {
@@ -135,6 +139,7 @@ class ChatService {
       'edited_ts': DateTime.now().millisecondsSinceEpoch,
       'face': face ?? '',
       'color': color ?? 0,
+      'text_color': textColor ?? 0,
       'face_x': faceX ?? 0,
       'face_y': faceY ?? 0,
     };

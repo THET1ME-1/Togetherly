@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/pair_achievement.dart';
+import '../utils/couple_days.dart';
 import 'pb_realtime_service.dart';
 
 /// Достижения пары. Разблокировка — чистая функция от уже синкающихся счётчиков
@@ -135,18 +136,12 @@ class AchievementService {
   /// системного таймера «Дней вместе» ([_coupleStart]) и `group.start_date`
   /// (дата коннекта). Так срок совпадает со счётчиком дней, который видит юзер,
   /// а не показывает «7 дней» свежесозданной паре с годами отношений.
-  int _daysTogether(dynamic rawGroupStart) {
-    final gStart = _parseStart(rawGroupStart);
-    DateTime? start;
-    if (_coupleStart != null && gStart != null) {
-      start = _coupleStart!.isBefore(gStart) ? _coupleStart : gStart;
-    } else {
-      start = _coupleStart ?? gStart;
-    }
-    if (start == null) return 0;
-    final days = DateTime.now().difference(start).inDays;
-    return days < 0 ? 0 : days;
-  }
+  int _daysTogether(dynamic rawGroupStart) =>
+      coupleDaysTogether(
+        timerStart: _coupleStart,
+        groupStart: _parseStart(rawGroupStart),
+      ) ??
+      0;
 
   /// Дата из ISO-строки или epoch-ms.
   DateTime? _parseStart(dynamic raw) {

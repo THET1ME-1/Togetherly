@@ -1028,6 +1028,12 @@ abstract class AppStrings {
   String get chatNewMessages;
   /// Заголовок-разделитель по дате в чате: «Сегодня»/«Вчера»/«5 июня».
   String chatDateHeader(DateTime day);
+  /// Лист оформления сообщения: подписи слоёв и кнопок.
+  String get chatStyleFace;
+  String get chatStyleBackground;
+  String get chatStyleTextColor;
+  String get chatStyleAuto;
+  String get chatStyleTheme;
   String get chatBgTitle;
   String get chatBgSet;
   String get chatBgChange;
@@ -3391,6 +3397,16 @@ class _RuStrings extends AppStrings {
 
   @override
   String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
+  @override
+  String get chatStyleFace => 'Мордочка';
+  @override
+  String get chatStyleBackground => 'Фон';
+  @override
+  String get chatStyleTextColor => 'Текст';
+  @override
+  String get chatStyleAuto => 'Авто';
+  @override
+  String get chatStyleTheme => 'Тема';
   @override
   String get chatBgTitle => 'Фон чата';
   @override
@@ -6143,6 +6159,16 @@ class _EnStrings extends AppStrings {
 
   @override
   String chatDeleteConfirm(String text) => 'Delete this message?';
+  @override
+  String get chatStyleFace => 'Face';
+  @override
+  String get chatStyleBackground => 'Bubble';
+  @override
+  String get chatStyleTextColor => 'Text';
+  @override
+  String get chatStyleAuto => 'Auto';
+  @override
+  String get chatStyleTheme => 'Theme';
   @override
   String get chatBgTitle => 'Chat background';
   @override

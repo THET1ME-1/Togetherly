@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
+import '../utils/readable_text.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
@@ -137,6 +138,8 @@ class _ChatScreenState extends State<ChatScreen> {
   _FaceExpr? _selectedFace = _FaceExpr.happy;
   /// Выбранный цвет пузыря (null — цвет темы). Липкий между сообщениями.
   Color? _selectedColor;
+  /// Выбранный цвет текста (null — авто-контраст по фону). Липкий.
+  Color? _selectedTextColor;
   /// Позиция мордочки (доли 0..1), по умолчанию низ-центр. Липкая.
   double _selectedFaceX = 0.5;
   double _selectedFaceY = 0.78;
@@ -148,6 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// оформления показывал и менял его); после выхода из правки восстанавливаем
   /// липкий выбор для новых сообщений — правка старого не должна его сбивать.
   Color? _snapColor;
+  Color? _snapTextColor;
   _FaceExpr? _snapFace;
   double _snapFaceX = 0.5;
   double _snapFaceY = 0.78;
@@ -540,6 +544,7 @@ class _ChatScreenState extends State<ChatScreen> {
           newText: text,
           face: _selectedFace?.name,
           color: _selectedColor?.toARGB32(),
+          textColor: _selectedTextColor?.toARGB32(),
           faceX: _selectedFace == null ? null : _selectedFaceX,
           faceY: _selectedFace == null ? null : _selectedFaceY,
         );
@@ -563,6 +568,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       : (reply.pinTitle ?? '📌'))),
           face: _selectedFace?.name, // выбранное автором лицо (липкое)
           color: _selectedColor?.toARGB32(),
+          textColor: _selectedTextColor?.toARGB32(),
           faceX: _selectedFace == null ? null : _selectedFaceX,
           faceY: _selectedFace == null ? null : _selectedFaceY,
         );
@@ -598,12 +604,15 @@ class _ChatScreenState extends State<ChatScreen> {
       // у этого сообщения.
       if (!_hasStyleSnap) {
         _snapColor = _selectedColor;
+        _snapTextColor = _selectedTextColor;
         _snapFace = _selectedFace;
         _snapFaceX = _selectedFaceX;
         _snapFaceY = _selectedFaceY;
         _hasStyleSnap = true;
       }
       _selectedColor = msg.color != null ? Color(msg.color!) : null;
+      _selectedTextColor =
+          msg.textColor != null ? Color(msg.textColor!) : null;
       _selectedFace = _faceFromName(msg.face);
       _selectedFaceX = msg.faceX ?? 0.5;
       _selectedFaceY = msg.faceY ?? 0.78;
@@ -618,6 +627,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _restoreStyleSnap() {
     if (!_hasStyleSnap) return;
     _selectedColor = _snapColor;
+    _selectedTextColor = _snapTextColor;
     _selectedFace = _snapFace;
     _selectedFaceX = _snapFaceX;
     _selectedFaceY = _snapFaceY;
@@ -713,6 +723,7 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (ctx) => _StyleSheet(
         theme: _t,
         initialColor: _selectedColor,
+        initialTextColor: _selectedTextColor,
         initialFace: _selectedFace,
         initialFx: _selectedFaceX,
         initialFy: _selectedFaceY,
@@ -728,6 +739,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (result == null || !mounted) return;
       setState(() {
         _selectedColor = result.color;
+        _selectedTextColor = result.textColor;
         _selectedFace = result.face;
         _selectedFaceX = result.fx;
         _selectedFaceY = result.fy;
@@ -1143,11 +1155,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Цитата «в ответ на …» внутри бабла (имя + снимок текста оригинала).
-  Widget _buildReplyQuote(ChatMsg msg, bool isMine) {
-    final accent = isMine ? Colors.white : _t.primary;
-    final nameColor = isMine ? Colors.white : _t.primary;
-    final textColor =
-        isMine ? Colors.white.withOpacity(0.85) : _t.textSecondary;
+  /// [fg] — цвет текста пузыря (авто-контраст или выбранный автором): цитата
+  /// живёт ВНУТРИ пузыря, поэтому красится им, а не жёстко белым.
+  Widget _buildReplyQuote(ChatMsg msg, bool isMine, Color fg) {
+    final accent = isMine ? fg : _t.primary;
+    final nameColor = isMine ? fg : _t.primary;
+    final textColor = isMine ? fg.withOpacity(0.85) : _t.textSecondary;
     // Тап по цитате — переход к оригинальному сообщению (если оно в ленте).
     return GestureDetector(
       onTap: () => _scrollToMessage(msg.replyToId),
@@ -1670,9 +1683,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ? _t.cardSurface
           : Color.lerp(_t.primary, Colors.white, 0.62)!;
     }
+    // Цвет текста: выбранный автором приоритетнее, иначе авто-контраст по
+    // фону (белый на тёмном, почти чёрный на светлом — считаем по WCAG, а не
+    // по одному порогу яркости: на жёлтом/салатовом белый пропадал).
     final fg = msg.deleted
         ? _t.textSecondary
-        : (bg.computeLuminance() > 0.55 ? _t.textPrimary : Colors.white);
+        : (msg.textColor != null ? Color(msg.textColor!) : readableTextOn(bg));
     final metaColor = fg.withOpacity(0.65);
 
     // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
@@ -1744,8 +1760,8 @@ class _ChatScreenState extends State<ChatScreen> {
         crossAxisAlignment:
             isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (msg.replyToId != null) _buildReplyQuote(msg, isMine),
-          if (msg.pinId != null) _buildPinChip(msg, isMine),
+          if (msg.replyToId != null) _buildReplyQuote(msg, isMine, fg),
+          if (msg.pinId != null) _buildPinChip(msg, isMine, fg),
           if (msg.text.isNotEmpty)
             MdMessageText(
               msg.text,
@@ -1940,7 +1956,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Чип прикреплённого пина внутри сообщения — с миниатюрой предпросмотра.
-  Widget _buildPinChip(ChatMsg msg, bool isMine) {
+  Widget _buildPinChip(ChatMsg msg, bool isMine, Color fg) {
     // Миниатюра: из самого сообщения, иначе ищем пин в загруженном списке.
     Memory? mem;
     for (final p in _pins) {
@@ -1957,7 +1973,7 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: isMine ? Colors.white.withOpacity(0.20) : _t.primaryLight,
+          color: isMine ? fg.withOpacity(0.20) : _t.primaryLight,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
@@ -1978,7 +1994,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: isMine ? Colors.white : _t.primary,
+                  color: isMine ? fg : _t.primary,
                 ),
               ),
             ),
@@ -2573,11 +2589,13 @@ class _SwipeToReplyState extends State<_SwipeToReply>
 /// Результат листа оформления сообщения.
 class _MsgStyle {
   final Color? color; // null — цвет темы
+  final Color? textColor; // null — авто-контраст по фону пузыря
   final _FaceExpr? face;
   final double fx;
   final double fy;
   final String text; // текст из превью (правится прямо в листе)
-  const _MsgStyle(this.color, this.face, this.fx, this.fy, this.text);
+  const _MsgStyle(
+      this.color, this.textColor, this.face, this.fx, this.fy, this.text);
 }
 
 /// Лист «оформление сообщения»: HSV-пикер цвета (любой оттенок) + 5 недавних +
@@ -2585,6 +2603,7 @@ class _MsgStyle {
 class _StyleSheet extends StatefulWidget {
   final AppTheme theme;
   final Color? initialColor;
+  final Color? initialTextColor;
   final _FaceExpr? initialFace;
   final double initialFx;
   final double initialFy;
@@ -2598,6 +2617,7 @@ class _StyleSheet extends StatefulWidget {
   const _StyleSheet({
     required this.theme,
     required this.initialColor,
+    required this.initialTextColor,
     required this.initialFace,
     required this.initialFx,
     required this.initialFy,
@@ -2615,6 +2635,11 @@ class _StyleSheet extends StatefulWidget {
 class _StyleSheetState extends State<_StyleSheet> {
   late HSVColor _hsv;
   late bool _useTheme; // true → цвет темы (color = null)
+  // Второй слой — цвет текста. _autoText → авто-контраст по фону (textColor
+  // = null), иначе красим тем, что накрутили пикером.
+  late HSVColor _textHsv;
+  late bool _autoText;
+  bool _editingText = false; // какой слой сейчас правит пикер
   late _FaceExpr? _face;
   late double _fx;
   late double _fy;
@@ -2628,6 +2653,9 @@ class _StyleSheetState extends State<_StyleSheet> {
     super.initState();
     _useTheme = widget.initialColor == null;
     _hsv = HSVColor.fromColor(widget.initialColor ?? widget.theme.primary);
+    _autoText = widget.initialTextColor == null;
+    _textHsv = HSVColor.fromColor(
+        widget.initialTextColor ?? readableTextOn(widget.initialColor ?? widget.theme.primary));
     _face = widget.initialFace;
     _fx = widget.initialFx;
     _fy = widget.initialFy;
@@ -2648,8 +2676,21 @@ class _StyleSheetState extends State<_StyleSheet> {
 
   Color get _color => _hsv.toColor();
   Color get _bg => _useTheme ? widget.theme.primary : _color;
-  Color get _fg =>
-      _bg.computeLuminance() > 0.55 ? widget.theme.textPrimary : Colors.white;
+  Color get _fg => _autoText ? readableTextOn(_bg) : _textHsv.toColor();
+
+  /// Цвет слоя, который сейчас правит пикер (фон или текст).
+  HSVColor get _activeHsv => _editingText ? _textHsv : _hsv;
+
+  /// Пикер тронули — слой перестаёт быть «темой»/«авто» и берёт свой цвет.
+  void _setActiveHsv(HSVColor v) => setState(() {
+        if (_editingText) {
+          _autoText = false;
+          _textHsv = v;
+        } else {
+          _useTheme = false;
+          _hsv = v;
+        }
+      });
 
   Widget _thumb() => Container(
         width: 14,
@@ -2847,12 +2888,9 @@ class _StyleSheetState extends State<_StyleSheet> {
     return LayoutBuilder(builder: (ctx, c) {
       final w = c.maxWidth;
       const h = 150.0;
-      void upd(Offset p) => setState(() {
-            _useTheme = false;
-            _hsv = _hsv
-                .withSaturation((p.dx / w).clamp(0.0, 1.0))
-                .withValue((1 - p.dy / h).clamp(0.0, 1.0));
-          });
+      void upd(Offset p) => _setActiveHsv(_activeHsv
+          .withSaturation((p.dx / w).clamp(0.0, 1.0))
+          .withValue((1 - p.dy / h).clamp(0.0, 1.0)));
       return GestureDetector(
         onPanDown: (d) => upd(d.localPosition),
         onPanUpdate: (d) => upd(d.localPosition),
@@ -2865,7 +2903,8 @@ class _StyleSheetState extends State<_StyleSheet> {
               children: [
                 Positioned.fill(
                   child: ColoredBox(
-                      color: HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor()),
+                      color:
+                          HSVColor.fromAHSV(1, _activeHsv.hue, 1, 1).toColor()),
                 ),
                 const Positioned.fill(
                   child: DecoratedBox(
@@ -2887,8 +2926,8 @@ class _StyleSheetState extends State<_StyleSheet> {
                   ),
                 ),
                 Positioned(
-                  left: _hsv.saturation * w - 7,
-                  top: (1 - _hsv.value) * h - 7,
+                  left: _activeHsv.saturation * w - 7,
+                  top: (1 - _activeHsv.value) * h - 7,
                   child: _thumb(),
                 ),
               ],
@@ -2903,10 +2942,8 @@ class _StyleSheetState extends State<_StyleSheet> {
     return LayoutBuilder(builder: (ctx, c) {
       final w = c.maxWidth;
       const h = 22.0;
-      void upd(Offset p) => setState(() {
-            _useTheme = false;
-            _hsv = _hsv.withHue((p.dx / w).clamp(0.0, 1.0) * 360);
-          });
+      void upd(Offset p) =>
+          _setActiveHsv(_activeHsv.withHue((p.dx / w).clamp(0.0, 1.0) * 360));
       return GestureDetector(
         onPanDown: (d) => upd(d.localPosition),
         onPanUpdate: (d) => upd(d.localPosition),
@@ -2927,11 +2964,90 @@ class _StyleSheetState extends State<_StyleSheet> {
           ),
           child: Stack(children: [
             Positioned(
-                left: (_hsv.hue / 360) * w - 7, top: h / 2 - 7, child: _thumb()),
+                left: (_activeHsv.hue / 360) * w - 7,
+                top: h / 2 - 7,
+                child: _thumb()),
           ]),
         ),
       );
     });
+  }
+
+  /// Кружок готового цвета — применяется к активному слою.
+  Widget _swatch(Color col) {
+    final active = _editingText ? !_autoText : !_useTheme;
+    final current = _editingText ? _textHsv.toColor() : _color;
+    final selected = active && col.toARGB32() == current.toARGB32();
+    return GestureDetector(
+      onTap: () => _setActiveHsv(HSVColor.fromColor(col)),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: col,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? widget.theme.primary : widget.theme.divider,
+            width: selected ? 3 : 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Переключатель слоя: пикер ниже красит либо пузырь, либо текст. Точка
+  /// слева от подписи — текущий цвет этого слоя.
+  Widget _layerTabs() {
+    final s = LocaleService.current;
+    Widget tab(String label, Color swatch, bool active, VoidCallback onTap) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: active
+                  ? widget.theme.primary.withOpacity(0.12)
+                  : widget.theme.surfaceMuted,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: active ? widget.theme.primary : widget.theme.divider,
+                width: active ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: swatch,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: widget.theme.divider),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: widget.theme.textPrimary)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab(s.chatStyleBackground, _bg, !_editingText,
+            () => setState(() => _editingText = false)),
+        const SizedBox(width: 10),
+        tab(s.chatStyleTextColor, _fg, _editingText,
+            () => setState(() => _editingText = true)),
+      ],
+    );
   }
 
   @override
@@ -2956,7 +3072,7 @@ class _StyleSheetState extends State<_StyleSheet> {
               const SizedBox(height: 14),
               _preview(),
               const SizedBox(height: 16),
-              _label('Мордочка'),
+              _label(LocaleService.current.chatStyleFace),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -2981,43 +3097,40 @@ class _StyleSheetState extends State<_StyleSheet> {
                 ],
               ),
               const SizedBox(height: 16),
-              _label('Цвет'),
-              const SizedBox(height: 8),
+              _layerTabs(),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+                  // Сброс активного слоя: фон → цвет темы, текст → авто-контраст.
                   _circleBtn(
-                    selected: _useTheme,
-                    onTap: () => setState(() => _useTheme = true),
-                    child:
-                        Icon(Icons.palette_outlined, color: accent, size: 20),
-                  ),
-                  for (final col in widget.recent)
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _useTheme = false;
-                        _hsv = HSVColor.fromColor(col);
-                      }),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: col,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: !_useTheme &&
-                                    col.toARGB32() == _color.toARGB32()
-                                ? accent
-                                : widget.theme.divider,
-                            width: !_useTheme &&
-                                    col.toARGB32() == _color.toARGB32()
-                                ? 3
-                                : 1,
-                          ),
-                        ),
-                      ),
+                    selected: _editingText ? _autoText : _useTheme,
+                    onTap: () => setState(() {
+                      if (_editingText) {
+                        _autoText = true;
+                      } else {
+                        _useTheme = true;
+                      }
+                    }),
+                    child: Icon(
+                      _editingText
+                          ? Icons.auto_awesome_outlined
+                          : Icons.palette_outlined,
+                      color: accent,
+                      size: 20,
                     ),
+                  ),
+                  // Готовые цвета текста — белый и почти чёрный; для фона —
+                  // недавние из истории.
+                  if (_editingText)
+                    for (final col in const [
+                      Color(0xFFFFFFFF),
+                      kDarkBubbleText,
+                    ])
+                      _swatch(col)
+                  else
+                    for (final col in widget.recent) _swatch(col),
                 ],
               ),
               const SizedBox(height: 12),
@@ -3037,11 +3150,17 @@ class _StyleSheetState extends State<_StyleSheet> {
                   ),
                   onPressed: () => Navigator.pop(
                     context,
-                    _MsgStyle(_useTheme ? null : _color, _face, _fx, _fy,
-                        _textCtrl.text),
+                    _MsgStyle(
+                      _useTheme ? null : _color,
+                      _autoText ? null : _textHsv.toColor(),
+                      _face,
+                      _fx,
+                      _fy,
+                      _textCtrl.text,
+                    ),
                   ),
-                  child: const Text('Готово',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(LocaleService.current.done,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
