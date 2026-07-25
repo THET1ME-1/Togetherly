@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/couple_days.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../logic/photo_day_widget_logic.dart';
@@ -91,6 +92,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Нынешние виджеты свёрнуты по умолчанию: сверху должен быть новый каталог.
   bool _legacySectionExpanded = false;
   bool _newSectionExpanded = true;
+
+  /// Выбранный размер в карточке нового каталога, ключ — `widgetType`.
+  /// По умолчанию 4×2: он есть у каждого виджета и лучше всех читается.
+  final Map<String, int> _sizeChoice = {};
 
   // Скролл галереи + ключ карточки «Парный виджет» — чтобы прокрутить к ней
   // при открытии по тапу на виджет рабочего стола.
@@ -940,6 +945,11 @@ class _WidgetScreenState extends State<WidgetScreen>
           'days_counter' => 'days_counter',
           'mood' => 'mood',
           'stats' || 'relationship_stats' => 'stats',
+          // Новый каталог: Kotlin ждёт together_/miss_. Без этих веток
+          // привязка уходила в timer_next_bind_group и перехватывала группу
+          // у виджета «Таймер», а сами новые виджеты оставались без группы.
+          'together' => 'together',
+          'miss' => 'miss',
           _ => 'timer', // 'timer' and others
         };
         await HomeWidget.saveWidgetData<String>(
@@ -1861,7 +1871,26 @@ class _WidgetScreenState extends State<WidgetScreen>
         svgString: _heartSvg,
         qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
         widgetType: 'together',
-        preview: _buildTogetherPreview(),
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.TogetherWidget2x2Provider',
+            preview: _buildTogether2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
+            preview: _buildTogetherPreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.TogetherWidget4x4Provider',
+            preview: _buildTogether4x4Preview(),
+          ),
+        ],
       ),
       const SizedBox(height: 16),
       _buildGalleryItem(
@@ -1870,9 +1899,462 @@ class _WidgetScreenState extends State<WidgetScreen>
         svgString: _heartSvg,
         qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
         widgetType: 'miss',
-        preview: _buildMissPreview(),
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.MissWidget2x2Provider',
+            preview: _buildMiss2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
+            preview: _buildMissPreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×1',
+            hint: _s.tgSizeHintStrip,
+            qualifiedName: 'com.togetherly.love.MissWidget4x1Provider',
+            preview: _buildMiss4x1Preview(),
+          ),
+        ],
       ),
     ];
+  }
+
+  /// Начало отношений для превью — через общий `couple_days.dart`: более
+  /// ранняя из даты таймера и даты коннекта. Иначе превью показывает одно
+  /// число, а сам виджет другое.
+  DateTime? _togetherStart() => coupleStartDate(
+        timerStart:
+            (_timerService.defaultTimer ?? _timerService.systemTimer)?.startDate,
+        groupStart: _pair.startDate,
+      );
+
+  int _togetherDays() => coupleDaysTogether(
+        timerStart:
+            (_timerService.defaultTimer ?? _timerService.systemTimer)?.startDate,
+        groupStart: _pair.startDate,
+      ) ??
+      0;
+
+  static const List<String> _monthsGenitive = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+  ];
+
+  static const List<String> _monthsGenitiveEn = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatDayMonth(DateTime d) => LocaleService.instance.isRussian
+      ? '${d.day} ${_monthsGenitive[d.month - 1]}'
+      : '${_monthsGenitiveEn[d.month - 1]} ${d.day}';
+
+  /// Инициал для кружка-аватара: пусто заменяем сердечком, а не пустотой.
+  String _initialOf(String name) {
+    final n = name.trim();
+    return n.isEmpty ? '' : n.characters.first.toUpperCase();
+  }
+
+  /// Превью «Вместе» 2×2: фон primary #6750A4, стек аватаров и число 54/800.
+  Widget _buildTogether2x2Preview() {
+    final days = _togetherDays();
+    final myInitial = _initialOf(widget.userData.displayName);
+    final partnerInitial = _initialOf(_pair.partnerDisplayName);
+
+    Widget avatar(String initial, Color bg, Color fg) => Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: bg,
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF6750A4), width: 2),
+          ),
+          alignment: Alignment.center,
+          child: initial.isEmpty
+              ? Icon(Icons.favorite_rounded, size: 15, color: fg)
+              : Text(
+                  initial,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6750A4),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 34,
+              child: Stack(
+                children: [
+                  avatar(myInitial, const Color(0xFFD0BCFF),
+                      const Color(0xFF21005D)),
+                  Positioned(
+                    left: 24,
+                    child: avatar(partnerInitial, const Color(0xFFFFD8E4),
+                        const Color(0xFF31111D)),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$days',
+              style: const TextStyle(
+                fontSize: 54,
+                height: 1.02,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -2.2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _s.tgDaysTogetherCaption(days),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE9DDFF),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью «Вместе» 4×4: surface #FEF7FF, блок primary с числом 72/800
+  /// и секция «ДАЛЬШЕ» с двумя ближайшими датами.
+  Widget _buildTogether4x4Preview() {
+    final days = _togetherDays();
+    final start = _togetherStart();
+    final months = (days / 30.44).floor();
+
+    final nextHundred = ((days ~/ 100) + 1) * 100;
+    final nextYear = ((days ~/ 365) + 1) * 365;
+    final anniversary = start?.add(Duration(days: nextYear));
+
+    final myName = widget.userData.displayName.trim();
+    final partnerName = _pair.partnerDisplayName.trim();
+    final header = [myName, partnerName]
+        .where((n) => n.isNotEmpty)
+        .join(' + ')
+        .toUpperCase();
+
+    Widget row(String left, String right, Color bg, Color fg, Color subFg) =>
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  left,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
+                ),
+              ),
+              Text(
+                right,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: subFg,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF7FF),
+          borderRadius: BorderRadius.circular(36),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    header.isEmpty
+                        ? _s.tgDaysTogetherCaption(days).toUpperCase()
+                        : header,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                      color: Color(0xFF49454F),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.favorite_rounded,
+                    size: 22, color: Color(0xFF6750A4)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6750A4),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$days',
+                          style: const TextStyle(
+                            fontSize: 72,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -3,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _s.tgDaysTogetherCaption(days),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFE9DDFF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$months',
+                        style: const TextStyle(
+                          fontSize: 26,
+                          height: 1,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        _s.tgMonthsCaption(months),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFD0BCFF),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Text(
+              _s.tgNextSection,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: Color(0xFF7A757F),
+              ),
+            ),
+            const SizedBox(height: 8),
+            row(
+              _s.tgDaysMilestone(nextHundred),
+              _s.tgInDays(nextHundred - days),
+              const Color(0xFFF3EDF7),
+              const Color(0xFF1D1B20),
+              const Color(0xFF49454F),
+            ),
+            const SizedBox(height: 8),
+            row(
+              _s.tgYearsMilestone(nextYear ~/ 365),
+              anniversary == null ? '—' : _formatDayMonth(anniversary),
+              const Color(0xFFFFD8E4),
+              const Color(0xFF31111D),
+              const Color(0xFF7D5260),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью «Скучаю» 2×2: tertiary-container #FFD8E4 и пилюля отправки.
+  Widget _buildMiss2x2Preview() {
+    final partnerName = _pair.partnerDisplayName.trim();
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFD8E4),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    partnerName.isEmpty ? '' : _s.tgMissAddressee(partnerName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF7D5260),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.favorite_rounded,
+                    size: 20, color: Color(0xFF7D5260)),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              _s.tgMissTitle,
+              style: const TextStyle(
+                fontSize: 26,
+                height: 1.05,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.8,
+                color: Color(0xFF31111D),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7D5260),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                _s.tgMissSend,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью «Скучаю» 4×1: полоска primary высотой 92 с аватаром партнёра.
+  Widget _buildMiss4x1Preview() {
+    final partnerName = _pair.partnerDisplayName.trim();
+    final initial = _initialOf(partnerName);
+
+    return AspectRatio(
+      aspectRatio: 424 / 92,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6750A4),
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFFD0BCFF),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: initial.isEmpty
+                  ? const Icon(Icons.favorite_rounded,
+                      size: 20, color: Color(0xFF21005D))
+                  : Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF21005D),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _s.tgMissTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _s.tgMissStripHint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFFD0BCFF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.favorite_rounded,
+                size: 26, color: Color(0xFFFFD8E4)),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Отдаём виджету «Скучаю» свежие счётчики обоих.
@@ -2000,11 +2482,8 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// радиус 32, число 60/800, трек прогресса до ближайшей круглой даты.
   /// Дни берём из активного таймера, как и сам виджет.
   Widget _buildTogetherPreview() {
-    final timer = _timerService.defaultTimer ?? _timerService.systemTimer;
-    final start = timer?.startDate ?? _pair.startDate;
-    final days = timer != null
-        ? timer.daysElapsed.abs()
-        : (start != null ? DateTime.now().difference(start).inDays : 0);
+    final days = _togetherDays();
+    final start = _togetherStart();
 
     // Ближайшая круглая дата: сотня дней или годовщина — что раньше.
     final nextHundred = ((days ~/ 100) + 1) * 100;
@@ -2015,13 +2494,8 @@ class _WidgetScreenState extends State<WidgetScreen>
     final percent = (((days - prev) / span) * 100).round().clamp(0, 100);
     final left = target - days;
 
-    const months = [
-      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-    ];
-    final startLabel = start == null
-        ? ''
-        : 'С ${start.day} ${months[start.month - 1]} ${start.year}';
+    final startLabel =
+        start == null ? '' : 'С ${_formatDayMonth(start)} ${start.year}';
 
     return AspectRatio(
       aspectRatio: 424 / 200,
@@ -2067,9 +2541,10 @@ class _WidgetScreenState extends State<WidgetScreen>
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'дней',
-                            style: TextStyle(
+                          Text(
+                            // Склонение по числу: 1 день, 2 дня, 5 дней.
+                            _s.tgDaysMilestone(days).split(' ').last,
+                            style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF21005D),
@@ -2089,7 +2564,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 Expanded(
                   child: Text(
-                    'До $target — $left дней',
+                    _s.tgUntilMilestone(target, left),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -2275,6 +2750,73 @@ class _WidgetScreenState extends State<WidgetScreen>
     ];
   }
 
+  /// Сегменты выбора размера: «2×2 · 4×2 · 4×4». Каждый размер — отдельный
+  /// провайдер, поэтому выбор меняет и превью, и то, что уйдёт на рабочий стол.
+  Widget _sizePicker({
+    required List<_WidgetSizeOption> options,
+    required int selected,
+    required ValueChanged<int> onSelect,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < options.length; i++)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onSelect(i),
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: i == selected ? _cs.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        options[i].label,
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontVariations: const [FontVariation('wght', 700)],
+                          color: i == selected
+                              ? _cs.onPrimary
+                              : _cs.onSurfaceVariant,
+                        ),
+                      ),
+                      if (options[i].hint != null)
+                        Text(
+                          options[i].hint!,
+                          style: TextStyle(
+                            fontFamily: 'Onest',
+                            fontSize: 9.5,
+                            height: 1.1,
+                            color: (i == selected
+                                    ? _cs.onPrimary
+                                    : _cs.onSurfaceVariant)
+                                .withValues(alpha: 0.75),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGalleryItem({
     required String title,
     required String subtitle,
@@ -2285,7 +2827,19 @@ class _WidgetScreenState extends State<WidgetScreen>
     Widget? expandedContent,
     bool isExpanded = false,
     VoidCallback? onToggleExpand,
+    List<_WidgetSizeOption> sizes = const [],
   }) {
+    // С выбором размера превью и кнопка работают с выбранным вариантом,
+    // без него — со старыми параметрами карточки.
+    final hasSizes = sizes.isNotEmpty;
+    final choiceKey = widgetType ?? qualifiedName;
+    final index = hasSizes
+        ? (_sizeChoice[choiceKey] ?? 0).clamp(0, sizes.length - 1)
+        : 0;
+    final chosen = hasSizes ? sizes[index] : null;
+    final effectivePreview = chosen?.preview ?? preview;
+    final effectiveName = chosen?.qualifiedName ?? qualifiedName;
+
     return _buildGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2354,7 +2908,25 @@ class _WidgetScreenState extends State<WidgetScreen>
               ],
             ),
           ),
-          if (preview != null) ...[const SizedBox(height: 14), preview],
+          // ── Выбор размера ──
+          if (hasSizes) ...[
+            const SizedBox(height: 14),
+            _sizePicker(
+              options: sizes,
+              selected: index,
+              onSelect: (i) => setState(() => _sizeChoice[choiceKey] = i),
+            ),
+          ],
+          if (effectivePreview != null) ...[
+            const SizedBox(height: 14),
+            // Переключение размера меняет пропорции — плавно, а не рывком.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: effectivePreview,
+            ),
+          ],
           // ── Кнопка «Добавить на рабочий стол» ──
           if (_canPinWidgets) ...[
             const SizedBox(height: 14),
@@ -2363,7 +2935,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               height: 44,
               child: FilledButton.icon(
                 onPressed: () =>
-                    _pinWidget(qualifiedName, widgetType: widgetType),
+                    _pinWidget(effectiveName, widgetType: widgetType),
                 icon: const Icon(Icons.add_to_home_screen_rounded, size: 18),
                 label: Text(
                   LocaleService.current.addToHomeScreen,
@@ -7010,6 +7582,30 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   }
 }
 
+/// Один размер виджета в карточке каталога.
+///
+/// В Android каждый размер — свой `AppWidgetProvider`, общего «виджета с
+/// выбором размера» не бывает. Поэтому размер выбирается до установки:
+/// выбранный вариант определяет и превью, и того провайдера, что уйдёт на
+/// рабочий стол.
+class _WidgetSizeOption {
+  const _WidgetSizeOption({
+    required this.label,
+    required this.qualifiedName,
+    required this.preview,
+    this.hint,
+  });
+
+  /// Метка сегмента, например «4×2».
+  final String label;
+
+  /// Подпись под меткой: чем этот размер отличается.
+  final String? hint;
+
+  final String qualifiedName;
+  final Widget preview;
+}
+
 /// Сворачивающийся раздел каталога виджетов.
 ///
 /// Заголовок с иконкой и счётчиком, содержимое раскрывается анимацией. Нужен,
@@ -7033,6 +7629,12 @@ class _CollapsibleWidgetSection extends StatelessWidget {
   final bool expanded;
   final VoidCallback onToggle;
   final List<Widget> children;
+
+  /// Число в бейдже — карточки виджетов, без отступов и рекламы. Раньше тут
+  /// стоял `children.length`, и раздел с двумя виджетами показывал «3»:
+  /// разделительный SizedBox считался позицией.
+  int get _cardCount =>
+      children.where((w) => w is! SizedBox && w is! AdBanner).length;
 
   @override
   Widget build(BuildContext context) {
@@ -7095,7 +7697,7 @@ class _CollapsibleWidgetSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      '${children.length}',
+                      '$_cardCount',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,

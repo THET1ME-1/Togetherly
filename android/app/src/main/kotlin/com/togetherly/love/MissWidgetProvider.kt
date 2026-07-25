@@ -125,7 +125,7 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                         if (sent) {
                             "${partnerName.ifEmpty { "Партнёр" }} уже видит"
                         } else {
-                            "один тап — и он узнает"
+                            "один тап — и партнёр узнает"
                         },
                     )
                     setOnClickPendingIntent(R.id.widget_root, tapIntent)

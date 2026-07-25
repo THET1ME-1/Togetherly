@@ -105,7 +105,8 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
                     val milestone = nextMilestone(days)
                     setTextViewText(
                         R.id.next_label,
-                        "До ${milestone.label} — ${milestone.daysLeft} дней",
+                        "До ${milestone.label} — ${milestone.daysLeft} " +
+                            daysWord(milestone.daysLeft),
                     )
                     setTextViewText(R.id.next_percent, "${milestone.percent}%")
                     setProgressBar(R.id.progress, 100, milestone.percent, false)
@@ -120,7 +121,10 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
                     setTextViewText(R.id.months_label, monthsWord(months))
 
                     val milestone = nextMilestone(days)
-                    setTextViewText(R.id.next_round_title, "${milestone.value} дней")
+                    setTextViewText(
+                        R.id.next_round_title,
+                        "${milestone.value} ${daysWord(milestone.value)}",
+                    )
                     setTextViewText(
                         R.id.next_round_when,
                         "через ${milestone.daysLeft} ${daysWord(milestone.daysLeft)}",

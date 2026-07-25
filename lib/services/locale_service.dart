@@ -1058,6 +1058,21 @@ abstract class AppStrings {
   String get tgTogetherSubtitle;
   String get tgMissTitle;
   String get tgMissSubtitle;
+  /// Выбор размера в карточке каталога и подписи внутри превью.
+  String get tgSizeHintCompact;
+  String get tgSizeHintWide;
+  String get tgSizeHintLarge;
+  String get tgSizeHintStrip;
+  String tgDaysTogetherCaption(int days);
+  String tgMonthsCaption(int months);
+  String get tgNextSection;
+  String tgDaysMilestone(int days);
+  String tgYearsMilestone(int years);
+  String tgInDays(int days);
+  String tgUntilMilestone(int target, int left);
+  String tgMissAddressee(String name);
+  String get tgMissSend;
+  String get tgMissStripHint;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -1448,6 +1463,24 @@ abstract class AppStrings {
 // ══════════════════════════════════════════════════════════════════════════════
 // RUSSIAN STRINGS
 // ══════════════════════════════════════════════════════════════════════════════
+
+/// Склонение существительного при числе: 1 день, 2 дня, 5 дней.
+/// Исключение — 11…14, они всегда берут форму множественного числа.
+String _ruPlural(int n, String one, String few, String many) {
+  final abs = n.abs();
+  final tens = abs % 100;
+  if (tens >= 11 && tens <= 14) return many;
+  switch (abs % 10) {
+    case 1:
+      return one;
+    case 2:
+    case 3:
+    case 4:
+      return few;
+    default:
+      return many;
+  }
+}
 
 class _RuStrings extends AppStrings {
   const _RuStrings();
@@ -3485,6 +3518,40 @@ class _RuStrings extends AppStrings {
   String get tgMissTitle => 'Скучаю';
   @override
   String get tgMissSubtitle => 'Тап с рабочего стола — партнёр сразу узнает';
+  @override
+  String get tgSizeHintCompact => 'кратко';
+  @override
+  String get tgSizeHintWide => 'подробно';
+  @override
+  String get tgSizeHintLarge => 'всё сразу';
+  @override
+  String get tgSizeHintStrip => 'полоска';
+  @override
+  String tgDaysTogetherCaption(int days) =>
+      '${_ruPlural(days, 'день', 'дня', 'дней')} вместе';
+  @override
+  String tgMonthsCaption(int months) =>
+      _ruPlural(months, 'месяц', 'месяца', 'месяцев');
+  @override
+  String get tgNextSection => 'ДАЛЬШЕ';
+  @override
+  String tgDaysMilestone(int days) =>
+      '$days ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String tgYearsMilestone(int years) =>
+      '$years ${_ruPlural(years, 'год', 'года', 'лет')}';
+  @override
+  String tgInDays(int days) =>
+      'через $days ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String tgUntilMilestone(int target, int left) =>
+      'До ${tgDaysMilestone(target)} — ${tgInDays(left)}';
+  @override
+  String tgMissAddressee(String name) => name;
+  @override
+  String get tgMissSend => 'Отправить';
+  @override
+  String get tgMissStripHint => 'Один тап — и партнёр узнает';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6306,6 +6373,37 @@ class _EnStrings extends AppStrings {
   String get tgMissTitle => 'Miss you';
   @override
   String get tgMissSubtitle => 'One tap from the home screen';
+  @override
+  String get tgSizeHintCompact => 'brief';
+  @override
+  String get tgSizeHintWide => 'detailed';
+  @override
+  String get tgSizeHintLarge => 'full';
+  @override
+  String get tgSizeHintStrip => 'strip';
+  @override
+  String tgDaysTogetherCaption(int days) =>
+      days == 1 ? 'day together' : 'days together';
+  @override
+  String tgMonthsCaption(int months) => months == 1 ? 'month' : 'months';
+  @override
+  String get tgNextSection => 'NEXT';
+  @override
+  String tgDaysMilestone(int days) => '$days ${days == 1 ? 'day' : 'days'}';
+  @override
+  String tgYearsMilestone(int years) =>
+      '$years ${years == 1 ? 'year' : 'years'}';
+  @override
+  String tgInDays(int days) => 'in $days ${days == 1 ? 'day' : 'days'}';
+  @override
+  String tgUntilMilestone(int target, int left) =>
+      'Until ${tgDaysMilestone(target)} — ${tgInDays(left)}';
+  @override
+  String tgMissAddressee(String name) => 'To $name';
+  @override
+  String get tgMissSend => 'Send';
+  @override
+  String get tgMissStripHint => 'One tap and they will know';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

@@ -42,7 +42,10 @@
     </FrameLayout>
 
     <!-- Отжимаем счётчик к низу: в макете space-between -->
-    <Space
+    <!-- Распорка. Именно FrameLayout, а не Space: RemoteViews инфлейтит только
+         классы из своего белого списка, Space в него не входит и лончер
+         показывает «Невозможно загрузить виджет». -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_weight="1" />
