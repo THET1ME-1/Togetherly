@@ -1194,6 +1194,7 @@ abstract class AppStrings {
   String get chatBgSharedHint;
   String get chatBgUploading;
   String get chatBgSharedDone;
+  String get exportTakesTime;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3948,6 +3949,9 @@ class _RuStrings extends AppStrings {
   String get chatBgUploading => 'Загружаем фон…';
   @override
   String get chatBgSharedDone => 'Фон поставлен — он теперь у обоих';
+  @override
+  String get exportTakesTime =>
+      'Собираем воспоминания в архив. Можно отменить — ничего не пропадёт.';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -7069,6 +7073,9 @@ class _EnStrings extends AppStrings {
   String get chatBgUploading => 'Uploading the background…';
   @override
   String get chatBgSharedDone => 'Background set — both of you see it now';
+  @override
+  String get exportTakesTime =>
+      'Packing your memories. You can cancel — nothing will be lost.';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

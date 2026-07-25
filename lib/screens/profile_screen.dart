@@ -30,6 +30,8 @@ import '../theme/app_theme.dart';
 import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/app_sheet.dart';
+import '../widgets/morph_loader.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
 import '../services/plus_service.dart';
@@ -88,7 +90,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
-  String _appIconId = AppIconService.defaultId;
   final CoinStore _iap = createCoinStore();
   bool _iapLoading = false;
 
@@ -171,8 +172,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Timer? _dayTimer;
 
   /// Toggle for Relationship Stats
-  bool _showStats = false;
-
   // Notification preferences
   bool _notifMissYou = true;
   bool _notifNewMemory = true;
@@ -196,9 +195,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Подсказка про колесо «Дни вместе» под полем «Годовщина».
   // Скрывается навсегда по крестику.
-  bool _anniversaryHintDismissed = false;
-  static const _kAnniversaryHintDismissed = 'anniversary_wheel_hint_dismissed';
-
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
@@ -245,11 +241,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     _loadStats();
     _loadNotifPrefs();
-    if (AppIconService.instance.isSupported) {
-      AppIconService.instance.currentIconId().then((id) {
-        if (mounted) setState(() => _appIconId = id);
-      });
-    }
     // НЕ грузим rewarded на открытии профиля — это фоновый запрос, который
     // в 90%+ случаев впустую (юзер не открывает магазин). Предзагрузка
     // происходит в _showCoinShop, когда юзер осознанно идёт за коинами.
@@ -269,8 +260,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
       _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
-      _anniversaryHintDismissed =
-          prefs.getBool(_kAnniversaryHintDismissed) ?? false;
     });
     // Синхронизируем текущие настройки в PocketBase (колонки users.notif_*),
     // чтобы PbPushService учитывал их при показе уведомлений.
@@ -643,10 +632,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding: const EdgeInsets.all(16),
                                 child: _missYouWeek())
                           ])),
-                      if (paired)
-                        _m3Group('pair', _s.relationships,
-                            Icons.favorite_rounded,
-                            child: _buildPairGroup(context)),
+                      if (paired) ...[
+                        const SizedBox(height: 8),
+                        _buildPairGroup(context),
+                      ],
                       const SizedBox(height: 22),
                       _buildDonationCard(context),
                       const SizedBox(height: 16),
@@ -746,39 +735,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: children,
         ),
       );
-
-  /// Строка-тайл «иконка + текст + trailing».
-  Widget _m3Tile({
-    IconData? icon,
-    Widget? leadingWidget,
-    required String label,
-    String? subtitle,
-    Widget? trailing,
-    VoidCallback? onTap,
-  }) {
-    final cs = _cs;
-    return ListTile(
-      onTap: onTap,
-      leading: leadingWidget ?? Icon(icon, color: cs.onSurfaceVariant),
-      title: Text(label,
-          style: TextStyle(
-            fontFamily: ProfileTheme.bodyFont,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
-          )),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle,
-              style: TextStyle(
-                fontFamily: ProfileTheme.bodyFont,
-                fontSize: 13,
-                color: cs.onSurfaceVariant,
-              )),
-      trailing: trailing ??
-          Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
-    );
-  }
 
   Widget _m3Divider() =>
       Divider(height: 1, indent: 16, endIndent: 16, color: _cs.outlineVariant);
@@ -1495,23 +1451,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// «Отношения»: статус и даты (открывается в шите; партнёры — в «Друзьях»).
+  /// Даты и статус пары — прямо в профиле, без обёртки.
+  ///
+  /// Раньше это был блок «Отношения» с единственным пунктом «Статус
+  /// отношений», который открывал лист с теми же полями: три уровня, чтобы
+  /// добраться до годовщины. Теперь строки лежат на виду, а лист остаётся
+  /// только для правки конкретного поля.
   Widget _buildPairGroup(BuildContext context) {
-    return _m3Card([
-      _m3Tile(
-        icon: Icons.favorite_border_rounded,
-        label: _s.relationshipStatus,
-        subtitle: _s.anniversaryDate,
-        onTap: () => _openCardSheet(context, _buildRelationshipCard(context)),
-      ),
-      if (widget.giftsEnabled) ...[
-        _m3Divider(),
-        _m3Tile(
-          icon: Icons.card_giftcard_rounded,
-          label: _s.selfGiftsTitle,
-          onTap: () => _openSelfProfile(context),
-        ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SettingsSection(_s.relationships),
+        _buildRelationshipCard(context),
+        if (widget.giftsEnabled) ...[
+          const SizedBox(height: 10),
+          SettingsGroup([
+            SettingsRow(
+              icon: Icons.card_giftcard_rounded,
+              title: _s.selfGiftsTitle,
+              trailing: const SettingsChevron(),
+              onTap: () => _openSelfProfile(context),
+            ),
+          ]),
+        ],
       ],
-    ]);
+    );
   }
 
 
@@ -1577,30 +1541,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Открывает сложный виджет (магазин, отношения) в нижнем шите — чтобы на
-  /// самом профиле остались только чистые тайлы.
-  Future<void> _openCardSheet(BuildContext context, Widget child) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _cs.surface,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.75,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (ctx, sc) => SingleChildScrollView(
-          controller: sc,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-          child: child,
-        ),
-      ),
-    );
-  }
 
   // ═══════════════════════════════════════════════════
   //  ВЕРХ СТРАНИЦЫ: ЛИЧНЫЙ ПРОФИЛЬ + ПАРТНЁР (M3 — см. _m3Header/_m3Stats)
@@ -2148,92 +2088,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
-
-
-  Widget _infoRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    Widget? trailing,
-    String? hint,
-    VoidCallback? onHintDismiss,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _accent.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: _accent, size: 18),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _t.textMuted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textPrimary,
-                  ),
-                ),
-                if (hint != null) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          hint,
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.3,
-                            color: _t.textMuted,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      if (onHintDismiss != null)
-                        GestureDetector(
-                          onTap: onHintDismiss,
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6, top: 1),
-                            child: Icon(
-                              Icons.close_rounded,
-                              size: 14,
-                              color: _t.textMuted,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          ?trailing,
-        ],
-      ),
-    );
-  }
-
   // ═══════════════════════════════════════════════════
   //  RELATIONSHIP CARD
   // ═══════════════════════════════════════════════════
@@ -2288,178 +2142,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final hasPaired = allPartners.isNotEmpty;
 
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _s.relationships,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _t.textMuted,
-              letterSpacing: 3,
-            ),
-          ),
-          const SizedBox(height: 20),
-          // ── Статус (синхронизирован с типом группы, нажимаем — меняем) ──
-          GestureDetector(
-            onTap: () => _showRelationshipTypePicker(
-              context,
-              selectedPartner?.connection,
-            ),
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: relColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(relIcon, color: relColor, size: 18),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _s.statusLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _t.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        relLabel,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: relColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-          _divider(),
-          // ── Партнёр (выбор независимо от группы) ──
-          GestureDetector(
-            onTap: () => _showPartnerPicker(context, allPartners),
-            behavior: HitTestBehavior.opaque,
-            child: _infoRow(
-              icon: Icons.person_rounded,
-              label: _s.partnerLabel,
-              value: selectedPartner?.member.name.isNotEmpty == true
-                  ? selectedPartner!.member.name
-                  : _s.notSelected,
-              trailing: Icon(
-                Icons.chevron_right_rounded,
-                color: _t.textMuted,
-                size: 20,
-              ),
-            ),
-          ),
-          if (hasPaired) ...[
-            _divider(),
-            _infoRow(
-              icon: Icons.calendar_today_rounded,
-              label: _s.together,
-              value: daysString,
-            ),
-            _divider(),
-            // ── Годовщина ──
-            GestureDetector(
-              onTap: () => _showAnniversaryDatePicker(
-                  context, selectedPartner?.connection),
-              behavior: HitTestBehavior.opaque,
-              child: _infoRow(
-                icon: Icons.celebration_rounded,
-                label: _s.anniversaryDate,
-                value: _formatAnniversaryDate(
-                    selectedPartner?.connection.anniversaryDate),
-                hint: _anniversaryHintDismissed
-                    ? null
-                    : _s.anniversaryWheelHint,
-                onHintDismiss: _dismissAnniversaryHint,
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ),
-            ),
-            _divider(),
-            // ── Первый поцелуй ──
-            GestureDetector(
-              onTap: () => _showFirstKissDatePicker(
-                  context, selectedPartner?.connection),
-              behavior: HitTestBehavior.opaque,
-              child: _infoRow(
-                icon: Icons.favorite_rounded,
-                label: _s.firstKissDate,
-                value: _formatCelebrationDate(
-                    selectedPartner?.connection.firstKissDate),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ),
-            ),
-            _divider(),
-            // ── Мой день рождения ──
-            GestureDetector(
-              onTap: () => _showBirthdayPicker(context),
-              behavior: HitTestBehavior.opaque,
-              child: _infoRow(
-                icon: Icons.cake_rounded,
-                label: _s.myBirthday,
-                value: _formatBirthdayDate(widget.userData.birthDate),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ),
-            ),
-            // ── День рождения партнёра (read-only) ──
-            if (selectedPartner != null) ...[
-              _divider(),
-              _infoRow(
-                icon: Icons.cake_rounded,
-                label: _s.partnerBirthday,
-                value: _formatBirthdayDate(
-                  selectedPartner.connection.memberBirthdays[
-                      selectedPartner.member.uid],
-                ),
-              ),
-            ],
-          ],
-          if (!hasPaired) ...[
-            const SizedBox(height: 12),
-            Text(
-              _s.invitePartnerToCount,
-              style: TextStyle(
-                fontSize: 13,
-                color: _t.textMuted,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ],
+    // Вид собран на общем каркасе настроек: круглые чипы-иконки, разделитель
+    // до иконки, крупный текст. Расчёты выше не трогаем — там выбор партнёра
+    // из нескольких связей и даты.
+    return SettingsGroup([
+      SettingsRow(
+        icon: relIcon,
+        title: _s.relationshipStatus,
+        subtitle: relLabel,
+        iconBg: relColor.withValues(alpha: 0.16),
+        iconFg: relColor,
+        trailing: const SettingsChevron(),
+        onTap: () => _showRelationshipTypePicker(
+          context,
+          selectedPartner?.connection,
+        ),
       ),
-    );
+      if (hasPaired) ...[
+        const SettingsDivider(),
+        SettingsRow(
+          icon: Icons.person_rounded,
+          title: _s.partnerLabel,
+          subtitle: selectedPartner?.member.name ?? _s.notSet,
+          trailing: const SettingsChevron(),
+          onTap: () => _showPartnerPicker(context, allPartners),
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          icon: Icons.calendar_month_rounded,
+          title: _s.together,
+          subtitle: daysString,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          icon: Icons.celebration_rounded,
+          title: _s.anniversaryDate,
+          subtitle: _formatCelebrationDate(selectedPartner?.connection.anniversaryDate),
+          trailing: const SettingsChevron(),
+          onTap: () => _showAnniversaryDatePicker(
+            context,
+            selectedPartner?.connection,
+          ),
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          icon: Icons.favorite_rounded,
+          title: _s.firstKissDate,
+          subtitle: _formatCelebrationDate(selectedPartner?.connection.firstKissDate),
+          trailing: const SettingsChevron(),
+          onTap: () => _showFirstKissDatePicker(
+            context,
+            selectedPartner?.connection,
+          ),
+        ),
+      ],
+      const SettingsDivider(),
+      SettingsRow(
+        icon: Icons.cake_rounded,
+        title: _s.myBirthday,
+        subtitle: _formatCelebrationDate(widget.userData.birthDate),
+        trailing: const SettingsChevron(),
+        onTap: () => _showBirthdayPicker(context),
+      ),
+      if (hasPaired) ...[
+        const SettingsDivider(),
+        SettingsRow(
+          icon: Icons.cake_outlined,
+          title: _s.partnerBirthday,
+          subtitle: _formatCelebrationDate(
+            selectedPartner == null
+                ? null
+                : selectedPartner.connection
+                    .memberBirthdays[selectedPartner.member.uid],
+          ),
+        ),
+      ],
+    ]);
   }
 
   // ── Celebration helpers ──
@@ -2472,8 +2230,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '$d  $t';
   }
 
-  String _formatAnniversaryDate(DateTime? date) => _formatCelebrationDate(date);
-  String _formatBirthdayDate(DateTime? date) => _formatCelebrationDate(date);
 
   /// Показывает диалог ввода даты с авто-точками (ДД.ММ.ГГГГ).
   /// [firstYear] / [lastYear] — допустимый диапазон лет.
@@ -2535,11 +2291,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _dismissAnniversaryHint() async {
-    setState(() => _anniversaryHintDismissed = true);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kAnniversaryHintDismissed, true);
-  }
 
   Future<void> _showAnniversaryDatePicker(
     BuildContext context,
@@ -2967,294 +2718,214 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ═══════════════════════════════════════════════════
   //  NOTIFICATION SETTINGS
   // ═══════════════════════════════════════════════════
+  /// Уведомления — крупным меню снизу, на общем каркасе.
+  ///
+  /// Иконки раньше были каждая своего цвета (синяя, оранжевая, зелёная) и
+  /// спорили с темой приложения. Теперь чипы одного тона, как в остальных
+  /// разделах: цвет несёт смысл только там, где он что-то значит.
   void _showNotificationSettings(BuildContext context) {
     final s = LocaleService.current;
-    final accent = _accent;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+    showAppSheet<void>(
+      context,
+      expand: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => Container(
-          decoration: BoxDecoration(
-            color: _t.cardSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        builder: (ctx, setModal) => SheetScaffold(
+          title: s.notifications,
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _t.divider,
-                    borderRadius: BorderRadius.circular(2),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.favorite_rounded,
+                  title: s.notifMissYou,
+                  subtitle: s.notifMissYouSub,
+                  trailing: Switch(
+                    value: _notifMissYou,
+                    onChanged: (v) {
+                      setModal(() => _notifMissYou = v);
+                      _saveNotifPref(_kNotifMissYou, v);
+                    },
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Title
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      size: 20,
-                      color: accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    s.notifications,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Toggles
-              _notifToggle(
-                icon: Icons.favorite_rounded,
-                color: const Color(0xFFEC4899),
-                title: s.notifMissYou,
-                subtitle: s.notifMissYouSub,
-                value: _notifMissYou,
-                onChanged: (v) {
-                  setModal(() => _notifMissYou = v);
-                  _saveNotifPref(_kNotifMissYou, v);
-                },
-              ),
-              const Divider(height: 1),
-              _notifToggle(
-                icon: Icons.photo_library_outlined,
-                color: const Color(0xFF3B82F6),
-                title: s.notifNewMemory,
-                subtitle: s.notifNewMemorySub,
-                value: _notifNewMemory,
-                onChanged: (v) {
-                  setModal(() => _notifNewMemory = v);
-                  _saveNotifPref(_kNotifNewMemory, v);
-                },
-              ),
-              const Divider(height: 1),
-              _notifToggle(
-                icon: Icons.mood_rounded,
-                color: const Color(0xFFF59E0B),
-                title: s.notifMood,
-                subtitle: s.notifMoodSub,
-                value: _notifMood,
-                onChanged: (v) {
-                  setModal(() => _notifMood = v);
-                  _saveNotifPref(_kNotifMood, v);
-                },
-              ),
-              const Divider(height: 1),
-              _notifToggle(
-                icon: Icons.chat_bubble_rounded,
-                color: const Color(0xFF10B981),
-                title: s.notifChat,
-                subtitle: s.notifChatSub,
-                value: _notifChat,
-                onChanged: (v) {
-                  setModal(() => _notifChat = v);
-                  _saveNotifPref(_kNotifChat, v);
-                },
-              ),
-              const Divider(height: 1),
-              // Постоянный счётчик «дней вместе» — локальное уведомление,
-              // не FCM-пуш: состоянием управляет DaysTogetherNotificationService.
-              _notifToggle(
-                icon: Icons.favorite_border_rounded,
-                color: const Color(0xFFEF4444),
-                title: s.notifDaysTogether,
-                subtitle: s.notifDaysTogetherSub,
-                value: _notifDaysTogether,
-                onChanged: (v) {
-                  setModal(() => _notifDaysTogether = v);
-                  final start = coupleStartDate(
-                    timerStart: widget.timerService.systemTimer?.startDate,
-                    groupStart: widget.pairData.startDate,
-                  );
-                  DaysTogetherNotificationService.instance
-                      .setEnabled(v, startDate: start);
-                },
-              ),
-              const SizedBox(height: 20),
-              // System settings button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    if (Platform.isAndroid) {
-                      final androidUri = Uri.parse(
-                        'intent:#Intent;'
-                        'action=android.settings.APP_NOTIFICATION_SETTINGS;'
-                        'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
-                        'end',
-                      );
-                      try {
-                        await launchUrl(androidUri);
-                      } catch (_) {
-                        // fallback: open general app settings
-                        try {
-                          await launchUrl(
-                            Uri.parse(
-                              'intent:#Intent;'
-                              'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
-                              'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
-                              'end',
-                            ),
-                          );
-                        } catch (e) {
-                          // На некоторых прошивках нет Activity ни для одного из
-                          // этих интентов — раньше падало в Crashlytics. Не падаем.
-                          debugPrint('Open app settings failed: $e');
-                        }
-                      }
-                    } else {
-                      final iosUri = Uri.parse('app-settings:');
-                      if (await canLaunchUrl(iosUri)) {
-                        await launchUrl(iosUri);
-                      }
-                    }
+                  onTap: () {
+                    setModal(() => _notifMissYou = !_notifMissYou);
+                    _saveNotifPref(_kNotifMissYou, _notifMissYou);
                   },
-                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                  label: Text(s.openSystemSettings),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _t.textSecondary,
-                    side: BorderSide(color: _t.divider),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.photo_library_rounded,
+                  title: s.notifNewMemory,
+                  subtitle: s.notifNewMemorySub,
+                  trailing: Switch(
+                    value: _notifNewMemory,
+                    onChanged: (v) {
+                      setModal(() => _notifNewMemory = v);
+                      _saveNotifPref(_kNotifNewMemory, v);
+                    },
                   ),
+                  onTap: () {
+                    setModal(() => _notifNewMemory = !_notifNewMemory);
+                    _saveNotifPref(_kNotifNewMemory, _notifNewMemory);
+                  },
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.mood_rounded,
+                  title: s.notifMood,
+                  subtitle: s.notifMoodSub,
+                  trailing: Switch(
+                    value: _notifMood,
+                    onChanged: (v) {
+                      setModal(() => _notifMood = v);
+                      _saveNotifPref(_kNotifMood, v);
+                    },
+                  ),
+                  onTap: () {
+                    setModal(() => _notifMood = !_notifMood);
+                    _saveNotifPref(_kNotifMood, _notifMood);
+                  },
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.chat_bubble_rounded,
+                  title: s.notifChat,
+                  subtitle: s.notifChatSub,
+                  trailing: Switch(
+                    value: _notifChat,
+                    onChanged: (v) {
+                      setModal(() => _notifChat = v);
+                      _saveNotifPref(_kNotifChat, v);
+                    },
+                  ),
+                  onTap: () {
+                    setModal(() => _notifChat = !_notifChat);
+                    _saveNotifPref(_kNotifChat, _notifChat);
+                  },
+                ),
+                const SettingsDivider(),
+                // Постоянный счётчик «дней вместе» — локальное уведомление,
+                // не пуш: состоянием управляет DaysTogetherNotificationService.
+                SettingsRow(
+                  icon: Icons.calendar_month_rounded,
+                  title: s.notifDaysTogether,
+                  subtitle: s.notifDaysTogetherSub,
+                  trailing: Switch(
+                    value: _notifDaysTogether,
+                    onChanged: (v) => _toggleDaysTogetherNotif(v, setModal),
+                  ),
+                  onTap: () =>
+                      _toggleDaysTogetherNotif(!_notifDaysTogether, setModal),
+                ),
+              ]),
+            ],
+          ),
+          bottom: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _openSystemNotificationSettings();
+              },
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: Text(
+                s.openSystemSettings,
+                style: const TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                s.notifSystemSettingsHint,
-                style: TextStyle(fontSize: 11, color: _t.textMuted),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _notifToggle({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 18, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 12, color: _t.textMuted),
-                ),
-              ],
-            ),
-          ),
-          Switch(value: value, onChanged: onChanged, activeColor: _accent),
-        ],
-      ),
+  /// Открывает системные настройки уведомлений приложения.
+  ///
+  /// На части прошивок нет Activity ни для одного из интентов — раньше это
+  /// падало в отчёты о сбоях, поэтому оба вызова обёрнуты.
+  Future<void> _openSystemNotificationSettings() async {
+    if (Platform.isAndroid) {
+      try {
+        await launchUrl(Uri.parse(
+          'intent:#Intent;'
+          'action=android.settings.APP_NOTIFICATION_SETTINGS;'
+          'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+          'end',
+        ));
+        return;
+      } catch (_) {
+        try {
+          await launchUrl(Uri.parse(
+            'intent:#Intent;'
+            'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
+            'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+            'end',
+          ));
+        } catch (e) {
+          debugPrint('Open app settings failed: $e');
+        }
+      }
+      return;
+    }
+
+    final iosUri = Uri.parse('app-settings:');
+    if (await canLaunchUrl(iosUri)) await launchUrl(iosUri);
+  }
+
+  /// Счётчик дней в шторке: включение просит дату старта пары.
+  void _toggleDaysTogetherNotif(bool value, StateSetter setModal) {
+    setModal(() => _notifDaysTogether = value);
+    final start = coupleStartDate(
+      timerStart: widget.timerService.systemTimer?.startDate,
+      groupStart: widget.pairData.startDate,
     );
+    DaysTogetherNotificationService.instance
+        .setEnabled(value, startDate: start);
   }
 
   // ═══════════════════════════════════════════════════
   //  LANGUAGE PICKER
   // ═══════════════════════════════════════════════════
+  /// Выбор языка — крупным меню снизу, а не тесным списком.
   void _showLanguagePicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _t.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              _s.selectLanguage,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: _t.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _languageOption(ctx, code: 'ru', label: 'Русский', flag: '🇷🇺'),
-            const SizedBox(height: 10),
-            _languageOption(ctx, code: 'en', label: 'English', flag: '🇺🇸'),
-          ],
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: _s.selectLanguage,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: SettingsGroup([
+            _languageRow(ctx, code: 'ru', label: 'Русский', flag: '🇷🇺'),
+            const SettingsDivider(),
+            _languageRow(ctx, code: 'en', label: 'English', flag: '🇺🇸'),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _languageOption(
+  /// Строка языка: флаг вместо иконки-чипа, галочка у выбранного.
+  Widget _languageRow(
     BuildContext ctx, {
     required String code,
     required String label,
     required String flag,
   }) {
-    final isSelected =
-        LocaleService.instance.language ==
+    final selected = LocaleService.instance.language ==
         (code == 'ru' ? AppLanguage.ru : AppLanguage.en);
-    return GestureDetector(
+
+    return InkWell(
       onTap: () {
         LocaleService.instance.setLanguage(
           code == 'ru' ? AppLanguage.ru : AppLanguage.en,
@@ -3262,32 +2933,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pop(ctx);
         setState(() {});
       },
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? _accent.withOpacity(0.08) : _t.surfaceMuted,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? _accent : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
         child: Row(
           children: [
-            Text(flag, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 14),
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? _cs.primaryContainer : _cs.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: Text(flag, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? _accent : _t.textPrimary,
+                  fontFamily: 'Onest',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontVariations: const [FontVariation('wght', 600)],
+                  color: selected ? _cs.primary : _cs.onSurface,
                 ),
               ),
             ),
-            if (isSelected)
-              Icon(Icons.check_circle_rounded, color: _accent, size: 20),
+            if (selected)
+              Icon(Icons.check_circle_rounded, color: _cs.primary, size: 22),
           ],
         ),
       ),
@@ -3331,38 +3005,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    // iPad-поповер для share-листа архива — считаем ДО showDialog/await.
+    // iPad-поповер для share-листа архива — считаем ДО листа/await.
     final shareOrigin = shareOriginFromContext(context);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
+    // Отмену держим здесь: лист внизу закрывается, а операция должна
+    // остановиться, а не доработать в тишине и вывалить архив поверх экрана.
+    var cancelled = false;
+
+    if (!context.mounted) return;
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => PopScope(
+        // Закрыть можно только кнопкой: свайп посреди сборки архива выглядел
+        // бы как «отменил», хотя работа продолжалась бы.
         canPop: false,
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 40),
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              borderRadius: BorderRadius.circular(20),
-            ),
+        child: SheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _accentLight),
-                const SizedBox(height: 16),
+                MorphLoader(size: 64, color: _cs.primary),
+                const SizedBox(height: 20),
                 Text(
                   _s.creatingArchive,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textSecondary,
-                    decoration: TextDecoration.none,
+                    fontFamily: 'Unbounded',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    fontVariations: const [FontVariation('wght', 700)],
+                    letterSpacing: -0.3,
+                    color: _cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _s.exportTakesTime,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 13,
+                    height: 1.4,
+                    color: _cs.onSurfaceVariant,
                   ),
                 ),
               ],
+            ),
+          ),
+          bottom: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () {
+                cancelled = true;
+                Navigator.of(ctx).pop();
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: Text(
+                _s.cancel,
+                style: const TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),
@@ -3372,6 +3083,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final timerService = TimerService();
       await timerService.init();
+      if (cancelled) return;
 
       final exportService = ExportService();
       await exportService.exportMemories(
@@ -3381,12 +3093,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         sharePositionOrigin: shareOrigin,
       );
 
-      if (context.mounted) {
-        Navigator.pop(context); // close dialog
-      }
+      // Отменили, пока собирался архив, — молча уходим: делиться тем, от чего
+      // человек уже отказался, нельзя.
+      if (cancelled) return;
+      if (context.mounted) Navigator.pop(context);
     } catch (e) {
+      if (cancelled) return;
       if (context.mounted) {
-        Navigator.pop(context); // close dialog
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_s.exportError(e.toString())),
@@ -3397,27 +3111,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-
-  // ═══════════════════════════════════════════════════
-  //  HELPERS
-  // ═══════════════════════════════════════════════════
-  Widget _glassCard({required Widget child}) {
-    // M3 Expressive (как Kadr): тональная поверхность surfaceContainerHigh,
-    // радиус 22, без рамки и тени — глубина передаётся тоном, не тенью.
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _divider() {
-    return Divider(color: _cs.outlineVariant, height: 1, thickness: 1);
-  }
 
 
 
