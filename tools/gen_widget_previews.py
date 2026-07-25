@@ -224,6 +224,100 @@ def miss_4x1() -> None:
 # ── Фото-виджеты (2×2) ───────────────────────────────────────────────────────
 
 
+# ── 05 «Настроение» ──────────────────────────────────────────────────────────
+
+
+def mood_2x2() -> None:
+    img, d = canvas(200, 200)
+    card(d, (0, 0, 200, 200), 32, SURFACE)
+
+    text(d, (18, 20), "СЕГОДНЯ", 11, 800, ON_SURFACE_VARIANT)
+
+    circle(d, 23, 62, 5, PRIMARY)
+    text(d, (34, 62), "Я · спокойно", 12, 700, ON_SURFACE, anchor="lm")
+    circle(d, 23, 84, 5, TERTIARY)
+    text(d, (34, 84), "Миша · устал", 12, 700, ON_SURFACE, anchor="lm")
+
+    # Три кнопки выбора: активная — контейнерная.
+    pad, gap = 18, 6
+    w = (200 - pad * 2 - gap * 2) / 3
+    for i in range(3):
+        x = pad + i * (w + gap)
+        active = i == 1
+        card(d, (x, 148, x + w, 180), 14,
+             PRIMARY_CONTAINER if active else SURFACE_CONTAINER)
+        ink = ON_PRIMARY_CONTAINER if active else ON_SURFACE_VARIANT
+        cx, cy = x + w / 2, 164
+        circle(d, cx, cy, 8, ink)
+        circle(d, cx, cy, 6, PRIMARY_CONTAINER if active else SURFACE_CONTAINER)
+        circle(d, cx - 2.4, cy - 1.6, 1.1, ink)
+        circle(d, cx + 2.4, cy - 1.6, 1.1, ink)
+    save(img, "tg_preview_mood_2x2")
+
+
+def mood_4x2() -> None:
+    img, d = canvas(424, 200)
+    card(d, (0, 0, 424, 200), 32, SURFACE)
+
+    text(d, (22, 24), "НЕДЕЛЯ НАСТРОЕНИЙ", 11, 800, ON_SURFACE_VARIANT)
+    text(d, (402, 25), "совпало 5 из 7", 11, 700, OUTLINE, anchor="ra")
+
+    mine = [58, 72, 40, 86, 64, 94, 52]
+    partner = [46, 78, 36, 92, 58, 88, 34]
+    top, bottom = 66, 150
+    zone = bottom - top
+    day_gap, bar_gap = 9, 3
+    day_w = (424 - 44 - day_gap * 6) / 7
+    bar_w = (day_w - bar_gap) / 2
+
+    for i in range(7):
+        left = 22 + i * (day_w + day_gap)
+        for j, (vals, color) in enumerate(((mine, PRIMARY), (partner, TERTIARY))):
+            x = left + j * (bar_w + bar_gap)
+            h = zone * vals[i] / 100
+            card(d, (x, bottom - h, x + bar_w, bottom), int(bar_w / 2.4), color)
+        text(d, (left + day_w / 2, 166), "пнвтсрчтптсбвс"[i * 2:i * 2 + 2],
+             10, 700, OUTLINE, anchor="ma")
+    save(img, "tg_preview_mood_4x2")
+
+
+# ── 06 «До встречи» ──────────────────────────────────────────────────────────
+
+
+def countdown_2x2() -> None:
+    img, d = canvas(200, 200)
+    card(d, (0, 0, 200, 200), 32, TERTIARY_CONTAINER)
+
+    text(d, (18, 20), "Аэропорт · 8 августа", 11, 700, TERTIARY)
+    text(d, (18, 138), "12", 44, 800, ON_TERTIARY_CONTAINER, anchor="ls")
+    text(d, (18, 158), "дней до встречи", 11, 700, ON_TERTIARY_CONTAINER, anchor="ls")
+    save(img, "tg_preview_countdown_2x2")
+
+
+def countdown_4x2() -> None:
+    img, d = canvas(424, 200)
+    card(d, (0, 0, 424, 200), 32, SURFACE)
+
+    text(d, (22, 26), "Встречаемся в Тбилиси", 13, 800, ON_SURFACE)
+    card(d, (340, 20, 402, 42), 11, TERTIARY_CONTAINER)
+    text(d, (371, 31), "8 АВГ", 10, 800, ON_TERTIARY_CONTAINER, anchor="mm")
+
+    tiles = (("12", "дней", PRIMARY_CONTAINER, ON_PRIMARY_CONTAINER, PRIMARY_ALT),
+             ("6", "часов", SURFACE_CONTAINER, ON_SURFACE, ON_SURFACE_VARIANT),
+             ("42", "минут", SURFACE_CONTAINER, ON_SURFACE, ON_SURFACE_VARIANT))
+    gap = 8
+    w = (424 - 44 - gap * 2) / 3
+    for i, (value, label, bg, fg, sub) in enumerate(tiles):
+        x = 22 + i * (w + gap)
+        card(d, (x, 56, x + w, 140), 22, bg)
+        text(d, (x + w / 2, 92), value, 24, 800, fg, anchor="mm")
+        text(d, (x + w / 2, 120), label, 10, 700, sub, anchor="mm")
+
+    card(d, (22, 156, 402, 172), 8, "#E8DEF8")
+    card(d, (22, 156, 22 + (402 - 22) * 0.74, 172), 8, PRIMARY)
+    save(img, "tg_preview_countdown_4x2")
+
+
 def photo_frame(d, box, fill, radius=32) -> None:
     """Заглушка фото: тональная заливка, солнце и горы — знак снимка."""
     x0, y0, x1, y1 = box
@@ -297,6 +391,10 @@ if __name__ == "__main__":
     miss_2x2()
     miss_4x2()
     miss_4x1()
+    mood_2x2()
+    mood_4x2()
+    countdown_2x2()
+    countdown_4x2()
     photo_day()
     self_photo()
     partner_photo()

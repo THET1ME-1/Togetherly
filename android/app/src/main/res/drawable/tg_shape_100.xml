@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Подложка виджета радиусом 100dp. Белая намеренно: цвет ставит код
+  (`setInt(id, "setColorFilter", …)`), чтобы виджет следовал теме приложения,
+  а не держал фиолетовый хардкодом. Именно shape, а не картинка — тогда углы
+  остаются круглыми при любом размере ячейки.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="100dp" />
+</shape>

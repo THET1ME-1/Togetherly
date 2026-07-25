@@ -1,66 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  «Скучаю» 4×1 — полоска высотой 92. Фон primary #6750A4, радиус 28,
-  горизонтальные отступы 20. Слева аватар 44dp #D0BCFF с инициалом,
-  дальше заголовок 16/700 и подпись 13/500 #D0BCFF, справа иконка 26dp #FFD8E4.
+  «Скучаю» 4×1 — полоска: аватар партнёра, заголовок с подписью и иконка
+  состояния. Тап по полоске отправляет «скучаю».
+
+  Заливки — ImageView с нейтральной фигурой, цвет ставит код по активной теме
+  приложения: из RemoteViews обычный background не перекрасить.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:background="@drawable/tg_bg_primary_28"
-    android:paddingLeft="14dp"
-    android:paddingRight="14dp">
-
-    <TextView
-        android:id="@+id/avatar"
-        android:layout_width="31dp"
-        android:layout_height="31dp"
-        android:background="@drawable/tg_avatar_44"
-        android:gravity="center"
-        android:textColor="#21005D"
-        android:textSize="11dp"
-        android:textStyle="bold"
-        android:includeFontPadding="false"
-        android:text="?" />
-
-    <LinearLayout
-        android:layout_width="1dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginStart="10dp"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:includeFontPadding="false"
-            android:text="Скучаю" />
-
-        <TextView
-            android:id="@+id/subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#D0BCFF"
-            android:textSize="11dp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:includeFontPadding="false"
-            android:text="один тап — и он узнает" />
-    </LinearLayout>
+    android:layout_height="match_parent">
 
     <ImageView
-        android:id="@+id/state_icon"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
-        android:src="@drawable/ic_tg_heart"
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_28"
         android:contentDescription="@null" />
-</LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp">
+
+        <FrameLayout
+            android:layout_width="31dp"
+            android:layout_height="31dp">
+
+            <ImageView
+                android:id="@+id/avatar_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/tg_shape_circle"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/avatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:text="?" />
+
+            <ImageView
+                android:id="@+id/avatar_photo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:contentDescription="@null" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="1dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="Скучаю" />
+
+            <TextView
+                android:id="@+id/subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="один тап — и партнёр узнает" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/state_icon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_tg_heart"
+            android:contentDescription="@null" />
+    </LinearLayout>
+</FrameLayout>

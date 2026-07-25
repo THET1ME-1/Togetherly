@@ -1,147 +1,187 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  «Скучаю» 4×2. Фон surface #FEF7FF, радиус 32, отступы 20/22. Сверху заголовок
-  14/800 и время последней отправки 12/600 #7A757F. Снизу две плашки со
-  счётчиками (моя #EADDFF, партнёра #FFD8E4, число 34/800) и кнопка 64×64
-  радиус 22 #6750A4 — она и отправляет.
+  «Скучаю» 4×2: заголовок и время последней отправки, две плашки со счётчиками
+  обоих и кнопка отправки справа.
+
+  Все заливки — ImageView с нейтральной фигурой под содержимым: цвет ставит код
+  по активной теме приложения, обычный background из RemoteViews не
+  перекрасить. Содержимое центрировано, потому что высота ячейки у разных
+  лончеров отличается вдвое (115…276dp по гайдлайнам).
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center_vertical"
-    android:background="@drawable/tg_bg_surface_32"
-    android:paddingLeft="15dp"
-    android:paddingRight="15dp"
-    android:paddingTop="14dp"
-    android:paddingBottom="14dp">
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <TextView
-            android:layout_width="1dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="#1D1B20"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:letterSpacing="0.02"
-            android:includeFontPadding="false"
-            android:text="СКУЧАЮ СЕГОДНЯ" />
-
-        <TextView
-            android:id="@+id/last_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#7A757F"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:includeFontPadding="false"
-            android:text="" />
-    </LinearLayout>
-
-    <!-- Распорка. Именно FrameLayout, а не Space: RemoteViews инфлейтит только
-         классы из своего белого списка, Space в него не входит и лончер
-         показывает «Невозможно загрузить виджет». -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="12dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingLeft="15dp"
+        android:paddingRight="15dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
 
         <LinearLayout
-            android:layout_width="1dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:background="@drawable/tg_tile_primary_24"
-            android:paddingLeft="11dp"
-            android:paddingRight="11dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/header"
+                android:layout_width="1dp"
                 android:layout_height="wrap_content"
-                android:textColor="#4F378B"
+                android:layout_weight="1"
                 android:textSize="11dp"
                 android:textStyle="bold"
+                android:letterSpacing="0.02"
                 android:includeFontPadding="false"
-                android:text="Я" />
-
-            <TextView
-                android:id="@+id/my_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:textColor="#21005D"
-                android:textSize="24dp"
-                android:textStyle="bold"
-                android:letterSpacing="-0.03"
-                android:includeFontPadding="false"
-                android:text="0" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="1dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical"
-            android:background="@drawable/tg_tile_tertiary_24"
-            android:paddingLeft="11dp"
-            android:paddingRight="11dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp">
-
-            <TextView
-                android:id="@+id/partner_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#7D5260"
-                android:textSize="11dp"
-                android:textStyle="bold"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:includeFontPadding="false"
-                android:text="Партнёр" />
+                android:text="СКУЧАЮ СЕГОДНЯ" />
 
             <TextView
-                android:id="@+id/partner_count"
+                android:id="@+id/last_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:textColor="#31111D"
-                android:textSize="24dp"
+                android:layout_marginStart="8dp"
+                android:textSize="11dp"
                 android:textStyle="bold"
-                android:letterSpacing="-0.03"
                 android:includeFontPadding="false"
-                android:text="0" />
+                android:text="" />
         </LinearLayout>
 
         <FrameLayout
-            android:id="@+id/send_button"
-            android:layout_width="45dp"
-            android:layout_height="45dp"
-            android:layout_marginStart="10dp"
-            android:background="@drawable/tg_btn_primary_22">
+            android:layout_width="match_parent"
+            android:layout_height="12dp" />
 
-            <ImageView
-                android:id="@+id/state_icon"
-                android:layout_width="21dp"
-                android:layout_height="21dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_tg_heart"
-                android:contentDescription="@null" />
-        </FrameLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:layout_width="1dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+
+                <ImageView
+                    android:id="@+id/my_tile_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/tg_shape_24"
+                    android:contentDescription="@null" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="11dp"
+                    android:paddingRight="11dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp">
+
+                    <TextView
+                        android:id="@+id/my_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:text="Я" />
+
+                    <TextView
+                        android:id="@+id/my_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:textSize="24dp"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.03"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="0" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="1dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp">
+
+                <ImageView
+                    android:id="@+id/partner_tile_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/tg_shape_24"
+                    android:contentDescription="@null" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="11dp"
+                    android:paddingRight="11dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp">
+
+                    <TextView
+                        android:id="@+id/partner_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:text="Партнёр" />
+
+                    <TextView
+                        android:id="@+id/partner_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:textSize="24dp"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.03"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="0" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/send_button"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_marginStart="10dp">
+
+                <ImageView
+                    android:id="@+id/send_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/tg_shape_22"
+                    android:contentDescription="@null" />
+
+                <ImageView
+                    android:id="@+id/state_icon"
+                    android:layout_width="21dp"
+                    android:layout_height="21dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_tg_heart"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>

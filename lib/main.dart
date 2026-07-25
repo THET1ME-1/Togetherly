@@ -144,8 +144,31 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       final countedLocally = uri.queryParameters['local'] == '1';
       await HomeWidgetService.instance
           .markMissSentFromWidget(groupId, alreadyCounted: countedLocally);
+      // Долг закрыт — снимаем отметку, чтобы приложение не отправило повторно.
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${groupId}_pending_send', '0');
     } catch (e) {
       debugPrint('miss from widget failed: $e');
+    }
+    return;
+  }
+
+  // Тап по кнопке настроения на виджете: отмечаем день, не открывая
+  // приложение. Виджет уже подсветил выбор — здесь только запись.
+  if (host == 'mood') {
+    try {
+      final moodId = uri.queryParameters['id']?.trim() ?? '';
+      if (moodId.isEmpty) return;
+      await PocketBaseService().init();
+      if ((PocketBaseService().userId ?? '').isEmpty) return;
+      final groupId = uri.queryParameters['group']?.trim() ??
+          await HomeWidget.getWidgetData<String>('tgmood_latest_group') ??
+          '';
+      if (groupId.isEmpty || groupId == 'solo') return;
+      await HomeWidgetService.instance
+          .applyMoodFromWidget(groupId: groupId, moodId: moodId);
+    } catch (e) {
+      debugPrint('mood from widget failed: $e');
     }
     return;
   }

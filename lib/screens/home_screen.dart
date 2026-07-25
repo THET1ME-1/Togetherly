@@ -611,6 +611,8 @@ class _HomeScreenState extends State<HomeScreen> {
       emoji: _pairData.relationshipEmoji,
       myAvatarUrl: widget.userData.avatarUrl,
       partnerAvatarUrl: _pairData.partnerAvatarUrl,
+      // Виджеты красятся активной темой, а не зашитым фиолетовым.
+      scheme: ProfileTheme.themeFor(_t).colorScheme,
       myGender: myGender,
       partnerGender: partnerGender,
       relationshipStatusId: _pairData.relationshipStatusId,

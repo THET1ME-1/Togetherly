@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «До встречи» 2×2 — отдельная позиция в списке виджетов.
+
+  minWidth/minHeight считаются как 70*n-30: столько занимает n ячеек на
+  стандартной сетке. Просить больше нельзя — лончер выдаёт ячейку по своей
+  сетке и молча сжимает содержимое.
+
+  previewImage без previewLayout: разметка-превью рисуется с пустыми данными и
+  в диалоге установки выглядит сломанной. Картинку рисует
+  tools/gen_widget_previews.py.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_countdown_2x2"
+    android:previewImage="@drawable/tg_preview_countdown_2x2"
+    android:description="@string/tg_desc_countdown_2x2"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="306dp"
+    android:maxResizeHeight="276dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

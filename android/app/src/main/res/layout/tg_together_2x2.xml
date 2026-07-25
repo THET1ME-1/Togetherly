@@ -1,106 +1,126 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Вместе», 2×2. Фон primary #6750A4, радиус 32.
+  Виджет «Вместе», 2×2.
 
-  Стек из двух аватаров: сверху лежит ImageView с фотографией, под ним TextView
-  с инициалом на цветном круге. Фото есть — инициал прячется, фото нет —
-  остаётся кружок с буквой (фолбэк из хендофа).
+  Все заливки — ImageView с нейтральной фигурой, цвет ставит код по активной
+  теме приложения: перекрасить обычный background из RemoteViews нельзя.
+
+  Стек из двух аватаров: сверху фотография, под ней кружок с инициалом. Есть
+  фото — буква прячется, нет — остаётся кружок (фолбэк из хендофа).
 
   Содержимое центрировано по вертикали: ячейка 2×2 у Nova почти квадратная, у
-  лончера Xiaomi заметно вытянута вверх, и прижатый к краям контент оставлял
-  посередине дыру.
+  лончера Xiaomi заметно вытянута, и прижатый к краям контент оставлял дыру.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center_vertical"
-    android:background="@drawable/tg_bg_primary_32"
-    android:padding="13dp">
+    android:layout_height="match_parent">
 
-    <!-- Аватары пары -->
-    <FrameLayout
-        android:layout_width="wrap_content"
-        android:layout_height="26dp">
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="13dp">
+
+        <!-- Аватары пары -->
         <FrameLayout
-            android:layout_width="26dp"
+            android:layout_width="wrap_content"
             android:layout_height="26dp">
 
-            <TextView
-                android:id="@+id/avatar_me"
+            <FrameLayout
                 android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:background="@drawable/tg_avatar_primary"
-                android:gravity="center"
-                android:textColor="#21005D"
-                android:textSize="11dp"
-                android:textStyle="bold"
-                android:includeFontPadding="false"
-                android:text=" " />
+                android:layout_height="26dp">
 
-            <ImageView
-                android:id="@+id/avatar_me_photo"
+                <ImageView
+                    android:id="@+id/avatar_me_bg"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@drawable/tg_shape_circle"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/avatar_me"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:gravity="center"
+                    android:textSize="11dp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:text=" " />
+
+                <ImageView
+                    android:id="@+id/avatar_me_photo"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+
+            <FrameLayout
                 android:layout_width="26dp"
                 android:layout_height="26dp"
-                android:scaleType="centerCrop"
-                android:visibility="gone"
-                android:contentDescription="@null" />
+                android:layout_marginStart="18dp">
+
+                <ImageView
+                    android:id="@+id/avatar_partner_bg"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@drawable/tg_shape_circle"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/avatar_partner"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:gravity="center"
+                    android:textSize="11dp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:text=" " />
+
+                <ImageView
+                    android:id="@+id/avatar_partner_photo"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone"
+                    android:contentDescription="@null" />
+            </FrameLayout>
         </FrameLayout>
 
         <FrameLayout
-            android:layout_width="26dp"
-            android:layout_height="26dp"
-            android:layout_marginStart="18dp">
+            android:layout_width="match_parent"
+            android:layout_height="12dp" />
 
-            <TextView
-                android:id="@+id/avatar_partner"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:background="@drawable/tg_avatar_tertiary"
-                android:gravity="center"
-                android:textColor="#31111D"
-                android:textSize="11dp"
-                android:textStyle="bold"
-                android:includeFontPadding="false"
-                android:text=" " />
+        <TextView
+            android:id="@+id/days_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="38dp"
+            android:textStyle="bold"
+            android:letterSpacing="-0.04"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="—" />
 
-            <ImageView
-                android:id="@+id/avatar_partner_photo"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:scaleType="centerCrop"
-                android:visibility="gone"
-                android:contentDescription="@null" />
-        </FrameLayout>
-    </FrameLayout>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="12dp" />
-
-    <TextView
-        android:id="@+id/days_value"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
-        android:textSize="38dp"
-        android:textStyle="bold"
-        android:letterSpacing="-0.04"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:text="—" />
-
-    <TextView
-        android:id="@+id/days_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
-        android:textColor="#E9DDFF"
-        android:textSize="11dp"
-        android:textStyle="bold"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:text="дней вместе" />
-</LinearLayout>
+        <TextView
+            android:id="@+id/days_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:textSize="11dp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="дней вместе" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,77 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  «Скучаю» 2×2 — интерактивный. Фон tertiary-container #FFD8E4, радиус 32,
-  отступы 18. Сверху имя партнёра 13/700 и иконка состояния 20dp #7D5260,
-  снизу заголовок 26/800 и пилюля #7D5260 с белым текстом 13/700.
-  Тап по карточке отправляет «скучаю».
+  «Скучаю» 2×2 — интерактивный: тап по карточке отправляет «скучаю».
+
+  Заливки — ImageView с нейтральной фигурой под содержимым, цвет ставит код по
+  активной теме приложения. Пилюля лежит в FrameLayout по той же причине:
+  покрасить background у TextView из RemoteViews нечем.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center_vertical"
-    android:background="@drawable/tg_bg_tertiary_32"
-    android:padding="13dp">
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="13dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/partner_name"
+                android:layout_width="1dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="Партнёру" />
+
+            <ImageView
+                android:id="@+id/state_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/ic_tg_heart"
+                android:contentDescription="@null" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="12dp" />
 
         <TextView
-            android:id="@+id/partner_name"
-            android:layout_width="1dp"
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="#31111D"
-            android:textSize="11dp"
+            android:textSize="18dp"
             android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end"
+            android:letterSpacing="-0.02"
             android:includeFontPadding="false"
-            android:text="Партнёру" />
+            android:maxLines="1"
+            android:text="Скучаю" />
 
-        <ImageView
-            android:id="@+id/state_icon"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:src="@drawable/ic_tg_heart"
-            android:contentDescription="@null" />
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp">
+
+            <ImageView
+                android:id="@+id/cta_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/tg_shape_100"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/cta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingLeft="11dp"
+                android:paddingRight="11dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="11dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="Отправить" />
+        </FrameLayout>
     </LinearLayout>
-
-    <!-- Распорка. Именно FrameLayout, а не Space: RemoteViews инфлейтит только
-         классы из своего белого списка, Space в него не входит и лончер
-         показывает «Невозможно загрузить виджет». -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="12dp" />
-
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="#31111D"
-        android:textSize="18dp"
-        android:textStyle="bold"
-        android:letterSpacing="-0.02"
-        android:includeFontPadding="false"
-        android:text="Скучаю" />
-
-    <TextView
-        android:id="@+id/cta"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
-        android:background="@drawable/tg_pill_tertiary"
-        android:paddingLeft="11dp"
-        android:paddingRight="11dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:textColor="#FFFFFF"
-        android:textSize="11dp"
-        android:textStyle="bold"
-        android:includeFontPadding="false"
-        android:text="Отправить" />
-</LinearLayout>
+</FrameLayout>

@@ -1073,6 +1073,24 @@ abstract class AppStrings {
   String tgMissAddressee(String name);
   String get tgMissSend;
   String get tgMissStripHint;
+  /// Виджеты «Настроение» и «До встречи» из нового каталога.
+  String get tgMoodTitle;
+  String get tgMoodSubtitle;
+  String get tgMoodToday;
+  String get tgMoodMe;
+  String get tgMoodPartner;
+  String get tgMoodNotSet;
+  String get tgMoodWeekTitle;
+  String tgMoodMatched(int days);
+  String get tgCountdownTitle;
+  String get tgCountdownSubtitle;
+  String get tgCountdownEmpty;
+  String tgCountdownDaysLeft(int days);
+  String get tgCountdownDays;
+  String get tgCountdownHours;
+  String get tgCountdownMinutes;
+  String get tgSizeHintToday;
+  String get tgSizeHintWeek;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3552,6 +3570,41 @@ class _RuStrings extends AppStrings {
   String get tgMissSend => 'Отправить';
   @override
   String get tgMissStripHint => 'Один тап — и партнёр узнает';
+  @override
+  String get tgMoodTitle => 'Настроение';
+  @override
+  String get tgMoodSubtitle => 'Настроение обоих и отметка одним тапом';
+  @override
+  String get tgMoodToday => 'СЕГОДНЯ';
+  @override
+  String get tgMoodMe => 'Я';
+  @override
+  String get tgMoodPartner => 'Партнёр';
+  @override
+  String get tgMoodNotSet => 'не отмечено';
+  @override
+  String get tgMoodWeekTitle => 'НЕДЕЛЯ НАСТРОЕНИЙ';
+  @override
+  String tgMoodMatched(int days) => 'совпало $days из 7';
+  @override
+  String get tgCountdownTitle => 'До встречи';
+  @override
+  String get tgCountdownSubtitle => 'Обратный отсчёт до ближайшего события';
+  @override
+  String get tgCountdownEmpty => 'Нет ближайшего события';
+  @override
+  String tgCountdownDaysLeft(int days) =>
+      '${_ruPlural(days, 'день', 'дня', 'дней')} до встречи';
+  @override
+  String get tgCountdownDays => 'дней';
+  @override
+  String get tgCountdownHours => 'часов';
+  @override
+  String get tgCountdownMinutes => 'минут';
+  @override
+  String get tgSizeHintToday => 'сегодня';
+  @override
+  String get tgSizeHintWeek => 'неделя';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6404,6 +6457,41 @@ class _EnStrings extends AppStrings {
   String get tgMissSend => 'Send';
   @override
   String get tgMissStripHint => 'One tap and they will know';
+  @override
+  String get tgMoodTitle => 'Mood';
+  @override
+  String get tgMoodSubtitle => 'Both moods, set yours in one tap';
+  @override
+  String get tgMoodToday => 'TODAY';
+  @override
+  String get tgMoodMe => 'Me';
+  @override
+  String get tgMoodPartner => 'Partner';
+  @override
+  String get tgMoodNotSet => 'not set';
+  @override
+  String get tgMoodWeekTitle => 'MOOD WEEK';
+  @override
+  String tgMoodMatched(int days) => 'matched $days of 7';
+  @override
+  String get tgCountdownTitle => 'Until we meet';
+  @override
+  String get tgCountdownSubtitle => 'Countdown to the next event';
+  @override
+  String get tgCountdownEmpty => 'No upcoming event';
+  @override
+  String tgCountdownDaysLeft(int days) =>
+      '${days == 1 ? 'day' : 'days'} until we meet';
+  @override
+  String get tgCountdownDays => 'days';
+  @override
+  String get tgCountdownHours => 'hours';
+  @override
+  String get tgCountdownMinutes => 'minutes';
+  @override
+  String get tgSizeHintToday => 'today';
+  @override
+  String get tgSizeHintWeek => 'week';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Настроение» 4×2 — отдельная позиция в списке виджетов.
+
+  minWidth/minHeight считаются как 70*n-30: столько занимает n ячеек на
+  стандартной сетке. Просить больше нельзя — лончер выдаёт ячейку по своей
+  сетке и молча сжимает содержимое.
+
+  previewImage без previewLayout: разметка-превью рисуется с пустыми данными и
+  в диалоге установки выглядит сломанной. Картинку рисует
+  tools/gen_widget_previews.py.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_mood_4x2"
+    android:previewImage="@drawable/tg_preview_mood_4x2"
+    android:description="@string/tg_desc_mood_4x2"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="100dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="276dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

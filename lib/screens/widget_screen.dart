@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/widget_theme_sync.dart';
 import '../utils/couple_days.dart';
 import '../widgets/avatar_widget.dart';
 import '../utils/safe_pick.dart';
@@ -916,6 +917,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       final className = qualifiedName.split('.').last;
       debugPrint('_pinWidget: requesting pin for className=$className');
 
+      // Палитру пишем до установки: виджет должен встать на стол уже в цветах
+      // активной темы, а не в запасных из хендофа.
+      await WidgetThemeSync.save(_cs);
+
       // Photo day self: works for both solo and paired modes
       if (widgetType == 'photo_day_self') {
         await HomeWidgetService.instance.enqueuePhotoDayWidgetConfig(
@@ -1112,6 +1117,12 @@ class _WidgetScreenState extends State<WidgetScreen>
         if (_pair.pairId.isNotEmpty) {
           await hws.refreshPhotoGrid(_pair.pairId);
         }
+        break;
+      case 'mood_tiles':
+        await _syncMoodTilesWidget();
+        break;
+      case 'countdown':
+        await _syncCountdownWidget();
         break;
       case 'pair':
         // Парный виджет синхронизируется WidgetService
@@ -1923,6 +1934,50 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ],
       ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: _s.tgMoodTitle,
+        subtitle: _s.tgMoodSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
+        widgetType: 'mood_tiles',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintToday,
+            qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
+            preview: _buildMoodTiles2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWeek,
+            qualifiedName: 'com.togetherly.love.MoodTilesWidget4x2Provider',
+            preview: _buildMoodTiles4x2Preview(),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: _s.tgCountdownTitle,
+        subtitle: _s.tgCountdownSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
+        widgetType: 'countdown',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
+            preview: _buildCountdown2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.CountdownWidget4x2Provider',
+            preview: _buildCountdown4x2Preview(),
+          ),
+        ],
+      ),
     ];
   }
 
@@ -1956,6 +2011,14 @@ class _WidgetScreenState extends State<WidgetScreen>
       ? '${d.day} ${_monthsGenitive[d.month - 1]}'
       : '${_monthsGenitiveEn[d.month - 1]} ${d.day}';
 
+  /// Цвет виджета по роли активной темы.
+  ///
+  /// Тот же справочник ролей, что уходит в нативные виджеты
+  /// (`WidgetThemeSync.rolesOf`), поэтому превью в каталоге и карточка на
+  /// рабочем столе не расходятся ни в одной из двадцати тем.
+  Color _wr(String role) =>
+      WidgetThemeSync.rolesOf(_cs)[role] ?? _cs.primary;
+
   /// Инициал для кружка-аватара: пусто заменяем сердечком, а не пустотой.
   String _initialOf(String name) {
     final n = name.trim();
@@ -1977,7 +2040,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           decoration: BoxDecoration(
             color: bg,
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFF6750A4), width: 2),
+            border: Border.all(color: _wr('primary'), width: 2),
           ),
           clipBehavior: Clip.antiAlias,
           alignment: Alignment.center,
@@ -2004,9 +2067,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFF6750A4),
+          color: _wr('primary'),
           borderRadius: BorderRadius.circular(32),
         ),
         child: Column(
@@ -2016,36 +2079,36 @@ class _WidgetScreenState extends State<WidgetScreen>
               height: 34,
               child: Stack(
                 children: [
-                  avatar(myInitial, const Color(0xFFD0BCFF),
-                      const Color(0xFF21005D), widget.userData.uid,
+                  avatar(myInitial, _wr('accentOnPrimary'),
+                      _wr('onPrimaryContainer'), widget.userData.uid,
                       widget.userData.avatarUrl),
                   Positioned(
                     left: 24,
-                    child: avatar(partnerInitial, const Color(0xFFFFD8E4),
-                        const Color(0xFF31111D), _pair.partnerUid,
+                    child: avatar(partnerInitial, _wr('tertiaryContainer'),
+                        _wr('onTertiaryContainer'), _pair.partnerUid,
                         _pair.partnerAvatarUrl),
                   ),
                 ],
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               '$days',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 54,
                 height: 1.02,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -2.2,
-                color: Colors.white,
+                color: _wr('onPrimary'),
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               _s.tgDaysTogetherCaption(days),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFFE9DDFF),
+                color: _wr('onPrimarySoft'),
               ),
             ),
           ],
@@ -2074,7 +2137,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     Widget row(String left, String right, Color bg, Color fg, Color subFg) =>
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(20),
@@ -2108,9 +2171,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF7FF),
+          color: _wr('surface'),
           borderRadius: BorderRadius.circular(36),
         ),
         child: Column(
@@ -2125,24 +2188,24 @@ class _WidgetScreenState extends State<WidgetScreen>
                         : header,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.3,
-                      color: Color(0xFF49454F),
+                      color: _wr('onSurfaceVariant'),
                     ),
                   ),
                 ),
-                const Icon(Icons.favorite_rounded,
-                    size: 22, color: Color(0xFF6750A4)),
+                Icon(Icons.favorite_rounded,
+                    size: 22, color: _wr('primary')),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(22),
+              padding: EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: const Color(0xFF6750A4),
+                color: _wr('primary'),
                 borderRadius: BorderRadius.circular(28),
               ),
               child: Row(
@@ -2155,21 +2218,21 @@ class _WidgetScreenState extends State<WidgetScreen>
                       children: [
                         Text(
                           '$days',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 72,
                             height: 1,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -3,
-                            color: Colors.white,
+                            color: _wr('onPrimary'),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           _s.tgDaysTogetherCaption(days),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFFE9DDFF),
+                            color: _wr('onPrimarySoft'),
                           ),
                         ),
                       ],
@@ -2181,19 +2244,19 @@ class _WidgetScreenState extends State<WidgetScreen>
                     children: [
                       Text(
                         '$months',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 26,
                           height: 1,
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: _wr('onPrimary'),
                         ),
                       ),
                       Text(
                         _s.tgMonthsCaption(months),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFFD0BCFF),
+                          color: _wr('accentOnPrimary'),
                         ),
                       ),
                     ],
@@ -2201,31 +2264,31 @@ class _WidgetScreenState extends State<WidgetScreen>
                 ],
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               _s.tgNextSection,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.4,
-                color: Color(0xFF7A757F),
+                color: _wr('outline'),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             row(
               _s.tgDaysMilestone(nextHundred),
               _s.tgInDays(nextHundred - days),
-              const Color(0xFFF3EDF7),
-              const Color(0xFF1D1B20),
-              const Color(0xFF49454F),
+              _wr('surfaceContainer'),
+              _wr('onSurface'),
+              _wr('onSurfaceVariant'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             row(
               _s.tgYearsMilestone(nextYear ~/ 365),
               anniversary == null ? '—' : _formatDayMonth(anniversary),
-              const Color(0xFFFFD8E4),
-              const Color(0xFF31111D),
-              const Color(0xFF7D5260),
+              _wr('tertiaryContainer'),
+              _wr('onTertiaryContainer'),
+              _wr('tertiary'),
             ),
           ],
         ),
@@ -2240,9 +2303,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFD8E4),
+          color: _wr('tertiaryContainer'),
           borderRadius: BorderRadius.circular(32),
         ),
         child: Column(
@@ -2255,42 +2318,42 @@ class _WidgetScreenState extends State<WidgetScreen>
                     partnerName.isEmpty ? '' : _s.tgMissAddressee(partnerName),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF7D5260),
+                      color: _wr('tertiary'),
                     ),
                   ),
                 ),
-                const Icon(Icons.favorite_rounded,
-                    size: 20, color: Color(0xFF7D5260)),
+                Icon(Icons.favorite_rounded,
+                    size: 20, color: _wr('tertiary')),
               ],
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               _s.tgMissTitle,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 26,
                 height: 1.05,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.8,
-                color: Color(0xFF31111D),
+                color: _wr('onTertiaryContainer'),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 9),
               decoration: BoxDecoration(
-                color: const Color(0xFF7D5260),
+                color: _wr('tertiary'),
                 borderRadius: BorderRadius.circular(100),
               ),
               child: Text(
                 _s.tgMissSend,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: _wr('onPrimary'),
                 ),
               ),
             ),
@@ -2308,9 +2371,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 424 / 92,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFF6750A4),
+          color: _wr('primary'),
           borderRadius: BorderRadius.circular(28),
         ),
         child: Row(
@@ -2318,24 +2381,24 @@ class _WidgetScreenState extends State<WidgetScreen>
             Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(
-                color: Color(0xFFD0BCFF),
+              decoration: BoxDecoration(
+                color: _wr('accentOnPrimary'),
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
               child: initial.isEmpty
-                  ? const Icon(Icons.favorite_rounded,
-                      size: 20, color: Color(0xFF21005D))
+                  ? Icon(Icons.favorite_rounded,
+                      size: 20, color: _wr('onPrimaryContainer'))
                   : Text(
                       initial,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF21005D),
+                        color: _wr('onPrimaryContainer'),
                       ),
                     ),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2345,32 +2408,537 @@ class _WidgetScreenState extends State<WidgetScreen>
                     _s.tgMissTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: _wr('onPrimary'),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     _s.tgMissStripHint,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFFD0BCFF),
+                      color: _wr('accentOnPrimary'),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            const Icon(Icons.favorite_rounded,
-                size: 26, color: Color(0xFFFFD8E4)),
+            SizedBox(width: 12),
+            Icon(Icons.favorite_rounded,
+                size: 26, color: _wr('tertiaryContainer')),
           ],
         ),
       ),
+    );
+  }
+
+  /// Превью «Настроение» 2×2: отметки обоих и три кнопки выбора.
+  Widget _buildMoodTiles2x2Preview() {
+    final today = DateTime.now();
+    final partnerUid = _pair.partnerUid;
+    final myEntry = _moodService.myEntriesForDay(today).firstOrNull;
+    final partnerEntry = partnerUid.isEmpty
+        ? null
+        : _moodService.partnerEntriesForDay(partnerUid, today).firstOrNull;
+    final partnerName = _pair.partnerDisplayName.trim();
+
+    Widget line(String text, Color dot, bool filled) => Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: filled ? dot : _wr('outline'),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _wr('onSurface'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    Widget pick(IconData icon, bool active) => Expanded(
+          child: Container(
+            height: 32,
+            decoration: BoxDecoration(
+              color: active ? _wr('primaryContainer') : _wr('surfaceContainer'),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              icon,
+              size: 17,
+              color: active ? _wr('onPrimaryContainer') : _wr('onSurfaceVariant'),
+            ),
+          ),
+        );
+
+    final myId = myEntry?.moodId ?? '';
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: _wr('surface'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _s.tgMoodToday,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: _wr('onSurfaceVariant'),
+              ),
+            ),
+            const SizedBox(height: 4),
+            line(
+              myEntry == null
+                  ? '${_s.tgMoodMe} · ${_s.tgMoodNotSet}'
+                  : '${_s.tgMoodMe} · ${MoodOption.byId(myEntry.moodId)?.localizedLabel ?? ''}',
+              _wr('primary'),
+              myEntry != null,
+            ),
+            line(
+              partnerEntry == null
+                  ? '${partnerName.isEmpty ? _s.tgMoodPartner : partnerName} · ${_s.tgMoodNotSet}'
+                  : '${partnerName.isEmpty ? _s.tgMoodPartner : partnerName} · ${MoodOption.byId(partnerEntry.moodId)?.localizedLabel ?? ''}',
+              _wr('tertiary'),
+              partnerEntry != null,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                pick(Icons.sentiment_very_satisfied_rounded, myId == 'happy'),
+                const SizedBox(width: 6),
+                pick(Icons.sentiment_neutral_rounded, myId == 'no_emotion'),
+                const SizedBox(width: 6),
+                pick(Icons.sentiment_dissatisfied_rounded, myId == 'sad'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью «Настроение» 4×2: неделя двумя рядами столбиков.
+  Widget _buildMoodTiles4x2Preview() {
+    final today = DateTime.now();
+    final partnerUid = _pair.partnerUid;
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+
+    double heightOf(MoodEntry? e) => e == null ? -1 : ((e.score - 1) / 4) * 0.8 + 0.2;
+
+    final bars = <List<double>>[];
+    var matched = 0;
+    for (var i = 0; i < 7; i++) {
+      final day = DateTime(monday.year, monday.month, monday.day + i);
+      final mine = _moodService.myEntriesForDay(day).firstOrNull;
+      final theirs = partnerUid.isEmpty
+          ? null
+          : _moodService.partnerEntriesForDay(partnerUid, day).firstOrNull;
+      bars.add([heightOf(mine), heightOf(theirs)]);
+      if (mine != null && theirs != null && mine.score == theirs.score) matched++;
+    }
+
+    const labels = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
+    Widget bar(double value, Color color) => Expanded(
+          child: FractionallySizedBox(
+            alignment: Alignment.bottomCenter,
+            // Отрицательное значение — день без отметки: рисуем подложку.
+            heightFactor: value < 0 ? 0.12 : value,
+            child: Container(
+              decoration: BoxDecoration(
+                color: value < 0 ? _wr('surfaceContainer') : color,
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+          ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+        decoration: BoxDecoration(
+          color: _wr('surface'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _s.tgMoodWeekTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                      color: _wr('onSurfaceVariant'),
+                    ),
+                  ),
+                ),
+                if (matched > 0)
+                  Text(
+                    _s.tgMoodMatched(matched),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _wr('outline'),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var i = 0; i < 7; i++) ...[
+                    if (i > 0) const SizedBox(width: 9),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          bar(bars[i].first, _wr('primary')),
+                          const SizedBox(width: 3),
+                          bar(bars[i].last, _wr('tertiary')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                for (var i = 0; i < 7; i++) ...[
+                  if (i > 0) const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      labels[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _wr('outline'),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ближайший обратный отсчёт для превью «До встречи».
+  TimerItem? _nextCountdown() {
+    final now = DateTime.now();
+    final upcoming = _timerService.timers
+        .where((t) => t.isCountdown && t.startDate.isAfter(now))
+        .toList()
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    return upcoming.isEmpty ? null : upcoming.first;
+  }
+
+  /// Превью «До встречи» 2×2.
+  Widget _buildCountdown2x2Preview() {
+    final event = _nextCountdown();
+    final left = event == null
+        ? Duration.zero
+        : event.startDate.difference(DateTime.now());
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: _wr('tertiaryContainer'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              event == null
+                  ? _s.tgCountdownEmpty
+                  : '${event.title} · ${_formatDayMonth(event.startDate)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _wr('tertiary'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              event == null ? '—' : '${left.inDays}',
+              style: TextStyle(
+                fontSize: 40,
+                height: 1.05,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.6,
+                color: _wr('onTertiaryContainer'),
+              ),
+            ),
+            Text(
+              _s.tgCountdownDaysLeft(left.inDays),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _wr('onTertiaryContainer'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Превью «До встречи» 4×2: дни, часы, минуты и прогресс.
+  Widget _buildCountdown4x2Preview() {
+    final event = _nextCountdown();
+    final now = DateTime.now();
+    final left =
+        event == null ? Duration.zero : event.startDate.difference(now);
+
+    final from = _togetherStart() ?? now.subtract(const Duration(days: 30));
+    final total = event == null ? 0 : event.startDate.difference(from).inMinutes;
+    final passed = now.difference(from).inMinutes;
+    final percent =
+        (event == null || total <= 0) ? 0.0 : (passed / total).clamp(0.0, 1.0);
+
+    Widget tile(String value, String label, Color bg, Color fg, Color sub) =>
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: sub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+        decoration: BoxDecoration(
+          color: _wr('surface'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    event?.title ?? _s.tgCountdownEmpty,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: _wr('onSurface'),
+                    ),
+                  ),
+                ),
+                if (event != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _wr('tertiaryContainer'),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      _formatDayMonth(event.startDate).toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _wr('onTertiaryContainer'),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                tile('${left.inDays}', _s.tgCountdownDays,
+                    _wr('primaryContainer'), _wr('onPrimaryContainer'),
+                    _wr('onContainerSoft')),
+                const SizedBox(width: 8),
+                tile('${left.inHours % 24}', _s.tgCountdownHours,
+                    _wr('surfaceContainer'), _wr('onSurface'),
+                    _wr('onSurfaceVariant')),
+                const SizedBox(width: 8),
+                tile('${left.inMinutes % 60}', _s.tgCountdownMinutes,
+                    _wr('surfaceContainer'), _wr('onSurface'),
+                    _wr('onSurfaceVariant')),
+              ],
+            ),
+            const SizedBox(height: 9),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(100),
+              child: LinearProgressIndicator(
+                value: percent,
+                minHeight: 8,
+                backgroundColor: _wr('trackOnSurface'),
+                valueColor: AlwaysStoppedAnimation<Color>(_wr('primary')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Отдаём виджету «Настроение» сегодняшние отметки обоих и неделю.
+  ///
+  /// Неделя — семь пар «моё/партнёра» в процентах высоты столбика. Балл
+  /// настроения в приложении от 1 до 5, поэтому переводим его в проценты;
+  /// день без отметки уезжает как -1 и рисуется пустой подложкой, а не нулём:
+  /// «не отмечался» и «было плохо» — разные вещи.
+  Future<void> _syncMoodTilesWidget() async {
+    final today = DateTime.now();
+    final partnerUid = _pair.partnerUid;
+
+    MoodEntry? entryOf(List<MoodEntry> list) =>
+        list.isNotEmpty ? list.first : null;
+
+    int percentOf(MoodEntry? e) =>
+        e == null ? -1 : (((e.score - 1) / 4) * 80 + 20).round().clamp(20, 100);
+
+    final week = <List<int>>[];
+    var matched = 0;
+    // От понедельника этой недели к воскресенью.
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    for (var i = 0; i < 7; i++) {
+      final day = DateTime(monday.year, monday.month, monday.day + i);
+      final mine = entryOf(_moodService.myEntriesForDay(day));
+      final theirs = partnerUid.isEmpty
+          ? null
+          : entryOf(_moodService.partnerEntriesForDay(partnerUid, day));
+      week.add([percentOf(mine), percentOf(theirs)]);
+      if (mine != null && theirs != null && mine.score == theirs.score) {
+        matched++;
+      }
+    }
+
+    final myToday = entryOf(_moodService.myEntriesForDay(today));
+    final partnerToday = partnerUid.isEmpty
+        ? null
+        : entryOf(_moodService.partnerEntriesForDay(partnerUid, today));
+
+    await HomeWidgetService.instance.syncMoodTiles(
+      groupId: _pair.pairId,
+      myLabel: myToday == null
+          ? ''
+          : (MoodOption.byId(myToday.moodId)?.localizedLabel ?? ''),
+      myMoodId: myToday?.moodId ?? '',
+      partnerLabel: partnerToday == null
+          ? ''
+          : (MoodOption.byId(partnerToday.moodId)?.localizedLabel ?? ''),
+      partnerName: _pair.partnerDisplayName.trim(),
+      week: week,
+      matchedDays: matched,
+    );
+  }
+
+  /// Отдаём виджету «До встречи» ближайший обратный отсчёт.
+  ///
+  /// Событие — таймер с `isCountdown`; берём самый близкий из ещё не
+  /// наступивших. Прогресс считаем от момента создания отсчёта, поэтому
+  /// полоса растёт по мере приближения даты.
+  Future<void> _syncCountdownWidget() async {
+    final now = DateTime.now();
+    final upcoming = _timerService.timers
+        .where((t) => t.isCountdown && t.startDate.isAfter(now))
+        .toList()
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+
+    if (upcoming.isEmpty) {
+      await HomeWidgetService.instance.syncCountdown(groupId: _pair.pairId);
+      return;
+    }
+
+    final event = upcoming.first;
+    final left = event.startDate.difference(now);
+    // Отсчёт идёт от даты пары: она всегда раньше события, значит полоса
+    // никогда не окажется пустой из-за отрицательного знаменателя.
+    final from = _togetherStart() ?? now.subtract(const Duration(days: 30));
+    final total = event.startDate.difference(from).inMinutes;
+    final passed = now.difference(from).inMinutes;
+    final percent =
+        total <= 0 ? 100 : ((passed / total) * 100).round().clamp(0, 100);
+
+    await HomeWidgetService.instance.syncCountdown(
+      groupId: _pair.pairId,
+      title: event.title,
+      dateLabel: _formatDayMonth(event.startDate).toUpperCase(),
+      daysLeft: left.inDays,
+      hoursLeft: left.inHours % 24,
+      minutesLeft: left.inMinutes % 60,
+      percent: percent,
     );
   }
 
@@ -2384,6 +2952,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       partnerName: partnerName,
       partnerInitial:
           partnerName.isEmpty ? '' : partnerName.characters.first.toUpperCase(),
+      partnerAvatarUrl: _pair.partnerAvatarUrl,
     );
   }
 
@@ -2403,7 +2972,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     }) =>
         Expanded(
           child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 14),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(24),
@@ -2422,7 +2991,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     color: labelColor,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   '$value',
                   style: TextStyle(
@@ -2441,51 +3010,51 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 424 / 200,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        padding: EdgeInsets.fromLTRB(22, 20, 22, 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF7FF),
+          color: _wr('surface'),
           borderRadius: BorderRadius.circular(32),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'СКУЧАЮ СЕГОДНЯ',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.3,
-                color: Color(0xFF1D1B20),
+                color: _wr('onSurface'),
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Row(
               children: [
                 tile(
                   label: 'Я',
                   value: myCount,
-                  bg: const Color(0xFFEADDFF),
-                  labelColor: const Color(0xFF4F378B),
-                  valueColor: const Color(0xFF21005D),
+                  bg: _wr('primaryContainer'),
+                  labelColor: _wr('onContainerSoft'),
+                  valueColor: _wr('onPrimaryContainer'),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: 14),
                 tile(
                   label: partnerName.isEmpty ? 'Партнёр' : partnerName,
                   value: partnerCount,
-                  bg: const Color(0xFFFFD8E4),
-                  labelColor: const Color(0xFF7D5260),
-                  valueColor: const Color(0xFF31111D),
+                  bg: _wr('tertiaryContainer'),
+                  labelColor: _wr('tertiary'),
+                  valueColor: _wr('onTertiaryContainer'),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: 14),
                 Container(
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6750A4),
+                    color: _wr('primary'),
                     borderRadius: BorderRadius.circular(22),
                   ),
-                  child: const Icon(Icons.favorite_rounded,
-                      size: 30, color: Colors.white),
+                  child: Icon(Icons.favorite_rounded,
+                      size: 30, color: _wr('onPrimary')),
                 ),
               ],
             ),
@@ -2517,9 +3086,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AspectRatio(
       aspectRatio: 424 / 200,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+        padding: EdgeInsets.fromLTRB(22, 20, 22, 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFEADDFF),
+          color: _wr('primaryContainer'),
           borderRadius: BorderRadius.circular(32),
         ),
         child: Column(
@@ -2536,35 +3105,35 @@ class _WidgetScreenState extends State<WidgetScreen>
                         startLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF4F378B),
+                          color: _wr('onContainerSoft'),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
                             '$days',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 60,
                               height: 1.05,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -2.4,
-                              color: Color(0xFF21005D),
+                              color: _wr('onPrimaryContainer'),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             // Склонение по числу: 1 день, 2 дня, 5 дней.
                             _s.tgDaysMilestone(days).split(' ').last,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF21005D),
+                              color: _wr('onPrimaryContainer'),
                             ),
                           ),
                         ],
@@ -2572,11 +3141,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                     ],
                   ),
                 ),
-                const Icon(Icons.favorite_rounded,
-                    size: 26, color: Color(0xFF6750A4)),
+                Icon(Icons.favorite_rounded,
+                    size: 26, color: _wr('primary')),
               ],
             ),
-            const Spacer(),
+            Spacer(),
             Row(
               children: [
                 Expanded(
@@ -2584,32 +3153,32 @@ class _WidgetScreenState extends State<WidgetScreen>
                     _s.tgUntilMilestone(target, left),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF4F378B),
+                      color: _wr('onContainerSoft'),
                     ),
                   ),
                 ),
                 Text(
                   '$percent%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF4F378B),
+                    color: _wr('onContainerSoft'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(100),
               child: LinearProgressIndicator(
                 value: percent / 100,
                 minHeight: 12,
-                backgroundColor: const Color(0xFFD6C6F0),
+                backgroundColor: _wr('trackOnContainer'),
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(Color(0xFF6750A4)),
+                    AlwaysStoppedAnimation<Color>(_wr('primary')),
               ),
             ),
           ],

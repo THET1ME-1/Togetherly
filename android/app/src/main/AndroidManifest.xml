@@ -347,6 +347,53 @@
                 android:resource="@xml/love_widget_info" />
         </receiver>
 
+
+        <!-- Новый каталог: «Настроение» в двух размерах -->
+        <receiver android:name=".MoodTilesWidget2x2Provider"
+            android:exported="true"
+            android:label="Настроение · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mood_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".MoodTilesWidget4x2Provider"
+            android:exported="true"
+            android:label="Настроение · неделя">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mood_4x2_info" />
+        </receiver>
+
+        <!-- Новый каталог: «До встречи» в двух размерах -->
+        <receiver android:name=".CountdownWidget2x2Provider"
+            android:exported="true"
+            android:label="До встречи · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_countdown_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".CountdownWidget4x2Provider"
+            android:exported="true"
+            android:label="До встречи · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_countdown_4x2_info" />
+        </receiver>
+
         <!-- ═══ Виджет: Счётчик дней вместе ═══ -->
         <!-- Новый каталог: «Вместе» в трёх размерах -->
         <receiver android:name=".TogetherWidget2x2Provider"

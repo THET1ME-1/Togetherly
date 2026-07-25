@@ -7,4 +7,8 @@
     <string name="tg_desc_miss_2x2">Отправить «скучаю» одним тапом</string>
     <string name="tg_desc_miss_4x2">Счётчики «скучаю» обоих и кнопка</string>
     <string name="tg_desc_miss_4x1">Полоска: отправить «скучаю»</string>
+    <string name="tg_desc_mood_2x2">Настроение обоих и отметка одним тапом</string>
+    <string name="tg_desc_mood_4x2">Неделя настроений пары</string>
+    <string name="tg_desc_countdown_2x2">Сколько дней до встречи</string>
+    <string name="tg_desc_countdown_4x2">До встречи: дни, часы и минуты</string>
 </resources>

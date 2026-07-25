@@ -92,6 +92,9 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
             else -> 115
         }
         val scale = WidgetSizing.scale(minHeight, baseDp)
+        // Цвета берём из активной темы приложения; пока её не прислали —
+        // из хендофа (см. WidgetTheme.FALLBACK).
+        val theme = WidgetTheme.from(data)
 
         val views = RemoteViews(context.packageName, layout).apply {
             setOnClickPendingIntent(
@@ -112,6 +115,15 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
 
             when (layout) {
                 R.layout.tg_together_2x2 -> {
+                    // Тёмная карточка primary: число и подпись поверх неё.
+                    tint(R.id.bg, theme.primary)
+                    setTextColor(R.id.days_value, theme.onPrimary)
+                    setTextColor(R.id.days_label, theme.onPrimarySoft)
+                    tint(R.id.avatar_me_bg, theme.avatarMine)
+                    tint(R.id.avatar_partner_bg, theme.avatarPartner)
+                    setTextColor(R.id.avatar_me, theme.onPrimaryContainer)
+                    setTextColor(R.id.avatar_partner, theme.onTertiaryContainer)
+
                     setTextViewText(R.id.avatar_me, myInitial)
                     setTextViewText(R.id.avatar_partner, partnerInitial)
 
@@ -138,9 +150,19 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
                 }
 
                 R.layout.tg_together_4x2 -> {
+                    // Светлая карточка primary-container.
+                    tint(R.id.bg, theme.primaryContainer)
+                    setTextColor(R.id.start_date, theme.onContainerSoft)
+                    setTextColor(R.id.days_value, theme.onPrimaryContainer)
+                    setTextColor(R.id.days_word, theme.onPrimaryContainer)
+                    setTextColor(R.id.next_label, theme.onContainerSoft)
+                    setTextColor(R.id.next_percent, theme.onContainerSoft)
+                    tint(R.id.heart_icon, theme.primary)
+
                     if (startDate.isNotEmpty()) {
                         setTextViewText(R.id.start_date, startDate)
                     }
+                    setTextViewText(R.id.days_word, daysWord(days))
                     val milestone = nextMilestone(days)
                     setTextViewText(
                         R.id.next_label,
@@ -148,10 +170,38 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
                             daysWord(milestone.daysLeft),
                     )
                     setTextViewText(R.id.next_percent, "${milestone.percent}%")
-                    setProgressBar(R.id.progress, 100, milestone.percent, false)
+
+                    // Полоса — картинка: перекрасить progressDrawable нельзя.
+                    val density = context.resources.displayMetrics.density
+                    val barWidthPx = (((minWidth - 28).coerceAtLeast(80)) * density).toInt()
+                    val barHeightPx = (8 * density).toInt()
+                    WidgetImages.progress(
+                        barWidthPx,
+                        barHeightPx,
+                        milestone.percent,
+                        theme.trackOnContainer,
+                        theme.primary,
+                    )?.let { setImageViewBitmap(R.id.progress, it) }
                 }
 
                 else -> {
+                    // Светлая карточка surface с блоком primary внутри.
+                    tint(R.id.bg, theme.surface)
+                    tint(R.id.counter_bg, theme.primary)
+                    tint(R.id.next_round_bg, theme.surfaceContainer)
+                    tint(R.id.anniversary_bg, theme.tertiaryContainer)
+                    tint(R.id.heart_icon, theme.primary)
+                    setTextColor(R.id.couple_names, theme.onSurfaceVariant)
+                    setTextColor(R.id.days_value, theme.onPrimary)
+                    setTextColor(R.id.days_label, theme.onPrimarySoft)
+                    setTextColor(R.id.months_value, theme.onPrimary)
+                    setTextColor(R.id.months_label, theme.accentOnPrimary)
+                    setTextColor(R.id.next_section, theme.outline)
+                    setTextColor(R.id.next_round_title, theme.onSurface)
+                    setTextColor(R.id.next_round_when, theme.onSurfaceVariant)
+                    setTextColor(R.id.anniversary_title, theme.onTertiaryContainer)
+                    setTextColor(R.id.anniversary_when, theme.tertiary)
+
                     if (names.isNotEmpty()) {
                         setTextViewText(R.id.couple_names, names.uppercase())
                     }

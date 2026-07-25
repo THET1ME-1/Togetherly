@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
@@ -16,8 +17,10 @@ import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
+import 'mood_repository.dart';
 import '../models/widget_data.dart';
 import 'locale_service.dart';
+import 'widget_theme_sync.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -1056,6 +1059,142 @@ class HomeWidgetService {
   }
 
   /// Данные виджета «Скучаю» (новый каталог).
+  /// Данные виджета «Настроение» из нового каталога.
+  ///
+  /// [week] — семь пар «моё/партнёра» в процентах высоты столбика, от
+  /// понедельника к воскресенью; -1 означает «в этот день никто не отмечался»,
+  /// и столбик не рисуется вовсе. Строкой, потому что `home_widget` умеет
+  /// класть только скаляры.
+  Future<void> syncMoodTiles({
+    required String groupId,
+    String myLabel = '',
+    String myMoodId = '',
+    String partnerLabel = '',
+    String partnerName = '',
+    List<List<int>> week = const [],
+    int matchedDays = 0,
+  }) async {
+    if (!Platform.isAndroid) return;
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>('tgmood_${g}_my_label', myLabel);
+      await HomeWidget.saveWidgetData<String>('tgmood_${g}_my_id', myMoodId);
+      await HomeWidget.saveWidgetData<String>(
+          'tgmood_${g}_partner_label', partnerLabel);
+      await HomeWidget.saveWidgetData<String>(
+          'tgmood_${g}_partner_name', partnerName);
+      await HomeWidget.saveWidgetData<String>(
+        'tgmood_${g}_week',
+        week.map((d) => '${d.first}/${d.last}').join(','),
+      );
+      await HomeWidget.saveWidgetData<String>(
+          'tgmood_${g}_matched', '$matchedDays');
+      await HomeWidget.saveWidgetData<String>('tgmood_latest_group', g);
+
+      for (final n in const ['MoodTilesWidget2x2Provider',
+          'MoodTilesWidget4x2Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncMoodTiles failed: $e');
+    }
+  }
+
+  /// Записывает настроение, выбранное кнопкой на виджете.
+  ///
+  /// Виджет подсвечивает выбор сразу по тапу, поэтому здесь остаётся запись в
+  /// календарь. Отметка `pending_mood` снимается только после успеха: если
+  /// движок не поднялся или сервер недоступен, приложение допишет при
+  /// следующем запуске (см. [flushPendingMood]).
+  Future<void> applyMoodFromWidget({
+    required String groupId,
+    required String moodId,
+  }) async {
+    if (!Platform.isAndroid) return;
+    final g = groupId.isEmpty ? 'solo' : groupId;
+    if (g == 'solo') return;
+    try {
+      final option = MoodOption.byId(moodId);
+      if (option == null) return;
+      final saved = await MoodRepository().add(
+        groupId: g,
+        moodId: option.id,
+        imagePath: option.imagePath,
+        label: option.label,
+        timestamp: DateTime.now(),
+      );
+      if (saved == null) return;
+
+      await HomeWidget.saveWidgetData<String>('tgmood_${g}_pending_mood', '');
+      await HomeWidget.saveWidgetData<String>(
+          'tgmood_${g}_my_label', option.localizedLabel);
+      await HomeWidget.saveWidgetData<String>('tgmood_${g}_my_id', option.id);
+      for (final n in const ['MoodTilesWidget2x2Provider',
+          'MoodTilesWidget4x2Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.applyMoodFromWidget failed: $e');
+    }
+  }
+
+  /// Дописывает настроение, отмеченное на виджете, если та запись не дошла.
+  Future<void> flushPendingMood(String groupId) async {
+    if (!Platform.isAndroid) return;
+    final g = groupId.isEmpty ? 'solo' : groupId;
+    if (g == 'solo') return;
+    try {
+      final pending =
+          await HomeWidget.getWidgetData<String>('tgmood_${g}_pending_mood') ?? '';
+      if (pending.isEmpty) return;
+      await applyMoodFromWidget(groupId: g, moodId: pending);
+    } catch (e) {
+      debugPrint('HomeWidgetService.flushPendingMood failed: $e');
+    }
+  }
+
+  /// Данные виджета «До встречи»: ближайший обратный отсчёт.
+  Future<void> syncCountdown({
+    required String groupId,
+    String title = '',
+    String dateLabel = '',
+    int daysLeft = 0,
+    int hoursLeft = 0,
+    int minutesLeft = 0,
+    int percent = 0,
+  }) async {
+    if (!Platform.isAndroid) return;
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_title', title);
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_date', dateLabel);
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_days', '$daysLeft');
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_hours', '$hoursLeft');
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_minutes', '$minutesLeft');
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_percent', '$percent');
+      await HomeWidget.saveWidgetData<String>('tgcd_latest_group', g);
+
+      for (final n in const ['CountdownWidget2x2Provider',
+          'CountdownWidget4x2Provider']) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncCountdown failed: $e');
+    }
+  }
+
   Future<void> syncMiss({
     required String groupId,
     required int myCount,
@@ -1064,10 +1203,18 @@ class HomeWidgetService {
     String partnerInitial = '',
     String lastTime = '',
     bool sentToday = false,
+    String partnerAvatarUrl = '',
   }) async {
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('miss_${g}_my_count', '$myCount');
+      // Фотография партнёра для полоски 4×1; пусто — останется кружок с буквой.
+      if (partnerAvatarUrl.isNotEmpty) {
+        final path =
+            await _cachePhotoFromUrl(partnerAvatarUrl, 'miss_avatar_partner_$g');
+        await HomeWidget.saveWidgetData<String>(
+            'miss_${g}_partner_avatar_path', path);
+      }
       await HomeWidget.saveWidgetData<String>(
           'miss_${g}_partner_count', '$partnerCount');
       await HomeWidget.saveWidgetData<String>('miss_${g}_partner_name', partnerName);
@@ -1093,6 +1240,37 @@ class HomeWidgetService {
   /// Отметка после отправки прямо с рабочего стола: свой счётчик +1, состояние
   /// «отправлено» и время. Приложение при этом может быть закрыто, поэтому
   /// читаем прежние значения из данных виджета.
+  /// Досылает «скучаю», о котором виджет отчитался, а сервер не услышал.
+  ///
+  /// Виджет переводит карточку в «отправлено» сразу по тапу — иначе кнопка
+  /// кажется мёртвой, пока поднимается фоновый движок и переподключается
+  /// PocketBase. Если та отправка не дошла (движок не стартовал, сессия
+  /// протухла, не было сети), остаётся отметка `pending_send`, и приложение
+  /// закрывает долг при первом же запуске. Без этого виджет говорил
+  /// «отправлено», а счётчик в приложении не двигался.
+  Future<void> flushPendingMiss(String groupId) async {
+    if (!Platform.isAndroid) return;
+    final g = groupId.isEmpty ? 'solo' : groupId;
+    if (g == 'solo') return;
+    try {
+      final pending =
+          await HomeWidget.getWidgetData<String>('miss_${g}_pending_send');
+      if (pending != '1') return;
+
+      final uid = PocketBaseService().userId ?? '';
+      if (uid.isEmpty) return;
+
+      final ok = await PbDataService().incrementMissYou(g, uid, vibe: 'miss_you');
+      if (!ok) return;
+
+      await HomeWidget.saveWidgetData<String>('miss_${g}_pending_send', '0');
+      debugPrint('HomeWidgetService.flushPendingMiss: досланo для $g');
+    } catch (e) {
+      // Не вышло — отметка остаётся, попробуем в следующий раз.
+      debugPrint('HomeWidgetService.flushPendingMiss failed: $e');
+    }
+  }
+
   /// [alreadyCounted] — нативный виджет уже прибавил себе счётчик ради
   /// мгновенного отклика на тап; тогда здесь остаётся только пометить отправку.
   Future<void> markMissSentFromWidget(
@@ -1993,8 +2171,19 @@ class HomeWidgetService {
     // Для аватарок на виджете «Вместе» 2×2. Пусто — останется кружок с буквой.
     String myAvatarUrl = '',
     String partnerAvatarUrl = '',
+    // Палитра активной темы: нативные виджеты красятся ею вместо хардкода.
+    ColorScheme? scheme,
   }) async {
     try {
+      if (scheme != null) {
+        await WidgetThemeSync.save(scheme);
+      }
+
+      // Виджет «Скучаю» показывает «отправлено» сразу по тапу. Если та
+      // отправка не дошла до сервера (фоновый движок не поднялся, сессия
+      // протухла, не было сети) — досылаем здесь: группа уже известна.
+      unawaited(flushPendingMiss(activeGroupId));
+      unawaited(flushPendingMood(activeGroupId));
       debugPrint(
         'HomeWidgetService.syncAllBoundWidgets: activeGroup=$activeGroupId',
       );

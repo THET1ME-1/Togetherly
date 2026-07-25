@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -78,6 +79,11 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                 .putString("${prefix}my_count", (my + 1).toString())
                 .putString("${prefix}sent_today", "1")
                 .putString("${prefix}last_time", "$hh:$mm")
+                // Отметка «отправка ждёт сервера». Фоновый Dart снимет её сам,
+                // а если движок не поднялся или сессия PocketBase протухла —
+                // приложение дошлёт при следующем запуске. Без этой отметки
+                // виджет говорил «отправлено», а до партнёра ничего не доходило.
+                .putString("${prefix}pending_send", "1")
                 .apply()
 
             // Перерисовываем все три размера: пользователь мог поставить
@@ -120,6 +126,7 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         val myCount = data.getString("${prefix}my_count", null)?.toIntOrNull() ?: 0
         val partnerCount = data.getString("${prefix}partner_count", null)?.toIntOrNull() ?: 0
         val lastTime = data.getString("${prefix}last_time", null).orEmpty()
+        val partnerAvatarPath = data.getString("${prefix}partner_avatar_path", null)
         // Отправляли ли сегодня — состояние живёт до конца дня, как в хендофе.
         val sent = data.getString("${prefix}sent_today", null) == "1"
 
@@ -150,12 +157,22 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         // растягиваются, на тесной остаются компактными.
         val baseDp = if (layout == R.layout.tg_miss_4x1) 56 else 115
         val scale = WidgetSizing.scale(minHeight, baseDp)
+        // Цвета из активной темы приложения; пока не прислали — из хендофа.
+        val theme = WidgetTheme.from(data)
 
         val views = RemoteViews(context.packageName, layout).apply {
             setImageViewResource(R.id.state_icon, stateIcon)
 
             when (layout) {
                 R.layout.tg_miss_2x2 -> {
+                    // Карточка на tertiary-container, пилюля — заливка tertiary.
+                    tint(R.id.bg, theme.tertiaryContainer)
+                    tint(R.id.cta_bg, theme.tertiary)
+                    tint(R.id.state_icon, theme.tertiary)
+                    setTextColor(R.id.partner_name, theme.onTertiaryContainer)
+                    setTextColor(R.id.title, theme.onTertiaryContainer)
+                    setTextColor(R.id.cta, theme.onTertiary)
+
                     setTextViewTextSize(
                         R.id.title, TypedValue.COMPLEX_UNIT_DIP, 24f * scale)
                     setTextViewText(
@@ -168,6 +185,20 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                 }
 
                 R.layout.tg_miss_4x2 -> {
+                    // Светлая карточка surface: моя плашка primary-container,
+                    // партнёрская — tertiary-container, кнопка — primary.
+                    tint(R.id.bg, theme.surface)
+                    tint(R.id.my_tile_bg, theme.primaryContainer)
+                    tint(R.id.partner_tile_bg, theme.tertiaryContainer)
+                    tint(R.id.send_bg, theme.primary)
+                    tint(R.id.state_icon, theme.onPrimary)
+                    setTextColor(R.id.header, theme.onSurface)
+                    setTextColor(R.id.last_time, theme.outline)
+                    setTextColor(R.id.my_label, theme.onContainerSoft)
+                    setTextColor(R.id.my_count, theme.onPrimaryContainer)
+                    setTextColor(R.id.partner_label, theme.tertiary)
+                    setTextColor(R.id.partner_count, theme.onTertiaryContainer)
+
                     setTextViewText(R.id.my_count, myCount.toString())
                     setTextViewText(R.id.partner_count, partnerCount.toString())
                     setTextViewTextSize(
@@ -195,6 +226,26 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                 }
 
                 else -> {
+                    // Полоска на primary: аватар — светлый кружок, иконка —
+                    // tertiary-container, как акцент в макете.
+                    tint(R.id.bg, theme.primary)
+                    tint(R.id.avatar_bg, theme.avatarMine)
+                    tint(R.id.state_icon, theme.tertiaryContainer)
+                    setTextColor(R.id.avatar, theme.onPrimaryContainer)
+                    setTextColor(R.id.title, theme.onPrimary)
+                    setTextColor(R.id.subtitle, theme.accentOnPrimary)
+
+                    // Фотография партнёра поверх кружка с буквой, если есть.
+                    val photo = WidgetImages.circularFromFile(partnerAvatarPath)
+                    if (photo != null) {
+                        setImageViewBitmap(R.id.avatar_photo, photo)
+                        setViewVisibility(R.id.avatar_photo, View.VISIBLE)
+                        setViewVisibility(R.id.avatar, View.INVISIBLE)
+                    } else {
+                        setViewVisibility(R.id.avatar_photo, View.GONE)
+                        setViewVisibility(R.id.avatar, View.VISIBLE)
+                    }
+
                     setTextViewText(R.id.avatar, partnerInitial)
                     setTextViewText(R.id.title, if (sent) "Отправлено" else "Скучаю")
                     setTextViewText(
