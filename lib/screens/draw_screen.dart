@@ -8,12 +8,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/flood_fill.dart';
+import '../widgets/app_sheet.dart';
 import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/share_origin.dart';
 
+import '../models/canvas_background.dart';
 import '../models/draw_stroke.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -175,6 +178,25 @@ class _DrawScreenState extends State<DrawScreen>
   double _strokeWidth = 5.0;
   Color _bgColor = Colors.white;
 
+  /// Текстура листа. Хранится вместе с рисунком, а не в настройках: у каждого
+  /// холста своя бумага.
+  CanvasBackground _background = CanvasBackground.plain;
+
+  // ── Слои ────────────────────────────────────────────────────────────────
+  //
+  // Слой — это номер у штриха, а не отдельный холст: так рисунки, сделанные до
+  // появления слоёв, просто становятся нижним слоем, и ничего мигрировать не
+  // нужно. Порядок отрисовки — сначала по слою, потом по времени.
+
+  /// Сколько слоёв заведено. Минимум один.
+  int _layerCount = 1;
+
+  /// На какой слой ложатся новые штрихи.
+  int _activeLayer = 0;
+
+  /// Спрятанные слои: их не видно и по ним не попасть заливкой.
+  final Set<int> _hiddenLayers = <int>{};
+
   int _currentColorValue = 0xFF000000;
   double _currentStrokeWidth = 5.0;
   bool _currentIsEraser = false;
@@ -267,6 +289,7 @@ class _DrawScreenState extends State<DrawScreen>
         ? _colorForUser(_myUid)
         : const Color(0xFF000000);
     unawaited(_loadPixelGridPref());
+    unawaited(_restoreBackground());
     _currentColorValue = _activeColor.toARGB32();
 
     _toolbarAnim = AnimationController(
@@ -608,6 +631,10 @@ class _DrawScreenState extends State<DrawScreen>
   //  Stroke helpers
 
   int _compareStrokes(DrawStroke a, DrawStroke b) {
+    // Слой важнее времени: что нарисовано на верхнем слое, лежит поверх, даже
+    // если нарисовано раньше.
+    final l = a.layer.compareTo(b.layer);
+    if (l != 0) return l;
     final o = a.orderIndex.compareTo(b.orderIndex);
     if (o != 0) return o;
     // Стабильный тай-брейкер по userId: id у локального optimistic-штриха
@@ -623,7 +650,15 @@ class _DrawScreenState extends State<DrawScreen>
       ..._pendingLocalStrokes.values,
     ];
     combined.sort(_compareStrokes);
-    return combined;
+    // Число слоёв выводим из самих штрихов: партнёр мог добавить слой, и его
+    // рисунок не должен провалиться в нижний.
+    final maxLayer = combined.isEmpty
+        ? 0
+        : combined.map((s) => s.layer).reduce((a, b) => a > b ? a : b);
+    if (maxLayer + 1 > _layerCount) _layerCount = maxLayer + 1;
+
+    if (_hiddenLayers.isEmpty) return combined;
+    return combined.where((s) => !_hiddenLayers.contains(s.layer)).toList();
   }
 
   bool _looksLikeSameStroke(DrawStroke remote, DrawStroke local) {
@@ -1179,6 +1214,7 @@ class _DrawScreenState extends State<DrawScreen>
       strokeWidth: 0,
       points: const [],
       orderIndex: _orderCounter,
+      layer: _activeLayer,
       imageUrl: 'file://${xFile.path}',
       imageX: 0.5,
       imageY: 0.5,
@@ -1303,6 +1339,7 @@ class _DrawScreenState extends State<DrawScreen>
       isFilledShape: _currentIsFilledShape,
       shapeType: shapeType,
       orderIndex: _orderCounter,
+      layer: _activeLayer,
     );
 
     _currentPoints.clear();
@@ -1412,6 +1449,7 @@ class _DrawScreenState extends State<DrawScreen>
       isFilledShape: base.isFilledShape,
       shapeType: base.shapeType,
       orderIndex: _orderCounter,
+      layer: _activeLayer,
       imageUrl: base.imageUrl,
       imageX: base.imageX,
       imageY: base.imageY,
@@ -1421,6 +1459,63 @@ class _DrawScreenState extends State<DrawScreen>
     );
     _orderCounter++;
     _submitStroke(stroke);
+  }
+
+
+  /// Удаляет штрих по id — из очереди, из локального списка и с сервера.
+  ///
+  /// Отдельно от [_deleteSelectedImage]: тот работает только с выбранной
+  /// картинкой, а слой уносит с собой всё, что на нём лежит.
+  void _removeStrokeById(String id) {
+    if (_pendingLocalStrokes.containsKey(id)) {
+      _pendingLocalStrokes.remove(id);
+      _cancelledPendingStrokeIds.add(id);
+      _myStrokeIds.remove(id);
+      return;
+    }
+
+    _myStrokeIds.remove(id);
+    _remoteStrokes = _remoteStrokes.where((s) => s.id != id).toList();
+
+    if (!_hasSharedCanvas) {
+      _saveSoloStrokes();
+      return;
+    }
+    unawaited(_canvas.deleteStroke(id).catchError((Object e) {
+      debugPrint('[Draw] не удалось удалить штрих $id: $e');
+    }));
+  }
+
+  /// Запоминает выбранный фон.
+  ///
+  /// Пока локально: в мете общего холста есть только цвет, поворот и версия
+  /// очистки, поля под текстуру нет. Значит у партнёра свой фон — на сам
+  /// рисунок это не влияет, штрихи одинаковые у обоих.
+  Future<void> _persistBackground() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'canvas_bg_$_canvasId',
+        backgroundToStorage(_background),
+      );
+    } catch (e) {
+      debugPrint('[Draw] не удалось сохранить фон: $e');
+    }
+  }
+
+  /// Возвращает фон, выбранный для этого холста в прошлый раз.
+  Future<void> _restoreBackground() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('canvas_bg_$_canvasId');
+      if (raw == null || !mounted) return;
+      final restored = backgroundFromStorage(raw);
+      if (restored == _background) return;
+      setState(() => _background = restored);
+      _repaintNotifier.value++;
+    } catch (e) {
+      debugPrint('[Draw] не удалось прочитать фон: $e');
+    }
   }
 
   Future<void> _deleteSelectedImage() async {
@@ -1478,100 +1573,94 @@ class _DrawScreenState extends State<DrawScreen>
 
   //  Fill / Clear
 
-  void _applyFill(Offset localPoint) {
+  /// Заливка области по тапу.
+  ///
+  /// Раньше умела лишь перекрасить целую фигуру или весь фон — залить кусок
+  /// между линиями было нечем. Теперь холст растеризуется, от точки тапа
+  /// расходится обход по соседним пикселям похожего цвета, а получившееся
+  /// пятно ложится поверх рисунка отдельным штрихом.
+  ///
+  /// Работает одинаково и в обычном рисовании, и в пиксельном: после
+  /// растеризации это просто картинка.
+  Future<void> _applyFill(Offset localPoint) async {
     _cancelCurrentGesture();
+    if (_canvasSize.isEmpty) return;
 
-    // 1. Convert local point to canvas coordinates (0..1)
-    final canvasPt = DrawPoint.fromOffset(
-      _screenToCanvas(localPoint),
-      _canvasSize,
-    );
+    final boundary = _canvasKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return;
 
-    // 2. Search for a shape that contains this point (from top to bottom)
-    DrawStroke? hitShape;
-    for (final s in _visibleStrokes.reversed) {
-      if (s.shapeType == null || s.points.length < 2) continue;
+    try {
+      // Снимаем один к одному: увеличивать разрешение незачем — заливка и так
+      // самая тяжёлая операция на холсте.
+      final snapshot = await boundary.toImage(pixelRatio: 1.0);
 
-      final first = s.points.first;
-      final last = s.points.last;
+      // Точка тапа в координатах снимка: тап приходит в координатах холста,
+      // а снимок сделан в его же пикселях.
+      final canvasPoint = _screenToCanvas(localPoint);
+      final sx = (canvasPoint.dx / _canvasSize.width * snapshot.width).round();
+      final sy = (canvasPoint.dy / _canvasSize.height * snapshot.height).round();
 
-      if (s.shapeType == DrawShapeType.rect) {
-        final minX = math.min(first.x, last.x);
-        final maxX = math.max(first.x, last.x);
-        final minY = math.min(first.y, last.y);
-        final maxY = math.max(first.y, last.y);
-        if (canvasPt.x >= minX &&
-            canvasPt.x <= maxX &&
-            canvasPt.y >= minY &&
-            canvasPt.y <= maxY) {
-          hitShape = s;
-          break;
-        }
-      } else if (s.shapeType == DrawShapeType.circle) {
-        final minX = math.min(first.x, last.x);
-        final maxX = math.max(first.x, last.x);
-        final minY = math.min(first.y, last.y);
-        final maxY = math.max(first.y, last.y);
-        final rx = (maxX - minX) / 2;
-        final ry = (maxY - minY) / 2;
-        if (rx <= 0 || ry <= 0) continue;
+      final filled = await FloodFill.fill(
+        source: snapshot,
+        startX: sx,
+        startY: sy,
+        fillColor: _activeColor.toARGB32(),
+      );
+      snapshot.dispose();
 
-        final cx = (minX + maxX) / 2;
-        final cy = (minY + maxY) / 2;
-        final nx = (canvasPt.x - cx) / rx;
-        final ny = (canvasPt.y - cy) / ry;
-        if (nx * nx + ny * ny <= 1) {
-          hitShape = s;
-          break;
-        }
-      } else if (s.shapeType == DrawShapeType.triangle) {
-        final v1 = DrawPoint((first.x + last.x) / 2, first.y);
-        final v2 = DrawPoint(first.x, last.y);
-        final v3 = DrawPoint(last.x, last.y);
+      if (filled == null) return;
 
-        bool sameSide(DrawPoint p1, DrawPoint p2, DrawPoint a, DrawPoint b) {
-          final cp1 = (b.x - a.x) * (p1.y - a.y) - (b.y - a.y) * (p1.x - a.x);
-          final cp2 = (b.x - a.x) * (p2.y - a.y) - (b.y - a.y) * (p2.x - a.x);
-          return (cp1 * cp2) >= 0;
-        }
+      final png = await filled.toByteData(format: ui.ImageByteFormat.png);
+      filled.dispose();
+      if (png == null || !mounted) return;
 
-        if (sameSide(canvasPt, v1, v2, v3) &&
-            sameSide(canvasPt, v2, v1, v3) &&
-            sameSide(canvasPt, v3, v1, v2)) {
-          hitShape = s;
-          break;
-        }
-      }
-    }
+      final dir = await getTemporaryDirectory();
+      final file = File(
+        '${dir.path}/fill_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await file.writeAsBytes(png.buffer.asUint8List());
 
-    final nextColor = _activeColor;
-
-    if (hitShape != null) {
-      // Create a filled duplicate of the hit shape
-      final newStroke = DrawStroke(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+      final id = 'fill_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+      final stroke = DrawStroke(
+        id: id,
         userId: _myUid,
-        colorValue: nextColor.toARGB32(),
-        strokeWidth: hitShape.strokeWidth,
-        points: List<DrawPoint>.from(hitShape.points),
-        isEraser: false,
-        isFilledShape: true,
-        shapeType: hitShape.shapeType,
+        colorValue: _activeColor.toARGB32(),
+        strokeWidth: 0,
+        points: const [],
         orderIndex: _orderCounter,
+        layer: _activeLayer,
+        imageUrl: 'file://${file.path}',
+        // Пятно занимает весь холст: закрашена в нём только найденная область,
+        // остальное прозрачно.
+        imageX: 0.5,
+        imageY: 0.5,
+        imageWidth: 1.0,
+        imageHeight: 1.0,
+        imageRotation: 0.0,
       );
       _orderCounter++;
-      _submitStroke(newStroke);
-      return;
-    }
 
-    // Fallback: fill the entire background
-    setState(() => _bgColor = nextColor);
-    if (_hasSharedCanvas) {
-      _canvas
-          .setBgColor(_groupId, _canvasId, nextColor.toARGB32())
-          .catchError((e) => debugPrint('[Draw] fill error: $e'));
+      if (!_hasSharedCanvas) {
+        _submitStroke(stroke);
+        return;
+      }
+
+      // Общий холст: показываем себе сразу, а на сервер уходит уже загруженный
+      // файл — локальный путь партнёр не откроет. Дальше тем же путём, что и
+      // вставленные из галереи картинки.
+      setState(() {
+        _pendingLocalStrokes[id] = stroke;
+        _visibleStrokes = _composeVisibleStrokes();
+      });
+      _myStrokeIds.add(id);
+      unawaited(_uploadImageAsync(id, file.path));
+    } catch (e) {
+      debugPrint('заливка не удалась: $e');
     }
   }
+
+
 
   Future<void> _confirmClear() async {
     final s = LocaleService.current;
@@ -2144,6 +2233,7 @@ class _DrawScreenState extends State<DrawScreen>
                       key: _canvasKey,
                       child: _CanvasScene(
                         bgColor: _bgColor,
+                        background: _background,
                         gridColor: _isPixel ? null : _sheetGridColor,
                         pixelCols: _isPixel ? _pxCols : null,
                         pixelRows: _isPixel ? _pxRows : null,
@@ -2523,6 +2613,23 @@ class _DrawScreenState extends State<DrawScreen>
             t,
             compact: true,
           ),
+          const SizedBox(width: 4),
+          Container(width: 1, height: 24, color: t.divider),
+          const SizedBox(width: 4),
+          _actionBtn(
+            Icons.layers_rounded,
+            _openLayersSheet,
+            tooltip: s.drawLayers,
+            color: _layerCount > 1 ? t.primary : t.textMuted,
+          ),
+          _actionBtn(
+            Icons.texture_rounded,
+            _openBackgroundSheet,
+            tooltip: s.drawBackgrounds,
+            color: _background != CanvasBackground.plain
+                ? t.primary
+                : t.textMuted,
+          ),
           const Spacer(),
           _actionBtn(
             Icons.delete_outline_rounded,
@@ -2531,6 +2638,266 @@ class _DrawScreenState extends State<DrawScreen>
             color: Colors.red.shade400,
           ),
         ],
+      ),
+    );
+  }
+
+
+  // ── Слои и фон ──────────────────────────────────────────────────────────
+
+  /// Панель слоёв: выбрать активный, спрятать, добавить, удалить.
+  void _openLayersSheet() {
+    final s = LocaleService.current;
+    final cs = Theme.of(context).colorScheme;
+
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SheetScaffold(
+          title: s.drawLayers,
+          action: IconButton(
+            tooltip: s.drawLayerAdd,
+            onPressed: () {
+              setState(() {
+                _layerCount++;
+                _activeLayer = _layerCount - 1;
+              });
+              setSheet(() {});
+            },
+            icon: const Icon(Icons.add_rounded),
+          ),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            // Сверху — верхний слой: так же, как он лежит на холсте.
+            itemCount: _layerCount,
+            itemBuilder: (_, i) {
+              final index = _layerCount - 1 - i;
+              final hidden = _hiddenLayers.contains(index);
+              final active = index == _activeLayer;
+              final count =
+                  _visibleStrokes.where((st) => st.layer == index).length;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: active
+                      ? cs.primaryContainer
+                      : cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  onTap: () {
+                    setState(() => _activeLayer = index);
+                    setSheet(() {});
+                  },
+                  leading: Icon(
+                    active ? Icons.edit_rounded : Icons.layers_rounded,
+                    color: active ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    s.drawLayerName(index + 1),
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          active ? cs.onPrimaryContainer : cs.onSurface,
+                    ),
+                  ),
+                  subtitle: Text(
+                    s.drawLayerStrokes(count),
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 12,
+                      color: active
+                          ? cs.onPrimaryContainer.withValues(alpha: 0.8)
+                          : cs.onSurfaceVariant,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: hidden ? s.drawLayerShow : s.drawLayerHide,
+                        onPressed: () {
+                          setState(() {
+                            if (hidden) {
+                              _hiddenLayers.remove(index);
+                            } else {
+                              _hiddenLayers.add(index);
+                            }
+                            _visibleStrokes = _composeVisibleStrokes();
+                          });
+                          _repaintNotifier.value++;
+                          setSheet(() {});
+                        },
+                        icon: Icon(
+                          hidden
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          color: active
+                              ? cs.onPrimaryContainer
+                              : cs.onSurfaceVariant,
+                        ),
+                      ),
+                      // Нижний слой не удаляем: холст без слоёв не бывает.
+                      if (_layerCount > 1)
+                        IconButton(
+                          tooltip: s.drawLayerDelete,
+                          onPressed: () => _deleteLayer(index, setSheet),
+                          icon: Icon(Icons.delete_outline_rounded,
+                              color: cs.error),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Удаляет слой вместе со всем, что на нём нарисовано.
+  Future<void> _deleteLayer(int index, StateSetter refreshSheet) async {
+    final s = LocaleService.current;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: Text(s.drawLayerDeleteConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
+            child: Text(s.delete),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final doomed =
+        _visibleStrokes.where((st) => st.layer == index).map((st) => st.id);
+    for (final id in doomed) {
+      _removeStrokeById(id);
+    }
+
+    setState(() {
+      _layerCount = (_layerCount - 1).clamp(1, 99);
+      _activeLayer = _activeLayer.clamp(0, _layerCount - 1);
+      _hiddenLayers.remove(index);
+      _visibleStrokes = _composeVisibleStrokes();
+    });
+    _repaintNotifier.value++;
+    refreshSheet(() {});
+  }
+
+  /// Выбор фона листа.
+  void _openBackgroundSheet() {
+    final s = LocaleService.current;
+    final cs = Theme.of(context).colorScheme;
+
+    showAppSheet<void>(
+      context,
+      expand: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SheetScaffold(
+          title: s.drawBackgrounds,
+          child: GridView.count(
+            crossAxisCount: 3,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            childAspectRatio: 0.78,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            children: [
+              for (final bg in CanvasBackground.values)
+                _backgroundTile(bg, cs, setSheet),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _backgroundTile(
+    CanvasBackground bg,
+    ColorScheme cs,
+    StateSetter refreshSheet,
+  ) {
+    final spec = specOf(bg);
+    final selected = _background == bg;
+    final s = LocaleService.current;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => _background = bg);
+        _repaintNotifier.value++;
+        _persistBackground();
+        refreshSheet(() {});
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outlineVariant,
+            width: selected ? 2.5 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Превью — тот же painter, что рисует холст: врать не может.
+            CustomPaint(painter: CanvasBackgroundPainter(bg)),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 6),
+                color: cs.surface.withValues(alpha: 0.88),
+                child: Text(
+                  s.drawBackgroundName(bg.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+            ),
+            if (selected)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.check_rounded,
+                      size: 13, color: cs.onPrimary),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2923,6 +3290,10 @@ class _PulsingDotState extends State<_PulsingDot>
 
 class _CanvasScene extends StatefulWidget {
   final Color bgColor;
+
+  /// Текстура листа: клетка, тетрадь, крафт и прочее. Рисуется под штрихами и
+  /// попадает в выгрузку вместе с рисунком.
+  final CanvasBackground background;
   /// Цвет клетки фона; null — фон без сетки.
   final Color? gridColor;
   /// Сетка пиксельного холста (колонки × строки); null — обычный холст.
@@ -2944,6 +3315,7 @@ class _CanvasScene extends StatefulWidget {
 
   const _CanvasScene({
     required this.bgColor,
+    required this.background,
     this.gridColor,
     this.pixelCols,
     this.pixelRows,
@@ -2999,9 +3371,20 @@ class _CanvasSceneState extends State<_CanvasScene> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Клетка — бесплатный фон листа. Лежит под штрихами и попадает в
-          // выгрузку вместе с рисунком.
-          if (widget.gridColor != null)
+          // Фон-текстура: рисуется кодом, поэтому тянется под любой размер
+          // холста и не мылится на больших экранах.
+          if (widget.background != CanvasBackground.plain)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: CanvasBackgroundPainter(widget.background),
+                ),
+              ),
+            ),
+          // Клетка — старый бесплатный фон листа, остаётся для рисунков,
+          // сделанных до появления текстур.
+          if (widget.gridColor != null &&
+              widget.background == CanvasBackground.plain)
             Positioned.fill(child: _GridBackground(lineColor: widget.gridColor!)),
           // Пиксельная сетка: тонкие направляющие ровно по клеткам, чтобы было
           // видно, куда встанет следующий пиксель.

@@ -1149,6 +1149,17 @@ abstract class AppStrings {
   List<String> get cycleWeekdayShorts;
   List<String> get cycleMonthNames;
   List<String> get cycleMonthsGenitive;
+  /// Рисование: слои и фоны листа.
+  String get drawLayers;
+  String get drawLayerAdd;
+  String get drawLayerHide;
+  String get drawLayerShow;
+  String get drawLayerDelete;
+  String get drawLayerDeleteConfirm;
+  String drawLayerName(int index);
+  String drawLayerStrokes(int count);
+  String get drawBackgrounds;
+  String drawBackgroundName(String id);
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3788,6 +3799,42 @@ class _RuStrings extends AppStrings {
         'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
         'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
       ];
+  @override
+  String get drawLayers => 'Слои';
+  @override
+  String get drawLayerAdd => 'Добавить слой';
+  @override
+  String get drawLayerHide => 'Скрыть';
+  @override
+  String get drawLayerShow => 'Показать';
+  @override
+  String get drawLayerDelete => 'Удалить слой';
+  @override
+  String get drawLayerDeleteConfirm =>
+      'Удалить слой вместе со всем, что на нём нарисовано?';
+  @override
+  String drawLayerName(int index) => 'Слой $index';
+  @override
+  String drawLayerStrokes(int count) =>
+      count == 0 ? 'пусто' : '$count ${_ruPlural(count, 'штрих', 'штриха', 'штрихов')}';
+  @override
+  String get drawBackgrounds => 'Фоны';
+  @override
+  String drawBackgroundName(String id) => switch (id) {
+        'plain' => 'Чистый',
+        'grid' => 'Клетка',
+        'dots' => 'Точки',
+        'notebook' => 'Тетрадь',
+        'millimeter' => 'Миллиметровка',
+        'kraft' => 'Крафт',
+        'chalkboard' => 'Доска',
+        'music' => 'Ноты',
+        'stars' => 'Звёзды',
+        'hearts' => 'Сердечки',
+        'watercolor' => 'Акварель',
+        'film' => 'Плёнка',
+        _ => id,
+      };
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6797,6 +6844,42 @@ class _EnStrings extends AppStrings {
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
+  @override
+  String get drawLayers => 'Layers';
+  @override
+  String get drawLayerAdd => 'Add layer';
+  @override
+  String get drawLayerHide => 'Hide';
+  @override
+  String get drawLayerShow => 'Show';
+  @override
+  String get drawLayerDelete => 'Delete layer';
+  @override
+  String get drawLayerDeleteConfirm =>
+      'Delete the layer with everything drawn on it?';
+  @override
+  String drawLayerName(int index) => 'Layer $index';
+  @override
+  String drawLayerStrokes(int count) =>
+      count == 0 ? 'empty' : '$count ${count == 1 ? 'stroke' : 'strokes'}';
+  @override
+  String get drawBackgrounds => 'Backgrounds';
+  @override
+  String drawBackgroundName(String id) => switch (id) {
+        'plain' => 'Plain',
+        'grid' => 'Grid',
+        'dots' => 'Dots',
+        'notebook' => 'Notebook',
+        'millimeter' => 'Graph paper',
+        'kraft' => 'Kraft',
+        'chalkboard' => 'Chalkboard',
+        'music' => 'Sheet music',
+        'stars' => 'Stars',
+        'hearts' => 'Hearts',
+        'watercolor' => 'Watercolour',
+        'film' => 'Film',
+        _ => id,
+      };
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

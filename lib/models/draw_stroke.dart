@@ -59,6 +59,12 @@ class DrawStroke {
   /// Rotation of the image in radians.
   final double? imageRotation;
 
+  /// Номер слоя, на котором лежит штрих. 0 — нижний.
+  ///
+  /// У старых рисунков поля нет, и они читаются как нулевой слой: холст
+  /// выглядит ровно так же, как раньше, просто теперь это «нижний слой».
+  final int layer;
+
   const DrawStroke({
     required this.id,
     required this.userId,
@@ -75,6 +81,7 @@ class DrawStroke {
     this.imageWidth,
     this.imageHeight,
     this.imageRotation,
+    this.layer = 0,
   });
 
   bool get isImageStroke => imageUrl != null;
@@ -100,6 +107,9 @@ class DrawStroke {
     if (imageWidth != null) 'imageWidth': imageWidth,
     if (imageHeight != null) 'imageHeight': imageHeight,
     if (imageRotation != null) 'imageRotation': imageRotation,
+    // Нулевой слой не пишем: так старые и новые рисунки остаются одинаковыми
+    // на вид, а карта не пухнет ради значения по умолчанию.
+    if (layer != 0) 'layer': layer,
   };
 
   factory DrawStroke.fromFirestore(Map<String, dynamic> data, String id) {
@@ -122,6 +132,7 @@ class DrawStroke {
       imageWidth: (data['imageWidth'] as num?)?.toDouble(),
       imageHeight: (data['imageHeight'] as num?)?.toDouble(),
       imageRotation: (data['imageRotation'] as num?)?.toDouble(),
+      layer: (data['layer'] as num?)?.toInt() ?? 0,
     );
   }
 
