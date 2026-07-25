@@ -107,14 +107,25 @@ const bool kCoinsPurchasable = kStore != 'github';
 /// нельзя (продажа валюты за внешний платёж = нарушение биллинга/3.1.1).
 const bool kDonationsEnabled = kStore == 'github' || kStore == 'rustore';
 
-/// Создаёт реализацию магазина под текущую сборку. Google Play / App Store —
-/// [IapService], RuStore — [RuStoreIapService], гитхаб-версия — заглушка без
-/// покупок.
-CoinStore createCoinStore() => switch (kStore) {
-      'rustore' => RuStoreIapService(),
-      'github' => _DisabledCoinStore(),
-      _ => IapService(),
-    };
+/// Создаёт реализацию магазина под текущую сборку. Google Play —
+/// [IapService], RuStore — [RuStoreIapService], гитхаб-версия и iOS — заглушка
+/// без покупок.
+///
+/// На iOS StoreKit не трогаем совсем. Витрина паков там скрыта (см.
+/// `profile_screen`), но [IapService.init] всё равно спрашивал у стора
+/// `coins_10/50/120/300`, а эти продукты в App Store Connect лежат
+/// черновиками. App Review видел механику покупок без рабочих продуктов и
+/// отклонял версию по 2.1(b) — «products … could not be found in the
+/// submitted binary». Вернём паки на iPhone — сначала проводим продукты через
+/// ревью, потом снимаем эту ветку.
+CoinStore createCoinStore() {
+  if (defaultTargetPlatform == TargetPlatform.iOS) return _DisabledCoinStore();
+  return switch (kStore) {
+    'rustore' => RuStoreIapService(),
+    'github' => _DisabledCoinStore(),
+    _ => IapService(),
+  };
+}
 
 /// Магазин-заглушка для сборок без покупок (гитхаб): всё выключено, `buy`
 /// сразу возвращает ошибку. UI покупки в такой сборке всё равно скрыт
