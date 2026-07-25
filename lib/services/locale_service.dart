@@ -1047,6 +1047,11 @@ abstract class AppStrings {
   String get pixelCanvasCreateAction;
   String get plainCanvasSubtitle;
   String get pixelCanvasSubtitle;
+  /// Массовые действия в галерее холстов.
+  String selectedCount(int n);
+  String get selectAll;
+  String deleteCanvasesTitle(int n);
+  String deleteCanvasesConfirm(int n);
   String get chatStyleFace;
   String get chatStyleBackground;
   String get chatStyleTextColor;
@@ -3454,6 +3459,16 @@ class _RuStrings extends AppStrings {
   String get plainCanvasSubtitle => 'Кисть, фигуры, фото';
   @override
   String get pixelCanvasSubtitle => 'Рисуем по клеткам, сетку выберете сами';
+  @override
+  String selectedCount(int n) => 'Выбрано $n';
+  @override
+  String get selectAll => 'Все';
+  @override
+  String deleteCanvasesTitle(int n) => n == 1 ? 'Удалить холст?' : 'Удалить $n холстов?';
+  @override
+  String deleteCanvasesConfirm(int n) => n == 1
+      ? 'Рисунок исчезнет у обоих. Вернуть его будет нельзя.'
+      : 'Рисунки исчезнут у обоих. Вернуть их будет нельзя.';
   @override
   String get chatStyleFace => 'Мордочка';
   @override
@@ -6249,6 +6264,16 @@ class _EnStrings extends AppStrings {
   String get plainCanvasSubtitle => 'Brush, shapes, photos';
   @override
   String get pixelCanvasSubtitle => 'Cell by cell, you pick the grid';
+  @override
+  String selectedCount(int n) => 'Selected $n';
+  @override
+  String get selectAll => 'All';
+  @override
+  String deleteCanvasesTitle(int n) => n == 1 ? 'Delete canvas?' : 'Delete $n canvases?';
+  @override
+  String deleteCanvasesConfirm(int n) => n == 1
+      ? 'The drawing disappears for both of you. This cannot be undone.'
+      : 'The drawings disappear for both of you. This cannot be undone.';
   @override
   String get chatStyleFace => 'Face';
   @override

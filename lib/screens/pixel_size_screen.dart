@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/fonts.dart';
 
 /// Выбор сетки для пиксель-арта — отдельным экраном, как в макете: имя раздела
 /// во весь верх, поля ширины и высоты, готовые размеры, живое превью формы
@@ -77,12 +78,11 @@ class _PixelSizeScreenState extends State<PixelSizeScreen> {
               const SizedBox(height: 6),
               Text(
                 s.pixelScreenTitle,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontSize: 62,
+                style: AppFonts.unbounded(
+                  size: 62,
+                  weight: 800,
                   height: 0.86,
                   letterSpacing: -3,
-                  fontWeight: FontWeight.w800,
                   color: t.textPrimary,
                 ),
               ),
@@ -100,10 +100,9 @@ class _PixelSizeScreenState extends State<PixelSizeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
                       '×',
-                      style: TextStyle(
-                        fontFamily: 'Unbounded',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                      style: AppFonts.unbounded(
+                        size: 20,
+                        weight: 700,
                         color: t.textMuted,
                       ),
                     ),
@@ -174,10 +173,9 @@ class _PixelSizeScreenState extends State<PixelSizeScreen> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: (_) => setState(() {}),
-            style: TextStyle(
-              fontFamily: 'Unbounded',
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
+            style: AppFonts.unbounded(
+              size: 26,
+              weight: 700,
               letterSpacing: -0.5,
               color: t.textPrimary,
             ),

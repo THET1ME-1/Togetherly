@@ -9,6 +9,7 @@ import '../models/user_data.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/fonts.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
 import 'draw_screen.dart';
@@ -37,6 +38,11 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   final CanvasStorageService _storage = CanvasStorageService.instance;
   List<CanvasMeta> _canvases = [];
   bool _loading = true;
+
+  /// Отмеченные холсты. Пустое множество — обычный просмотр. Долгое нажатие
+  /// включает выбор, дальше карточки отмечаются касанием.
+  final Set<String> _selected = <String>{};
+  bool get _selectionMode => _selected.isNotEmpty;
 
   String get _uid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
@@ -156,17 +162,41 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     _load();
   }
 
-  Future<void> _deleteCanvas(CanvasMeta meta) async {
+  void _toggleSelected(CanvasMeta meta) {
+    setState(() {
+      if (!_selected.remove(meta.id)) _selected.add(meta.id);
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      if (_selected.length == _canvases.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(_canvases.map((c) => c.id));
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
     final s = LocaleService.current;
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
     final confirmed = await AppDialog.confirm(
       context,
-      title: s.deleteCanvas,
-      message: s.deleteCanvasConfirm,
+      title: s.deleteCanvasesTitle(ids.length),
+      message: s.deleteCanvasesConfirm(ids.length),
       confirmLabel: s.delete,
       destructive: true,
     );
     if (!confirmed || !mounted) return;
-    await _storage.deleteCanvas(_uid, meta.id, groupId: _groupId);
+    for (final id in ids) {
+      await _storage.deleteCanvas(_uid, id, groupId: _groupId);
+    }
+    if (!mounted) return;
+    setState(_selected.clear);
     _load();
   }
 
@@ -301,6 +331,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     required String initial,
   }) async {
     final s = LocaleService.current;
+    final t = widget.theme;
     final controller = TextEditingController(text: initial);
     controller.selection = TextSelection(
       baseOffset: 0,
@@ -310,79 +341,78 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(
-            labelText: s.canvasNameLabel,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: t.cardSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        title: Text(
+          title,
+          style: AppFonts.unbounded(
+            size: 21,
+            weight: 700,
+            letterSpacing: -0.4,
+            color: t.textPrimary,
           ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        content: Container(
+          decoration: BoxDecoration(
+            color: t.surfaceMuted,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                s.canvasNameLabel,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: t.primary,
+                ),
+              ),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                style: TextStyle(fontSize: 17, color: t.textPrimary),
+                decoration: const InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 6),
+                ),
+                onSubmitted: (v) => Navigator.pop(ctx, v),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(
+              shape: const StadiumBorder(),
+              foregroundColor: t.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            ),
             child: Text(s.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text),
-            child: Text(s.done),
+            style: FilledButton.styleFrom(
+              backgroundColor: t.primary,
+              foregroundColor: _onPrimary(t),
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+            ),
+            child: Text(
+              s.done,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showContextMenu(BuildContext ctx, CanvasMeta meta) {
-    final s = LocaleService.current;
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: widget.theme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: widget.theme.divider,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline_rounded),
-              title: Text(s.renameCanvas),
-              onTap: () {
-                Navigator.pop(ctx);
-                _renameCanvas(meta);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.red.shade400,
-              ),
-              title: Text(
-                s.deleteCanvas,
-                style: TextStyle(color: Colors.red.shade400),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _deleteCanvas(meta);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
       ),
     );
   }
@@ -405,21 +435,21 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _roundBack(t),
+              if (_selectionMode) _selectionBar(s, t) else _roundBack(t),
               const SizedBox(height: 6),
-              Text(
-                s.canvasesTitle,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontSize: 62,
-                  height: 0.86,
-                  letterSpacing: -3,
-                  fontWeight: FontWeight.w800,
-                  color: t.textPrimary,
+              if (!_selectionMode)
+                Text(
+                  s.canvasesTitle,
+                  style: AppFonts.unbounded(
+                    size: 62,
+                    weight: 800,
+                    height: 0.86,
+                    letterSpacing: -3,
+                    color: t.textPrimary,
+                  ),
                 ),
-              ),
               const SizedBox(height: 10),
-              if (!_loading && _canvases.isNotEmpty)
+              if (!_selectionMode && !_loading && _canvases.isNotEmpty)
                 Text(
                   s.canvasesSubtitle(
                     _canvases.length,
@@ -438,7 +468,27 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
+                child: _selectionMode
+                    ? FilledButton.icon(
+                        onPressed: _deleteSelected,
+                        icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                        label: Text(
+                          s.delete,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: t.isDark
+                              ? const Color(0xFF93000A)
+                              : const Color(0xFFFFDAD6),
+                          foregroundColor: t.isDark
+                              ? const Color(0xFFFFDAD6)
+                              : const Color(0xFF410002),
+                          padding: const EdgeInsets.symmetric(vertical: 17),
+                          shape: const StadiumBorder(),
+                        ),
+                      )
+                    : FilledButton(
                   onPressed: _createNewCanvas,
                   style: FilledButton.styleFrom(
                     backgroundColor: t.primary,
@@ -465,6 +515,61 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   /// Контрастный цвет поверх акцента: у светлых акцентов белый текст тонет.
   Color _onPrimary(AppTheme t) =>
       t.primary.computeLuminance() > 0.55 ? const Color(0xFF16161A) : Colors.white;
+
+  /// Шапка режима выбора: выход, счётчик, переименование одного и «Все».
+  Widget _selectionBar(AppStrings s, AppTheme t) {
+    final one = _selected.length == 1;
+    return Row(
+      children: [
+        Material(
+          color: t.cardSurface,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => setState(_selected.clear),
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: Icon(Icons.close_rounded, size: 20, color: t.textPrimary),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            s.selectedCount(_selected.length),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: t.textPrimary,
+            ),
+          ),
+        ),
+        if (one)
+          IconButton(
+            onPressed: () {
+              final meta =
+                  _canvases.firstWhere((c) => c.id == _selected.first);
+              setState(_selected.clear);
+              _renameCanvas(meta);
+            },
+            icon: Icon(Icons.drive_file_rename_outline_rounded,
+                color: t.textPrimary),
+            tooltip: s.renameCanvas,
+          ),
+        TextButton(
+          onPressed: _selectAll,
+          style: TextButton.styleFrom(
+            shape: const StadiumBorder(),
+            foregroundColor: t.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          child: Text(s.selectAll,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
 
   Widget _roundBack(AppTheme t) => Material(
         color: t.cardSurface,
@@ -526,11 +631,21 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   Widget _buildCard(BuildContext ctx, CanvasMeta meta, AppTheme t) {
     // Карточка из макета: превью на всю плитку, имя и дата поверх него в
     // нижнем углу. Без белой полосы снизу и без теней.
+    final picked = _selected.contains(meta.id);
     return GestureDetector(
-      onTap: () => _openCanvas(meta),
-      onLongPress: () => _showContextMenu(ctx, meta),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+      // В режиме выбора касание отмечает холст, а не открывает его.
+      onTap: () => _selectionMode ? _toggleSelected(meta) : _openCanvas(meta),
+      onLongPress: () => _toggleSelected(meta),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: picked ? t.primary : Colors.transparent,
+            width: 3,
+          ),
+        ),
+        child: ClipRRect(
+        borderRadius: BorderRadius.circular(21),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -583,6 +698,30 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                 ],
               ),
             ),
+            // Отметка выбора
+            if (_selectionMode)
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: picked
+                        ? t.primary
+                        : Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: picked ? t.primary : Colors.white70,
+                      width: 2,
+                    ),
+                  ),
+                  child: picked
+                      ? Icon(Icons.check_rounded,
+                          size: 16, color: _onPrimary(t))
+                      : null,
+                ),
+              ),
             // Пиксельный холст помечаем: сетку потом не поменять, полезно
             // видеть заранее.
             if (meta.isPixel)
@@ -607,6 +746,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );

@@ -2536,11 +2536,18 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   Widget _buildMainToolbarRow(AppStrings s, AppTheme t) {
+    // Инструментов больше, чем влезает в строку, поэтому ряд прокручивается.
+    // Раньше лишние кнопки просто обрезались краем экрана и до них было не
+    // добраться.
     return SafeArea(
       top: false,
       child: SizedBox(
-        height: 64,
-        child: Row(
+        height: 68,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
           children: [
             const SizedBox(width: 8),
             // Color dot - opens color picker
@@ -2563,8 +2570,9 @@ class _DrawScreenState extends State<DrawScreen>
               ),
             ),
             const SizedBox(width: 4),
-            // Color scroll bar
-            Expanded(
+            // Лента цветов: своя ширина, иначе Expanded внутри прокрутки падает
+            SizedBox(
+              width: 210,
               child: SizedBox(
                 height: 64,
                 child: ListView.builder(
@@ -2657,6 +2665,7 @@ class _DrawScreenState extends State<DrawScreen>
             _expandBtn(t),
             const SizedBox(width: 4),
           ],
+          ),
         ),
       ),
     );

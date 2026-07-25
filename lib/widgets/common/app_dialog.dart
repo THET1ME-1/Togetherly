@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/fonts.dart';
+
 import '../../services/locale_service.dart';
 
 /// Единый стиль для всех меню приложения: диалоги, подтверждения и снэкбары.
@@ -23,26 +25,63 @@ abstract final class AppDialog {
     bool destructive = false,
     IconData? icon,
   }) async {
-    final accent = Theme.of(context).colorScheme.primary;
-    final confirmColor = destructive ? const Color(0xFFE5484D) : accent;
+    final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
+    // M3: заголовок Unbounded, крупные скругления, кнопки-таблетки. Деструктивное
+    // действие — тональная кнопка на errorContainer, а не красный текст: так
+    // видно, что оно опасное, но кнопка остаётся кнопкой.
+    final confirmBg = destructive ? cs.errorContainer : cs.primary;
+    final confirmFg = destructive ? cs.onErrorContainer : cs.onPrimary;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: icon != null ? Icon(icon, color: confirmColor, size: 30) : null,
-        title: title != null ? Text(title) : null,
-        content: Text(message),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        backgroundColor: cs.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        icon: icon != null
+            ? Icon(icon, color: destructive ? cs.error : cs.primary, size: 30)
+            : null,
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        title: title != null
+            ? Text(
+                title,
+                style: AppFonts.unbounded(
+                  size: 21,
+                  weight: 700,
+                  letterSpacing: -0.4,
+                  color: cs.onSurface,
+                ),
+              )
+            : null,
+        content: Text(
+          message,
+          style: TextStyle(fontSize: 15, height: 1.4, color: cs.onSurfaceVariant),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(
+              shape: const StadiumBorder(),
+              foregroundColor: cs.onSurfaceVariant,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            ),
             child: Text(cancelLabel ?? s.cancel),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: confirmColor),
-            child: Text(confirmLabel ?? s.confirm),
+            style: FilledButton.styleFrom(
+              backgroundColor: confirmBg,
+              foregroundColor: confirmFg,
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+            ),
+            child: Text(
+              confirmLabel ?? s.confirm,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -62,19 +101,48 @@ abstract final class AppDialog {
     final s = LocaleService.current;
     return showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: icon != null ? Icon(icon, color: accent, size: 30) : null,
-        title: Text(title),
-        content: Text(message),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: accent),
-            child: Text(buttonLabel ?? s.ok),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          backgroundColor: cs.surfaceContainerHigh,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          icon: icon != null ? Icon(icon, color: accent, size: 30) : null,
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          title: Text(
+            title,
+            style: AppFonts.unbounded(
+              size: 21,
+              weight: 700,
+              letterSpacing: -0.4,
+              color: cs.onSurface,
+            ),
           ),
-        ],
-      ),
+          content: Text(
+            message,
+            style:
+                TextStyle(fontSize: 15, height: 1.4, color: cs.onSurfaceVariant),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                shape: const StadiumBorder(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+              ),
+              child: Text(
+                buttonLabel ?? s.ok,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
