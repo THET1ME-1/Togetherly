@@ -4,15 +4,17 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Совместный просмотр стал мощнее, а приложение — красивее 💜\n'
+    'Счётчик дней и цвет сообщений — по-вашему 💜\n'
     '\n'
-    '— Смотрите вместе из YouTube, VK Видео, Rutube, Vimeo, Яндекс.Диска, Dropbox, прямых ссылок и файлов — пауза и перемотка у обоих.\n'
-    '— Большой редизайн: главный экран, виджеты, вход и календарь настроений.\n'
-    '— 34 подарка, страница профиля партнёра и достижения за весь срок отношений.';
+    '— Дни вместе везде считаются от вашей даты из таймера, а не от дня, когда пара сошлась в приложении.\n'
+    '— Цвет текста сообщения выбирается отдельно от цвета пузыря; без настройки подбирается по контрасту с фоном.\n'
+    '— Полка «Что вам дарили» собирает подарки из всех ваших связей.\n'
+    '— Кнопки под таймером в светлой теме стали белыми.';
 
 const String enWhatsNew =
-    'Watch together got more powerful, and the app got prettier 💜\n'
+    'The day counter and message colors now follow you 💜\n'
     '\n'
-    '— Watch together from YouTube, VK Video, Rutube, Vimeo, Yandex.Disk, Dropbox, direct links and files — pause and seek for both.\n'
-    '— Big redesign: home, widgets, sign-in and the mood calendar.\n'
-    '— 34 gifts, a partner profile page, and achievements counted for your whole time together.';
+    '— Days together are counted from your own timer date everywhere, not from the day you paired in the app.\n'
+    '— Message text color is picked separately from the bubble; left alone, it follows contrast with the background.\n'
+    '— The «Gifts you received» shelf gathers gifts from all your connections.\n'
+    '— Action buttons under the timer are white in the light theme.';

@@ -38,6 +38,10 @@ class ChatMsg {
   /// Цвет пузыря, выбранный отправителем (ARGB int). null — цвет темы.
   final int? color;
 
+  /// Цвет текста, выбранный отправителем (ARGB int). null — авто-контраст по
+  /// фону пузыря (белый или почти чёрный — что читаемее).
+  final int? textColor;
+
   /// Позиция мордочки на пузыре в долях 0..1 (по ширине/высоте).
   /// null — позиция по умолчанию (низ-центр).
   final double? faceX;
@@ -60,6 +64,7 @@ class ChatMsg {
     this.replyToText,
     this.face,
     this.color,
+    this.textColor,
     this.faceX,
     this.faceY,
   });
@@ -123,6 +128,7 @@ class ChatMsg {
       replyToText: nz(m['reply_to_text']),
       face: nz(m['face']),
       color: nzInt(m['color']),
+      textColor: nzInt(m['text_color']),
       faceX: nzDouble(m['face_x']),
       faceY: nzDouble(m['face_y']),
     );

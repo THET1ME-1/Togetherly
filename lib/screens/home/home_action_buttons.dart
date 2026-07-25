@@ -93,7 +93,10 @@ class HomeActionButtons extends StatelessWidget {
             width: 74,
             height: 118,
             decoration: BoxDecoration(
-              color: theme.cardSurface,
+              // Светлая тема — чистый белый: тональный surfaceContainerHigh
+              // (его отдаёт cardSurface) выглядел на бледном фоне грязно-серым.
+              // Тёмная остаётся на поверхности карточки, там белый бы слепил.
+              color: theme.isDark ? theme.cardSurface : Colors.white,
               borderRadius: BorderRadius.circular(100),
             ),
             child: Center(

@@ -423,6 +423,11 @@
      "required": false
     },
     {
+     "name": "text_color",
+     "type": "number",
+     "required": false
+    },
+    {
      "name": "face_x",
      "type": "number",
      "required": false
