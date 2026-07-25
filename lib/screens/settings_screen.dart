@@ -1,0 +1,240 @@
+import 'package:flutter/material.dart';
+
+import '../services/locale_service.dart';
+import '../theme/profile_theme.dart';
+import '../widgets/settings_scaffold.dart';
+
+/// Экран настроек.
+///
+/// Раньше настройки жили внутри профиля: девять сворачивающихся блоков вперемешку
+/// с карточками пары и статистикой, каждый со своим набором плиток. Одни и те же
+/// вещи попадались дважды, а стиль плыл от блока к блоку.
+///
+/// Здесь один каркас на весь экран ([SettingsGroup] + [SettingsRow]) и порядок
+/// секций от «трогаешь каждый день» к «раз в полгода». Логика осталась в профиле:
+/// экран получает готовые обработчики и ничего не знает про PocketBase.
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({
+    super.key,
+    required this.scheme,
+    required this.onAppearance,
+    required this.onNotifications,
+    required this.onLanguage,
+    required this.onCoinShop,
+    required this.onPrivacyPolicy,
+    required this.onExport,
+    required this.onResetMissYou,
+    required this.onTerms,
+    required this.onSupport,
+    required this.onAbout,
+    required this.onLogout,
+    required this.onDeleteAccount,
+    required this.lockScreenMood,
+    required this.onLockScreenMoodChanged,
+    required this.sideActionIsArrow,
+    required this.onToggleSideAction,
+    this.appVersion = '',
+  });
+
+  final ColorScheme scheme;
+
+  final VoidCallback onAppearance;
+  final VoidCallback onNotifications;
+  final VoidCallback onLanguage;
+  final VoidCallback onCoinShop;
+  final VoidCallback onPrivacyPolicy;
+  final VoidCallback onExport;
+  final VoidCallback onResetMissYou;
+  final VoidCallback onTerms;
+  final VoidCallback onSupport;
+  final VoidCallback onAbout;
+  final VoidCallback onLogout;
+  final VoidCallback onDeleteAccount;
+
+  final bool lockScreenMood;
+  final ValueChanged<bool> onLockScreenMoodChanged;
+
+  final bool sideActionIsArrow;
+  final VoidCallback onToggleSideAction;
+
+  final String appVersion;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = LocaleService.current;
+
+    return Theme(
+      data: ProfileTheme.data(scheme),
+      child: Builder(
+        builder: (context) => Scaffold(
+          backgroundColor: scheme.surface,
+          appBar: AppBar(
+            backgroundColor: scheme.surface,
+            surfaceTintColor: Colors.transparent,
+            centerTitle: true,
+            title: Text(
+              s.settingsTitle,
+              style: TextStyle(
+                fontFamily: 'Unbounded',
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                fontVariations: const [FontVariation('wght', 600)],
+                color: scheme.onSurface,
+              ),
+            ),
+          ),
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              4,
+              16,
+              MediaQuery.of(context).padding.bottom + 32,
+            ),
+            children: [
+              SettingsSection(s.appearanceTitle),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.palette_rounded,
+                  title: s.appearanceTitle,
+                  subtitle: s.settingsAppearanceHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onAppearance,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.translate_rounded,
+                  title: s.language,
+                  subtitle: LocaleService.instance.isRussian
+                      ? 'Русский'
+                      : 'English',
+                  trailing: const SettingsChevron(),
+                  onTap: onLanguage,
+                ),
+              ]),
+
+              SettingsSection(s.notifications),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.notifications_rounded,
+                  title: s.notifications,
+                  subtitle: s.settingsNotificationsHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onNotifications,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.lock_clock_rounded,
+                  title: s.lockScreenMoodToggle,
+                  subtitle: s.settingsLockMoodHint,
+                  trailing: Switch(
+                    value: lockScreenMood,
+                    onChanged: onLockScreenMoodChanged,
+                  ),
+                  onTap: () => onLockScreenMoodChanged(!lockScreenMood),
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.touch_app_rounded,
+                  title: s.sideActionTitle,
+                  subtitle: sideActionIsArrow
+                      ? s.sideActionOpenFeed
+                      : s.sideActionCreatePin,
+                  trailing: Icon(
+                    Icons.swap_horiz_rounded,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  onTap: onToggleSideAction,
+                ),
+              ]),
+
+              SettingsSection(s.settingsDataSection),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.download_rounded,
+                  title: s.exportMemories,
+                  subtitle: s.settingsExportHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onExport,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.replay_rounded,
+                  title: s.resetMissYouCount,
+                  subtitle: s.settingsResetMissHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onResetMissYou,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.shield_rounded,
+                  title: s.privacy,
+                  subtitle: s.settingsPrivacyHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onPrivacyPolicy,
+                ),
+              ]),
+
+              SettingsSection(s.coinShopTitle),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.monetization_on_rounded,
+                  title: s.coinShopTitle,
+                  subtitle: s.settingsCoinsHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onCoinShop,
+                ),
+              ]),
+
+              SettingsSection(s.aboutApp),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.info_rounded,
+                  title: s.aboutApp,
+                  subtitle: appVersion.isEmpty ? null : appVersion,
+                  trailing: const SettingsChevron(),
+                  onTap: onAbout,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.description_rounded,
+                  title: s.termsOfUse,
+                  trailing: const SettingsChevron(),
+                  onTap: onTerms,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.mail_rounded,
+                  title: s.supportTitle,
+                  subtitle: s.settingsSupportHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onSupport,
+                ),
+              ]),
+
+              SettingsSection(s.settingsAccountSection, color: scheme.error),
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.logout_rounded,
+                  title: s.logout,
+                  iconBg: scheme.surfaceContainerHighest,
+                  iconFg: scheme.onSurfaceVariant,
+                  onTap: onLogout,
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.delete_forever_rounded,
+                  title: s.deleteAccount,
+                  subtitle: s.settingsDeleteHint,
+                  iconBg: scheme.errorContainer,
+                  iconFg: scheme.onErrorContainer,
+                  titleColor: scheme.error,
+                  onTap: onDeleteAccount,
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

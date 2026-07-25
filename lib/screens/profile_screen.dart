@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'profile/profile_banner.dart';
 import 'profile/profile_hero.dart';
 import 'profile/miss_you_week_chart.dart';
 import '../models/partner_profile.dart';
@@ -10,12 +9,9 @@ import '../utils/couple_days.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
-import '../services/level_service.dart';
-import 'level_tasks_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/safe_pick.dart';
 import 'package:image_cropper/image_cropper.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -34,6 +30,8 @@ import '../theme/app_theme.dart';
 import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/settings_scaffold.dart';
+import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
@@ -45,7 +43,6 @@ import '../widgets/seed_swatch.dart';
 import '../utils/share_origin.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
-import '../services/home_widget_service.dart';
 import '../services/widget_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/app_icon_service.dart';
@@ -626,6 +623,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Профиль показывает только то, ради чего на него
+                      // заходят каждый день. Всё остальное — оформление,
+                      // уведомления, данные, аккаунт — уехало на отдельный
+                      // экран настроек: здесь оно тонуло в девяти
+                      // сворачивающихся блоках со своими стилями.
                       _buildFriendsGroup(context),
                       _m3Group('stats', _s.relationshipStats,
                           Icons.insights_rounded,
@@ -641,29 +643,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _m3Group('pair', _s.relationships,
                             Icons.favorite_rounded,
                             child: _buildPairGroup(context)),
-                      _m3Group('coins', _s.coinShopTitle,
-                          Icons.monetization_on_rounded,
-                          child: _buildCoinsGroup(context)),
-                      _m3Group('appearance', _s.appearanceTitle,
-                          Icons.palette_rounded,
-                          child: _buildAppearanceCard(context)),
-                      _m3Group('notif', _s.notifications,
-                          Icons.notifications_rounded,
-                          initiallyExpanded: false,
-                          child: _buildNotifGroup(context)),
-                      _m3Group('data', _s.privacy, Icons.shield_outlined,
-                          initiallyExpanded: false,
-                          child: _buildDataGroup(context)),
-                      _m3Group('lang', _s.language, Icons.language_rounded,
-                          initiallyExpanded: false,
-                          child: _buildLangGroup(context)),
                       const SizedBox(height: 22),
                       _buildDonationCard(context),
-                      _m3Group('about', _s.aboutApp, Icons.info_outline_rounded,
-                          initiallyExpanded: false,
-                          child: _buildAboutGroup(context)),
                       const SizedBox(height: 16),
-                      _buildDangerZone(context),
+                      SettingsGroup([
+                        SettingsRow(
+                          icon: Icons.settings_rounded,
+                          title: _s.settingsOpen,
+                          subtitle: _s.settingsOpenHint,
+                          trailing: const SettingsChevron(),
+                          onTap: () => _openSettings(context),
+                        ),
+                      ]),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -1239,123 +1230,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Группы настроек (плоские M3-карточки, заголовок даёт _m3Group) ──
 
-  Widget _buildNotifGroup(BuildContext context) {
-    final cs = _cs;
-    return _m3Card([
-      _m3Tile(
-        icon: Icons.notifications_outlined,
-        label: _s.notifications,
-        onTap: () => _showNotificationSettings(context),
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.lock_clock_outlined,
-        label: _s.lockScreenMoodToggle,
-        trailing: Switch(
-          value: _lockScreenMood,
-          onChanged: (v) async {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool(_kLockScreenMood, v);
-            if (mounted) setState(() => _lockScreenMood = v);
-          },
+  /// Открывает экран настроек. Логика остаётся здесь — экран получает готовые
+  /// обработчики и ничего не знает ни про PocketBase, ни про покупки.
+  Future<void> _openSettings(BuildContext context) async {
+    final version = await _getAppVersion();
+    if (!mounted) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StatefulBuilder(
+          builder: (ctx, setSheetState) => SettingsScreen(
+            scheme: _cs,
+            appVersion: 'Togetherly $version',
+            onAppearance: () => _openAppearance(ctx),
+            onNotifications: () => _showNotificationSettings(ctx),
+            onLanguage: () => _showLanguagePicker(ctx),
+            onCoinShop: () => _showCoinShop(ctx),
+            onPrivacyPolicy: _openPrivacyPolicy,
+            onExport: () => _handleExportConfig(ctx),
+            onResetMissYou: () => _handleResetMissYouCount(ctx),
+            onTerms: _openTerms,
+            onSupport: _openSupportMail,
+            onAbout: _openAboutApp,
+            onLogout: () => _showLogoutDialog(ctx),
+            onDeleteAccount: () => _showDeleteAccountDialog(ctx),
+            lockScreenMood: _lockScreenMood,
+            onLockScreenMoodChanged: (v) async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(_kLockScreenMood, v);
+              if (!mounted) return;
+              setState(() => _lockScreenMood = v);
+              setSheetState(() {});
+            },
+            sideActionIsArrow: _sideActionIsArrow,
+            onToggleSideAction: () async {
+              await _toggleSideAction();
+              setSheetState(() {});
+            },
+          ),
         ),
       ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.touch_app_outlined,
-        label: _s.sideActionTitle,
-        onTap: _toggleSideAction,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _sideActionIsArrow ? _s.sideActionOpenFeed : _s.sideActionCreatePin,
-              style: TextStyle(
-                fontFamily: ProfileTheme.bodyFont,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurfaceVariant,
+    );
+  }
+
+  /// Оформление отдельным экраном — как в эталоне. Внутри та же карточка, что
+  /// раньше лежала прямо в профиле.
+  void _openAppearance(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Theme(
+          data: ProfileTheme.data(_cs),
+          child: Builder(
+            builder: (ctx) => Scaffold(
+              backgroundColor: _cs.surface,
+              appBar: AppBar(
+                backgroundColor: _cs.surface,
+                surfaceTintColor: Colors.transparent,
+                centerTitle: true,
+                title: Text(
+                  _s.appearanceTitle,
+                  style: TextStyle(
+                    fontFamily: 'Unbounded',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    fontVariations: const [FontVariation('wght', 600)],
+                    color: _cs.onSurface,
+                  ),
+                ),
+              ),
+              body: ListView(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(ctx).padding.bottom + 32,
+                ),
+                children: [_buildAppearanceCard(ctx)],
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.swap_horiz_rounded, color: cs.onSurfaceVariant, size: 20),
-          ],
+          ),
         ),
       ),
-    ]);
+    );
   }
 
-  Widget _buildDataGroup(BuildContext context) {
-    return _m3Card([
-      _m3Tile(
-        icon: Icons.lock_outline_rounded,
-        label: _s.privacy,
-        onTap: _openPrivacyPolicy,
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.archive_outlined,
-        label: _s.exportMemories,
-        onTap: () => _handleExportConfig(context),
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.replay_rounded,
-        label: _s.resetMissYouCount,
-        onTap: () => _handleResetMissYouCount(context),
-      ),
-    ]);
-  }
 
-  Widget _buildLangGroup(BuildContext context) {
-    final cs = _cs;
-    return _m3Card([
-      _m3Tile(
-        icon: Icons.language_rounded,
-        label: _s.language,
-        onTap: () => _showLanguagePicker(context),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              LocaleService.instance.language == AppLanguage.ru ? 'RU' : 'EN',
-              style: TextStyle(
-                fontFamily: ProfileTheme.bodyFont,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded,
-                color: cs.onSurfaceVariant, size: 20),
-          ],
-        ),
-      ),
-    ]);
-  }
 
-  Widget _buildAboutGroup(BuildContext context) {
-    return _m3Card([
-      _m3Tile(
-        icon: Icons.description_outlined,
-        label: _s.termsOfUse,
-        onTap: _openTerms,
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.mail_outline_rounded,
-        label: _s.supportTitle,
-        onTap: _openSupportMail,
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.info_outline_rounded,
-        label: _s.aboutApp,
-        onTap: _openAboutApp,
-      ),
-    ]);
-  }
+
 
   // ── Друзья / партнёры (все группы) ──
 
@@ -1489,46 +1450,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ]);
   }
 
-  /// «Монеты»: магазин (баланс, тап → шит) + уровень (тап → экран).
-  Widget _buildCoinsGroup(BuildContext context) {
-    final cs = _cs;
-    return _m3Card([
-      _m3Tile(
-        leadingWidget:
-            Image.asset('assets/images/icons/coin.webp', width: 26, height: 26),
-        label: _s.coinShopTitle,
-        subtitle: _s.coinShopSubtitle,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/images/icons/coin.webp', width: 16, height: 16),
-            const SizedBox(width: 4),
-            Text('${widget.userData.coins}',
-                style: TextStyle(
-                    fontFamily: ProfileTheme.bodyFont,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: cs.onSurface)),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
-          ],
-        ),
-        onTap: () => _openCardSheet(context, _buildCoinShopCard(context)),
-      ),
-      _m3Divider(),
-      _m3Tile(
-        icon: Icons.emoji_events_outlined,
-        label: _s.levelTasksGroup,
-        subtitle: 'Ур. ${LevelService.instance.level}',
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                LevelTasksScreen(accent: _accent, accentLight: _accentLight),
-          ),
-        ),
-      ),
-    ]);
-  }
 
   /// Заметная карточка доната (как в Kadr): заголовок + текст + три кнопки.
   /// Не сворачивается, стоит отдельным блоком над «О приложении».
@@ -2163,278 +2084,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  //  INFO CARD
-  // ═══════════════════════════════════════════════════
-  Widget _buildInfoCard(BuildContext context) {
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _s.information,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _t.textMuted,
-              letterSpacing: 3,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _infoRow(
-            icon: Icons.person_outline_rounded,
-            label: _s.name,
-            value: widget.userData.displayName.isNotEmpty
-                ? widget.userData.displayName
-                : '—',
-          ),
-          _divider(),
-          _infoRow(
-            icon: Icons.email_outlined,
-            label: 'Email',
-            value: widget.userData.email.isNotEmpty
-                ? widget.userData.email
-                : '—',
-          ),
-          _divider(),
-          GestureDetector(
-            onTap: () => _showGenderPicker(context),
-            behavior: HitTestBehavior.opaque,
-            child: _infoRow(
-              icon: widget.userData.isMale
-                  ? Icons.male_rounded
-                  : Icons.female_rounded,
-              label: _s.gender,
-              value: widget.userData.isMale ? _s.male : _s.female,
-              trailing: Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: _t.textMuted,
-              ),
-            ),
-          ),
-          _divider(),
-          GestureDetector(
-            onTap: () => _showThemePicker(context),
-            behavior: HitTestBehavior.opaque,
-            child: _infoRow(
-              icon: Icons.palette_outlined,
-              label: _s.theme,
-              value: _themeDisplayName(widget.userData.themeId),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: _accent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: _t.accentGlow(
-                        _accent,
-                        opacity: 0.3,
-                        blurRadius: 6,
-                        offset: Offset.zero,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: _t.textMuted,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (AppIconService.instance.isSupported) ...[
-            _divider(),
-            GestureDetector(
-              onTap: () => _showAppIconPicker(context),
-              behavior: HitTestBehavior.opaque,
-              child: _infoRow(
-                icon: Icons.apps_rounded,
-                label: LocaleService.current.appIconTitle,
-                value: _appIconName(_appIconId),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _appIconPreview(_appIconOption(_appIconId), size: 24),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: _t.textMuted,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
-  AppIconOption _appIconOption(String id) =>
-      AppIconService.options.firstWhere((o) => o.id == id,
-          orElse: () => AppIconService.options.first);
 
-  String _appIconName(String id) {
-    final o = _appIconOption(id);
-    return LocaleService.instance.isRussian ? o.nameRu : o.nameEn;
-  }
-
-  /// Мини-превью launcher-иконки: «TY» буквами темы на её фоне (как на столе).
-  Widget _appIconPreview(AppIconOption o, {required double size}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: o.background,
-        borderRadius: BorderRadius.circular(size * 0.22),
-        border: Border.all(
-            color: _t.isDark ? _t.cardBorder : Colors.black.withOpacity(0.06)),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'TY',
-        style: TextStyle(
-          fontSize: size * 0.42,
-          height: 1.0,
-          fontWeight: FontWeight.w600,
-          color: o.letters,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  void _showAppIconPicker(BuildContext context) {
-    final isRu = LocaleService.instance.isRussian;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _t.cardSurface,
-      // Иконок больше, чем влезает в дефолтную высоту листа — без этого нижние
-      // ряды обрезались и были недоступны. isScrollControlled + Flexible-скролл.
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _t.divider,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  LocaleService.current.appIconTitle,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  LocaleService.current.appIconUpdateHint,
-                  style: TextStyle(fontSize: 13, color: _t.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        for (final o in AppIconService.options)
-                          _appIconChoice(o, isRu),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _appIconChoice(AppIconOption o, bool isRu) {
-    final selected = o.id == _appIconId;
-    return GestureDetector(
-      onTap: () => _applyAppIcon(o.id),
-      child: SizedBox(
-        width: 84,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                // Индикатор повторяет форму иконки (скруглённый квадрат),
-                // а не круг: внешний радиус = радиус иконки + паддинг.
-                borderRadius: BorderRadius.circular(60 * 0.22 + 3),
-                border: Border.all(
-                  color: selected ? _accent : Colors.transparent,
-                  width: 2.5,
-                ),
-              ),
-              child: _appIconPreview(o, size: 60),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isRu ? o.nameRu : o.nameEn,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _accent : _t.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _applyAppIcon(String id) async {
-    if (id == _appIconId) {
-      Navigator.of(context).maybePop();
-      return;
-    }
-    final ok = await AppIconService.instance.setIcon(id);
-    if (!mounted) return;
-    if (ok) {
-      setState(() => _appIconId = id);
-    }
-    Navigator.of(context).maybePop();
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(LocaleService.current.appIconChangeFailed),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
 
   Widget _infoRow({
     required IconData icon,
@@ -2514,280 +2165,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           ?trailing,
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showGenderPicker(BuildContext context) async {
-    final currentGender = widget.userData.gender;
-    final selectedGender = await showModalBottomSheet<Gender>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _s.gender,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(
-                Icons.male_rounded,
-                color: currentGender == Gender.male ? _accent : _t.textMuted,
-              ),
-              title: Text(
-                _s.male,
-                style: TextStyle(
-                  fontWeight: currentGender == Gender.male
-                      ? FontWeight.w700
-                      : FontWeight.normal,
-                ),
-              ),
-              trailing: currentGender == Gender.male
-                  ? Icon(Icons.check_circle_rounded, color: _accent)
-                  : null,
-              onTap: () => Navigator.pop(context, Gender.male),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.female_rounded,
-                color: currentGender == Gender.female ? _accent : _t.textMuted,
-              ),
-              title: Text(
-                _s.female,
-                style: TextStyle(
-                  fontWeight: currentGender == Gender.female
-                      ? FontWeight.w700
-                      : FontWeight.normal,
-                ),
-              ),
-              trailing: currentGender == Gender.female
-                  ? Icon(Icons.check_circle_rounded, color: _accent)
-                  : null,
-              onTap: () => Navigator.pop(context, Gender.female),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-
-    if (selectedGender != null && selectedGender != currentGender) {
-      if (context.mounted) {
-        await widget.userData.updateProfile(gender: selectedGender);
-
-        final partnerGender =
-            widget.widgetService.firstPartnerData?.gender ?? '';
-        final sysTimer = widget.timerService.systemTimer;
-
-        final uid = widget.userData.uid;
-        if (uid.isNotEmpty && widget.pairData.pairId.isNotEmpty) {
-          try {
-            await PbDataService().upsertWidget(
-              widget.pairData.pairId,
-              uid,
-              {'gender': selectedGender.name},
-            );
-          } catch (e) {
-            debugPrint('Failed to update widgetData gender: $e');
-          }
-        }
-
-        await HomeWidgetService.instance.syncAllBoundWidgets(
-          activeGroupId: widget.pairData.pairId,
-          activeTimers: widget.timerService.timers,
-          activeSysTimer: sysTimer,
-          activeStartDate: widget.pairData.startDate,
-          coupleNames: widget.pairData.partnerName.isNotEmpty
-              ? widget.pairData.partnerName
-              : '',
-          emoji: sysTimer?.emoji ?? widget.pairData.relationshipEmoji,
-          myGender: selectedGender.name,
-          partnerGender: partnerGender,
-          relationshipStatusId: widget.pairData.relationshipStatusId,
-          isRomantic: widget.pairData.relationshipType == RelationshipType.couple ||
-              widget.pairData.relationshipType == RelationshipType.married,
-          themeIndex: widget.userData.themeId,
-        );
-
-        if (mounted) setState(() {});
-      }
-    }
-  }
-
-  // ═══════════════════════════════════════════════════
-  //  RELATIONSHIP STATS (WRAPPED)
-  // ═══════════════════════════════════════════════════
-  Widget _buildStatsCard(BuildContext context) {
-    final daysNum = _calculateDaysTogether(widget.pairData.startDate);
-    final daysString = '$daysNum';
-
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => setState(() => _showStats = !_showStats),
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _s.relationshipStats,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _t.textMuted,
-                    letterSpacing: 3,
-                  ),
-                ),
-                Icon(
-                  _showStats
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: _t.textMuted,
-                ),
-              ],
-            ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOutCubic,
-            child: !_showStats
-                ? const SizedBox.shrink()
-                : Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _statBox(
-                              title: _s.daysTogetherStat,
-                              value: daysString,
-                              icon: Icons.calendar_today_rounded,
-                              color: const Color(0xFFE91E8C),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _statBox(
-                              title: _s.memoriesStat,
-                              value: _memoriesCount?.toString() ?? '...',
-                              icon: Icons.photo_library_rounded,
-                              color: const Color(0xFF3498DB),
-                            ),
-                          ),
-                        ],
-                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1),
-                      const SizedBox(height: 8),
-                      Row(
-                            children: [
-                              Expanded(
-                                child: _statBox(
-                                  title: _s.drawingsStat,
-                                  value: _drawingsCount?.toString() ?? '...',
-                                  icon: Icons.brush_rounded,
-                                  color: const Color(0xFFF39C12),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _statBox(
-                                  title: _s.missYousStat,
-                                  value: _missYouCount?.toString() ?? '...',
-                                  icon: Icons.favorite_rounded,
-                                  color: const Color(0xFF9B59B6),
-                                ),
-                              ),
-                            ],
-                          )
-                          .animate()
-                          .fadeIn(duration: 400.ms, delay: 100.ms)
-                          .slideY(begin: 0.1),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statBox({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              shape: BoxShape.circle,
-              boxShadow: _t.accentGlow(
-                color,
-                opacity: 0.2,
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: _t.textPrimary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: _t.textSecondary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
         ],
       ),
     );
@@ -3524,281 +2901,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ═══════════════════════════════════════════════════
-  //  SUPPORT AUTHORS CARD
-  // ═══════════════════════════════════════════════════
-  /// Блок доната: заголовок, короткий текст и три кнопки во всю ширину —
-  /// Boosty (подписка), DonationAlerts и Lava.top (разовый перевод).
-  Widget _buildSupportCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _accent.withAlpha(25),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _accent.withAlpha(50)),
-        boxShadow: _t.accentGlow(
-          _accent,
-          opacity: 20 / 255,
-          blurRadius: 16,
-          offset: const Offset(0, 4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.volunteer_activism_rounded,
-                color: _accent,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _s.supportAuthors,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: _t.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _s.supportIntro,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.35,
-              color: _t.textMuted,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _supportButton(
-            label: 'Boosty',
-            icon: Icons.favorite_rounded,
-            onPressed: _openBoosty,
-            filled: true,
-          ),
-          const SizedBox(height: 10),
-          _supportButton(
-            label: 'DonationAlerts',
-            icon: Icons.card_giftcard_rounded,
-            onPressed: _openDonationAlerts,
-          ),
-          const SizedBox(height: 10),
-          _supportButton(
-            label: 'Lava.top',
-            icon: Icons.bolt_rounded,
-            onPressed: _openLava,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _supportButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onPressed,
-    bool filled = false,
-  }) {
-    return FilledButton.icon(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: filled ? _accent : _accent.withAlpha(38),
-        foregroundColor: filled ? Colors.white : _accent,
-        padding: EdgeInsets.symmetric(vertical: filled ? 14 : 13),
-        elevation: 0,
-      ),
-      icon: Icon(icon, size: 19),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  //  SETTINGS CARD
-  // ═══════════════════════════════════════════════════
-  Widget _buildSettingsCard(BuildContext context) {
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _s.settings,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _t.textMuted,
-              letterSpacing: 3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _settingsTile(
-            icon: Icons.edit_outlined,
-            label: _s.editProfile,
-            onTap: () => _showEditProfileDialog(context),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.notifications_outlined,
-            label: _s.notifications,
-            onTap: () => _showNotificationSettings(context),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.lock_clock_outlined,
-            label: _s.lockScreenMoodToggle,
-            onTap: () {},
-            trailing: Switch(
-              value: _lockScreenMood,
-              activeColor: _accent,
-              onChanged: (v) async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool(_kLockScreenMood, v);
-                if (mounted) setState(() => _lockScreenMood = v);
-              },
-            ),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.touch_app_outlined,
-            label: _s.sideActionTitle,
-            onTap: _toggleSideAction,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _sideActionIsArrow
-                      ? _s.sideActionOpenFeed
-                      : _s.sideActionCreatePin,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.swap_horiz_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.lock_outline_rounded,
-            label: _s.privacy,
-            onTap: _openPrivacyPolicy,
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.description_outlined,
-            label: _s.termsOfUse,
-            onTap: _openTerms,
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.language_rounded,
-            label: _s.language,
-            onTap: () => _showLanguagePicker(context),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  LocaleService.instance.language == AppLanguage.ru
-                      ? 'RU'
-                      : 'EN',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.archive_outlined,
-            label: _s.exportMemories,
-            onTap: () => _handleExportConfig(context),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.replay_rounded,
-            label: _s.resetMissYouCount,
-            onTap: () => _handleResetMissYouCount(context),
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.mail_outline_rounded,
-            label: _s.supportTitle,
-            onTap: _openSupportMail,
-          ),
-          _divider(),
-          _settingsTile(
-            icon: Icons.info_outline_rounded,
-            label: _s.aboutApp,
-            onTap: _openAboutApp,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _settingsTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Widget? trailing,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, color: _cs.onSurfaceVariant, size: 22),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: _cs.onSurface,
-                ),
-              ),
-            ),
-            trailing ??
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: _cs.onSurfaceVariant,
-                  size: 20,
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
   //  NOTIFICATION SETTINGS
   // ═══════════════════════════════════════════════════
   void _showNotificationSettings(BuildContext context) {
@@ -4231,84 +3333,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ═══════════════════════════════════════════════════
-  //  DANGER ZONE
-  // ═══════════════════════════════════════════════════
-  Widget _buildDangerZone(BuildContext context) {
-    return _glassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FutureBuilder<String>(
-            future: _getAppVersion(),
-            builder: (context, snapshot) {
-              final version = snapshot.data ?? 'unknown';
-              return Text(
-                'Love App v$version',
-                style: TextStyle(fontSize: 12, color: _t.textMuted),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _showLogoutDialog(context),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: _cs.error,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.logout_rounded, color: _cs.onError, size: 20),
-                    const SizedBox(width: 10),
-                    Text(
-                      _s.logout,
-                      style: TextStyle(
-                        fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _cs.onError,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Удаление аккаунта — требование App Store 5.1.1(v). Должно быть
-          // видимым и доступным залогиненному пользователю.
-          GestureDetector(
-            onTap: () => _showDeleteAccountDialog(context),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.delete_forever_rounded,
-                  color: _t.textMuted,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  _s.deleteAccount,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ═══════════════════════════════════════════════════
   //  HELPERS
@@ -4331,174 +3355,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Divider(color: _cs.outlineVariant, height: 1, thickness: 1);
   }
 
-  Widget _buildLevelTasksCard(BuildContext context) {
-    final ru = LocaleService.instance.isRussian;
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => LevelTasksScreen(
-            accent: _accent,
-            accentLight: _accentLight,
-          ),
-        ),
-      ),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: _t.accentGlow(
-            _accent,
-            opacity: 0.08,
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _accentLight,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.emoji_events_rounded, size: 22, color: _accent),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ru ? 'Уровень и задания' : 'Level & tasks',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    ru
-                        ? 'Растите уровень и открывайте маскотов'
-                        : 'Level up and unlock mascots',
-                    style: TextStyle(fontSize: 12, color: _t.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            AnimatedBuilder(
-              animation: LevelService.instance,
-              builder: (context, _) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _accentLight,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  ru
-                      ? 'Ур. ${LevelService.instance.level}'
-                      : 'Lv ${LevelService.instance.level}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: _accent,
-                    height: 1.0,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: _t.textMuted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildCoinShopCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showCoinShop(context),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _accent.withOpacity(0.15)),
-          boxShadow: _t.accentGlow(
-            _accent,
-            opacity: 0.08,
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ),
-        child: Row(
-          children: [
-            Image.asset(
-              'assets/images/icons/coin.webp',
-              width: 38,
-              height: 38,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _s.coinShopTitle,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _s.coinShopSubtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _t.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _accentLight,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${widget.userData.coins}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: _accent,
-                  height: 1.0,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: _t.textMuted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showCoinShop(BuildContext context) {
     // Юзер осознанно открыл магазин коинов — теперь имеет смысл
@@ -4587,16 +3444,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
                     children: [
-                      // ── Тема ─────────────────────────────────────────
-                      _coinShopItem(
-                        icon: Icons.palette_outlined,
-                        title: _s.chooseColorTheme,
-                        subtitle: '${AppThemes.all.where((t) => t.isPremium).length} × ${_s.themeNameLavender}, ${_s.themeNameMidnight}…',
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _showThemePicker(context);
-                        },
-                      ),
+                      // Выбор цветовой схемы отсюда убран: он вёл в старый
+                      // список готовых тем, которого больше нет — палитра и
+                      // насыщенность живут в «Оформлении».
                       // ── Иконки профиля ───────────────────────────────
                       _coinShopItem(
                         icon: Icons.add_reaction_outlined,
@@ -5372,288 +4222,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return true;
   }
 
-  void _showThemePicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          return DraggableScrollableSheet(
-            initialChildSize: 0.75,
-            minChildSize: 0.4,
-            maxChildSize: 0.95,
-            expand: false,
-            builder: (_, scrollController) => Container(
-              decoration: BoxDecoration(
-                color: _t.cardSurface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  // Handle + заголовок (фиксированные)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: _t.divider,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          _s.chooseColorTheme,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: _t.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _s.changesApplyImmediately,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: _t.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                  // Прокручиваемая сетка
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                      child: GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 0.88,
-                        children: List.generate(AppThemes.all.length, (i) {
-                          final t = AppThemes.all[i];
-                          final accent = t.primary;
-                          final isSelected = widget.userData.themeId == i;
-                          final isLocked =
-                              t.isPremium && !widget.userData.hasTheme(i);
-                          return GestureDetector(
-                            onTap: () async {
-                              if (isLocked) {
-                                final result =
-                                    await _confirmPurchaseTheme(context, t);
-                                if (result == false) return; // отмена
-                                if (result == null) {
-                                  // Предпросмотр: закрыть шторку, применить
-                                  // тему временно и перейти на главный экран
-                                  if (ctx.mounted) Navigator.of(ctx).pop();
-                                  widget.userData.setPreviewTheme(t.index);
-                                  widget.onSwitchToHome?.call();
-                                  return;
-                                }
-                                // result == true → тема куплена
-                              }
-                              await widget.userData.setThemeId(i);
-                              // После await шит мог закрыться — setSheet на
-                              // размонтированном StatefulBuilder иначе падает
-                              // (_element! == null внутри setState).
-                              if (ctx.mounted) setSheet(() {});
-                              if (mounted) setState(() {});
-                            },
-                            child: Stack(
-                              children: [
-                                AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              decoration: BoxDecoration(
-                                color: t.primaryLight,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? accent
-                                      : Colors.transparent,
-                                  width: 2.5,
-                                ),
-                                boxShadow: isSelected
-                                    ? _t.accentGlow(
-                                        accent,
-                                        opacity: 0.25,
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
-                                      )
-                                    : [],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // ── Мини-превью карточки ──
-                                  Expanded(
-                                    child: Container(
-                                      margin: const EdgeInsets.fromLTRB(
-                                        10,
-                                        10,
-                                        10,
-                                        6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: t.heroGradient,
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      padding: const EdgeInsets.fromLTRB(
-                                        10,
-                                        8,
-                                        10,
-                                        8,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // Мок число
-                                          Text(
-                                            '365',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w800,
-                                              height: 1.0,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 3),
-                                          // Мок подпись
-                                          Container(
-                                            height: 4,
-                                            width: 36,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(
-                                                0.5,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(2),
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          // Мок тоггле
-                                          Container(
-                                            height: 14,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(
-                                                t.heroGlassOpacity * 0.75,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(7),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  // ── Название + галочка ──
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      12,
-                                      0,
-                                      10,
-                                      10,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            _themeDisplayName(t.index),
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
-                                              color: isSelected
-                                                  ? accent
-                                                  : _t.textSecondary,
-                                            ),
-                                          ),
-                                        ),
-                                        if (isSelected)
-                                          Icon(
-                                            Icons.check_circle_rounded,
-                                            size: 16,
-                                            color: accent,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                                if (isLocked)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _t.cardSurface,
-                                        borderRadius: BorderRadius.circular(22),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.10,
-                                            ),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Image.asset(
-                                            'assets/images/icons/coin.webp',
-                                            width: 22,
-                                            height: 22,
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            '${t.price}',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              height: 1.0,
-                                              fontWeight: FontWeight.w800,
-                                              color: _t.textPrimary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   // ═══════════════════════════════════════════════════
   // Магазин профильных иконок
@@ -6249,302 +4817,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ok;
   }
 
-  void _showEditProfileDialog(BuildContext context) {
-    final nameCtrl = TextEditingController(text: widget.userData.displayName);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final mq = MediaQuery.of(ctx);
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: mq.viewInsets.bottom + mq.viewPadding.bottom,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _t.cardSurface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ── Цветная шапка с градиентом ──
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(24, 20, 16, 20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [_accent, _accent.withOpacity(0.75)],
-                      ),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(28),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        // Аватар с кнопкой смены
-                        GestureDetector(
-                          onTap: () async {
-                            Navigator.pop(ctx);
-                            await _changeAvatar();
-                          },
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withOpacity(0.2),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.6),
-                                    width: 2.5,
-                                  ),
-                                ),
-                                child: widget.userData.avatarUrl.isNotEmpty
-                                    ? ClipOval(
-                                        child: StorageImage(
-                                          imageUrl: widget.userData.avatarUrl,
-                                          fit: BoxFit.cover,
-                                          errorWidget: (_, __, ___) =>
-                                              _buildAvatarFallback(),
-                                        ),
-                                      )
-                                    : _buildAvatarFallback(),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  width: 22,
-                                  height: 22,
-                                  decoration: BoxDecoration(
-                                    color: _t.isDark
-                                        ? _t.cardSurface
-                                        : Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: _accent.withOpacity(0.3),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.camera_alt_rounded,
-                                    color: _accent,
-                                    size: 11,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Имя + подсказка
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _s.editProfile,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.userData.displayName,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Кнопка закрыть
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: Icon(
-                            Icons.close_rounded,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Поля формы ──
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                    child: Column(
-                      children: [
-                        // Имя
-                        TextField(
-                          controller: nameCtrl,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: InputDecoration(
-                            labelText: _s.name,
-                            labelStyle: TextStyle(color: _t.textMuted),
-                            prefixIcon: Icon(
-                              Icons.person_outline_rounded,
-                              color: _accent,
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: _accent.withOpacity(0.04),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: _t.divider,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: _t.divider,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: _accent,
-                                width: 1.8,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Email (только отображение, не редактируется)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _t.surfaceMuted,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _t.divider),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.email_outlined,
-                                color: _t.textMuted,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Email',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: _t.textMuted,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      widget.userData.email.isNotEmpty
-                                          ? widget.userData.email
-                                          : '—',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: _t.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.lock_outline_rounded,
-                                color: _t.textMuted,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Кнопки ──
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + mq.viewPadding.bottom),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _t.textSecondary,
-                              side: BorderSide(color: _t.divider),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Text(
-                              _s.cancel,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final newName = nameCtrl.text.trim();
-                              if (newName.isNotEmpty &&
-                                  newName != widget.userData.displayName) {
-                                await _changeName(newName);
-                              }
-                              if (ctx.mounted) Navigator.pop(ctx);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _accent,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shadowColor: _accent.withOpacity(0.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: Text(
-                              _s.save,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   void _showLogoutDialog(BuildContext context) {
     showDialog(

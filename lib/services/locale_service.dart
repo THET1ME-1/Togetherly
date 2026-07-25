@@ -1091,6 +1091,21 @@ abstract class AppStrings {
   String get tgCountdownMinutes;
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
+  /// Экран настроек, вынесенный из профиля.
+  String get settingsTitle;
+  String get settingsOpen;
+  String get settingsOpenHint;
+  String get settingsAppearanceHint;
+  String get settingsNotificationsHint;
+  String get settingsLockMoodHint;
+  String get settingsDataSection;
+  String get settingsExportHint;
+  String get settingsResetMissHint;
+  String get settingsPrivacyHint;
+  String get settingsCoinsHint;
+  String get settingsSupportHint;
+  String get settingsAccountSection;
+  String get settingsDeleteHint;
   String selectedCount(int n);
   String get selectAll;
   String deleteCanvasesTitle(int n);
@@ -3605,6 +3620,34 @@ class _RuStrings extends AppStrings {
   String get tgSizeHintToday => 'сегодня';
   @override
   String get tgSizeHintWeek => 'неделя';
+  @override
+  String get settingsTitle => 'Настройки';
+  @override
+  String get settingsOpen => 'Настройки';
+  @override
+  String get settingsOpenHint => 'оформление, уведомления, данные';
+  @override
+  String get settingsAppearanceHint => 'тема, палитра, насыщенность';
+  @override
+  String get settingsNotificationsHint => 'что и когда присылать';
+  @override
+  String get settingsLockMoodHint => 'настроение партнёра на экране блокировки';
+  @override
+  String get settingsDataSection => 'Данные';
+  @override
+  String get settingsExportHint => 'сохранить воспоминания файлом';
+  @override
+  String get settingsResetMissHint => 'обнулить счётчики «скучаю»';
+  @override
+  String get settingsPrivacyHint => 'политика конфиденциальности';
+  @override
+  String get settingsCoinsHint => 'баланс, покупки и награды';
+  @override
+  String get settingsSupportHint => 'написать нам';
+  @override
+  String get settingsAccountSection => 'Аккаунт';
+  @override
+  String get settingsDeleteHint => 'вместе со всеми записями, без возврата';
   @override
   String selectedCount(int n) => 'Выбрано $n';
   @override
@@ -6492,6 +6535,34 @@ class _EnStrings extends AppStrings {
   String get tgSizeHintToday => 'today';
   @override
   String get tgSizeHintWeek => 'week';
+  @override
+  String get settingsTitle => 'Settings';
+  @override
+  String get settingsOpen => 'Settings';
+  @override
+  String get settingsOpenHint => 'appearance, notifications, data';
+  @override
+  String get settingsAppearanceHint => 'theme, palette, saturation';
+  @override
+  String get settingsNotificationsHint => 'what to send and when';
+  @override
+  String get settingsLockMoodHint => "partner's mood on the lock screen";
+  @override
+  String get settingsDataSection => 'Data';
+  @override
+  String get settingsExportHint => 'save memories to a file';
+  @override
+  String get settingsResetMissHint => 'reset the miss-you counters';
+  @override
+  String get settingsPrivacyHint => 'privacy policy';
+  @override
+  String get settingsCoinsHint => 'balance, purchases and rewards';
+  @override
+  String get settingsSupportHint => 'write to us';
+  @override
+  String get settingsAccountSection => 'Account';
+  @override
+  String get settingsDeleteHint => 'with every entry, no way back';
   @override
   String selectedCount(int n) => 'Selected $n';
   @override

@@ -1606,10 +1606,6 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
     ];
 
-    // Список нынешних виджетов собираем отдельно: он уезжает в сворачивающийся
-    // блок, чтобы новый каталог не тонул под ним.
-    final legacyItems = _legacyWidgetItems(isPaired, halfTiles);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1653,7 +1649,8 @@ class _WidgetScreenState extends State<WidgetScreen>
           onToggle: () => setState(
             () => _legacySectionExpanded = !_legacySectionExpanded,
           ),
-          children: legacyItems,
+          count: _legacyWidgetCount(isPaired, halfTiles),
+          itemsBuilder: () => _legacyWidgetItems(isPaired, halfTiles),
         ),
         const SizedBox(height: 14),
 
@@ -1667,7 +1664,8 @@ class _WidgetScreenState extends State<WidgetScreen>
           onToggle: () => setState(
             () => _newSectionExpanded = !_newSectionExpanded,
           ),
-          children: _newWidgetItems(isPaired),
+          count: isPaired ? _kNewWidgetCount : 0,
+          itemsBuilder: () => _newWidgetItems(isPaired),
         ),
       ],
     );
@@ -1874,6 +1872,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
 
+  /// Сколько виджетов в новом каталоге — для бейджа раздела, без построения
+  /// карточек. Держать в согласии с [_newWidgetItems].
+  static const int _kNewWidgetCount = 4;
+
   /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
   /// все размеры, состояния и данные — и только потом берётся следующий.
   List<Widget> _newWidgetItems(bool isPaired) {
@@ -1890,19 +1892,19 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintCompact,
             qualifiedName: 'com.togetherly.love.TogetherWidget2x2Provider',
-            preview: _buildTogether2x2Preview(),
+            previewBuilder: () => _buildTogether2x2Preview(),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
-            preview: _buildTogetherPreview(),
+            previewBuilder: () => _buildTogetherPreview(),
           ),
           _WidgetSizeOption(
             label: '4×4',
             hint: _s.tgSizeHintLarge,
             qualifiedName: 'com.togetherly.love.TogetherWidget4x4Provider',
-            preview: _buildTogether4x4Preview(),
+            previewBuilder: () => _buildTogether4x4Preview(),
           ),
         ],
       ),
@@ -1918,19 +1920,19 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintCompact,
             qualifiedName: 'com.togetherly.love.MissWidget2x2Provider',
-            preview: _buildMiss2x2Preview(),
+            previewBuilder: () => _buildMiss2x2Preview(),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
-            preview: _buildMissPreview(),
+            previewBuilder: () => _buildMissPreview(),
           ),
           _WidgetSizeOption(
             label: '4×1',
             hint: _s.tgSizeHintStrip,
             qualifiedName: 'com.togetherly.love.MissWidget4x1Provider',
-            preview: _buildMiss4x1Preview(),
+            previewBuilder: () => _buildMiss4x1Preview(),
           ),
         ],
       ),
@@ -1946,13 +1948,13 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintToday,
             qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
-            preview: _buildMoodTiles2x2Preview(),
+            previewBuilder: () => _buildMoodTiles2x2Preview(),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWeek,
             qualifiedName: 'com.togetherly.love.MoodTilesWidget4x2Provider',
-            preview: _buildMoodTiles4x2Preview(),
+            previewBuilder: () => _buildMoodTiles4x2Preview(),
           ),
         ],
       ),
@@ -1968,13 +1970,13 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintCompact,
             qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
-            preview: _buildCountdown2x2Preview(),
+            previewBuilder: () => _buildCountdown2x2Preview(),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.CountdownWidget4x2Provider',
-            preview: _buildCountdown4x2Preview(),
+            previewBuilder: () => _buildCountdown4x2Preview(),
           ),
         ],
       ),
@@ -3189,6 +3191,27 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   /// Нынешние виджеты рабочего стола — тем же составом, что и раньше, но
   /// собранные списком: секция сворачивает их целиком.
+  /// Сколько карточек в разделе нынешних виджетов — для бейджа.
+  ///
+  /// Считается по тем же условиям, что и [_legacyWidgetItems], но без
+  /// построения: раньше бейдж мерил длину готового списка, и ради числа
+  /// строились все карточки со всеми превью, даже когда раздел свёрнут.
+  /// Условия здесь и в [_legacyWidgetItems] держать в согласии.
+  int _legacyWidgetCount(bool isPaired, List<Widget> halfTiles) {
+    var n = 0;
+    if (!isPaired) n += 1; // баннер «нет пары»
+    if (isPaired) n += 2; // парный виджет и счётчик дней
+    if (halfTiles.isNotEmpty) n += 1; // сетка мелких плиток
+    n += 1; // «Огонёк пары»
+    if (isPaired) n += 2; // таймер и лепестковый таймер
+    if (isPaired || _pair.isSolo) {
+      n += 1; // фото дня
+      if (isPaired) n += 1; // фото партнёра
+    }
+    if (isPaired) n += 1; // настроение
+    return n;
+  }
+
   List<Widget> _legacyWidgetItems(bool isPaired, List<Widget> halfTiles) {
     return [
         // ── 1. Парный виджет ──
@@ -3423,7 +3446,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         ? (_sizeChoice[choiceKey] ?? 0).clamp(0, sizes.length - 1)
         : 0;
     final chosen = hasSizes ? sizes[index] : null;
-    final effectivePreview = chosen?.preview ?? preview;
+    final effectivePreview = chosen != null ? chosen.previewBuilder() : preview;
     final effectiveName = chosen?.qualifiedName ?? qualifiedName;
 
     return _buildGlassCard(
@@ -8178,7 +8201,7 @@ class _WidgetSizeOption {
   const _WidgetSizeOption({
     required this.label,
     required this.qualifiedName,
-    required this.preview,
+    required this.previewBuilder,
     this.hint,
   });
 
@@ -8189,7 +8212,11 @@ class _WidgetSizeOption {
   final String? hint;
 
   final String qualifiedName;
-  final Widget preview;
+
+  /// Построитель превью. Именно функция: карточка собирала превью всех трёх
+  /// размеров разом, а показывала одно — на раскрытии раздела это стоило
+  /// заметной паузы.
+  final Widget Function() previewBuilder;
 }
 
 /// Сворачивающийся раздел каталога виджетов.
@@ -8205,7 +8232,8 @@ class _CollapsibleWidgetSection extends StatelessWidget {
     required this.icon,
     required this.expanded,
     required this.onToggle,
-    required this.children,
+    required this.itemsBuilder,
+    required this.count,
   });
 
   final ColorScheme cs;
@@ -8214,17 +8242,21 @@ class _CollapsibleWidgetSection extends StatelessWidget {
   final IconData icon;
   final bool expanded;
   final VoidCallback onToggle;
-  final List<Widget> children;
+  /// Содержимое строится лениво — только когда раздел раскрыт.
+  ///
+  /// Раньше сюда приходил готовый список, и все карточки со всеми превью
+  /// строились на каждый build, даже у свёрнутого раздела. Раскрытие после
+  /// этого перестраивало полтора десятка превью разом, и приложение заметно
+  /// подвисало.
+  final List<Widget> Function() itemsBuilder;
 
-  /// Число в бейдже — карточки виджетов, без отступов и рекламы. Раньше тут
-  /// стоял `children.length`, и раздел с двумя виджетами показывал «3»:
-  /// разделительный SizedBox считался позицией.
-  int get _cardCount =>
-      children.where((w) => w is! SizedBox && w is! AdBanner).length;
+  /// Число в бейдже. Считается без построения виджетов: карточки, без
+  /// разделительных отступов и рекламы.
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    if (children.isEmpty) return const SizedBox.shrink();
+    if (count == 0) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -8283,7 +8315,7 @@ class _CollapsibleWidgetSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      '$_cardCount',
+                      '$count',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -8303,19 +8335,19 @@ class _CollapsibleWidgetSection extends StatelessWidget {
             ),
           ),
         ),
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity),
-          secondChild: Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            ),
-          ),
-          crossFadeState:
-              expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+        AnimatedSize(
+          alignment: Alignment.topCenter,
           duration: const Duration(milliseconds: 220),
-          sizeCurve: Curves.easeOutCubic,
+          curve: Curves.easeOutCubic,
+          child: expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: itemsBuilder(),
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
         ),
       ],
     );
